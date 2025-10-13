@@ -5,7 +5,9 @@ import {
   TouchableOpacity,
   TextInput,
   ScrollView,
+  Platform,
 } from "react-native";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
 import { ActionButton } from "./action-button";
 import type { TransactionFilters } from "../services/transactions";
@@ -41,11 +43,45 @@ export const FilterBar = ({
   onApplyFilters,
 }: Props) => {
   const [expanded, setExpanded] = useState(false);
+  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
+  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
   const [formFilters, setFormFilters] = useState<FilterForm>({
     ...filters,
     searchInput: filters.search || "",
     accountNameInput: filters.accountName || "",
   });
+
+  // Convert date strings to Date objects for the picker
+  const startDate = formFilters.startDate
+    ? new Date(formFilters.startDate)
+    : new Date();
+  const endDate = formFilters.endDate
+    ? new Date(formFilters.endDate)
+    : new Date();
+
+  const formatDate = (date: Date) => {
+    return date.toISOString().split("T")[0]; // YYYY-MM-DD format
+  };
+
+  const handleStartDateChange = (event: any, selectedDate?: Date) => {
+    setShowStartDatePicker(false);
+    if (selectedDate) {
+      setFormFilters({
+        ...formFilters,
+        startDate: formatDate(selectedDate),
+      });
+    }
+  };
+
+  const handleEndDateChange = (event: any, selectedDate?: Date) => {
+    setShowEndDatePicker(false);
+    if (selectedDate) {
+      setFormFilters({
+        ...formFilters,
+        endDate: formatDate(selectedDate),
+      });
+    }
+  };
 
   return (
     <View className="bg-white rounded-2xl p-3 border border-gray-200 shadow-sm">
@@ -148,31 +184,57 @@ export const FilterBar = ({
               <Text className="text-gray-700 text-sm font-semibold mb-1.5">
                 Start Date
               </Text>
-              <TextInput
-                value={formFilters.startDate ?? ""}
-                onChangeText={(value) =>
-                  setFormFilters({ ...formFilters, startDate: value })
-                }
-                placeholder="YYYY-MM-DD"
-                placeholderTextColor="#9ca3af"
-                className="bg-gray-50 text-gray-900 px-3 py-2.5 rounded-xl border border-gray-200"
-              />
+              <TouchableOpacity
+                onPress={() => setShowStartDatePicker(true)}
+                className="bg-gray-50 px-3 py-2.5 rounded-xl border border-gray-200 flex-row items-center justify-between"
+              >
+                <Text
+                  className={`${
+                    formFilters.startDate ? "text-gray-900" : "text-gray-400"
+                  }`}
+                >
+                  {formFilters.startDate || "Select start date"}
+                </Text>
+                <Ionicons name="calendar-outline" size={16} color="#6b7280" />
+              </TouchableOpacity>
             </View>
             <View className="flex-1">
               <Text className="text-gray-700 text-sm font-semibold mb-1.5">
                 End Date
               </Text>
-              <TextInput
-                value={formFilters.endDate ?? ""}
-                onChangeText={(value) =>
-                  setFormFilters({ ...formFilters, endDate: value })
-                }
-                placeholder="YYYY-MM-DD"
-                placeholderTextColor="#9ca3af"
-                className="bg-gray-50 text-gray-900 px-3 py-2.5 rounded-xl border border-gray-200"
-              />
+              <TouchableOpacity
+                onPress={() => setShowEndDatePicker(true)}
+                className="bg-gray-50 px-3 py-2.5 rounded-xl border border-gray-200 flex-row items-center justify-between"
+              >
+                <Text
+                  className={`${
+                    formFilters.endDate ? "text-gray-900" : "text-gray-400"
+                  }`}
+                >
+                  {formFilters.endDate || "Select end date"}
+                </Text>
+                <Ionicons name="calendar-outline" size={16} color="#6b7280" />
+              </TouchableOpacity>
             </View>
           </View>
+
+          {/* Date Pickers */}
+          {showStartDatePicker && (
+            <DateTimePicker
+              value={startDate}
+              mode="date"
+              display={Platform.OS === "ios" ? "spinner" : "default"}
+              onChange={handleStartDateChange}
+            />
+          )}
+          {showEndDatePicker && (
+            <DateTimePicker
+              value={endDate}
+              mode="date"
+              display={Platform.OS === "ios" ? "spinner" : "default"}
+              onChange={handleEndDateChange}
+            />
+          )}
 
           <View className="flex-row gap-3">
             {showAccountField ? (
