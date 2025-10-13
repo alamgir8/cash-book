@@ -11,16 +11,20 @@ const TabIcon = ({
   label: string;
   focused: boolean;
 }) => (
-  <View className="items-center justify-center px-1.5 py-1 gap-1">
-    <Ionicons
-      name={icon}
-      size={22}
-      color={focused ? "#0f172a" : "#94a3b8"}
-    />
+  <View className="items-center justify-center px-1 py-1 gap-0.5 min-w-[60px]">
+    <View className={`p-1.5 rounded-lg ${focused ? "bg-blue-100" : ""}`}>
+      <Ionicons
+        name={icon}
+        size={20}
+        color={focused ? "#2563eb" : "#64748b"}
+      />
+    </View>
     <Text
-      className={`text-[10px] font-medium ${
-        focused ? "text-slate-900" : "text-slate-400"
+      className={`text-xs font-medium text-center ${
+        focused ? "text-blue-600" : "text-slate-500"
       }`}
+      numberOfLines={1}
+      adjustsFontSizeToFit
     >
       {label}
     </Text>
@@ -36,8 +40,14 @@ export default function AppLayout() {
           backgroundColor: "#ffffff",
           borderTopColor: "#e2e8f0",
           borderTopWidth: 1,
-          paddingVertical: 8,
-          height: 68,
+          paddingVertical: 6,
+          paddingHorizontal: 8,
+          height: 72,
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: -2 },
+          shadowOpacity: 0.05,
+          shadowRadius: 8,
+          elevation: 5,
         },
         tabBarShowLabel: false,
       }}
@@ -57,6 +67,15 @@ export default function AppLayout() {
           title: "Accounts",
           tabBarIcon: ({ focused }) => (
             <TabIcon icon="wallet" label="Accounts" focused={focused} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="transactions"
+        options={{
+          title: "Transactions",
+          tabBarIcon: ({ focused }) => (
+            <TabIcon icon="receipt" label="History" focused={focused} />
           ),
         }}
       />

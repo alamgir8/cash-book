@@ -5,8 +5,8 @@ import { useForm, Controller } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useAuth } from "../../hooks/useAuth";
-import { CustomInput } from "../../components/CustomInput";
-import { CustomButton } from "../../components/CustomButton";
+import { CustomInput } from "../../components/custom-input";
+import { CustomButton } from "../../components/custom-button";
 
 const schema = z.object({
   identifier: z.string().min(2, "Enter your email or phone"),

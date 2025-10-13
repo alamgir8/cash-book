@@ -6,6 +6,8 @@ import Toast from "react-native-toast-message";
 import { useAuth } from "../../hooks/useAuth";
 import { baseURL } from "../../lib/api";
 import { exportTransactionsPdf } from "../../services/reports";
+import { ScreenHeader } from "../../components/screen-header";
+import { ActionButton } from "../../components/action-button";
 
 export default function SettingsScreen() {
   const { state, signOut, refreshProfile } = useAuth();
@@ -26,20 +28,14 @@ export default function SettingsScreen() {
 
   return (
     <View className="flex-1 bg-gradient-to-b from-purple-50 to-gray-50">
-      {/* Enhanced Mobile Header */}
-      <View className="pt-16 pb-6 px-6 bg-white shadow-sm border-b border-gray-100">
-        <View className="flex-row items-center justify-between">
-          <View>
-            <Text className="text-2xl font-bold text-gray-900">Settings</Text>
-            <Text className="text-sm text-gray-600 mt-1">
-              Profile and app preferences
-            </Text>
-          </View>
-          <View className="bg-purple-100 p-3 rounded-full">
-            <Ionicons name="settings" size={24} color="#8b5cf6" />
-          </View>
-        </View>
-      </View>
+      <ScreenHeader
+        title="Settings"
+        subtitle="Profile and app preferences"
+        icon="settings"
+        iconColor="#8b5cf6"
+        gradientFrom="from-purple-100"
+        gradientTo="to-purple-200"
+      />
 
       <ScrollView
         contentContainerStyle={{
@@ -108,34 +104,15 @@ export default function SettingsScreen() {
             </View>
           </View>
 
-          <TouchableOpacity
+          <ActionButton
+            label={exporting ? "Exporting..." : "Export All as PDF"}
             onPress={handleExport}
-            disabled={exporting}
-            className="bg-gradient-to-r from-green-600 to-green-700 rounded-2xl py-4 items-center shadow-lg active:scale-95"
-            style={{
-              shadowColor: "#16a34a",
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.2,
-              shadowRadius: 8,
-              elevation: 6,
-            }}
-          >
-            <View className="flex-row items-center gap-2">
-              {exporting ? (
-                <>
-                  <Ionicons name="download" size={20} color="white" />
-                  <Text className="text-white font-bold">Exporting...</Text>
-                </>
-              ) : (
-                <>
-                  <Ionicons name="cloud-download" size={20} color="white" />
-                  <Text className="text-white font-bold">
-                    Export All as PDF
-                  </Text>
-                </>
-              )}
-            </View>
-          </TouchableOpacity>
+            isLoading={exporting}
+            variant="success"
+            size="large"
+            icon={exporting ? "download" : "cloud-download"}
+            fullWidth
+          />
         </View>
 
         {/* Enhanced App Info Section */}
@@ -174,13 +151,14 @@ export default function SettingsScreen() {
 
         {/* Enhanced Sign Out Section */}
         <View className="bg-white rounded-3xl p-6 border border-red-100 shadow-lg">
-          <TouchableOpacity
+          <ActionButton
+            label="Sign Out"
             onPress={signOut}
-            className="flex-row gap-3 items-center justify-center bg-gradient-to-r from-red-50 to-red-100 border-2 border-red-200 rounded-2xl py-4 active:scale-95"
-          >
-            <Ionicons name="log-out-outline" size={24} color="#dc2626" />
-            <Text className="text-red-600 font-bold text-lg">Sign Out</Text>
-          </TouchableOpacity>
+            variant="danger"
+            size="large"
+            icon="log-out-outline"
+            fullWidth
+          />
         </View>
 
         {/* Bottom spacing for safe area */}

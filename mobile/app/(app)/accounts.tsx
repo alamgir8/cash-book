@@ -21,6 +21,10 @@ import dayjs from "dayjs";
 import Toast from "react-native-toast-message";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { VoiceInputButton } from "../../components/voice-input-button";
+import { ScreenHeader } from "../../components/screen-header";
+import { EmptyState } from "../../components/empty-state";
+import { ActionButton } from "../../components/action-button";
+import { FloatingActionButton } from "../../components/floating-action-button";
 import {
   createAccount,
   fetchAccountsOverview,
@@ -344,34 +348,15 @@ export default function AccountsScreen() {
 
   return (
     <View className="flex-1 bg-slate-50">
-      <SafeAreaView
-        edges={["top"]}
-        className="px-5 pb-4 bg-white border-b border-slate-200 shadow-sm"
-      >
-        <View className="flex-row items-center justify-between">
-          <View className="flex-1">
-            <Text className="text-2xl font-bold text-slate-900">Accounts</Text>
-            <Text className="text-sm text-slate-500 mt-1">
-              Manage your financial accounts
-            </Text>
-          </View>
-          <TouchableOpacity
-            onPress={() => openModal()}
-            className="bg-blue-600 px-4 py-2 rounded-xl shadow-md active:opacity-90"
-            style={{
-              shadowColor: "#2563eb",
-              shadowOffset: { width: 0, height: 3 },
-              shadowOpacity: 0.18,
-              shadowRadius: 6,
-            }}
-          >
-            <View className="flex-row items-center gap-2">
-              <Ionicons name="add" size={18} color="#fff" />
-              <Text className="text-white font-semibold text-sm">Add</Text>
-            </View>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
+      <ScreenHeader
+        title="Accounts"
+        subtitle="Manage your financial accounts"
+        actionButton={{
+          label: "Add",
+          onPress: () => openModal(),
+          icon: "add",
+        }}
+      />
 
       <FlatList
         data={accounts}
@@ -385,34 +370,17 @@ export default function AccountsScreen() {
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={renderHeader}
         ListEmptyComponent={
-          accountsQuery.isLoading ? (
-            <View className="items-center mt-12">
-              <ActivityIndicator color="#16a34a" size="large" />
-              <Text className="text-gray-500 mt-4 text-base">
-                Loading accounts...
-              </Text>
-            </View>
-          ) : (
-            <View className="items-center mt-16 gap-4 bg-white rounded-3xl p-8 mx-2 shadow-sm border border-gray-100">
-              <View className="w-16 h-16 bg-blue-100 rounded-full items-center justify-center">
-                <Ionicons name="wallet-outline" size={32} color="#2563eb" />
-              </View>
-              <Text className="text-gray-800 text-lg font-semibold">
-                No Accounts Yet
-              </Text>
-              <Text className="text-gray-600 text-center text-sm leading-6">
-                Create your first account to start tracking your finances.
-              </Text>
-              <TouchableOpacity
-                onPress={() => openModal()}
-                className="bg-blue-600 px-5 py-2 rounded-full mt-2 active:opacity-90"
-              >
-                <Text className="text-white font-semibold text-sm">
-                  Create Account
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )
+          <EmptyState
+            isLoading={accountsQuery.isLoading}
+            loadingText="Loading accounts..."
+            icon="wallet-outline"
+            title="No Accounts Yet"
+            description="Create your first account to start tracking your finances."
+            actionButton={{
+              label: "Create Account",
+              onPress: () => openModal(),
+            }}
+          />
         }
         renderItem={({ item }) => {
           const lastActivity = item.summary.lastTransactionDate
@@ -703,7 +671,7 @@ export default function AccountsScreen() {
                             onChangeText={onChange}
                             placeholder="Optional details about this account..."
                             placeholderTextColor="#9ca3af"
-                          className="bg-gray-50 text-gray-900 px-4 py-2.5 rounded-xl border border-gray-200 min-h-[80px]"
+                            className="bg-gray-50 text-gray-900 px-4 py-2.5 rounded-xl border border-gray-200 min-h-[80px]"
                             multiline
                             textAlignVertical="top"
                           />
@@ -719,37 +687,17 @@ export default function AccountsScreen() {
 
               {/* Submit Button - Fixed at bottom */}
               <View className="p-6 pt-4 border-t border-gray-100">
-                <TouchableOpacity
+                <ActionButton
+                  label={selectedAccount ? "Update Account" : "Create Account"}
                   onPress={handleSubmit(onSubmit)}
-                  disabled={
+                  isLoading={
                     createMutation.isPending || updateMutation.isPending
                   }
-                  className="bg-blue-500 rounded-2xl py-3 items-center shadow-lg shadow-blue-500/25"
-                  style={{
-                    shadowColor: "#3b82f6",
-                    shadowOffset: { width: 0, height: 4 },
-                    shadowOpacity: 0.2,
-                    shadowRadius: 8,
-                    elevation: 4,
-                  }}
-                >
-                  {createMutation.isPending || updateMutation.isPending ? (
-                    <ActivityIndicator color="white" />
-                  ) : (
-                    <View className="flex-row items-center gap-2">
-                      <Ionicons
-                        name={
-                          selectedAccount ? "checkmark-circle" : "add-circle"
-                        }
-                        size={20}
-                        color="white"
-                      />
-                      <Text className="text-white font-semibold text-sm">
-                        {selectedAccount ? "Update Account" : "Create Account"}
-                      </Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
+                  variant="primary"
+                  size="large"
+                  icon={selectedAccount ? "checkmark-circle" : "add-circle"}
+                  fullWidth
+                />
               </View>
             </View>
           </View>

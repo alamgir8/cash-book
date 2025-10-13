@@ -26,6 +26,9 @@ import { TransactionCard } from "../../components/transaction-card";
 import { VoiceInputButton } from "../../components/voice-input-button";
 import { StatsCards } from "../../components/stats-cards";
 import { QuickActions } from "../../components/quick-actions";
+import { ScreenHeader } from "../../components/screen-header";
+import { EmptyState } from "../../components/empty-state";
+import { FloatingActionButton } from "../../components/floating-action-button";
 import { exportTransactionsPdf } from "../../services/reports";
 import {
   createTransaction,
@@ -272,20 +275,11 @@ export default function DashboardScreen() {
 
   return (
     <View className="flex-1 bg-gradient-to-b from-blue-50 to-gray-50">
-      {/* Modern Header */}
-      <View className="pt-16 pb-6 px-6 bg-white shadow-sm border-b border-gray-100">
-        <View className="flex-row items-center justify-between">
-          <View>
-            <Text className="text-2xl font-bold text-gray-900">Dashboard</Text>
-            <Text className="text-sm text-gray-600 mt-1">
-              Track your finances easily
-            </Text>
-          </View>
-          <View className="bg-blue-100 p-3 rounded-full">
-            <Ionicons name="analytics" size={24} color="#1d4ed8" />
-          </View>
-        </View>
-      </View>
+      <ScreenHeader
+        title="Dashboard"
+        subtitle="Track your finances easily"
+        icon="analytics"
+      />
 
       <FlatList
         data={(transactionsQuery.data as any)?.transactions ?? []}
@@ -315,44 +309,25 @@ export default function DashboardScreen() {
               </Text>
             </View>
           ) : (
-            <View className="items-center mt-12 gap-4 bg-white rounded-3xl p-8 mx-2 shadow-sm border border-gray-100">
-              <View className="w-20 h-20 bg-gradient-to-br from-blue-100 to-blue-200 rounded-full items-center justify-center">
-                <Ionicons name="receipt-outline" size={36} color="#1d4ed8" />
-              </View>
-              <Text className="text-gray-700 text-center font-semibold text-lg">
-                No transactions yet
-              </Text>
-              <Text className="text-gray-500 text-center text-base leading-relaxed">
-                Start tracking your finances by adding your first transaction
-              </Text>
-              <TouchableOpacity
-                onPress={() => setModalVisible(true)}
-                className="bg-blue-600 px-6 py-3 rounded-full mt-2"
-              >
-                <Text className="text-white font-semibold text-base">
-                  Add Transaction
-                </Text>
-              </TouchableOpacity>
-            </View>
+            <EmptyState
+              icon="receipt-outline"
+              title="No transactions yet"
+              description="Start tracking your finances by adding your first transaction"
+              actionButton={{
+                label: "Add Transaction",
+                onPress: () => setModalVisible(true),
+              }}
+            />
           )
         }
         renderItem={({ item }) => <TransactionCard transaction={item} />}
       />
 
-      {/* Enhanced Mobile-Friendly FAB */}
-      <TouchableOpacity
+      <FloatingActionButton
         onPress={() => setModalVisible(true)}
-        className="absolute right-6 bottom-32 bg-gradient-to-r from-blue-600 to-blue-700 w-16 h-16 rounded-2xl items-center justify-center shadow-xl border-2 border-white"
-        style={{
-          shadowColor: "#1d4ed8",
-          shadowOffset: { width: 0, height: 8 },
-          shadowOpacity: 0.3,
-          shadowRadius: 20,
-          elevation: 12,
-        }}
-      >
-        <Ionicons name="add" size={32} color="white" />
-      </TouchableOpacity>
+        icon="add"
+        position="bottom-right"
+      />
 
       <Modal visible={isModalVisible} transparent animationType="slide">
         <KeyboardAvoidingView
