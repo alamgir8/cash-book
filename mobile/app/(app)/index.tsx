@@ -268,6 +268,14 @@ export default function DashboardScreen() {
         <FilterBar
           filters={filters}
           onChange={(next) => setFilters((prev) => ({ ...prev, ...next }))}
+          onApplyFilters={() => transactionsQuery.refetch()}
+          onReset={() => {
+            setFilters({
+              range: "daily",
+              page: 1,
+            });
+            transactionsQuery.refetch();
+          }}
         />
       </View>
     );

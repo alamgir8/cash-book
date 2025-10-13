@@ -38,9 +38,7 @@ export function EmptyState({
 
   return (
     <View className="items-center mt-12 gap-4 bg-white rounded-3xl p-8 mx-2 shadow-sm border border-gray-100">
-      <View
-        className={`w-20 h-20 bg-gradient-to-br ${gradientFrom} ${gradientTo} rounded-full items-center justify-center`}
-      >
+      <View className="w-20 h-20 bg-blue-100 rounded-full items-center justify-center">
         <Ionicons name={icon} size={36} color={iconColor} />
       </View>
       <Text className="text-gray-800 text-xl font-bold">{title}</Text>

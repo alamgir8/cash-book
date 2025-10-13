@@ -47,7 +47,7 @@ export function ScreenHeader({
         {actionButton && (
           <TouchableOpacity
             onPress={actionButton.onPress}
-            className={`px-5 py-3 rounded-2xl shadow-lg ${
+            className={`px-5 py-3 rounded-2xl bg-emerald-500 shadow-lg ${
               actionButton.color === "green"
                 ? "bg-gradient-to-r from-green-600 to-green-700"
                 : "bg-gradient-to-r from-blue-600 to-blue-700"

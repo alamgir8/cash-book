@@ -109,7 +109,7 @@ export default function SettingsScreen() {
             onPress={handleExport}
             isLoading={exporting}
             variant="success"
-            size="large"
+            size="medium"
             icon={exporting ? "download" : "cloud-download"}
             fullWidth
           />
@@ -155,7 +155,7 @@ export default function SettingsScreen() {
             label="Sign Out"
             onPress={signOut}
             variant="danger"
-            size="large"
+            size="medium"
             icon="log-out-outline"
             fullWidth
           />

@@ -13,11 +13,7 @@ const TabIcon = ({
 }) => (
   <View className="items-center justify-center px-1 py-1 gap-0.5 min-w-[60px]">
     <View className={`p-1.5 rounded-lg ${focused ? "bg-blue-100" : ""}`}>
-      <Ionicons
-        name={icon}
-        size={20}
-        color={focused ? "#2563eb" : "#64748b"}
-      />
+      <Ionicons name={icon} size={20} color={focused ? "#2563eb" : "#64748b"} />
     </View>
     <Text
       className={`text-xs font-medium text-center ${
@@ -86,6 +82,12 @@ export default function AppLayout() {
           tabBarIcon: ({ focused }) => (
             <TabIcon icon="settings" label="Settings" focused={focused} />
           ),
+        }}
+      />
+      <Tabs.Screen
+        name="accounts/[accountId]"
+        options={{
+          href: null, // This hides the dynamic route from tabs
         }}
       />
     </Tabs>

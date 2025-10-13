@@ -7,6 +7,7 @@ import {
   ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { ActionButton } from "./action-button";
 import type { TransactionFilters } from "../services/transactions";
 
 const ranges = [
@@ -22,6 +23,13 @@ type Props = {
   showAccountField?: boolean;
   showTypeToggle?: boolean;
   onReset?: () => void;
+  onApplyFilters?: () => void;
+};
+
+// Internal state for form inputs
+type FilterForm = TransactionFilters & {
+  searchInput?: string;
+  accountNameInput?: string;
 };
 
 export const FilterBar = ({
@@ -30,8 +38,14 @@ export const FilterBar = ({
   showAccountField = true,
   showTypeToggle = false,
   onReset,
+  onApplyFilters,
 }: Props) => {
   const [expanded, setExpanded] = useState(false);
+  const [formFilters, setFormFilters] = useState<FilterForm>({
+    ...filters,
+    searchInput: filters.search || "",
+    accountNameInput: filters.accountName || "",
+  });
 
   return (
     <View className="bg-white rounded-2xl p-3 border border-gray-200 shadow-sm">
@@ -135,9 +149,9 @@ export const FilterBar = ({
                 Start Date
               </Text>
               <TextInput
-                value={filters.startDate ?? ""}
+                value={formFilters.startDate ?? ""}
                 onChangeText={(value) =>
-                  onChange({ ...filters, startDate: value })
+                  setFormFilters({ ...formFilters, startDate: value })
                 }
                 placeholder="YYYY-MM-DD"
                 placeholderTextColor="#9ca3af"
@@ -149,9 +163,9 @@ export const FilterBar = ({
                 End Date
               </Text>
               <TextInput
-                value={filters.endDate ?? ""}
+                value={formFilters.endDate ?? ""}
                 onChangeText={(value) =>
-                  onChange({ ...filters, endDate: value })
+                  setFormFilters({ ...formFilters, endDate: value })
                 }
                 placeholder="YYYY-MM-DD"
                 placeholderTextColor="#9ca3af"
@@ -167,9 +181,9 @@ export const FilterBar = ({
                   Account Name
                 </Text>
                 <TextInput
-                  value={filters.accountName ?? ""}
+                  value={formFilters.accountNameInput ?? ""}
                   onChangeText={(value) =>
-                    onChange({ ...filters, accountName: value, page: 1 })
+                    setFormFilters({ ...formFilters, accountNameInput: value })
                   }
                   placeholder="Search account..."
                   placeholderTextColor="#9ca3af"
@@ -186,10 +200,12 @@ export const FilterBar = ({
               </Text>
               <View className="flex-row gap-2">
                 <TextInput
-                  value={filters.minAmount ? String(filters.minAmount) : ""}
+                  value={
+                    formFilters.minAmount ? String(formFilters.minAmount) : ""
+                  }
                   onChangeText={(value) =>
-                    onChange({
-                      ...filters,
+                    setFormFilters({
+                      ...formFilters,
                       minAmount: value ? Number(value) : undefined,
                     })
                   }
@@ -199,17 +215,19 @@ export const FilterBar = ({
                   className="flex-1 bg-gray-50 text-gray-900 px-3 py-2.5 rounded-xl border border-gray-200"
                 />
                 <TextInput
-                  value={filters.maxAmount ? String(filters.maxAmount) : ""}
+                  value={
+                    formFilters.maxAmount ? String(formFilters.maxAmount) : ""
+                  }
                   onChangeText={(value) =>
-                    onChange({
-                      ...filters,
+                    setFormFilters({
+                      ...formFilters,
                       maxAmount: value ? Number(value) : undefined,
                     })
                   }
                   keyboardType="numeric"
                   placeholder="Max"
                   placeholderTextColor="#9ca3af"
-                className="flex-1 bg-gray-50 text-gray-900 px-3 py-2.5 rounded-xl border border-gray-200"
+                  className="flex-1 bg-gray-50 text-gray-900 px-3 py-2.5 rounded-xl border border-gray-200"
                 />
               </View>
             </View>
@@ -220,9 +238,9 @@ export const FilterBar = ({
               Search Keywords
             </Text>
             <TextInput
-              value={filters.search ?? ""}
+              value={formFilters.searchInput ?? ""}
               onChangeText={(value) =>
-                onChange({ ...filters, search: value, page: 1 })
+                setFormFilters({ ...formFilters, searchInput: value })
               }
               placeholder="Search description or comments..."
               placeholderTextColor="#9ca3af"
@@ -230,17 +248,44 @@ export const FilterBar = ({
             />
           </View>
 
-          {onReset ? (
-            <TouchableOpacity
-              onPress={onReset}
-              className="self-start px-3 py-1.5 rounded-full border border-gray-200 bg-gray-50 flex-row items-center gap-2"
-            >
-              <Ionicons name="refresh" size={14} color="#3b82f6" />
-              <Text className="text-sm font-semibold text-blue-600">
-                Reset Filters
-              </Text>
-            </TouchableOpacity>
-          ) : null}
+          {/* Action Buttons */}
+          <View className="flex-row gap-3 pt-2">
+            <ActionButton
+              label="Apply Filters"
+              onPress={() => {
+                const updatedFilters = {
+                  ...formFilters,
+                  search: formFilters.searchInput,
+                  accountName: formFilters.accountNameInput,
+                  page: 1,
+                };
+                onChange(updatedFilters);
+                onApplyFilters?.();
+              }}
+              variant="primary"
+              size="medium"
+              icon="checkmark"
+            />
+
+            {onReset && (
+              <ActionButton
+                label="Reset"
+                onPress={() => {
+                  const resetFilters = {
+                    range: "daily",
+                    page: 1,
+                    searchInput: "",
+                    accountNameInput: "",
+                  };
+                  setFormFilters(resetFilters);
+                  onReset();
+                }}
+                variant="outline"
+                size="medium"
+                icon="refresh"
+              />
+            )}
+          </View>
         </View>
       ) : null}
     </View>

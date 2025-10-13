@@ -356,6 +356,7 @@ export default function AccountsScreen() {
           onPress: () => openModal(),
           icon: "add",
         }}
+        icon="analytics"
       />
 
       <FlatList
