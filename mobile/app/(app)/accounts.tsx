@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -16,13 +16,16 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import dayjs from "dayjs";
 import Toast from "react-native-toast-message";
 import { VoiceInputButton } from "../../components/voice-input-button";
 import {
   createAccount,
-  fetchAccounts,
+  fetchAccountsOverview,
   updateAccount,
   type Account,
+  type AccountOverview,
 } from "../../services/accounts";
 import { queryKeys } from "../../lib/queryKeys";
 
@@ -34,6 +37,13 @@ const schema = z.object({
 });
 
 type FormValues = z.infer<typeof schema>;
+
+const DEFAULT_FORM_VALUES: FormValues = {
+  name: "",
+  type: "debit",
+  description: "",
+  createdViaVoice: false,
+};
 
 const parseVoiceForAccount = (transcript: string): Partial<FormValues> => {
   const lower = transcript.toLowerCase();
@@ -65,26 +75,45 @@ export default function AccountsScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
 
-  const defaultValues: FormValues = {
-    name: "",
-    type: "debit",
-    description: "",
-    createdViaVoice: false,
-  };
+  const router = useRouter();
+  const params = useLocalSearchParams<{ accountId?: string }>();
 
   const accountsQuery = useQuery({
-    queryKey: queryKeys.accounts,
-    queryFn: fetchAccounts,
+    queryKey: queryKeys.accountsOverview,
+    queryFn: fetchAccountsOverview,
   });
+
+  const invalidateAccountData = async (accountId?: string) => {
+    const tasks: Promise<unknown>[] = [
+      queryClient.invalidateQueries({ queryKey: queryKeys.accounts }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.accountsOverview }),
+    ];
+
+    if (accountId) {
+      tasks.push(
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.accountDetail(accountId),
+        })
+      );
+      tasks.push(
+        queryClient.invalidateQueries({
+          queryKey: ["account", accountId],
+          exact: false,
+        })
+      );
+    }
+
+    await Promise.all(tasks);
+  };
 
   const createMutation = useMutation({
     mutationFn: createAccount,
     onSuccess: async () => {
       Toast.show({ type: "success", text1: "Account added" });
-      await queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
+      await invalidateAccountData();
       setModalVisible(false);
       setSelectedAccount(null);
-      reset(defaultValues);
+      reset({ ...DEFAULT_FORM_VALUES });
     },
   });
 
@@ -92,10 +121,10 @@ export default function AccountsScreen() {
     mutationFn: updateAccount,
     onSuccess: async () => {
       Toast.show({ type: "success", text1: "Account updated" });
-      await queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
+      await invalidateAccountData(selectedAccount?._id);
       setModalVisible(false);
       setSelectedAccount(null);
-      reset(defaultValues);
+      reset({ ...DEFAULT_FORM_VALUES });
     },
   });
 
@@ -107,12 +136,20 @@ export default function AccountsScreen() {
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues,
+    defaultValues: { ...DEFAULT_FORM_VALUES },
   });
 
-  const openModal = (account?: Account) => {
+  const openModal = useCallback(
+    (account?: Account | AccountOverview) => {
     if (account) {
-      setSelectedAccount(account);
+      const baseAccount: Account = {
+        _id: account._id,
+        name: account.name,
+        type: account.type,
+        description: account.description,
+        balance: account.balance,
+      };
+      setSelectedAccount(baseAccount);
       reset({
         name: account.name,
         type: account.type,
@@ -120,10 +157,12 @@ export default function AccountsScreen() {
       });
     } else {
       setSelectedAccount(null);
-      reset(defaultValues);
+      reset({ ...DEFAULT_FORM_VALUES });
     }
-    setModalVisible(true);
-  };
+      setModalVisible(true);
+    },
+    [reset]
+  );
 
   const onSubmit = async (values: FormValues) => {
     try {
@@ -153,6 +192,157 @@ export default function AccountsScreen() {
       setValue(key as keyof FormValues, value as never, { shouldDirty: true });
     });
   };
+
+  useEffect(() => {
+    const accountParam = Array.isArray(params.accountId)
+      ? params.accountId[0]
+      : params.accountId;
+
+    if (!accountParam || !accountsQuery.data) {
+      return;
+    }
+
+    const target = accountsQuery.data.find(
+      (account) => account._id === accountParam
+    );
+    if (target) {
+      openModal(target);
+      router.replace("/(app)/accounts");
+    }
+  }, [params.accountId, accountsQuery.data, openModal, router]);
+
+  const accounts = useMemo(
+    () => accountsQuery.data ?? [],
+    [accountsQuery.data]
+  );
+
+  const totals = useMemo(() => {
+    const aggregate = {
+      totalAccounts: accounts.length,
+      totalDebit: 0,
+      totalCredit: 0,
+      netBalance: 0,
+      totalTransactions: 0,
+      lastActivity: null as Date | null,
+    };
+
+    accounts.forEach((account) => {
+      aggregate.totalDebit += account.summary.totalDebit ?? 0;
+      aggregate.totalCredit += account.summary.totalCredit ?? 0;
+      aggregate.netBalance += account.balance ?? 0;
+      aggregate.totalTransactions += account.summary.totalTransactions ?? 0;
+
+      if (account.summary.lastTransactionDate) {
+        const activityDate = new Date(account.summary.lastTransactionDate);
+        if (
+          !aggregate.lastActivity ||
+          activityDate > aggregate.lastActivity
+        ) {
+          aggregate.lastActivity = activityDate;
+        }
+      }
+    });
+
+    return aggregate;
+  }, [accounts]);
+
+  const formatAmount = (value: number) =>
+    `$${value.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+  const formatSignedAmount = (value: number) => {
+    const base = formatAmount(Math.abs(value));
+    return `${value >= 0 ? "+" : "-"}${base}`;
+  };
+
+  const lastActivityLabel = totals.lastActivity
+    ? dayjs(totals.lastActivity).format("MMM D, YYYY")
+    : "No activity yet";
+  const netPositive = totals.netBalance >= 0;
+
+  const renderHeader = () => (
+    <View className="gap-4 mb-2">
+      <View className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+        <View className="flex-row items-center justify-between">
+          <Text className="text-gray-900 text-lg font-bold">
+            Portfolio Overview
+          </Text>
+          <View className="px-3 py-1 rounded-full bg-blue-50">
+            <Text className="text-blue-600 text-xs font-semibold">
+              {totals.totalAccounts} Accounts
+            </Text>
+          </View>
+        </View>
+
+        <View className="flex-row gap-3 mt-4">
+          <View className="flex-1 bg-green-50 rounded-xl p-4 border border-green-100">
+            <Text className="text-xs font-semibold text-green-700 uppercase">
+              Total Credit
+            </Text>
+            <Text className="text-2xl font-bold text-green-700 mt-2">
+              {formatAmount(totals.totalCredit)}
+            </Text>
+            <Text className="text-xs text-green-600 mt-1">
+              Across all accounts
+            </Text>
+          </View>
+          <View className="flex-1 bg-red-50 rounded-xl p-4 border border-red-100">
+            <Text className="text-xs font-semibold text-red-700 uppercase">
+              Total Debit
+            </Text>
+            <Text className="text-2xl font-bold text-red-700 mt-2">
+              {formatAmount(totals.totalDebit)}
+            </Text>
+            <Text className="text-xs text-red-600 mt-1">Overall spending</Text>
+          </View>
+        </View>
+
+        <View className="flex-row gap-3 mt-3">
+          <View
+            className={`flex-1 rounded-xl p-4 border ${
+              netPositive
+                ? "bg-emerald-50 border-emerald-100"
+                : "bg-rose-50 border-rose-100"
+            }`}
+          >
+            <Text
+              className={`text-xs font-semibold uppercase ${
+                netPositive ? "text-emerald-700" : "text-rose-700"
+              }`}
+            >
+              Net Balance
+            </Text>
+            <Text
+              className={`text-2xl font-bold mt-2 ${
+                netPositive ? "text-emerald-700" : "text-rose-700"
+              }`}
+            >
+              {formatAmount(Math.abs(totals.netBalance))}
+            </Text>
+            <Text className="text-xs text-gray-500 mt-1">
+              {netPositive ? "Surplus across accounts" : "Outstanding balance"}
+            </Text>
+          </View>
+          <View className="flex-1 bg-indigo-50 rounded-xl p-4 border border-indigo-100">
+            <Text className="text-xs font-semibold text-indigo-700 uppercase">
+              Transactions
+            </Text>
+            <Text className="text-2xl font-bold text-indigo-700 mt-2">
+              {totals.totalTransactions}
+            </Text>
+            <Text className="text-xs text-indigo-600 mt-1">
+              Last activity: {lastActivityLabel}
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      <Text className="text-gray-500 text-sm font-semibold uppercase tracking-wide px-1">
+        Accounts
+      </Text>
+    </View>
+  );
 
   return (
     <View className="flex-1 bg-gray-50">
@@ -185,9 +375,10 @@ export default function AccountsScreen() {
       </View>
 
       <FlatList
-        data={accountsQuery.data ?? []}
+        data={accounts}
         keyExtractor={(item) => item._id}
         contentContainerStyle={{ padding: 20, gap: 16 }}
+        ListHeaderComponent={renderHeader}
         ListEmptyComponent={
           accountsQuery.isLoading ? (
             <ActivityIndicator color="#3b82f6" style={{ marginTop: 48 }} />
@@ -211,66 +402,149 @@ export default function AccountsScreen() {
             </View>
           )
         }
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            onPress={() => openModal(item)}
-            className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm"
-            style={{
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 1 },
-              shadowOpacity: 0.05,
-              shadowRadius: 4,
-              elevation: 2,
-            }}
-          >
-            <View className="flex-row justify-between items-start">
-              <View className="flex-1 mr-4">
-                <View className="flex-row items-center gap-3">
-                  <View
-                    className={`w-4 h-4 rounded-full ${
-                      item.type === "credit" ? "bg-green-500" : "bg-blue-500"
-                    }`}
-                  />
+        renderItem={({ item }) => {
+          const lastActivity = item.summary.lastTransactionDate
+            ? dayjs(item.summary.lastTransactionDate).format("MMM D, YYYY")
+            : "No activity yet";
+          const netFlow =
+            (item.summary.totalCredit ?? 0) - (item.summary.totalDebit ?? 0);
+          const netFlowPositive = netFlow >= 0;
+
+          return (
+            <View
+              className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm"
+              style={{
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 1 },
+                shadowOpacity: 0.05,
+                shadowRadius: 4,
+                elevation: 2,
+              }}
+            >
+              <View className="flex-row justify-between items-start">
+                <View className="flex-1 mr-4">
                   <Text className="text-gray-900 text-xl font-bold">
                     {item.name}
                   </Text>
+                  <View className="flex-row items-center gap-2 mt-2">
+                    <View
+                      className={`px-3 py-1 rounded-full ${
+                        item.type === "credit"
+                          ? "bg-green-50 border border-green-200"
+                          : "bg-blue-50 border border-blue-200"
+                      }`}
+                    >
+                      <Text
+                        className={`text-xs font-bold uppercase ${
+                          item.type === "credit"
+                            ? "text-green-700"
+                            : "text-blue-600"
+                        }`}
+                      >
+                        {item.type} Account
+                      </Text>
+                    </View>
+                    <Text className="text-xs text-gray-500">
+                      Last activity: {lastActivity}
+                    </Text>
+                  </View>
                 </View>
-                <View
-                  className={`px-3 py-1 rounded-full mt-2 self-start ${
-                    item.type === "credit" ? "bg-green-50" : "bg-blue-50"
-                  }`}
-                >
+                <View className="items-end">
+                  <Text className="text-gray-500 text-xs font-medium uppercase">
+                    Balance
+                  </Text>
                   <Text
-                    className={`text-xs font-bold uppercase ${
-                      item.type === "credit"
-                        ? "text-green-700"
-                        : "text-blue-700"
+                    className={`text-2xl font-bold ${
+                      item.balance >= 0 ? "text-emerald-600" : "text-rose-600"
                     }`}
                   >
-                    {item.type} Account
+                    {formatAmount(Math.abs(item.balance))}
                   </Text>
                 </View>
               </View>
-              <View className="items-end">
-                <Text className="text-gray-500 text-sm font-medium">
-                  Balance
+
+              {item.description ? (
+                <Text className="text-gray-600 text-sm mt-4 leading-5">
+                  {item.description}
                 </Text>
-                <Text
-                  className={`text-2xl font-bold ${
-                    item.balance >= 0 ? "text-green-600" : "text-red-600"
+              ) : null}
+
+              <View className="flex-row gap-3 mt-4">
+                <View className="flex-1 bg-blue-50 rounded-xl p-3 border border-blue-100">
+                  <Text className="text-xs font-semibold text-blue-600 uppercase">
+                    Total Credit
+                  </Text>
+                  <Text className="text-lg font-bold text-blue-700 mt-1">
+                    {formatAmount(item.summary.totalCredit ?? 0)}
+                  </Text>
+                </View>
+                <View className="flex-1 bg-amber-50 rounded-xl p-3 border border-amber-100">
+                  <Text className="text-xs font-semibold text-amber-600 uppercase">
+                    Total Debit
+                  </Text>
+                  <Text className="text-lg font-bold text-amber-700 mt-1">
+                    {formatAmount(item.summary.totalDebit ?? 0)}
+                  </Text>
+                </View>
+              </View>
+
+              <View className="flex-row gap-3 mt-3">
+                <View className="flex-1 bg-gray-50 rounded-xl p-3 border border-gray-200">
+                  <Text className="text-xs font-semibold text-gray-500 uppercase">
+                    Transactions
+                  </Text>
+                  <Text className="text-lg font-bold text-gray-700 mt-1">
+                    {item.summary.totalTransactions}
+                  </Text>
+                </View>
+                <View
+                  className={`flex-1 rounded-xl p-3 border ${
+                    netFlowPositive
+                      ? "bg-emerald-50 border-emerald-100"
+                      : "bg-rose-50 border-rose-100"
                   }`}
                 >
-                  ${Math.abs(item.balance).toFixed(2)}
-                </Text>
+                  <Text
+                    className={`text-xs font-semibold uppercase ${
+                      netFlowPositive ? "text-emerald-600" : "text-rose-600"
+                    }`}
+                  >
+                    Net Flow
+                  </Text>
+                  <Text
+                    className={`text-lg font-bold mt-1 ${
+                      netFlowPositive ? "text-emerald-600" : "text-rose-600"
+                    }`}
+                  >
+                    {formatSignedAmount(netFlow)}
+                  </Text>
+                </View>
+              </View>
+
+              <View className="flex-row gap-3 mt-4">
+                <TouchableOpacity
+                  onPress={() =>
+                    router.push({
+                      pathname: "/(app)/accounts/[accountId]",
+                      params: { accountId: item._id },
+                    } as any)
+                  }
+                  className="flex-1 flex-row items-center justify-center gap-2 bg-blue-500 rounded-xl py-3"
+                >
+                  <Ionicons name="time-outline" size={18} color="#fff" />
+                  <Text className="text-white font-semibold">View History</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => openModal(item)}
+                  className="flex-1 flex-row items-center justify-center gap-2 border border-gray-200 rounded-xl py-3 bg-gray-50"
+                >
+                  <Ionicons name="pencil" size={18} color="#334155" />
+                  <Text className="text-gray-700 font-semibold">Edit</Text>
+                </TouchableOpacity>
               </View>
             </View>
-            {item.description ? (
-              <Text className="text-gray-600 text-sm mt-4 leading-5">
-                {item.description}
-              </Text>
-            ) : null}
-          </TouchableOpacity>
-        )}
+          );
+        }}
       />
 
       <Modal visible={modalVisible} transparent animationType="slide">

@@ -19,9 +19,18 @@ const ranges = [
 type Props = {
   filters: TransactionFilters;
   onChange: (filters: TransactionFilters) => void;
+  showAccountField?: boolean;
+  showTypeToggle?: boolean;
+  onReset?: () => void;
 };
 
-export const FilterBar = ({ filters, onChange }: Props) => {
+export const FilterBar = ({
+  filters,
+  onChange,
+  showAccountField = true,
+  showTypeToggle = false,
+  onReset,
+}: Props) => {
   const [expanded, setExpanded] = useState(false);
 
   return (
@@ -68,6 +77,56 @@ export const FilterBar = ({ filters, onChange }: Props) => {
         </TouchableOpacity>
       </ScrollView>
 
+      {showTypeToggle ? (
+        <View className="flex-row gap-2 mt-4">
+          {[
+            { label: "All", value: undefined },
+            { label: "Credit", value: "credit" as const },
+            { label: "Debit", value: "debit" as const },
+          ].map((option) => {
+            const isActive =
+              option.value === undefined
+                ? !filters.type
+                : filters.type === option.value;
+            return (
+              <TouchableOpacity
+                key={option.label}
+                onPress={() =>
+                  onChange({
+                    ...filters,
+                    type: option.value,
+                    page: 1,
+                  })
+                }
+                className={`flex-1 py-2 rounded-full border-2 ${
+                  isActive
+                    ? option.value === "credit"
+                      ? "border-green-500 bg-green-50"
+                      : option.value === "debit"
+                      ? "border-red-500 bg-red-50"
+                      : "border-blue-500 bg-blue-50"
+                    : "border-gray-200 bg-gray-50"
+                }`}
+              >
+                <Text
+                  className={`text-center text-sm font-semibold ${
+                    isActive
+                      ? option.value === "credit"
+                        ? "text-green-700"
+                        : option.value === "debit"
+                        ? "text-red-600"
+                        : "text-blue-700"
+                      : "text-gray-600"
+                  }`}
+                >
+                  {option.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      ) : null}
+
       {expanded ? (
         <View className="mt-4 gap-4">
           <View className="flex-row gap-3">
@@ -102,20 +161,22 @@ export const FilterBar = ({ filters, onChange }: Props) => {
           </View>
 
           <View className="flex-row gap-3">
-            <View className="flex-1">
-              <Text className="text-gray-700 text-sm font-semibold mb-2">
-                Account Name
-              </Text>
-              <TextInput
-                value={filters.accountName ?? ""}
-                onChangeText={(value) =>
-                  onChange({ ...filters, accountName: value, page: 1 })
-                }
-                placeholder="Search account..."
-                placeholderTextColor="#9ca3af"
-                className="bg-gray-50 text-gray-900 px-3 py-3 rounded-xl border border-gray-200"
-              />
-            </View>
+            {showAccountField ? (
+              <View className="flex-1">
+                <Text className="text-gray-700 text-sm font-semibold mb-2">
+                  Account Name
+                </Text>
+                <TextInput
+                  value={filters.accountName ?? ""}
+                  onChangeText={(value) =>
+                    onChange({ ...filters, accountName: value, page: 1 })
+                  }
+                  placeholder="Search account..."
+                  placeholderTextColor="#9ca3af"
+                  className="bg-gray-50 text-gray-900 px-3 py-3 rounded-xl border border-gray-200"
+                />
+              </View>
+            ) : null}
           </View>
 
           <View className="flex-row gap-3">
@@ -168,6 +229,18 @@ export const FilterBar = ({ filters, onChange }: Props) => {
               className="bg-gray-50 text-gray-900 px-3 py-3 rounded-xl border border-gray-200"
             />
           </View>
+
+          {onReset ? (
+            <TouchableOpacity
+              onPress={onReset}
+              className="self-start px-4 py-2 rounded-full border border-gray-200 bg-gray-50 flex-row items-center gap-2"
+            >
+              <Ionicons name="refresh" size={14} color="#3b82f6" />
+              <Text className="text-sm font-semibold text-blue-600">
+                Reset Filters
+              </Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
       ) : null}
     </View>

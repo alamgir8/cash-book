@@ -8,7 +8,13 @@ export const exportTransactionsPdf = async (filters: Record<string, unknown> = {
     params: filters
   });
 
-  const fileUri = `${FileSystem.cacheDirectory}transactions-report-${Date.now()}.pdf`;
+  const cacheBase =
+    (FileSystem as unknown as { cacheDirectory?: string }).cacheDirectory ??
+    FileSystem.Paths?.cache?.uri ??
+    FileSystem.Paths?.document?.uri ??
+    '';
+
+  const fileUri = `${cacheBase}transactions-report-${Date.now()}.pdf`;
 
   const headers: Record<string, string> = {};
   if (api.defaults.headers.common.Authorization) {

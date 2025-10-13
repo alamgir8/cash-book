@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios, { AxiosHeaders, type AxiosRequestHeaders } from "axios";
 import Constants from "expo-constants";
 import { NativeModules } from "react-native";
 
@@ -87,9 +87,19 @@ export const setAuthToken = (token?: string) => {
 
 api.interceptors.request.use((config) => {
   if (currentToken) {
-    config.headers = config.headers ?? {};
-    if (!config.headers.Authorization) {
-      config.headers.Authorization = `Bearer ${currentToken}`;
+    if (!config.headers) {
+      config.headers = new AxiosHeaders();
+    }
+    if (config.headers instanceof AxiosHeaders) {
+      if (!config.headers.has("Authorization")) {
+        config.headers.set("Authorization", `Bearer ${currentToken}`);
+      }
+    } else {
+      const headers = config.headers as Record<string, unknown>;
+      if (headers.Authorization == null) {
+        (headers as Record<string, string>).Authorization = `Bearer ${currentToken}`;
+      }
+      config.headers = headers as AxiosRequestHeaders;
     }
   }
   return config;
