@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -6,23 +6,28 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
-} from 'react-native';
-import { useForm, Controller } from 'react-hook-form';
-import { z } from 'zod';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { Ionicons } from '@expo/vector-icons';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import Toast from 'react-native-toast-message';
-import { VoiceInputButton } from '../../components/voice-input-button';
-import { createAccount, fetchAccounts, updateAccount, type Account } from '../../services/accounts';
-import { queryKeys } from '../../lib/queryKeys';
+  View,
+} from "react-native";
+import { useForm, Controller } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Ionicons } from "@expo/vector-icons";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import Toast from "react-native-toast-message";
+import { VoiceInputButton } from "../../components/voice-input-button";
+import {
+  createAccount,
+  fetchAccounts,
+  updateAccount,
+  type Account,
+} from "../../services/accounts";
+import { queryKeys } from "../../lib/queryKeys";
 
 const schema = z.object({
-  name: z.string().min(2, 'Account name is required'),
-  type: z.enum(['debit', 'credit']),
+  name: z.string().min(2, "Account name is required"),
+  type: z.enum(["debit", "credit"]),
   description: z.string().optional(),
-  createdViaVoice: z.boolean().optional()
+  createdViaVoice: z.boolean().optional(),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -31,20 +36,22 @@ const parseVoiceForAccount = (transcript: string): Partial<FormValues> => {
   const lower = transcript.toLowerCase();
   const parsed: Partial<FormValues> = {
     description: transcript,
-    createdViaVoice: true
+    createdViaVoice: true,
   };
 
-  const nameMatch = transcript.match(/account (named|called)? ([a-zA-Z0-9 ]+)/i);
+  const nameMatch = transcript.match(
+    /account (named|called)? ([a-zA-Z0-9 ]+)/i
+  );
   if (nameMatch) {
     parsed.name = nameMatch[2].trim();
   } else {
-    parsed.name = transcript.split(' account')[0] || transcript;
+    parsed.name = transcript.split(" account")[0] || transcript;
   }
 
-  if (lower.includes('debit')) {
-    parsed.type = 'debit';
-  } else if (lower.includes('credit')) {
-    parsed.type = 'credit';
+  if (lower.includes("debit")) {
+    parsed.type = "debit";
+  } else if (lower.includes("credit")) {
+    parsed.type = "credit";
   }
 
   return parsed;
@@ -56,37 +63,37 @@ export default function AccountsScreen() {
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
 
   const defaultValues: FormValues = {
-    name: '',
-    type: 'debit',
-    description: '',
-    createdViaVoice: false
+    name: "",
+    type: "debit",
+    description: "",
+    createdViaVoice: false,
   };
 
   const accountsQuery = useQuery({
     queryKey: queryKeys.accounts,
-    queryFn: fetchAccounts
+    queryFn: fetchAccounts,
   });
 
   const createMutation = useMutation({
     mutationFn: createAccount,
     onSuccess: async () => {
-      Toast.show({ type: 'success', text1: 'Account added' });
+      Toast.show({ type: "success", text1: "Account added" });
       await queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
       setModalVisible(false);
       setSelectedAccount(null);
       reset(defaultValues);
-    }
+    },
   });
 
   const updateMutation = useMutation({
     mutationFn: updateAccount,
     onSuccess: async () => {
-      Toast.show({ type: 'success', text1: 'Account updated' });
+      Toast.show({ type: "success", text1: "Account updated" });
       await queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
       setModalVisible(false);
       setSelectedAccount(null);
       reset(defaultValues);
-    }
+    },
   });
 
   const {
@@ -94,10 +101,10 @@ export default function AccountsScreen() {
     handleSubmit,
     reset,
     setValue,
-    formState: { errors }
+    formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues
+    defaultValues,
   });
 
   const openModal = (account?: Account) => {
@@ -106,7 +113,7 @@ export default function AccountsScreen() {
       reset({
         name: account.name,
         type: account.type,
-        description: account.description ?? ''
+        description: account.description ?? "",
       });
     } else {
       setSelectedAccount(null);
@@ -121,11 +128,14 @@ export default function AccountsScreen() {
         name: values.name,
         type: values.type,
         description: values.description,
-        createdViaVoice: values.createdViaVoice
+        createdViaVoice: values.createdViaVoice,
       };
       if (selectedAccount) {
         const { createdViaVoice, ...updatePayload } = payload;
-        await updateMutation.mutateAsync({ accountId: selectedAccount._id, ...updatePayload });
+        await updateMutation.mutateAsync({
+          accountId: selectedAccount._id,
+          ...updatePayload,
+        });
       } else {
         await createMutation.mutateAsync(payload);
       }
@@ -181,8 +191,12 @@ export default function AccountsScreen() {
           >
             <View className="flex-row justify-between items-center">
               <View>
-                <Text className="text-white text-lg font-semibold">{item.name}</Text>
-                <Text className="text-slate-400 text-xs mt-1 uppercase">{item.type}</Text>
+                <Text className="text-white text-lg font-semibold">
+                  {item.name}
+                </Text>
+                <Text className="text-slate-400 text-xs mt-1 uppercase">
+                  {item.type}
+                </Text>
               </View>
               <View className="items-end">
                 <Text className="text-slate-500 text-xs">Balance</Text>
@@ -192,7 +206,9 @@ export default function AccountsScreen() {
               </View>
             </View>
             {item.description ? (
-              <Text className="text-slate-400 text-sm mt-3">{item.description}</Text>
+              <Text className="text-slate-400 text-sm mt-3">
+                {item.description}
+              </Text>
             ) : null}
           </TouchableOpacity>
         )}
@@ -203,7 +219,7 @@ export default function AccountsScreen() {
           <View className="bg-slate-950 rounded-t-3xl p-6 gap-4">
             <View className="flex-row justify-between items-center">
               <Text className="text-white text-xl font-semibold">
-                {selectedAccount ? 'Edit account' : 'Create account'}
+                {selectedAccount ? "Edit account" : "Create account"}
               </Text>
               <TouchableOpacity onPress={() => setModalVisible(false)}>
                 <Ionicons name="close" size={24} color="#94a3b8" />
@@ -212,7 +228,9 @@ export default function AccountsScreen() {
 
             <View className="gap-4">
               <View>
-                <Text className="text-slate-400 text-xs mb-1">Account name</Text>
+                <Text className="text-slate-400 text-xs mb-1">
+                  Account name
+                </Text>
                 <Controller
                   control={control}
                   name="name"
@@ -227,7 +245,9 @@ export default function AccountsScreen() {
                   )}
                 />
                 {errors.name ? (
-                  <Text className="text-red-400 text-sm mt-1">{errors.name.message}</Text>
+                  <Text className="text-red-400 text-sm mt-1">
+                    {errors.name.message}
+                  </Text>
                 ) : null}
               </View>
 
@@ -238,19 +258,21 @@ export default function AccountsScreen() {
                   name="type"
                   render={({ field: { value, onChange } }) => (
                     <View className="flex-row gap-2">
-                      {(['debit', 'credit'] as const).map((option) => (
+                      {(["debit", "credit"] as const).map((option) => (
                         <TouchableOpacity
                           key={option}
                           onPress={() => onChange(option)}
                           className={`flex-1 py-2 rounded-xl border ${
                             value === option
-                              ? 'border-accent bg-accent/20'
-                              : 'border-slate-800 bg-slate-900'
+                              ? "border-accent bg-accent/20"
+                              : "border-slate-800 bg-slate-900"
                           }`}
                         >
                           <Text
                             className={`text-center font-medium ${
-                              value === option ? 'text-accent' : 'text-slate-200'
+                              value === option
+                                ? "text-accent"
+                                : "text-slate-200"
                             }`}
                           >
                             {option.toUpperCase()}
@@ -269,7 +291,7 @@ export default function AccountsScreen() {
                   name="description"
                   render={({ field: { value, onChange } }) => (
                     <TextInput
-                      value={value || ''}
+                      value={value || ""}
                       onChangeText={onChange}
                       placeholder="Optional details about this account"
                       placeholderTextColor="#64748b"
@@ -291,7 +313,7 @@ export default function AccountsScreen() {
                   <ActivityIndicator color="#0f172a" />
                 ) : (
                   <Text className="text-primary font-semibold text-base">
-                    {selectedAccount ? 'Update account' : 'Save account'}
+                    {selectedAccount ? "Update account" : "Save account"}
                   </Text>
                 )}
               </TouchableOpacity>

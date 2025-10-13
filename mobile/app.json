@@ -10,7 +10,7 @@
     "splash": {
       "resizeMode": "contain",
       "backgroundColor": "#ffffff",
-      "image": "./assets/splash.png"
+      "image": "./image/splash.png"
     },
     "ios": {
       "supportsTablet": true,
@@ -19,13 +19,21 @@
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#ffffff",
-        "foregroundImage": "./assets/icon.png"
+        "foregroundImage": "./image/icon.png"
       },
       "package": "com.cashbook.app"
     },
     "web": {
       "bundler": "metro"
     },
-    "plugins": ["expo-router", "expo-secure-store", "expo-font"]
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-font",
+      "expo-asset"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
   }
 }

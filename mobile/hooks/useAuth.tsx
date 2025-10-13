@@ -5,13 +5,13 @@ import {
   useEffect,
   useMemo,
   useState,
-  type ReactNode
-} from 'react';
-import * as SecureStore from 'expo-secure-store';
-import Toast from 'react-native-toast-message';
-import { api, setAuthToken } from '../lib/api';
+  type ReactNode,
+} from "react";
+import * as SecureStore from "expo-secure-store";
+import Toast from "react-native-toast-message";
+import { api, setAuthToken } from "../lib/api";
 
-const STORAGE_TOKEN_KEY = 'debit-credit-token';
+const STORAGE_TOKEN_KEY = "debit-credit-token";
 
 type Admin = {
   _id: string;
@@ -21,9 +21,9 @@ type Admin = {
 };
 
 type AuthState =
-  | { status: 'loading'; user: null; token: null }
-  | { status: 'unauthenticated'; user: null; token: null }
-  | { status: 'authenticated'; user: Admin; token: string };
+  | { status: "loading"; user: null; token: null }
+  | { status: "unauthenticated"; user: null; token: null }
+  | { status: "authenticated"; user: Admin; token: string };
 
 type Credentials = {
   identifier: string;
@@ -53,9 +53,9 @@ type AuthProviderProps = {
 
 export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [state, setState] = useState<AuthState>({
-    status: 'loading',
+    status: "loading",
     user: null,
-    token: null
+    token: null,
   });
 
   const bootstrap = useCallback(async () => {
@@ -63,18 +63,18 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       const token = await SecureStore.getItemAsync(STORAGE_TOKEN_KEY);
       if (!token) {
         setAuthToken();
-        setState({ status: 'unauthenticated', user: null, token: null });
+        setState({ status: "unauthenticated", user: null, token: null });
         return;
       }
 
       setAuthToken(token);
-      const { data } = await api.get('/auth/me');
-      setState({ status: 'authenticated', token, user: data.admin });
+      const { data } = await api.get("/auth/me");
+      setState({ status: "authenticated", token, user: data.admin });
     } catch (error) {
-      console.warn('Failed to bootstrap session', error);
+      console.warn("Failed to bootstrap session", error);
       setAuthToken();
       await SecureStore.deleteItemAsync(STORAGE_TOKEN_KEY);
-      setState({ status: 'unauthenticated', user: null, token: null });
+      setState({ status: "unauthenticated", user: null, token: null });
     }
   }, []);
 
@@ -83,38 +83,38 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   }, [bootstrap]);
 
   const signIn = useCallback(async ({ identifier, password }: Credentials) => {
-    const { data } = await api.post('/auth/login', { identifier, password });
+    const { data } = await api.post("/auth/login", { identifier, password });
     setAuthToken(data.token);
     await SecureStore.setItemAsync(STORAGE_TOKEN_KEY, data.token);
-    setState({ status: 'authenticated', token: data.token, user: data.admin });
-    Toast.show({ type: 'success', text1: 'Welcome back!' });
+    setState({ status: "authenticated", token: data.token, user: data.admin });
+    Toast.show({ type: "success", text1: "Welcome back!" });
   }, []);
 
   const signUp = useCallback(async (payload: SignupPayload) => {
-    const { data } = await api.post('/auth/signup', payload);
+    const { data } = await api.post("/auth/signup", payload);
     setAuthToken(data.token);
     await SecureStore.setItemAsync(STORAGE_TOKEN_KEY, data.token);
-    setState({ status: 'authenticated', token: data.token, user: data.admin });
-    Toast.show({ type: 'success', text1: 'Account created' });
+    setState({ status: "authenticated", token: data.token, user: data.admin });
+    Toast.show({ type: "success", text1: "Account created" });
   }, []);
 
   const signOut = useCallback(async () => {
     setAuthToken();
     await SecureStore.deleteItemAsync(STORAGE_TOKEN_KEY);
-    setState({ status: 'unauthenticated', user: null, token: null });
+    setState({ status: "unauthenticated", user: null, token: null });
   }, []);
 
   const refreshProfile = useCallback(async () => {
-    if (state.status !== 'authenticated') return;
+    if (state.status !== "authenticated") return;
     try {
-      const { data } = await api.get('/auth/me');
+      const { data } = await api.get("/auth/me");
       setState((prev) =>
-        prev.status === 'authenticated'
+        prev.status === "authenticated"
           ? { ...prev, user: data.admin }
-          : { status: 'unauthenticated', user: null, token: null }
+          : { status: "unauthenticated", user: null, token: null }
       );
     } catch (error) {
-      console.warn('Failed to refresh profile', error);
+      console.warn("Failed to refresh profile", error);
     }
   }, [state.status]);
 
@@ -124,7 +124,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       signIn,
       signUp,
       signOut,
-      refreshProfile
+      refreshProfile,
     }),
     [state, signIn, signUp, signOut, refreshProfile]
   );
@@ -135,7 +135,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
-    throw new Error('useAuth must be used within AuthProvider');
+    throw new Error("useAuth must be used within AuthProvider");
   }
   return context;
 };
