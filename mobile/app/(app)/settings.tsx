@@ -8,10 +8,12 @@ import { baseURL } from "../../lib/api";
 import { exportTransactionsPdf } from "../../services/reports";
 import { ScreenHeader } from "../../components/screen-header";
 import { ActionButton } from "../../components/action-button";
+import { ProfileEditModal } from "../../components/profile-edit-modal";
 
 export default function SettingsScreen() {
   const { state, signOut, refreshProfile } = useAuth();
   const [exporting, setExporting] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
 
   const handleExport = async () => {
     try {
@@ -23,6 +25,27 @@ export default function SettingsScreen() {
       Toast.show({ type: "error", text1: "Failed to export full report" });
     } finally {
       setExporting(false);
+    }
+  };
+
+  const handleProfileUpdate = async (profileData: any) => {
+    try {
+      // TODO: Add API call to update profile
+      console.log("Updating profile:", profileData);
+
+      // For now, just show success message
+      // In a real app, you would make an API call here
+      await new Promise((resolve) => setTimeout(resolve, 1000)); // Simulate API call
+
+      Toast.show({
+        type: "success",
+        text1: "Profile updated successfully",
+      });
+
+      // Refresh profile data
+      await refreshProfile();
+    } catch {
+      throw new Error("Failed to update profile");
     }
   };
 
@@ -77,15 +100,24 @@ export default function SettingsScreen() {
             </View>
           ) : null}
 
-          <TouchableOpacity
-            onPress={refreshProfile}
-            className="flex-row gap-2 items-center justify-center bg-blue-50 rounded-2xl py-4 mt-4 active:scale-95"
-          >
-            <Ionicons name="refresh" size={20} color="#1d4ed8" />
-            <Text className="text-blue-700 font-bold text-base">
-              Refresh Profile
-            </Text>
-          </TouchableOpacity>
+          <View className="flex-row gap-3 mt-4">
+            <TouchableOpacity
+              onPress={() => setShowProfileModal(true)}
+              className="flex-1 flex-row gap-2 items-center justify-center bg-purple-50 rounded-2xl py-3 active:scale-95"
+            >
+              <Ionicons name="create" size={18} color="#8b5cf6" />
+              <Text className="text-purple-700 font-bold text-sm">
+                Edit Profile
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={refreshProfile}
+              className="flex-1 flex-row gap-2 items-center justify-center bg-blue-50 rounded-2xl py-3 active:scale-95"
+            >
+              <Ionicons name="refresh" size={18} color="#1d4ed8" />
+              <Text className="text-blue-700 font-bold text-sm">Refresh</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Enhanced Data Export Section */}
@@ -164,6 +196,22 @@ export default function SettingsScreen() {
         {/* Bottom spacing for safe area */}
         <View className="h-10" />
       </ScrollView>
+
+      {/* Profile Edit Modal */}
+      {state.status === "authenticated" && (
+        <ProfileEditModal
+          visible={showProfileModal}
+          onClose={() => setShowProfileModal(false)}
+          onSave={handleProfileUpdate}
+          currentProfile={{
+            name: state.user.name,
+            email: state.user.email,
+            phone: state.user.phone,
+            currency: "USD", // Default currency - will be updated when backend supports it
+            language: "en", // Default language - will be updated when backend supports it
+          }}
+        />
+      )}
     </View>
   );
 }

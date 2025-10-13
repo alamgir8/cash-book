@@ -37,6 +37,7 @@ import {
 } from "../../services/transactions";
 import { fetchAccounts, type Account } from "../../services/accounts";
 import { queryKeys } from "../../lib/queryKeys";
+import { usePreferences } from "../../hooks/usePreferences";
 
 const transactionSchema = z.object({
   accountId: z.string().min(1, "Select an account"),
@@ -96,6 +97,7 @@ const parseVoiceTranscript = (
 };
 
 export default function DashboardScreen() {
+  const { formatAmount } = usePreferences();
   const queryClient = useQueryClient();
   const [filters, setFilters] = useState<TransactionFilters>(defaultFilters);
   const [isModalVisible, setModalVisible] = useState(false);
@@ -570,8 +572,7 @@ export default function DashboardScreen() {
                     {currentAmount > 0 ? (
                       <View className="bg-blue-50 rounded-xl p-3 border border-blue-100">
                         <Text className="text-blue-700 text-sm font-medium text-center">
-                          💰 Amount Preview: $
-                          {Math.round(currentAmount).toLocaleString()}
+                          💰 Amount Preview: {formatAmount(currentAmount)}
                         </Text>
                       </View>
                     ) : null}

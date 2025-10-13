@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import Toast from "react-native-toast-message";
 import { AuthProvider, useAuth } from "../hooks/useAuth";
+import { PreferencesProvider } from "../hooks/usePreferences";
 import "../global.css";
 
 SplashScreen.preventAutoHideAsync().catch(() => {
@@ -54,7 +55,9 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
-          <RootContent />
+          <PreferencesProvider>
+            <RootContent />
+          </PreferencesProvider>
         </AuthProvider>
       </QueryClientProvider>
     </GestureHandlerRootView>

@@ -1,12 +1,14 @@
 import { View, Text } from "react-native";
 import dayjs from "dayjs";
 import type { Transaction } from "../services/transactions";
+import { usePreferences } from "../hooks/usePreferences";
 
 type Props = {
   transaction: Transaction;
 };
 
 export const TransactionCard = ({ transaction }: Props) => {
+  const { formatAmount } = usePreferences();
   const isCredit = transaction.type === "credit";
   const amountColor = isCredit ? "text-green-600" : "text-red-600";
 
@@ -30,8 +32,8 @@ export const TransactionCard = ({ transaction }: Props) => {
         </View>
         <View className="items-end">
           <Text className={`text-xl font-bold ${amountColor}`}>
-            {isCredit ? "+" : "-"}$
-            {Math.round(transaction.amount).toLocaleString()}
+            {isCredit ? "+" : "-"}
+            {formatAmount(transaction.amount)}
           </Text>
           <View
             className={`px-2 py-1 rounded-full ${

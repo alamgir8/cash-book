@@ -33,6 +33,7 @@ import {
   type AccountOverview,
 } from "../../services/accounts";
 import { queryKeys } from "../../lib/queryKeys";
+import { usePreferences } from "../../hooks/usePreferences";
 
 const schema = z.object({
   name: z.string().min(2, "Account name is required"),
@@ -76,6 +77,7 @@ const parseVoiceForAccount = (transcript: string): Partial<FormValues> => {
 };
 
 export default function AccountsScreen() {
+  const { formatAmount: prefFormatAmount } = usePreferences();
   const queryClient = useQueryClient();
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
@@ -248,10 +250,9 @@ export default function AccountsScreen() {
     return aggregate;
   }, [accounts]);
 
-  const formatAmount = (value: number) =>
-    `$${Math.round(value).toLocaleString()}`;
+  const formatAmount = (value: number) => prefFormatAmount(value);
   const formatSignedAmount = (value: number) => {
-    const base = formatAmount(Math.abs(value));
+    const base = prefFormatAmount(Math.abs(value));
     return `${value >= 0 ? "+" : "-"}${base}`;
   };
 

@@ -1,5 +1,6 @@
 import { View, Text } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { usePreferences } from "../hooks/usePreferences";
 
 type StatCardProps = {
   title: string;
