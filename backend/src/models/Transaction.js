@@ -1,54 +1,54 @@
-import mongoose from 'mongoose';
+import mongoose from "mongoose";
 
 const transactionSchema = new mongoose.Schema(
   {
     admin: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Admin',
+      ref: "Admin",
       required: true,
-      index: true
+      index: true,
     },
     account: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Account',
-      required: true
+      ref: "Account",
+      required: true,
     },
     type: {
       type: String,
-      enum: ['debit', 'credit'],
-      required: true
+      enum: ["debit", "credit"],
+      required: true,
     },
     amount: {
       type: Number,
       required: true,
-      min: 0
+      min: 0,
     },
     date: {
       type: Date,
       default: () => new Date(),
-      index: true
+      index: true,
     },
     description: {
       type: String,
-      trim: true
+      trim: true,
     },
     comment: {
       type: String,
-      trim: true
+      trim: true,
     },
     createdViaVoice: {
       type: Boolean,
-      default: false
+      default: false,
     },
     balanceAfterTransaction: {
-      type: Number
-    }
+      type: Number,
+    },
   },
   {
-    timestamps: true
+    timestamps: true,
   }
 );
 
 transactionSchema.index({ admin: 1, account: 1, date: -1 });
 
-export const Transaction = mongoose.model('Transaction', transactionSchema);
+export const Transaction = mongoose.model("Transaction", transactionSchema);

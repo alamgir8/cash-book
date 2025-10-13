@@ -1,10 +1,10 @@
-import dayjs from 'dayjs';
-import { Account } from '../models/Account.js';
-import { Transaction } from '../models/Transaction.js';
-import { buildTransactionFilters } from '../utils/filters.js';
+import dayjs from "dayjs";
+import { Account } from "../models/Account.js";
+import { Transaction } from "../models/Transaction.js";
+import { buildTransactionFilters } from "../utils/filters.js";
 
 const applyBalanceDelta = async ({ account, amount, type }) => {
-  const delta = type === 'credit' ? amount : -amount;
+  const delta = type === "credit" ? amount : -amount;
   account.balance = (account.balance || 0) + delta;
   await account.save();
   return account.balance;
@@ -14,7 +14,7 @@ export const listTransactions = async (req, res, next) => {
   try {
     const filter = buildTransactionFilters({
       adminId: req.user.id,
-      query: req.query
+      query: req.query,
     });
 
     const page = Number(req.query.page) || 1;
@@ -24,13 +24,13 @@ export const listTransactions = async (req, res, next) => {
     if (req.query.accountName) {
       const accounts = await Account.find({
         admin: req.user.id,
-        name: { $regex: req.query.accountName, $options: 'i' }
-      }).select('_id');
+        name: { $regex: req.query.accountName, $options: "i" },
+      }).select("_id");
 
       if (accounts.length === 0) {
         return res.json({
           transactions: [],
-          pagination: { page, limit, total: 0, pages: 0 }
+          pagination: { page, limit, total: 0, pages: 0 },
         });
       }
 
@@ -39,11 +39,11 @@ export const listTransactions = async (req, res, next) => {
 
     const [transactions, total] = await Promise.all([
       Transaction.find(filter)
-        .populate('account', 'name type')
+        .populate("account", "name type")
         .sort({ date: -1 })
         .skip(skip)
         .limit(limit),
-      Transaction.countDocuments(filter)
+      Transaction.countDocuments(filter),
     ]);
 
     res.json({
@@ -52,8 +52,8 @@ export const listTransactions = async (req, res, next) => {
         page,
         limit,
         total,
-        pages: Math.ceil(total / limit) || 1
-      }
+        pages: Math.ceil(total / limit) || 1,
+      },
     });
   } catch (error) {
     next(error);
@@ -69,19 +69,22 @@ export const createTransaction = async (req, res, next) => {
       date,
       description,
       comment,
-      createdViaVoice
+      createdViaVoice,
     } = req.body;
 
-    const account = await Account.findOne({ _id: accountId, admin: req.user.id });
+    const account = await Account.findOne({
+      _id: accountId,
+      admin: req.user.id,
+    });
     if (!account) {
-      return res.status(404).json({ message: 'Account not found' });
+      return res.status(404).json({ message: "Account not found" });
     }
 
     let txnDate = new Date();
-    if (typeof date === 'string' && date.trim().length > 0) {
+    if (typeof date === "string" && date.trim().length > 0) {
       const parsed = dayjs(date.trim());
       if (!parsed.isValid()) {
-        return res.status(400).json({ message: 'Invalid transaction date' });
+        return res.status(400).json({ message: "Invalid transaction date" });
       }
       txnDate = parsed.toDate();
     }
@@ -94,7 +97,7 @@ export const createTransaction = async (req, res, next) => {
       date: txnDate,
       description,
       comment,
-      createdViaVoice: Boolean(createdViaVoice)
+      createdViaVoice: Boolean(createdViaVoice),
     });
 
     const balanceAfter = await applyBalanceDelta({ account, amount, type });
@@ -113,38 +116,37 @@ export const updateTransaction = async (req, res, next) => {
 
     const transaction = await Transaction.findOne({
       _id: transactionId,
-      admin: req.user.id
+      admin: req.user.id,
     });
 
     if (!transaction) {
-      return res.status(404).json({ message: 'Transaction not found' });
+      return res.status(404).json({ message: "Transaction not found" });
     }
 
-    const account = await Account.findOne({ _id: transaction.account, admin: req.user.id });
+    const account = await Account.findOne({
+      _id: transaction.account,
+      admin: req.user.id,
+    });
     if (!account) {
-      return res.status(404).json({ message: 'Account not found' });
+      return res.status(404).json({ message: "Account not found" });
     }
 
     // revert previous balance impact
     await applyBalanceDelta({
       account,
       amount: transaction.amount,
-      type: transaction.type === 'credit' ? 'debit' : 'credit'
+      type: transaction.type === "credit" ? "debit" : "credit",
     });
 
-    const {
-      accountId,
-      type,
-      amount,
-      date,
-      description,
-      comment
-    } = req.body;
+    const { accountId, type, amount, date, description, comment } = req.body;
 
     if (accountId && accountId !== account._id.toString()) {
-      const newAccount = await Account.findOne({ _id: accountId, admin: req.user.id });
+      const newAccount = await Account.findOne({
+        _id: accountId,
+        admin: req.user.id,
+      });
       if (!newAccount) {
-        return res.status(404).json({ message: 'Target account not found' });
+        return res.status(404).json({ message: "Target account not found" });
       }
       transaction.account = newAccount._id;
     }
@@ -157,12 +159,12 @@ export const updateTransaction = async (req, res, next) => {
       transaction.amount = amount;
     }
 
-    if (typeof date === 'string') {
+    if (typeof date === "string") {
       const trimmed = date.trim();
       if (trimmed.length > 0) {
         const parsed = dayjs(trimmed);
         if (!parsed.isValid()) {
-          return res.status(400).json({ message: 'Invalid transaction date' });
+          return res.status(400).json({ message: "Invalid transaction date" });
         }
         transaction.date = parsed.toDate();
       }
@@ -176,11 +178,14 @@ export const updateTransaction = async (req, res, next) => {
       transaction.comment = comment;
     }
 
-    const updatedAccount = await Account.findOne({ _id: transaction.account, admin: req.user.id });
+    const updatedAccount = await Account.findOne({
+      _id: transaction.account,
+      admin: req.user.id,
+    });
     const balanceAfter = await applyBalanceDelta({
       account: updatedAccount,
       amount: transaction.amount,
-      type: transaction.type
+      type: transaction.type,
     });
 
     transaction.balanceAfterTransaction = balanceAfter;

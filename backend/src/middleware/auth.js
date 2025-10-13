@@ -1,11 +1,13 @@
-import jwt from 'jsonwebtoken';
+import jwt from "jsonwebtoken";
 
 export const authenticate = (req, res, next) => {
   const authHeader = req.headers.authorization;
-  const token = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
+  const token = authHeader?.startsWith("Bearer ")
+    ? authHeader.split(" ")[1]
+    : null;
 
   if (!token) {
-    return res.status(401).json({ message: 'Authentication token missing' });
+    return res.status(401).json({ message: "Authentication token missing" });
   }
 
   try {
@@ -13,6 +15,6 @@ export const authenticate = (req, res, next) => {
     req.user = payload;
     return next();
   } catch (error) {
-    return res.status(401).json({ message: 'Invalid or expired token' });
+    return res.status(401).json({ message: "Invalid or expired token" });
   }
 };

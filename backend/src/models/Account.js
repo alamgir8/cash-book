@@ -1,41 +1,41 @@
-import mongoose from 'mongoose';
+import mongoose from "mongoose";
 
 const accountSchema = new mongoose.Schema(
   {
     admin: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Admin',
+      ref: "Admin",
       required: true,
-      index: true
+      index: true,
     },
     name: {
       type: String,
       required: true,
-      trim: true
+      trim: true,
     },
     type: {
       type: String,
-      enum: ['debit', 'credit'],
-      required: true
+      enum: ["debit", "credit"],
+      required: true,
     },
     description: {
       type: String,
-      trim: true
+      trim: true,
     },
     balance: {
       type: Number,
-      default: 0
+      default: 0,
     },
     createdViaVoice: {
       type: Boolean,
-      default: false
-    }
+      default: false,
+    },
   },
   {
-    timestamps: true
+    timestamps: true,
   }
 );
 
 accountSchema.index({ admin: 1, name: 1 }, { unique: true });
 
-export const Account = mongoose.model('Account', accountSchema);
+export const Account = mongoose.model("Account", accountSchema);

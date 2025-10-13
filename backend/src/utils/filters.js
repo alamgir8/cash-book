@@ -1,22 +1,22 @@
-import dayjs from 'dayjs';
+import dayjs from "dayjs";
 
 const rangeConfig = {
   daily: () => ({
-    start: dayjs().startOf('day'),
-    end: dayjs().endOf('day')
+    start: dayjs().startOf("day"),
+    end: dayjs().endOf("day"),
   }),
   weekly: () => ({
-    start: dayjs().startOf('week'),
-    end: dayjs().endOf('week')
+    start: dayjs().startOf("week"),
+    end: dayjs().endOf("week"),
   }),
   monthly: () => ({
-    start: dayjs().startOf('month'),
-    end: dayjs().endOf('month')
+    start: dayjs().startOf("month"),
+    end: dayjs().endOf("month"),
   }),
   yearly: () => ({
-    start: dayjs().startOf('year'),
-    end: dayjs().endOf('year')
-  })
+    start: dayjs().startOf("year"),
+    end: dayjs().endOf("year"),
+  }),
 };
 
 export const buildTransactionFilters = ({ adminId, query }) => {
@@ -32,8 +32,8 @@ export const buildTransactionFilters = ({ adminId, query }) => {
 
   if (query.search) {
     filter.$or = [
-      { description: { $regex: query.search, $options: 'i' } },
-      { comment: { $regex: query.search, $options: 'i' } }
+      { description: { $regex: query.search, $options: "i" } },
+      { comment: { $regex: query.search, $options: "i" } },
     ];
   }
 
@@ -57,10 +57,10 @@ export const buildTransactionFilters = ({ adminId, query }) => {
   if (startDate || endDate) {
     filter.date = {};
     if (startDate?.isValid()) {
-      filter.date.$gte = startDate.startOf('day').toDate();
+      filter.date.$gte = startDate.startOf("day").toDate();
     }
     if (endDate?.isValid()) {
-      filter.date.$lte = endDate.endOf('day').toDate();
+      filter.date.$lte = endDate.endOf("day").toDate();
     }
   }
 

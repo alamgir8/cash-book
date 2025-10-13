@@ -1,11 +1,13 @@
-import mongoose from 'mongoose';
-import { Account } from '../models/Account.js';
-import { Transaction } from '../models/Transaction.js';
-import { buildTransactionFilters } from '../utils/filters.js';
+import mongoose from "mongoose";
+import { Account } from "../models/Account.js";
+import { Transaction } from "../models/Transaction.js";
+import { buildTransactionFilters } from "../utils/filters.js";
 
 export const listAccounts = async (req, res, next) => {
   try {
-    const accounts = await Account.find({ admin: req.user.id }).sort({ name: 1 });
+    const accounts = await Account.find({ admin: req.user.id }).sort({
+      name: 1,
+    });
     res.json({ accounts });
   } catch (error) {
     next(error);
@@ -20,13 +22,13 @@ export const createAccount = async (req, res, next) => {
       name,
       type,
       description,
-      createdViaVoice: Boolean(createdViaVoice)
+      createdViaVoice: Boolean(createdViaVoice),
     });
     res.status(201).json({ account });
   } catch (error) {
     if (error.code === 11000) {
       return res.status(409).json({
-        message: 'An account with this name already exists for this admin'
+        message: "An account with this name already exists for this admin",
       });
     }
     next(error);
@@ -45,7 +47,7 @@ export const updateAccount = async (req, res, next) => {
     );
 
     if (!account) {
-      return res.status(404).json({ message: 'Account not found' });
+      return res.status(404).json({ message: "Account not found" });
     }
 
     res.json({ account });
@@ -58,24 +60,27 @@ export const getAccountSummary = async (req, res, next) => {
   try {
     const { accountId } = req.params;
 
-    const account = await Account.findOne({ _id: accountId, admin: req.user.id });
+    const account = await Account.findOne({
+      _id: accountId,
+      admin: req.user.id,
+    });
     if (!account) {
-      return res.status(404).json({ message: 'Account not found' });
+      return res.status(404).json({ message: "Account not found" });
     }
 
     const totals = await Transaction.aggregate([
       {
         $match: {
           admin: account.admin,
-          account: account._id
-        }
+          account: account._id,
+        },
       },
       {
         $group: {
-          _id: '$type',
-          total: { $sum: '$amount' }
-        }
-      }
+          _id: "$type",
+          total: { $sum: "$amount" },
+        },
+      },
     ]);
 
     const summary = totals.reduce(
@@ -88,7 +93,7 @@ export const getAccountSummary = async (req, res, next) => {
 
     res.json({
       account,
-      summary
+      summary,
     });
   } catch (error) {
     next(error);
@@ -110,26 +115,26 @@ export const listAccountsWithSummary = async (req, res, next) => {
       {
         $match: {
           admin: new mongoose.Types.ObjectId(req.user.id),
-          account: { $in: accountIds }
-        }
+          account: { $in: accountIds },
+        },
       },
       {
         $group: {
-          _id: '$account',
+          _id: "$account",
           totalTransactions: { $sum: 1 },
           totalDebit: {
             $sum: {
-              $cond: [{ $eq: ['$type', 'debit'] }, '$amount', 0]
-            }
+              $cond: [{ $eq: ["$type", "debit"] }, "$amount", 0],
+            },
           },
           totalCredit: {
             $sum: {
-              $cond: [{ $eq: ['$type', 'credit'] }, '$amount', 0]
-            }
+              $cond: [{ $eq: ["$type", "credit"] }, "$amount", 0],
+            },
           },
-          lastTransactionDate: { $max: '$date' }
-        }
-      }
+          lastTransactionDate: { $max: "$date" },
+        },
+      },
     ]);
 
     const aggregateMap = new Map(
@@ -139,8 +144,8 @@ export const listAccountsWithSummary = async (req, res, next) => {
           totalTransactions: item.totalTransactions,
           totalDebit: item.totalDebit,
           totalCredit: item.totalCredit,
-          lastTransactionDate: item.lastTransactionDate
-        }
+          lastTransactionDate: item.lastTransactionDate,
+        },
       ])
     );
 
@@ -149,11 +154,11 @@ export const listAccountsWithSummary = async (req, res, next) => {
         totalTransactions: 0,
         totalDebit: 0,
         totalCredit: 0,
-        lastTransactionDate: null
+        lastTransactionDate: null,
       };
       return {
         ...account,
-        summary
+        summary,
       };
     });
 
@@ -167,47 +172,50 @@ export const getAccountDetail = async (req, res, next) => {
   try {
     const { accountId } = req.params;
 
-    const account = await Account.findOne({ _id: accountId, admin: req.user.id }).lean();
+    const account = await Account.findOne({
+      _id: accountId,
+      admin: req.user.id,
+    }).lean();
     if (!account) {
-      return res.status(404).json({ message: 'Account not found' });
+      return res.status(404).json({ message: "Account not found" });
     }
 
     const [aggregate] = await Transaction.aggregate([
       {
         $match: {
           admin: new mongoose.Types.ObjectId(req.user.id),
-          account: new mongoose.Types.ObjectId(accountId)
-        }
+          account: new mongoose.Types.ObjectId(accountId),
+        },
       },
       {
         $group: {
-          _id: '$account',
+          _id: "$account",
           totalTransactions: { $sum: 1 },
           totalDebit: {
             $sum: {
-              $cond: [{ $eq: ['$type', 'debit'] }, '$amount', 0]
-            }
+              $cond: [{ $eq: ["$type", "debit"] }, "$amount", 0],
+            },
           },
           totalCredit: {
             $sum: {
-              $cond: [{ $eq: ['$type', 'credit'] }, '$amount', 0]
-            }
+              $cond: [{ $eq: ["$type", "credit"] }, "$amount", 0],
+            },
           },
-          lastTransactionDate: { $max: '$date' }
-        }
-      }
+          lastTransactionDate: { $max: "$date" },
+        },
+      },
     ]);
 
     const summary = aggregate ?? {
       totalTransactions: 0,
       totalDebit: 0,
       totalCredit: 0,
-      lastTransactionDate: null
+      lastTransactionDate: null,
     };
 
     const recentTransactions = await Transaction.find({
       admin: req.user.id,
-      account: account._id
+      account: account._id,
     })
       .sort({ date: -1 })
       .limit(5)
@@ -219,9 +227,9 @@ export const getAccountDetail = async (req, res, next) => {
         totalTransactions: summary.totalTransactions,
         totalDebit: summary.totalDebit ?? 0,
         totalCredit: summary.totalCredit ?? 0,
-        lastTransactionDate: summary.lastTransactionDate
+        lastTransactionDate: summary.lastTransactionDate,
       },
-      recentTransactions
+      recentTransactions,
     });
   } catch (error) {
     next(error);
@@ -232,17 +240,20 @@ export const getAccountTransactions = async (req, res, next) => {
   try {
     const { accountId } = req.params;
 
-    const account = await Account.findOne({ _id: accountId, admin: req.user.id });
+    const account = await Account.findOne({
+      _id: accountId,
+      admin: req.user.id,
+    });
     if (!account) {
-      return res.status(404).json({ message: 'Account not found' });
+      return res.status(404).json({ message: "Account not found" });
     }
 
     const filter = buildTransactionFilters({
       adminId: req.user.id,
       query: {
         ...req.query,
-        accountId
-      }
+        accountId,
+      },
     });
     filter.account = account._id;
 
@@ -252,11 +263,11 @@ export const getAccountTransactions = async (req, res, next) => {
 
     const [transactions, total] = await Promise.all([
       Transaction.find(filter)
-        .populate('account', 'name type')
+        .populate("account", "name type")
         .sort({ date: -1 })
         .skip(skip)
         .limit(limit),
-      Transaction.countDocuments(filter)
+      Transaction.countDocuments(filter),
     ]);
 
     res.json({
@@ -266,8 +277,8 @@ export const getAccountTransactions = async (req, res, next) => {
         page,
         limit,
         total,
-        pages: Math.ceil(total / limit) || 1
-      }
+        pages: Math.ceil(total / limit) || 1,
+      },
     });
   } catch (error) {
     next(error);

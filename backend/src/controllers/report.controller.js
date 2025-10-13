@@ -20,8 +20,8 @@ export const exportTransactionsPdf = async (req, res, next) => {
       if (accounts.length === 0) {
         res.setHeader("Content-Type", "application/pdf");
         res.setHeader(
-          "Content-Disposition",
-          'attachment; filename="transactions-empty.pdf"'
+          "Content-Disposition"
+          // 'attachment; filename="transactions-empty.pdf"'
         );
         const doc = new PDFDocument({ margin: 40, size: "A4" });
         doc.pipe(res);
