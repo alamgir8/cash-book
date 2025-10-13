@@ -128,7 +128,7 @@ export const StatsCards = ({
                 isPositiveBalance ? "text-green-700" : "text-red-700"
               } mt-2`}
             >
-              ${Math.abs(netBalance).toFixed(2)}
+              ${Math.round(Math.abs(netBalance)).toLocaleString()}
             </Text>
             <Text className="text-gray-500 text-sm mt-1">
               {isPositiveBalance

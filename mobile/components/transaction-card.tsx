@@ -30,7 +30,8 @@ export const TransactionCard = ({ transaction }: Props) => {
         </View>
         <View className="items-end">
           <Text className={`text-xl font-bold ${amountColor}`}>
-            {isCredit ? "+" : "-"}${transaction.amount.toFixed(2)}
+            {isCredit ? "+" : "-"}$
+            {Math.round(transaction.amount).toLocaleString()}
           </Text>
           <View
             className={`px-2 py-1 rounded-full ${

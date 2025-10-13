@@ -29,6 +29,10 @@ const adminSchema = new mongoose.Schema(
         type: String,
         default: 'USD'
       },
+      language: {
+        type: String,
+        default: 'en'
+      },
       weekStartsOn: {
         type: Number,
         default: 1

@@ -423,11 +423,11 @@ export default function DashboardScreen() {
                               value={String(value || "")}
                               onChangeText={(text) =>
                                 onChange(
-                                  Number(text.replace(/[^0-9.]/g, "")) || 0
+                                  Number(text.replace(/[^0-9]/g, "")) || 0
                                 )
                               }
-                              keyboardType="decimal-pad"
-                              placeholder="0.00"
+                              keyboardType="numeric"
+                              placeholder="0"
                               placeholderTextColor="#9ca3af"
                               className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200 text-lg font-semibold"
                             />
@@ -570,7 +570,8 @@ export default function DashboardScreen() {
                     {currentAmount > 0 ? (
                       <View className="bg-blue-50 rounded-xl p-3 border border-blue-100">
                         <Text className="text-blue-700 text-sm font-medium text-center">
-                          💰 Amount Preview: ${currentAmount.toFixed(2)}
+                          💰 Amount Preview: $
+                          {Math.round(currentAmount).toLocaleString()}
                         </Text>
                       </View>
                     ) : null}
