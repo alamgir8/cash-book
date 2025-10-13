@@ -16,7 +16,7 @@ export function ActionButton({
   label,
   onPress,
   variant = "primary",
-  size = "medium",
+  size = "small",
   icon,
   isLoading = false,
   disabled = false,
@@ -33,7 +33,7 @@ export function ActionButton({
       case "secondary":
         return "bg-gray-600";
       case "outline":
-        return "bg-transparent border-2 border-blue-600";
+        return "bg-gray-50 border-2 border-blue-600";
       default:
         return "bg-blue-600";
     }
@@ -98,7 +98,7 @@ export function ActionButton({
     >
       {isLoading ? (
         <ActivityIndicator
-          color={variant === "outline" ? "#1d4ed8" : "white"}
+          color={variant === "outline" ? "#1d4ed8" : "#ffffff"}
         />
       ) : (
         <View className="flex-row items-center gap-2">

@@ -325,7 +325,7 @@ export const FilterBar = ({
                 onApplyFilters?.();
               }}
               variant="primary"
-              size="medium"
+              size="small"
               icon="checkmark"
             />
 
@@ -343,7 +343,7 @@ export const FilterBar = ({
                   onReset();
                 }}
                 variant="outline"
-                size="medium"
+                size="small"
                 icon="refresh"
               />
             )}

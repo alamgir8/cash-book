@@ -695,7 +695,7 @@ export default function AccountsScreen() {
                     createMutation.isPending || updateMutation.isPending
                   }
                   variant="primary"
-                  size="large"
+                  size="medium"
                   icon={selectedAccount ? "checkmark-circle" : "add-circle"}
                   fullWidth
                 />
