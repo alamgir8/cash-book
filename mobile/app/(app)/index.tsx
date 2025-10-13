@@ -2,18 +2,23 @@ import { useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   RefreshControl,
+  ScrollView,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { useForm, Controller } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { router } from "expo-router";
 import dayjs from "dayjs";
 import Toast from "react-native-toast-message";
 import { FilterBar } from "../../components/filter-bar";
@@ -91,6 +96,8 @@ export default function DashboardScreen() {
   const queryClient = useQueryClient();
   const [filters, setFilters] = useState<TransactionFilters>(defaultFilters);
   const [isModalVisible, setModalVisible] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(new Date());
 
   const accountsQuery = useQuery({
     queryKey: queryKeys.accounts,
@@ -106,12 +113,18 @@ export default function DashboardScreen() {
   const createMutation = useMutation({
     mutationFn: createTransaction,
     onSuccess: async () => {
-      Toast.show({ type: "success", text1: "Transaction recorded" });
-      setModalVisible(false);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["transactions"] }),
         queryClient.invalidateQueries({ queryKey: queryKeys.accounts }),
       ]);
+    },
+    onError: (error) => {
+      console.error("Transaction creation error:", error);
+      Toast.show({
+        type: "error",
+        text1: "Error saving transaction",
+        text2: "Please try again.",
+      });
     },
   });
 
@@ -136,6 +149,20 @@ export default function DashboardScreen() {
 
   const currentAmount = watch("amount");
 
+  const handleDateChange = (event: any, date?: Date) => {
+    setShowDatePicker(false);
+    if (date) {
+      setSelectedDate(date);
+      setValue("date", dayjs(date).format("YYYY-MM-DD"), {
+        shouldValidate: true,
+      });
+    }
+  };
+
+  const openDatePicker = () => {
+    setShowDatePicker(true);
+  };
+
   const totals = useMemo(() => {
     const data = transactionsQuery.data as any;
     if (!data?.transactions) return { debit: 0, credit: 0 };
@@ -150,7 +177,18 @@ export default function DashboardScreen() {
 
   const onSubmit = async (values: TransactionFormValues) => {
     try {
-      await createMutation.mutateAsync(values as any);
+      const payload = {
+        ...values,
+        amount: Number(values.amount),
+        date: values.date?.trim() ? values.date.trim() : undefined,
+        description: values.description?.trim()
+          ? values.description.trim()
+          : undefined,
+        comment: values.comment?.trim() ? values.comment.trim() : undefined,
+        createdViaVoice: Boolean(values.createdViaVoice),
+      };
+      await createMutation.mutateAsync(payload as any);
+      setModalVisible(false);
       reset({
         accountId: "",
         amount: 0,
@@ -160,8 +198,18 @@ export default function DashboardScreen() {
         comment: "",
         createdViaVoice: false,
       });
+      Toast.show({
+        type: "success",
+        text1: "Transaction saved successfully!",
+        text2: "Your transaction has been recorded.",
+      });
     } catch (error) {
       console.error(error);
+      Toast.show({
+        type: "error",
+        text1: "Error saving transaction",
+        text2: "Please try again.",
+      });
     }
   };
 
@@ -194,7 +242,7 @@ export default function DashboardScreen() {
         <QuickActions
           onAddTransaction={() => setModalVisible(true)}
           onAddAccount={() => {
-            console.log("Add account from dashboard");
+            router.push("/(app)/accounts");
           }}
           onExportPDF={async () => {
             try {
@@ -223,7 +271,7 @@ export default function DashboardScreen() {
   };
 
   return (
-    <View className="flex-1 bg-gray-50">
+    <View className="flex-1 bg-gray-50 pt-20">
       <FlatList
         data={(transactionsQuery.data as any)?.transactions ?? []}
         keyExtractor={(item) => item._id}
@@ -276,236 +324,279 @@ export default function DashboardScreen() {
       </TouchableOpacity>
 
       <Modal visible={isModalVisible} transparent animationType="slide">
-        <View className="flex-1 bg-black/40 justify-end">
-          <View className="bg-white rounded-t-3xl p-6 gap-6 max-h-[80%]">
-            {/* Header */}
-            <View className="flex-row justify-between items-center pb-2 border-b border-gray-100">
-              <View>
-                <Text className="text-gray-900 text-xl font-bold">
-                  New Transaction
-                </Text>
-                <Text className="text-gray-500 text-sm">
-                  Record your debit or credit
-                </Text>
-              </View>
-              <TouchableOpacity
-                onPress={() => setModalVisible(false)}
-                className="w-8 h-8 bg-gray-100 rounded-full items-center justify-center"
-              >
-                <Ionicons name="close" size={20} color="#6b7280" />
-              </TouchableOpacity>
-            </View>
-
-            <View className="gap-5">
-              {/* Account Selection */}
-              <View>
-                <Text className="text-gray-700 text-sm font-semibold mb-3">
-                  Choose Account
-                </Text>
-                <View className="flex-row flex-wrap gap-2">
-                  {accountsQuery.data?.map((account) => {
-                    const selected = watch("accountId") === account._id;
-                    return (
-                      <TouchableOpacity
-                        key={account._id}
-                        onPress={() =>
-                          setValue("accountId", account._id, {
-                            shouldValidate: true,
-                          })
-                        }
-                        className={`px-4 py-3 rounded-xl border-2 ${
-                          selected
-                            ? "border-blue-500 bg-blue-50"
-                            : "border-gray-200 bg-gray-50"
-                        }`}
-                      >
-                        <Text
-                          className={`text-sm font-medium ${
-                            selected ? "text-blue-700" : "text-gray-600"
-                          }`}
-                        >
-                          {account.name}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-                {errors.accountId ? (
-                  <Text className="text-red-500 text-sm mt-2">
-                    {errors.accountId.message}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          className="flex-1"
+        >
+          <View className="flex-1 bg-black/40 justify-end">
+            <View className="bg-white rounded-t-3xl" style={{ height: "90%" }}>
+              {/* Header */}
+              <View className="flex-row justify-between items-center p-6 pb-4 border-b border-gray-100">
+                <View>
+                  <Text className="text-gray-900 text-xl font-bold">
+                    New Transaction
                   </Text>
-                ) : null}
+                  <Text className="text-gray-500 text-sm">
+                    Record your debit or credit
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setModalVisible(false)}
+                  className="w-8 h-8 bg-gray-100 rounded-full items-center justify-center"
+                >
+                  <Ionicons name="close" size={20} color="#6b7280" />
+                </TouchableOpacity>
               </View>
 
-              {/* Amount and Type Row */}
-              <View className="flex-row gap-4">
-                <View className="flex-1">
-                  <Text className="text-gray-700 text-sm font-semibold mb-2">
-                    Amount
-                  </Text>
-                  <Controller
-                    control={control}
-                    name="amount"
-                    render={({ field: { onChange, value } }) => (
-                      <TextInput
-                        value={String(value || "")}
-                        onChangeText={(text) =>
-                          onChange(Number(text.replace(/[^0-9.]/g, "")) || 0)
-                        }
-                        keyboardType="decimal-pad"
-                        placeholder="0.00"
-                        placeholderTextColor="#9ca3af"
-                        className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200 text-lg font-semibold"
-                      />
-                    )}
-                  />
-                  {errors.amount ? (
-                    <Text className="text-red-500 text-sm mt-1">
-                      {errors.amount.message}
-                    </Text>
-                  ) : null}
-                </View>
-                <View className="flex-1">
-                  <Text className="text-gray-700 text-sm font-semibold mb-2">
-                    Type
-                  </Text>
-                  <Controller
-                    control={control}
-                    name="type"
-                    render={({ field: { value, onChange } }) => (
-                      <View className="flex-row gap-2">
-                        {(["debit", "credit"] as const).map((option) => (
-                          <TouchableOpacity
-                            key={option}
-                            onPress={() => onChange(option)}
-                            className={`flex-1 py-3 rounded-xl border-2 ${
-                              value === option
-                                ? option === "debit"
-                                  ? "border-red-500 bg-red-50"
-                                  : "border-green-500 bg-green-50"
-                                : "border-gray-200 bg-gray-50"
-                            }`}
-                          >
-                            <Text
-                              className={`text-center font-semibold text-sm ${
-                                value === option
-                                  ? option === "debit"
-                                    ? "text-red-700"
-                                    : "text-green-700"
-                                  : "text-gray-600"
+              {/* Form Content */}
+              <View className="flex-1 px-6 py-4">
+                <ScrollView
+                  showsVerticalScrollIndicator={false}
+                  contentContainerStyle={{ paddingBottom: 20 }}
+                >
+                  <View className="gap-5">
+                    {/* Account Selection */}
+                    <View>
+                      <Text className="text-gray-700 text-sm font-semibold mb-3">
+                        Choose Account
+                      </Text>
+                      <View className="flex-row flex-wrap gap-2">
+                        {accountsQuery.data?.map((account) => {
+                          const selected = watch("accountId") === account._id;
+                          return (
+                            <TouchableOpacity
+                              key={account._id}
+                              onPress={() =>
+                                setValue("accountId", account._id, {
+                                  shouldValidate: true,
+                                })
+                              }
+                              className={`px-4 py-3 rounded-xl border-2 ${
+                                selected
+                                  ? "border-blue-500 bg-blue-50"
+                                  : "border-gray-200 bg-gray-50"
                               }`}
                             >
-                              {option.toUpperCase()}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
+                              <Text
+                                className={`text-sm font-medium ${
+                                  selected ? "text-blue-700" : "text-gray-600"
+                                }`}
+                              >
+                                {account.name}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
                       </View>
-                    )}
-                  />
-                </View>
-              </View>
+                      {errors.accountId ? (
+                        <Text className="text-red-500 text-sm mt-2">
+                          {errors.accountId.message}
+                        </Text>
+                      ) : null}
+                    </View>
 
-              {/* Date Field */}
-              <View>
-                <Text className="text-gray-700 text-sm font-semibold mb-2">
-                  Date
-                </Text>
-                <Controller
-                  control={control}
-                  name="date"
-                  render={({ field: { value, onChange } }) => (
-                    <TextInput
-                      value={value}
-                      onChangeText={onChange}
-                      placeholder="YYYY-MM-DD"
-                      placeholderTextColor="#9ca3af"
-                      className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200"
-                    />
-                  )}
-                />
-              </View>
+                    {/* Amount and Type Row */}
+                    <View className="flex-row gap-4">
+                      <View className="flex-1">
+                        <Text className="text-gray-700 text-sm font-semibold mb-2">
+                          Amount
+                        </Text>
+                        <Controller
+                          control={control}
+                          name="amount"
+                          render={({ field: { onChange, value } }) => (
+                            <TextInput
+                              value={String(value || "")}
+                              onChangeText={(text) =>
+                                onChange(
+                                  Number(text.replace(/[^0-9.]/g, "")) || 0
+                                )
+                              }
+                              keyboardType="decimal-pad"
+                              placeholder="0.00"
+                              placeholderTextColor="#9ca3af"
+                              className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200 text-lg font-semibold"
+                            />
+                          )}
+                        />
+                        {errors.amount ? (
+                          <Text className="text-red-500 text-sm mt-1">
+                            {errors.amount.message}
+                          </Text>
+                        ) : null}
+                      </View>
+                      <View className="flex-1">
+                        <Text className="text-gray-700 text-sm font-semibold mb-2">
+                          Type
+                        </Text>
+                        <Controller
+                          control={control}
+                          name="type"
+                          render={({ field: { value, onChange } }) => (
+                            <View className="flex-row gap-2">
+                              {(["debit", "credit"] as const).map((option) => (
+                                <TouchableOpacity
+                                  key={option}
+                                  onPress={() => onChange(option)}
+                                  className={`flex-1 py-3 rounded-xl border-2 ${
+                                    value === option
+                                      ? option === "debit"
+                                        ? "border-red-500 bg-red-50"
+                                        : "border-green-500 bg-green-50"
+                                      : "border-gray-200 bg-gray-50"
+                                  }`}
+                                >
+                                  <Text
+                                    className={`text-center font-semibold text-sm ${
+                                      value === option
+                                        ? option === "debit"
+                                          ? "text-red-700"
+                                          : "text-green-700"
+                                        : "text-gray-600"
+                                    }`}
+                                  >
+                                    {option.toUpperCase()}
+                                  </Text>
+                                </TouchableOpacity>
+                              ))}
+                            </View>
+                          )}
+                        />
+                      </View>
+                    </View>
 
-              {/* Description Field */}
-              <View>
-                <Text className="text-gray-700 text-sm font-semibold mb-2">
-                  Description
-                </Text>
-                <Controller
-                  control={control}
-                  name="description"
-                  render={({ field: { value, onChange } }) => (
-                    <TextInput
-                      value={value || ""}
-                      onChangeText={onChange}
-                      placeholder="What is this transaction about?"
-                      placeholderTextColor="#9ca3af"
-                      className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200"
-                    />
-                  )}
-                />
-              </View>
+                    {/* Date Field */}
+                    <View>
+                      <Text className="text-gray-700 text-sm font-semibold mb-2">
+                        Date
+                      </Text>
+                      <Controller
+                        control={control}
+                        name="date"
+                        render={({ field: { value } }) => (
+                          <View>
+                            <TouchableOpacity
+                              onPress={openDatePicker}
+                              className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200 flex-row items-center justify-between"
+                            >
+                              <Text className="text-gray-900 text-base">
+                                {value
+                                  ? dayjs(value).format("MMM DD, YYYY")
+                                  : "Select Date"}
+                              </Text>
+                              <Ionicons
+                                name="calendar-outline"
+                                size={20}
+                                color="#6b7280"
+                              />
+                            </TouchableOpacity>
 
-              {/* Comment Field */}
-              <View>
-                <Text className="text-gray-700 text-sm font-semibold mb-2">
-                  Additional Notes
-                </Text>
-                <Controller
-                  control={control}
-                  name="comment"
-                  render={({ field: { value, onChange } }) => (
-                    <TextInput
-                      value={value || ""}
-                      onChangeText={onChange}
-                      placeholder="Any additional details..."
-                      placeholderTextColor="#9ca3af"
-                      className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200 min-h-[80px]"
-                      multiline
-                      textAlignVertical="top"
-                    />
-                  )}
-                />
-              </View>
+                            {showDatePicker && (
+                              <DateTimePicker
+                                value={selectedDate}
+                                mode="date"
+                                display={
+                                  Platform.OS === "ios" ? "compact" : "default"
+                                }
+                                onChange={handleDateChange}
+                                maximumDate={new Date()}
+                              />
+                            )}
+                          </View>
+                        )}
+                      />
+                    </View>
 
-              {/* Voice Input */}
-              <VoiceInputButton onResult={handleVoiceResult} />
+                    {/* Description Field */}
+                    <View>
+                      <Text className="text-gray-700 text-sm font-semibold mb-2">
+                        Description
+                      </Text>
+                      <Controller
+                        control={control}
+                        name="description"
+                        render={({ field: { value, onChange } }) => (
+                          <TextInput
+                            value={value || ""}
+                            onChangeText={onChange}
+                            placeholder="What is this transaction about?"
+                            placeholderTextColor="#9ca3af"
+                            className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200"
+                          />
+                        )}
+                      />
+                    </View>
 
-              {/* Amount Preview */}
-              {currentAmount > 0 ? (
-                <View className="bg-blue-50 rounded-xl p-3 border border-blue-100">
-                  <Text className="text-blue-700 text-sm font-medium text-center">
-                    💰 Amount Preview: ${currentAmount.toFixed(2)}
-                  </Text>
-                </View>
-              ) : null}
+                    {/* Comment Field */}
+                    <View>
+                      <Text className="text-gray-700 text-sm font-semibold mb-2">
+                        Additional Notes
+                      </Text>
+                      <Controller
+                        control={control}
+                        name="comment"
+                        render={({ field: { value, onChange } }) => (
+                          <TextInput
+                            value={value || ""}
+                            onChangeText={onChange}
+                            placeholder="Any additional details..."
+                            placeholderTextColor="#9ca3af"
+                            className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200 min-h-[80px]"
+                            multiline
+                            textAlignVertical="top"
+                          />
+                        )}
+                      />
+                    </View>
 
-              {/* Save Button */}
-              <TouchableOpacity
-                onPress={handleSubmit(onSubmit)}
-                disabled={createMutation.isPending}
-                className="bg-blue-500 rounded-2xl py-4 mt-2 items-center shadow-lg shadow-blue-500/25"
-                style={{
-                  shadowColor: "#3b82f6",
-                  shadowOffset: { width: 0, height: 4 },
-                  shadowOpacity: 0.2,
-                  shadowRadius: 8,
-                  elevation: 4,
-                }}
-              >
-                {createMutation.isPending ? (
-                  <ActivityIndicator color="white" />
-                ) : (
-                  <View className="flex-row items-center gap-2">
-                    <Ionicons name="checkmark-circle" size={20} color="white" />
-                    <Text className="text-white font-bold text-base">
-                      Save Transaction
-                    </Text>
+                    {/* Voice Input */}
+                    <VoiceInputButton onResult={handleVoiceResult} />
+
+                    {/* Amount Preview */}
+                    {currentAmount > 0 ? (
+                      <View className="bg-blue-50 rounded-xl p-3 border border-blue-100">
+                        <Text className="text-blue-700 text-sm font-medium text-center">
+                          💰 Amount Preview: ${currentAmount.toFixed(2)}
+                        </Text>
+                      </View>
+                    ) : null}
                   </View>
-                )}
-              </TouchableOpacity>
+                </ScrollView>
+              </View>
+
+              {/* Submit Button - Fixed at bottom */}
+              <View className="p-6 pt-4 border-t border-gray-100">
+                <TouchableOpacity
+                  onPress={handleSubmit(onSubmit)}
+                  disabled={createMutation.isPending}
+                  className="bg-blue-500 rounded-2xl py-4 items-center shadow-lg shadow-blue-500/25"
+                  style={{
+                    shadowColor: "#3b82f6",
+                    shadowOffset: { width: 0, height: 4 },
+                    shadowOpacity: 0.2,
+                    shadowRadius: 8,
+                    elevation: 4,
+                  }}
+                >
+                  {createMutation.isPending ? (
+                    <ActivityIndicator color="white" />
+                  ) : (
+                    <View className="flex-row items-center gap-2">
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={20}
+                        color="white"
+                      />
+                      <Text className="text-white font-bold text-base">
+                        Save Transaction
+                      </Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );

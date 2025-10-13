@@ -26,12 +26,7 @@
     "web": {
       "bundler": "metro"
     },
-    "plugins": [
-      "expo-router",
-      "expo-secure-store",
-      "expo-font",
-      "expo-asset"
-    ],
+    "plugins": ["expo-router", "expo-secure-store", "expo-font", "expo-asset"],
     "experiments": {
       "typedRoutes": true
     }

@@ -2,7 +2,10 @@ import { useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
+  ScrollView,
   Text,
   TextInput,
   TouchableOpacity,
@@ -271,180 +274,200 @@ export default function AccountsScreen() {
       />
 
       <Modal visible={modalVisible} transparent animationType="slide">
-        <View className="flex-1 bg-black/40 justify-end">
-          <View className="bg-white rounded-t-3xl p-6 gap-6 max-h-[85%]">
-            {/* Header */}
-            <View className="flex-row justify-between items-center pb-2 border-b border-gray-100">
-              <View>
-                <Text className="text-gray-900 text-2xl font-bold">
-                  {selectedAccount ? "Edit Account" : "New Account"}
-                </Text>
-                <Text className="text-gray-500 text-sm">
-                  {selectedAccount
-                    ? "Update account details"
-                    : "Create a new account to track"}
-                </Text>
-              </View>
-              <TouchableOpacity
-                onPress={() => setModalVisible(false)}
-                className="w-8 h-8 bg-gray-100 rounded-full items-center justify-center"
-              >
-                <Ionicons name="close" size={20} color="#6b7280" />
-              </TouchableOpacity>
-            </View>
-
-            <View className="gap-5">
-              {/* Account Name */}
-              <View>
-                <Text className="text-gray-700 text-sm font-semibold mb-2">
-                  Account Name
-                </Text>
-                <Controller
-                  control={control}
-                  name="name"
-                  render={({ field: { onChange, value } }) => (
-                    <TextInput
-                      value={value}
-                      onChangeText={onChange}
-                      placeholder="e.g. Business Checking, Savings Account"
-                      placeholderTextColor="#9ca3af"
-                      className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200 text-base"
-                    />
-                  )}
-                />
-                {errors.name ? (
-                  <Text className="text-red-500 text-sm mt-2">
-                    {errors.name.message}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          className="flex-1"
+        >
+          <View className="flex-1 bg-black/40 justify-end">
+            <View className="bg-white rounded-t-3xl" style={{ height: "90%" }}>
+              {/* Header */}
+              <View className="flex-row justify-between items-center p-6 pb-4 border-b border-gray-100">
+                <View>
+                  <Text className="text-gray-900 text-xl font-bold">
+                    {selectedAccount ? "Edit Account" : "New Account"}
                   </Text>
-                ) : null}
+                  <Text className="text-gray-500 text-sm">
+                    {selectedAccount
+                      ? "Update account details"
+                      : "Create a new account to track"}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setModalVisible(false)}
+                  className="w-8 h-8 bg-gray-100 rounded-full items-center justify-center"
+                >
+                  <Ionicons name="close" size={20} color="#6b7280" />
+                </TouchableOpacity>
               </View>
 
-              {/* Account Type */}
-              <View>
-                <Text className="text-gray-700 text-sm font-semibold mb-3">
-                  Account Type
-                </Text>
-                <Controller
-                  control={control}
-                  name="type"
-                  render={({ field: { value, onChange } }) => (
-                    <View className="flex-row gap-3">
-                      {(["debit", "credit"] as const).map((option) => (
-                        <TouchableOpacity
-                          key={option}
-                          onPress={() => onChange(option)}
-                          className={`flex-1 py-4 rounded-xl border-2 ${
-                            value === option
-                              ? option === "debit"
-                                ? "border-blue-500 bg-blue-50"
-                                : "border-green-500 bg-green-50"
-                              : "border-gray-200 bg-gray-50"
-                          }`}
-                        >
-                          <View className="items-center gap-2">
-                            <Ionicons
-                              name={
-                                option === "debit"
-                                  ? "card-outline"
-                                  : "cash-outline"
-                              }
-                              size={24}
-                              color={
-                                value === option
-                                  ? option === "debit"
-                                    ? "#3b82f6"
-                                    : "#10b981"
-                                  : "#6b7280"
-                              }
-                            />
-                            <Text
-                              className={`font-bold text-sm ${
-                                value === option
-                                  ? option === "debit"
-                                    ? "text-blue-700"
-                                    : "text-green-700"
-                                  : "text-gray-600"
-                              }`}
-                            >
-                              {option.toUpperCase()}
-                            </Text>
-                            <Text
-                              className={`text-xs text-center ${
-                                value === option
-                                  ? option === "debit"
-                                    ? "text-blue-600"
-                                    : "text-green-600"
-                                  : "text-gray-500"
-                              }`}
-                            >
-                              {option === "debit"
-                                ? "Money going out"
-                                : "Money coming in"}
-                            </Text>
+              {/* Form Content */}
+              <View className="flex-1">
+                <ScrollView
+                  className="px-6"
+                  showsVerticalScrollIndicator={false}
+                  contentContainerStyle={{ paddingBottom: 20 }}
+                >
+                  <View className="gap-5 py-4">
+                    {/* Account Name */}
+                    <View>
+                      <Text className="text-gray-700 text-sm font-semibold mb-2">
+                        Account Name
+                      </Text>
+                      <Controller
+                        control={control}
+                        name="name"
+                        render={({ field: { onChange, value } }) => (
+                          <TextInput
+                            value={value}
+                            onChangeText={onChange}
+                            placeholder="e.g. Business Checking, Savings Account"
+                            placeholderTextColor="#9ca3af"
+                            className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200 text-base"
+                          />
+                        )}
+                      />
+                      {errors.name ? (
+                        <Text className="text-red-500 text-sm mt-2">
+                          {errors.name.message}
+                        </Text>
+                      ) : null}
+                    </View>
+
+                    {/* Account Type */}
+                    <View>
+                      <Text className="text-gray-700 text-sm font-semibold mb-3">
+                        Account Type
+                      </Text>
+                      <Controller
+                        control={control}
+                        name="type"
+                        render={({ field: { value, onChange } }) => (
+                          <View className="flex-row gap-3">
+                            {(["debit", "credit"] as const).map((option) => (
+                              <TouchableOpacity
+                                key={option}
+                                onPress={() => onChange(option)}
+                                className={`flex-1 py-4 rounded-xl border-2 ${
+                                  value === option
+                                    ? option === "debit"
+                                      ? "border-blue-500 bg-blue-50"
+                                      : "border-green-500 bg-green-50"
+                                    : "border-gray-200 bg-gray-50"
+                                }`}
+                              >
+                                <View className="items-center gap-2">
+                                  <Ionicons
+                                    name={
+                                      option === "debit"
+                                        ? "card-outline"
+                                        : "cash-outline"
+                                    }
+                                    size={24}
+                                    color={
+                                      value === option
+                                        ? option === "debit"
+                                          ? "#3b82f6"
+                                          : "#10b981"
+                                        : "#6b7280"
+                                    }
+                                  />
+                                  <Text
+                                    className={`font-bold text-sm ${
+                                      value === option
+                                        ? option === "debit"
+                                          ? "text-blue-700"
+                                          : "text-green-700"
+                                        : "text-gray-600"
+                                    }`}
+                                  >
+                                    {option.toUpperCase()}
+                                  </Text>
+                                  <Text
+                                    className={`text-xs text-center ${
+                                      value === option
+                                        ? option === "debit"
+                                          ? "text-blue-600"
+                                          : "text-green-600"
+                                        : "text-gray-500"
+                                    }`}
+                                  >
+                                    {option === "debit"
+                                      ? "Money going out"
+                                      : "Money coming in"}
+                                  </Text>
+                                </View>
+                              </TouchableOpacity>
+                            ))}
                           </View>
-                        </TouchableOpacity>
-                      ))}
+                        )}
+                      />
+                    </View>
+
+                    {/* Description */}
+                    <View>
+                      <Text className="text-gray-700 text-sm font-semibold mb-2">
+                        Description
+                      </Text>
+                      <Controller
+                        control={control}
+                        name="description"
+                        render={({ field: { value, onChange } }) => (
+                          <TextInput
+                            value={value || ""}
+                            onChangeText={onChange}
+                            placeholder="Optional details about this account..."
+                            placeholderTextColor="#9ca3af"
+                            className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200 min-h-[80px]"
+                            multiline
+                            textAlignVertical="top"
+                          />
+                        )}
+                      />
+                    </View>
+
+                    {/* Voice Input */}
+                    <VoiceInputButton onResult={handleVoiceResult} />
+                  </View>
+                </ScrollView>
+              </View>
+
+              {/* Submit Button - Fixed at bottom */}
+              <View className="p-6 pt-4 border-t border-gray-100">
+                <TouchableOpacity
+                  onPress={handleSubmit(onSubmit)}
+                  disabled={
+                    createMutation.isPending || updateMutation.isPending
+                  }
+                  className="bg-blue-500 rounded-2xl py-4 items-center shadow-lg shadow-blue-500/25"
+                  style={{
+                    shadowColor: "#3b82f6",
+                    shadowOffset: { width: 0, height: 4 },
+                    shadowOpacity: 0.2,
+                    shadowRadius: 8,
+                    elevation: 4,
+                  }}
+                >
+                  {createMutation.isPending || updateMutation.isPending ? (
+                    <ActivityIndicator color="white" />
+                  ) : (
+                    <View className="flex-row items-center gap-2">
+                      <Ionicons
+                        name={
+                          selectedAccount ? "checkmark-circle" : "add-circle"
+                        }
+                        size={20}
+                        color="white"
+                      />
+                      <Text className="text-white font-bold text-base">
+                        {selectedAccount ? "Update Account" : "Create Account"}
+                      </Text>
                     </View>
                   )}
-                />
+                </TouchableOpacity>
               </View>
-
-              {/* Description */}
-              <View>
-                <Text className="text-gray-700 text-sm font-semibold mb-2">
-                  Description
-                </Text>
-                <Controller
-                  control={control}
-                  name="description"
-                  render={({ field: { value, onChange } }) => (
-                    <TextInput
-                      value={value || ""}
-                      onChangeText={onChange}
-                      placeholder="Optional details about this account..."
-                      placeholderTextColor="#9ca3af"
-                      className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200 min-h-[80px]"
-                      multiline
-                      textAlignVertical="top"
-                    />
-                  )}
-                />
-              </View>
-
-              {/* Voice Input */}
-              <VoiceInputButton onResult={handleVoiceResult} />
-
-              {/* Save Button */}
-              <TouchableOpacity
-                onPress={handleSubmit(onSubmit)}
-                disabled={createMutation.isPending || updateMutation.isPending}
-                className="bg-blue-500 rounded-2xl py-4 mt-2 items-center shadow-lg shadow-blue-500/25"
-                style={{
-                  shadowColor: "#3b82f6",
-                  shadowOffset: { width: 0, height: 4 },
-                  shadowOpacity: 0.2,
-                  shadowRadius: 8,
-                  elevation: 4,
-                }}
-              >
-                {createMutation.isPending || updateMutation.isPending ? (
-                  <ActivityIndicator color="white" />
-                ) : (
-                  <View className="flex-row items-center gap-2">
-                    <Ionicons
-                      name={selectedAccount ? "checkmark-circle" : "add-circle"}
-                      size={20}
-                      color="white"
-                    />
-                    <Text className="text-white font-bold text-base">
-                      {selectedAccount ? "Update Account" : "Create Account"}
-                    </Text>
-                  </View>
-                )}
-              </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
