@@ -77,7 +77,14 @@ export const createTransaction = async (req, res, next) => {
       return res.status(404).json({ message: 'Account not found' });
     }
 
-    const txnDate = date ? dayjs(date).toDate() : new Date();
+    let txnDate = new Date();
+    if (typeof date === 'string' && date.trim().length > 0) {
+      const parsed = dayjs(date.trim());
+      if (!parsed.isValid()) {
+        return res.status(400).json({ message: 'Invalid transaction date' });
+      }
+      txnDate = parsed.toDate();
+    }
 
     const transaction = await Transaction.create({
       admin: req.user.id,
@@ -150,8 +157,15 @@ export const updateTransaction = async (req, res, next) => {
       transaction.amount = amount;
     }
 
-    if (date) {
-      transaction.date = dayjs(date).toDate();
+    if (typeof date === 'string') {
+      const trimmed = date.trim();
+      if (trimmed.length > 0) {
+        const parsed = dayjs(trimmed);
+        if (!parsed.isValid()) {
+          return res.status(400).json({ message: 'Invalid transaction date' });
+        }
+        transaction.date = parsed.toDate();
+      }
     }
 
     if (description !== undefined) {

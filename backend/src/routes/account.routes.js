@@ -4,7 +4,10 @@ import {
   listAccounts,
   createAccount,
   updateAccount,
-  getAccountSummary
+  getAccountSummary,
+  listAccountsWithSummary,
+  getAccountDetail,
+  getAccountTransactions
 } from '../controllers/account.controller.js';
 import { authenticate } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
@@ -39,11 +42,34 @@ const updateSchema = z.object({
   query: z.object({}).optional()
 });
 
+const historyQuerySchema = z.object({
+  range: z.enum(['daily', 'weekly', 'monthly', 'yearly']).optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  type: z.enum(['debit', 'credit']).optional(),
+  search: z.string().optional(),
+  minAmount: z.string().optional(),
+  maxAmount: z.string().optional(),
+  page: z.string().optional(),
+  limit: z.string().optional()
+});
+
+const accountTransactionsSchema = z.object({
+  body: z.object({}).optional(),
+  params: z.object({
+    accountId: z.string()
+  }),
+  query: historyQuerySchema.default({})
+});
+
 router.use(authenticate);
 
 router.get('/', listAccounts);
+router.get('/overview', listAccountsWithSummary);
 router.post('/', validate(createSchema), createAccount);
 router.patch('/:accountId', validate(updateSchema), updateAccount);
 router.get('/:accountId/summary', getAccountSummary);
+router.get('/:accountId/detail', getAccountDetail);
+router.get('/:accountId/transactions', validate(accountTransactionsSchema), getAccountTransactions);
 
 export default router;
