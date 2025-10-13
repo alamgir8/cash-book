@@ -166,7 +166,7 @@ export default function AccountsScreen() {
             onPress={() => openModal()}
             className="bg-blue-500 px-5 py-3 rounded-xl shadow-sm"
             style={{
-              shadowColor: '#3b82f6',
+              shadowColor: "#3b82f6",
               shadowOffset: { width: 0, height: 2 },
               shadowOpacity: 0.1,
               shadowRadius: 4,
@@ -193,7 +193,9 @@ export default function AccountsScreen() {
               <View className="w-20 h-20 bg-blue-50 rounded-full items-center justify-center">
                 <Ionicons name="wallet-outline" size={40} color="#3b82f6" />
               </View>
-              <Text className="text-gray-900 text-lg font-bold">No Accounts Yet</Text>
+              <Text className="text-gray-900 text-lg font-bold">
+                No Accounts Yet
+              </Text>
               <Text className="text-gray-600 text-center">
                 Create your first account to start tracking your finances
               </Text>
@@ -211,7 +213,7 @@ export default function AccountsScreen() {
             onPress={() => openModal(item)}
             className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm"
             style={{
-              shadowColor: '#000',
+              shadowColor: "#000",
               shadowOffset: { width: 0, height: 1 },
               shadowOpacity: 0.05,
               shadowRadius: 4,
@@ -221,28 +223,40 @@ export default function AccountsScreen() {
             <View className="flex-row justify-between items-start">
               <View className="flex-1 mr-4">
                 <View className="flex-row items-center gap-3">
-                  <View className={`w-4 h-4 rounded-full ${
-                    item.type === 'credit' ? 'bg-green-500' : 'bg-blue-500'
-                  }`} />
+                  <View
+                    className={`w-4 h-4 rounded-full ${
+                      item.type === "credit" ? "bg-green-500" : "bg-blue-500"
+                    }`}
+                  />
                   <Text className="text-gray-900 text-xl font-bold">
                     {item.name}
                   </Text>
                 </View>
-                <View className={`px-3 py-1 rounded-full mt-2 self-start ${
-                  item.type === 'credit' ? 'bg-green-50' : 'bg-blue-50'
-                }`}>
-                  <Text className={`text-xs font-bold uppercase ${
-                    item.type === 'credit' ? 'text-green-700' : 'text-blue-700'
-                  }`}>
+                <View
+                  className={`px-3 py-1 rounded-full mt-2 self-start ${
+                    item.type === "credit" ? "bg-green-50" : "bg-blue-50"
+                  }`}
+                >
+                  <Text
+                    className={`text-xs font-bold uppercase ${
+                      item.type === "credit"
+                        ? "text-green-700"
+                        : "text-blue-700"
+                    }`}
+                  >
                     {item.type} Account
                   </Text>
                 </View>
               </View>
               <View className="items-end">
-                <Text className="text-gray-500 text-sm font-medium">Balance</Text>
-                <Text className={`text-2xl font-bold ${
-                  item.balance >= 0 ? 'text-green-600' : 'text-red-600'
-                }`}>
+                <Text className="text-gray-500 text-sm font-medium">
+                  Balance
+                </Text>
+                <Text
+                  className={`text-2xl font-bold ${
+                    item.balance >= 0 ? "text-green-600" : "text-red-600"
+                  }`}
+                >
                   ${Math.abs(item.balance).toFixed(2)}
                 </Text>
               </View>
@@ -266,10 +280,12 @@ export default function AccountsScreen() {
                   {selectedAccount ? "Edit Account" : "New Account"}
                 </Text>
                 <Text className="text-gray-500 text-sm">
-                  {selectedAccount ? "Update account details" : "Create a new account to track"}
+                  {selectedAccount
+                    ? "Update account details"
+                    : "Create a new account to track"}
                 </Text>
               </View>
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={() => setModalVisible(false)}
                 className="w-8 h-8 bg-gray-100 rounded-full items-center justify-center"
               >
@@ -305,7 +321,9 @@ export default function AccountsScreen() {
 
               {/* Account Type */}
               <View>
-                <Text className="text-gray-700 text-sm font-semibold mb-3">Account Type</Text>
+                <Text className="text-gray-700 text-sm font-semibold mb-3">
+                  Account Type
+                </Text>
                 <Controller
                   control={control}
                   name="type"
@@ -317,26 +335,32 @@ export default function AccountsScreen() {
                           onPress={() => onChange(option)}
                           className={`flex-1 py-4 rounded-xl border-2 ${
                             value === option
-                              ? option === 'debit'
+                              ? option === "debit"
                                 ? "border-blue-500 bg-blue-50"
                                 : "border-green-500 bg-green-50"
                               : "border-gray-200 bg-gray-50"
                           }`}
                         >
                           <View className="items-center gap-2">
-                            <Ionicons 
-                              name={option === 'debit' ? "card-outline" : "cash-outline"} 
-                              size={24} 
+                            <Ionicons
+                              name={
+                                option === "debit"
+                                  ? "card-outline"
+                                  : "cash-outline"
+                              }
+                              size={24}
                               color={
                                 value === option
-                                  ? option === 'debit' ? "#3b82f6" : "#10b981"
+                                  ? option === "debit"
+                                    ? "#3b82f6"
+                                    : "#10b981"
                                   : "#6b7280"
-                              } 
+                              }
                             />
                             <Text
                               className={`font-bold text-sm ${
                                 value === option
-                                  ? option === 'debit'
+                                  ? option === "debit"
                                     ? "text-blue-700"
                                     : "text-green-700"
                                   : "text-gray-600"
@@ -344,14 +368,18 @@ export default function AccountsScreen() {
                             >
                               {option.toUpperCase()}
                             </Text>
-                            <Text className={`text-xs text-center ${
-                              value === option
-                                ? option === 'debit'
-                                  ? "text-blue-600"
-                                  : "text-green-600"
-                                : "text-gray-500"
-                            }`}>
-                              {option === 'debit' ? 'Money going out' : 'Money coming in'}
+                            <Text
+                              className={`text-xs text-center ${
+                                value === option
+                                  ? option === "debit"
+                                    ? "text-blue-600"
+                                    : "text-green-600"
+                                  : "text-gray-500"
+                              }`}
+                            >
+                              {option === "debit"
+                                ? "Money going out"
+                                : "Money coming in"}
                             </Text>
                           </View>
                         </TouchableOpacity>
@@ -363,7 +391,9 @@ export default function AccountsScreen() {
 
               {/* Description */}
               <View>
-                <Text className="text-gray-700 text-sm font-semibold mb-2">Description</Text>
+                <Text className="text-gray-700 text-sm font-semibold mb-2">
+                  Description
+                </Text>
                 <Controller
                   control={control}
                   name="description"
@@ -390,7 +420,7 @@ export default function AccountsScreen() {
                 disabled={createMutation.isPending || updateMutation.isPending}
                 className="bg-blue-500 rounded-2xl py-4 mt-2 items-center shadow-lg shadow-blue-500/25"
                 style={{
-                  shadowColor: '#3b82f6',
+                  shadowColor: "#3b82f6",
                   shadowOffset: { width: 0, height: 4 },
                   shadowOpacity: 0.2,
                   shadowRadius: 8,
@@ -401,10 +431,10 @@ export default function AccountsScreen() {
                   <ActivityIndicator color="white" />
                 ) : (
                   <View className="flex-row items-center gap-2">
-                    <Ionicons 
-                      name={selectedAccount ? "checkmark-circle" : "add-circle"} 
-                      size={20} 
-                      color="white" 
+                    <Ionicons
+                      name={selectedAccount ? "checkmark-circle" : "add-circle"}
+                      size={20}
+                      color="white"
                     />
                     <Text className="text-white font-bold text-base">
                       {selectedAccount ? "Update Account" : "Create Account"}

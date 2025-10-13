@@ -1,4 +1,7 @@
-import { useMemo, useState } from "react";
+import { useMemo, usimport { StatsCards } from '../../components/stats-cards';
+import { QuickActions } from '../../components/quick-actions';
+import Toast from 'react-native-toast-message';
+import { exportTransactionsPdf } from '../../services/reports';ate } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -7,17 +10,19 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View,
-} from "react-native";
-import { useForm, Controller } from "react-hook-form";
-import { z } from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { Ionicons } from "@expo/vector-icons";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import dayjs from "dayjs";
-import { FilterBar } from "../../components/filter-bar";
-import { TransactionCard } from "../../components/transaction-card";
-import { VoiceInputButton } from "../../components/voice-input-button";
+  View
+} from 'react-native';
+import { useForm, Controller } from 'react-hook-form';
+import { z } from 'zod';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { Ionicons } from '@expo/vector-icons';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import dayjs from 'dayjs';
+import { FilterBar } from '../../components/filter-bar';
+import { TransactionCard } from '../../components/transaction-card';
+import { VoiceInputButton } from '../../components/voice-input-button';
+import { StatsCards } from '../../components/stats-cards';
+import { QuickActions } from '../../components/quick-actions';
 import { exportTransactionsPdf } from "../../services/reports";
 import {
   createTransaction,
@@ -173,102 +178,50 @@ export default function DashboardScreen() {
     });
   };
 
-  const renderHeader = () => (
-    <View className="gap-6">
-      {/* Modern Balance Cards */}
-      <View className="flex-row gap-4">
-        <View className="flex-1 bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-          <View className="flex-row items-center gap-3 mb-3">
-            <View className="w-10 h-10 bg-red-50 rounded-full items-center justify-center">
-              <Ionicons name="trending-down" size={20} color="#ef4444" />
-            </View>
-            <View className="flex-1">
-              <Text className="text-gray-500 text-xs uppercase font-medium">
-                Total Debit
-              </Text>
-              <Text className="text-red-500 text-xl font-bold">
-                ${totals.debit.toFixed(2)}
-              </Text>
-            </View>
-          </View>
-        </View>
+  const renderHeader = () => {
+    const transactionCount = (transactionsQuery.data as any)?.transactions?.length || 0;
+    const accountCount = accountsQuery.data?.length || 0;
 
-        <View className="flex-1 bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-          <View className="flex-row items-center gap-3 mb-3">
-            <View className="w-10 h-10 bg-green-50 rounded-full items-center justify-center">
-              <Ionicons name="trending-up" size={20} color="#10b981" />
-            </View>
-            <View className="flex-1">
-              <Text className="text-gray-500 text-xs uppercase font-medium">
-                Total Credit
-              </Text>
-              <Text className="text-green-500 text-xl font-bold">
-                ${totals.credit.toFixed(2)}
-              </Text>
-            </View>
-          </View>
-        </View>
+    return (
+      <View className="gap-6">
+        {/* Enhanced Statistics Cards */}
+        <StatsCards
+          totalDebit={totals.debit}
+          totalCredit={totals.credit}
+          transactionCount={transactionCount}
+          accountCount={accountCount}
+        />
+
+        {/* Quick Actions */}
+        <QuickActions
+          onAddTransaction={() => setModalVisible(true)}
+          onAddAccount={() => {
+            // This would need to be implemented - navigate to accounts screen
+            console.log('Add account from dashboard');
+          }}
+          onExportPDF={async () => {
+            try {
+              await exportTransactionsPdf(filters);
+              Toast.show({ type: 'success', text1: 'PDF exported successfully!' });
+            } catch (error) {
+              console.error(error);
+              Toast.show({ type: 'error', text1: 'Failed to export PDF' });
+            }
+          }}
+          onVoiceInput={() => {
+            setModalVisible(true);
+            // Could focus on voice input after modal opens
+          }}
+        />
+
+        {/* Filter Bar */}
+        <FilterBar
+          filters={filters}
+          onChange={(next) => setFilters((prev) => ({ ...prev, ...next }))}
+        />
       </View>
-
-      {/* Net Balance Card */}
-      <View className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-5 border border-blue-100">
-        <View className="flex-row items-center justify-between">
-          <View>
-            <Text className="text-gray-600 text-sm font-medium">
-              Net Balance
-            </Text>
-            <Text
-              className={`text-2xl font-bold ${
-                totals.credit - totals.debit >= 0
-                  ? "text-green-600"
-                  : "text-red-600"
-              }`}
-            >
-              ${Math.abs(totals.credit - totals.debit).toFixed(2)}
-            </Text>
-            <Text className="text-gray-500 text-xs mt-1">
-              {totals.credit - totals.debit >= 0 ? "Surplus" : "Deficit"}
-            </Text>
-          </View>
-          <View className="w-12 h-12 bg-blue-100 rounded-full items-center justify-center">
-            <Ionicons
-              name={
-                totals.credit - totals.debit >= 0
-                  ? "checkmark-circle"
-                  : "alert-circle"
-              }
-              size={24}
-              color={totals.credit - totals.debit >= 0 ? "#10b981" : "#ef4444"}
-            />
-          </View>
-        </View>
-      </View>
-
-      <FilterBar
-        filters={filters}
-        onChange={(next) => setFilters((prev) => ({ ...prev, ...next }))}
-      />
-
-      {/* Export Button with modern design */}
-      <TouchableOpacity
-        onPress={async () => {
-          try {
-            await exportTransactionsPdf(filters);
-            Toast.show({ type: "success", text1: "PDF exported" });
-          } catch (error) {
-            console.error(error);
-            Toast.show({ type: "error", text1: "Failed to export PDF" });
-          }
-        }}
-        className="flex-row items-center justify-center gap-3 bg-white border border-gray-200 rounded-2xl py-4 shadow-sm"
-      >
-        <View className="w-8 h-8 bg-blue-50 rounded-full items-center justify-center">
-          <Ionicons name="document-text-outline" size={18} color="#3b82f6" />
-        </View>
-        <Text className="text-gray-700 font-semibold">Export Transactions</Text>
-      </TouchableOpacity>
-    </View>
-  );
+    );
+  };
 
   return (
     <View className="flex-1 bg-gray-50">

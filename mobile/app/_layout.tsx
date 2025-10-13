@@ -30,9 +30,9 @@ const RootContent = () => {
     const inAuthGroup = segments[0] === "(auth)";
 
     if (state.status === "authenticated" && inAuthGroup) {
-      router.replace("/(app)/index");
+      router.replace("/(app)" as any);
     } else if (state.status === "unauthenticated" && !inAuthGroup) {
-      router.replace("/(auth)/sign-in");
+      router.replace("/(auth)/sign-in" as any);
     }
   }, [segments, state.status, router]);
 

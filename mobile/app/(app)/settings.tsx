@@ -1,11 +1,11 @@
-import { useState } from 'react';
-import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
-import Constants from 'expo-constants';
-import { Ionicons } from '@expo/vector-icons';
-import Toast from 'react-native-toast-message';
-import { useAuth } from '../../hooks/useAuth';
-import { baseURL } from '../../lib/api';
-import { exportTransactionsPdf } from '../../services/reports';
+import { useState } from "react";
+import { ScrollView, Text, TouchableOpacity, View } from "react-native";
+import Constants from "expo-constants";
+import { Ionicons } from "@expo/vector-icons";
+import Toast from "react-native-toast-message";
+import { useAuth } from "../../hooks/useAuth";
+import { baseURL } from "../../lib/api";
+import { exportTransactionsPdf } from "../../services/reports";
 
 export default function SettingsScreen() {
   const { state, signOut, refreshProfile } = useAuth();
@@ -15,10 +15,10 @@ export default function SettingsScreen() {
     try {
       setExporting(true);
       await exportTransactionsPdf({});
-      Toast.show({ type: 'success', text1: 'Full report exported' });
+      Toast.show({ type: "success", text1: "Full report exported" });
     } catch (error) {
       console.error(error);
-      Toast.show({ type: 'error', text1: 'Failed to export full report' });
+      Toast.show({ type: "error", text1: "Failed to export full report" });
     } finally {
       setExporting(false);
     }
@@ -42,14 +42,18 @@ export default function SettingsScreen() {
               <Ionicons name="person" size={28} color="#3b82f6" />
             </View>
             <View className="flex-1">
-              <Text className="text-gray-500 text-sm font-medium uppercase tracking-wide">Profile</Text>
+              <Text className="text-gray-500 text-sm font-medium uppercase tracking-wide">
+                Profile
+              </Text>
               <Text className="text-gray-900 text-xl font-bold mt-1">
-                {state.status === 'authenticated' ? state.user.name : 'Unknown User'}
+                {state.status === "authenticated"
+                  ? state.user.name
+                  : "Unknown User"}
               </Text>
             </View>
           </View>
-          
-          {state.status === 'authenticated' ? (
+
+          {state.status === "authenticated" ? (
             <View className="gap-3">
               <View className="flex-row items-center gap-3">
                 <Ionicons name="mail" size={18} color="#6b7280" />
@@ -61,7 +65,7 @@ export default function SettingsScreen() {
               </View>
             </View>
           ) : null}
-          
+
           <TouchableOpacity
             onPress={refreshProfile}
             className="flex-row gap-2 items-center justify-center bg-blue-50 rounded-xl py-3 mt-4"
@@ -78,19 +82,21 @@ export default function SettingsScreen() {
               <Ionicons name="document-text" size={24} color="#10b981" />
             </View>
             <View className="flex-1">
-              <Text className="text-gray-900 text-lg font-bold">Data Export</Text>
+              <Text className="text-gray-900 text-lg font-bold">
+                Data Export
+              </Text>
               <Text className="text-gray-600 text-sm mt-1">
                 Export complete PDF report of all transactions
               </Text>
             </View>
           </View>
-          
+
           <TouchableOpacity
             onPress={handleExport}
             disabled={exporting}
             className="bg-green-500 rounded-xl py-4 items-center shadow-sm"
             style={{
-              shadowColor: '#10b981',
+              shadowColor: "#10b981",
               shadowOffset: { width: 0, height: 2 },
               shadowOpacity: 0.1,
               shadowRadius: 4,
@@ -106,7 +112,9 @@ export default function SettingsScreen() {
               ) : (
                 <>
                   <Ionicons name="cloud-download" size={20} color="white" />
-                  <Text className="text-white font-bold">Export All as PDF</Text>
+                  <Text className="text-white font-bold">
+                    Export All as PDF
+                  </Text>
                 </>
               )}
             </View>
@@ -119,24 +127,28 @@ export default function SettingsScreen() {
             <View className="w-12 h-12 bg-purple-100 rounded-full items-center justify-center">
               <Ionicons name="information-circle" size={24} color="#8b5cf6" />
             </View>
-            <Text className="text-gray-900 text-lg font-bold">App Information</Text>
+            <Text className="text-gray-900 text-lg font-bold">
+              App Information
+            </Text>
           </View>
-          
+
           <View className="gap-3">
             <View className="flex-row items-center gap-3 py-2">
               <Ionicons name="server" size={18} color="#6b7280" />
               <View className="flex-1">
                 <Text className="text-gray-600 text-sm">API Endpoint</Text>
-                <Text className="text-gray-900 text-sm font-mono">{baseURL}</Text>
+                <Text className="text-gray-900 text-sm font-mono">
+                  {baseURL}
+                </Text>
               </View>
             </View>
-            
+
             <View className="flex-row items-center gap-3 py-2">
               <Ionicons name="code-working" size={18} color="#6b7280" />
               <View className="flex-1">
                 <Text className="text-gray-600 text-sm">App Version</Text>
                 <Text className="text-gray-900 text-sm font-mono">
-                  {Constants.expoConfig?.version || '1.0.0'}
+                  {Constants.expoConfig?.version || "1.0.0"}
                 </Text>
               </View>
             </View>
