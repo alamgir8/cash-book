@@ -76,6 +76,7 @@ export const StatsCards = ({
   transactionCount,
   accountCount,
 }: StatsCardsProps) => {
+  const { formatAmount } = usePreferences();
   const netBalance = totalCredit - totalDebit;
   const isPositiveBalance = netBalance >= 0;
 
@@ -85,7 +86,7 @@ export const StatsCards = ({
       <View className="flex-row gap-4">
         <StatCard
           title="Total Income"
-          value={`$${Math.round(totalCredit).toLocaleString()}`}
+          value={formatAmount(totalCredit)}
           subtitle="Credit transactions"
           icon="trending-up"
           iconColor="#10b981"
@@ -129,7 +130,7 @@ export const StatsCards = ({
                 isPositiveBalance ? "text-green-700" : "text-red-700"
               } mt-2`}
             >
-              ${Math.round(Math.abs(netBalance)).toLocaleString()}
+              {formatAmount(Math.abs(netBalance))}
             </Text>
             <Text className="text-gray-500 text-sm mt-1">
               {isPositiveBalance

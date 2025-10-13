@@ -15,6 +15,7 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import Toast from "react-native-toast-message";
 import { ActionButton } from "./action-button";
+import { useAuth } from "../hooks/useAuth";
 
 // Profile edit schema
 const profileSchema = z.object({
@@ -30,14 +31,6 @@ type ProfileFormData = z.infer<typeof profileSchema>;
 interface ProfileEditModalProps {
   visible: boolean;
   onClose: () => void;
-  onSave: (data: ProfileFormData) => Promise<void>;
-  currentProfile: {
-    name: string;
-    email: string;
-    phone?: string;
-    currency?: string;
-    language?: string;
-  };
 }
 
 // Currency options
@@ -70,31 +63,28 @@ const languages = [
   { label: "Bengali", value: "bn", flag: "🇧🇩" },
 ];
 
-export function ProfileEditModal({
-  visible,
-  onClose,
-  onSave,
-  currentProfile,
-}: ProfileEditModalProps) {
+export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
+  const { state, updateProfile } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [showCurrencyPicker, setShowCurrencyPicker] = useState(false);
   const [showLanguagePicker, setShowLanguagePicker] = useState(false);
+
+  const currentProfile = state.status === "authenticated" ? state.user : null;
 
   const {
     control,
     handleSubmit,
     formState: { errors },
-    reset,
     setValue,
     watch,
   } = useForm<ProfileFormData>({
     resolver: zodResolver(profileSchema),
     defaultValues: {
-      name: currentProfile.name,
-      email: currentProfile.email,
-      phone: currentProfile.phone || "",
-      currency: currentProfile.currency || "USD",
-      language: currentProfile.language || "en",
+      name: currentProfile?.name || "",
+      email: currentProfile?.email || "",
+      phone: currentProfile?.phone || "",
+      currency: currentProfile?.settings?.currency || "USD",
+      language: currentProfile?.settings?.language || "en",
     },
   });
 
@@ -104,7 +94,15 @@ export function ProfileEditModal({
   const handleSave = async (data: ProfileFormData) => {
     try {
       setIsLoading(true);
-      await onSave(data);
+      await updateProfile({
+        name: data.name,
+        email: data.email,
+        phone: data.phone,
+        settings: {
+          currency: data.currency,
+          language: data.language,
+        },
+      });
       Toast.show({
         type: "success",
         text1: "Profile updated successfully",

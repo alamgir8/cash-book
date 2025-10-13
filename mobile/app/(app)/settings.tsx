@@ -11,7 +11,7 @@ import { ActionButton } from "../../components/action-button";
 import { ProfileEditModal } from "../../components/profile-edit-modal";
 
 export default function SettingsScreen() {
-  const { state, signOut, refreshProfile } = useAuth();
+  const { state, signOut } = useAuth();
   const [exporting, setExporting] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
 
@@ -28,25 +28,8 @@ export default function SettingsScreen() {
     }
   };
 
-  const handleProfileUpdate = async (profileData: any) => {
-    try {
-      // TODO: Add API call to update profile
-      console.log("Updating profile:", profileData);
-
-      // For now, just show success message
-      // In a real app, you would make an API call here
-      await new Promise((resolve) => setTimeout(resolve, 1000)); // Simulate API call
-
-      Toast.show({
-        type: "success",
-        text1: "Profile updated successfully",
-      });
-
-      // Refresh profile data
-      await refreshProfile();
-    } catch {
-      throw new Error("Failed to update profile");
-    }
+  const handleProfileModalClose = () => {
+    setShowProfileModal(false);
   };
 
   return (
@@ -111,11 +94,13 @@ export default function SettingsScreen() {
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              onPress={refreshProfile}
+              onPress={() => setShowProfileModal(true)}
               className="flex-1 flex-row gap-2 items-center justify-center bg-blue-50 rounded-2xl py-3 active:scale-95"
             >
-              <Ionicons name="refresh" size={18} color="#1d4ed8" />
-              <Text className="text-blue-700 font-bold text-sm">Refresh</Text>
+              <Ionicons name="settings" size={18} color="#1d4ed8" />
+              <Text className="text-blue-700 font-bold text-sm">
+                Preferences
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -198,20 +183,10 @@ export default function SettingsScreen() {
       </ScrollView>
 
       {/* Profile Edit Modal */}
-      {state.status === "authenticated" && (
-        <ProfileEditModal
-          visible={showProfileModal}
-          onClose={() => setShowProfileModal(false)}
-          onSave={handleProfileUpdate}
-          currentProfile={{
-            name: state.user.name,
-            email: state.user.email,
-            phone: state.user.phone,
-            currency: "USD", // Default currency - will be updated when backend supports it
-            language: "en", // Default language - will be updated when backend supports it
-          }}
-        />
-      )}
+      <ProfileEditModal
+        visible={showProfileModal}
+        onClose={handleProfileModalClose}
+      />
     </View>
   );
 }

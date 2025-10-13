@@ -16,6 +16,7 @@ import {
   setAuthToken,
   setUnauthorizedHandler,
 } from "../lib/api";
+import * as authService from "../services/auth";
 
 const STORAGE_TOKEN_KEY = "debit-credit-token";
 
@@ -24,6 +25,13 @@ type Admin = {
   name: string;
   email: string;
   phone: string;
+  settings: {
+    currency: string;
+    language: string;
+    weekStartsOn: number;
+  };
+  createdAt: string;
+  updatedAt: string;
 };
 
 type AuthState =
@@ -48,12 +56,24 @@ type AuthResponse = {
   admin: Admin;
 };
 
+type UpdateProfilePayload = {
+  name?: string;
+  email?: string;
+  phone?: string;
+  settings?: {
+    currency?: string;
+    language?: string;
+    weekStartsOn?: number;
+  };
+};
+
 type AuthContextType = {
   state: AuthState;
   signIn: (credentials: Credentials) => Promise<void>;
   signUp: (payload: SignupPayload) => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  updateProfile: (payload: UpdateProfilePayload) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -85,18 +105,15 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     setState({ status: "unauthenticated", user: null, token: null });
   }, []);
 
-  const applySession = useCallback(
-    async ({ token, admin }: AuthResponse) => {
-      setAuthToken(token);
-      try {
-        await SecureStore.setItemAsync(STORAGE_TOKEN_KEY, token);
-      } catch (error) {
-        console.warn("Failed to persist auth token", error);
-      }
-      setState({ status: "authenticated", token, user: admin });
-    },
-    []
-  );
+  const applySession = useCallback(async ({ token, admin }: AuthResponse) => {
+    setAuthToken(token);
+    try {
+      await SecureStore.setItemAsync(STORAGE_TOKEN_KEY, token);
+    } catch (error) {
+      console.warn("Failed to persist auth token", error);
+    }
+    setState({ status: "authenticated", token, user: admin });
+  }, []);
 
   const handleUnauthorized = useCallback(async () => {
     if (handlingUnauthorized.current) return;
@@ -146,38 +163,41 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     bootstrap();
   }, [bootstrap]);
 
-  const signIn = useCallback(async ({ identifier, password }: Credentials) => {
-    try {
-      const { data } = await api.post<AuthResponse>("/auth/login", {
-        identifier,
-        password,
-      });
-      await applySession(data);
-      Toast.show({ type: "success", text1: "Welcome back!" });
-    } catch (error) {
-      const message = getApiErrorMessage(
-        error,
-        "Check your credentials and try again."
-      );
-      Toast.show({ type: "error", text1: "Sign-in failed", text2: message });
-      throw new Error(message);
-    }
-  }, [applySession]);
+  const signIn = useCallback(
+    async ({ identifier, password }: Credentials) => {
+      try {
+        const data = await authService.login({ identifier, password });
+        await applySession(data);
+        Toast.show({ type: "success", text1: "Welcome back!" });
+      } catch (error) {
+        const message = getApiErrorMessage(
+          error,
+          "Check your credentials and try again."
+        );
+        Toast.show({ type: "error", text1: "Sign-in failed", text2: message });
+        throw new Error(message);
+      }
+    },
+    [applySession]
+  );
 
-  const signUp = useCallback(async (payload: SignupPayload) => {
-    try {
-      const { data } = await api.post<AuthResponse>("/auth/signup", payload);
-      await applySession(data);
-      Toast.show({ type: "success", text1: "Account created" });
-    } catch (error) {
-      const message = getApiErrorMessage(
-        error,
-        "Please review your details and try again."
-      );
-      Toast.show({ type: "error", text1: "Sign-up failed", text2: message });
-      throw new Error(message);
-    }
-  }, [applySession]);
+  const signUp = useCallback(
+    async (payload: SignupPayload) => {
+      try {
+        const data = await authService.signup(payload);
+        await applySession(data);
+        Toast.show({ type: "success", text1: "Account created" });
+      } catch (error) {
+        const message = getApiErrorMessage(
+          error,
+          "Please review your details and try again."
+        );
+        Toast.show({ type: "error", text1: "Sign-up failed", text2: message });
+        throw new Error(message);
+      }
+    },
+    [applySession]
+  );
 
   const signOut = useCallback(async () => {
     await clearSession();
@@ -186,7 +206,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const refreshProfile = useCallback(async () => {
     if (stateRef.current.status !== "authenticated") return;
     try {
-      const { data } = await api.get<{ admin: Admin }>("/auth/me");
+      const data = await authService.getProfile();
       setState((prev) =>
         prev.status === "authenticated"
           ? { ...prev, user: data.admin }
@@ -197,6 +217,26 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   }, []);
 
+  const updateProfile = useCallback(async (payload: UpdateProfilePayload) => {
+    if (stateRef.current.status !== "authenticated") return;
+    try {
+      const data = await authService.updateProfile(payload);
+      setState((prev) =>
+        prev.status === "authenticated"
+          ? { ...prev, user: data.admin }
+          : { status: "unauthenticated", user: null, token: null }
+      );
+      Toast.show({ type: "success", text1: "Profile updated successfully" });
+    } catch (error) {
+      const message = getApiErrorMessage(
+        error,
+        "Failed to update profile. Please try again."
+      );
+      Toast.show({ type: "error", text1: "Update failed", text2: message });
+      throw new Error(message);
+    }
+  }, []);
+
   const value = useMemo(
     () => ({
       state,
@@ -204,8 +244,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       signUp,
       signOut,
       refreshProfile,
+      updateProfile,
     }),
-    [state, signIn, signUp, signOut, refreshProfile]
+    [state, signIn, signUp, signOut, refreshProfile, updateProfile]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

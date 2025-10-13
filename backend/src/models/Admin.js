@@ -1,43 +1,71 @@
-import mongoose from 'mongoose';
+import mongoose from "mongoose";
 
 const adminSchema = new mongoose.Schema(
   {
     name: {
       type: String,
       required: true,
-      trim: true
+      trim: true,
     },
     email: {
       type: String,
       required: true,
       unique: true,
       lowercase: true,
-      trim: true
+      trim: true,
     },
     phone: {
       type: String,
       required: true,
       unique: true,
-      trim: true
+      trim: true,
     },
     passwordHash: {
       type: String,
-      required: true
+      required: true,
     },
     settings: {
       currency: {
         type: String,
-        default: 'USD'
+        enum: [
+          "USD",
+          "EUR",
+          "GBP",
+          "JPY",
+          "CAD",
+          "AUD",
+          "CHF",
+          "CNY",
+          "INR",
+          "BDT",
+          "SAR",
+          "AED",
+        ],
+        default: "USD",
       },
       language: {
         type: String,
-        default: 'en'
+        enum: [
+          "en",
+          "es",
+          "fr",
+          "de",
+          "it",
+          "pt",
+          "ru",
+          "zh",
+          "ja",
+          "ar",
+          "hi",
+          "bn",
+        ],
+        default: "en",
       },
       weekStartsOn: {
         type: Number,
-        default: 1
-      }
-    }
+        default: 1,
+      },
+    },
   },
   { timestamps: true }
 );
@@ -48,4 +76,4 @@ adminSchema.methods.toJSON = function () {
   return obj;
 };
 
-export const Admin = mongoose.model('Admin', adminSchema);
+export const Admin = mongoose.model("Admin", adminSchema);

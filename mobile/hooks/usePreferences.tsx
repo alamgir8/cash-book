@@ -6,6 +6,7 @@ import {
   ReactNode,
 } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useAuth } from "./useAuth";
 
 interface UserPreferences {
   currency: string;
@@ -65,13 +66,26 @@ const PreferencesContext = createContext<PreferencesContextType | undefined>(
 );
 
 export function PreferencesProvider({ children }: { children: ReactNode }) {
+  const { state, updateProfile } = useAuth();
   const [preferences, setPreferences] =
     useState<UserPreferences>(defaultPreferences);
 
-  // Load preferences from storage on mount
+  // Load preferences from auth user or storage on mount
   useEffect(() => {
-    loadPreferences();
-  }, []);
+    if (state.status === "authenticated" && state.user?.settings) {
+      // Load from authenticated user
+      const userSettings = state.user.settings;
+      setPreferences({
+        currency: userSettings.currency,
+        currencySymbol: currencyMap[userSettings.currency] || "$",
+        language: userSettings.language,
+        languageLabel: languageMap[userSettings.language] || "English",
+      });
+    } else {
+      // Fallback to local storage
+      loadPreferences();
+    }
+  }, [state]);
 
   const loadPreferences = async () => {
     try {
@@ -101,10 +115,22 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       };
 
       setPreferences(updatedPrefs);
-      await AsyncStorage.setItem(
-        PREFERENCES_STORAGE_KEY,
-        JSON.stringify(updatedPrefs)
-      );
+
+      // If user is authenticated, sync with backend
+      if (state.status === "authenticated") {
+        await updateProfile({
+          settings: {
+            currency: updatedPrefs.currency,
+            language: updatedPrefs.language,
+          },
+        });
+      } else {
+        // Otherwise save to local storage
+        await AsyncStorage.setItem(
+          PREFERENCES_STORAGE_KEY,
+          JSON.stringify(updatedPrefs)
+        );
+      }
     } catch (error) {
       console.error("Failed to save preferences:", error);
       throw error;
