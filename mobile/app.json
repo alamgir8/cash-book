@@ -1,38 +1,31 @@
 {
   "expo": {
-    "name": "DebitCreditApp",
-    "slug": "debit-credit-app",
+    "name": "cash-book",
+    "slug": "cash-book",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "scheme": "debitcredit",
     "userInterfaceStyle": "light",
+    "scheme": "cash-book",
+    "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0f172a"
+      "backgroundColor": "#ffffff",
+      "image": "./assets/splash.png"
     },
-    "updates": {
-      "fallbackToCacheTimeout": 0
-    },
-    "assetBundlePatterns": ["**/*"],
     "ios": {
-      "supportsTablet": false,
-      "bundleIdentifier": "com.debitcredit.app"
+      "supportsTablet": true,
+      "bundleIdentifier": "com.cashbook.app"
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0f172a"
+        "backgroundColor": "#ffffff",
+        "foregroundImage": "./assets/icon.png"
       },
-      "package": "com.debitcredit.app"
+      "package": "com.cashbook.app"
     },
-    "extra": {
-      "apiBaseUrl": "http://10.0.2.2:4000/api"
+    "web": {
+      "bundler": "metro"
     },
-    "experiments": {
-      "typedRoutes": true
-    },
-    "plugins": ["expo-router", "nativewind/babel"]
+    "plugins": ["expo-router", "expo-secure-store", "expo-font"]
   }
 }
