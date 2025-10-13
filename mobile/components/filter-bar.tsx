@@ -34,11 +34,11 @@ export const FilterBar = ({
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <View className="bg-white rounded-2xl p-4 border border-gray-200 shadow-sm">
+    <View className="bg-white rounded-2xl p-3 border border-gray-200 shadow-sm">
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        className="flex-row gap-3"
+        className="flex-row gap-2.5"
       >
         {ranges.map((range) => (
           <TouchableOpacity
@@ -46,7 +46,7 @@ export const FilterBar = ({
             onPress={() =>
               onChange({ ...filters, range: range.value, page: 1 })
             }
-            className={`px-4 py-2 rounded-full border-2 ${
+            className={`px-3 py-1.5 rounded-full border ${
               filters.range === range.value
                 ? "bg-blue-50 border-blue-500"
                 : "border-gray-200 bg-gray-50"
@@ -66,7 +66,7 @@ export const FilterBar = ({
 
         <TouchableOpacity
           onPress={() => setExpanded((prev) => !prev)}
-          className="flex-row items-center gap-1 px-4 py-2 rounded-full border-2 border-gray-200 bg-gray-50"
+          className="flex-row items-center gap-1 px-3 py-1.5 rounded-full border border-gray-200 bg-gray-50"
         >
           <Ionicons
             name={expanded ? "chevron-up" : "chevron-down"}
@@ -78,7 +78,7 @@ export const FilterBar = ({
       </ScrollView>
 
       {showTypeToggle ? (
-        <View className="flex-row gap-2 mt-4">
+        <View className="flex-row gap-2 mt-3">
           {[
             { label: "All", value: undefined },
             { label: "Credit", value: "credit" as const },
@@ -98,7 +98,7 @@ export const FilterBar = ({
                     page: 1,
                   })
                 }
-                className={`flex-1 py-2 rounded-full border-2 ${
+                className={`flex-1 py-1.5 rounded-full border ${
                   isActive
                     ? option.value === "credit"
                       ? "border-green-500 bg-green-50"
@@ -128,10 +128,10 @@ export const FilterBar = ({
       ) : null}
 
       {expanded ? (
-        <View className="mt-4 gap-4">
+        <View className="mt-3 gap-3">
           <View className="flex-row gap-3">
             <View className="flex-1">
-              <Text className="text-gray-700 text-sm font-semibold mb-2">
+              <Text className="text-gray-700 text-sm font-semibold mb-1.5">
                 Start Date
               </Text>
               <TextInput
@@ -141,11 +141,11 @@ export const FilterBar = ({
                 }
                 placeholder="YYYY-MM-DD"
                 placeholderTextColor="#9ca3af"
-                className="bg-gray-50 text-gray-900 px-3 py-3 rounded-xl border border-gray-200"
+                className="bg-gray-50 text-gray-900 px-3 py-2.5 rounded-xl border border-gray-200"
               />
             </View>
             <View className="flex-1">
-              <Text className="text-gray-700 text-sm font-semibold mb-2">
+              <Text className="text-gray-700 text-sm font-semibold mb-1.5">
                 End Date
               </Text>
               <TextInput
@@ -155,7 +155,7 @@ export const FilterBar = ({
                 }
                 placeholder="YYYY-MM-DD"
                 placeholderTextColor="#9ca3af"
-                className="bg-gray-50 text-gray-900 px-3 py-3 rounded-xl border border-gray-200"
+                className="bg-gray-50 text-gray-900 px-3 py-2.5 rounded-xl border border-gray-200"
               />
             </View>
           </View>
@@ -163,7 +163,7 @@ export const FilterBar = ({
           <View className="flex-row gap-3">
             {showAccountField ? (
               <View className="flex-1">
-                <Text className="text-gray-700 text-sm font-semibold mb-2">
+                <Text className="text-gray-700 text-sm font-semibold mb-1.5">
                   Account Name
                 </Text>
                 <TextInput
@@ -173,7 +173,7 @@ export const FilterBar = ({
                   }
                   placeholder="Search account..."
                   placeholderTextColor="#9ca3af"
-                  className="bg-gray-50 text-gray-900 px-3 py-3 rounded-xl border border-gray-200"
+                  className="bg-gray-50 text-gray-900 px-3 py-2.5 rounded-xl border border-gray-200"
                 />
               </View>
             ) : null}
@@ -181,7 +181,7 @@ export const FilterBar = ({
 
           <View className="flex-row gap-3">
             <View className="flex-1">
-              <Text className="text-gray-700 text-sm font-semibold mb-2">
+              <Text className="text-gray-700 text-sm font-semibold mb-1.5">
                 Amount Range
               </Text>
               <View className="flex-row gap-2">
@@ -196,7 +196,7 @@ export const FilterBar = ({
                   keyboardType="numeric"
                   placeholder="Min"
                   placeholderTextColor="#9ca3af"
-                  className="flex-1 bg-gray-50 text-gray-900 px-3 py-3 rounded-xl border border-gray-200"
+                  className="flex-1 bg-gray-50 text-gray-900 px-3 py-2.5 rounded-xl border border-gray-200"
                 />
                 <TextInput
                   value={filters.maxAmount ? String(filters.maxAmount) : ""}
@@ -209,14 +209,14 @@ export const FilterBar = ({
                   keyboardType="numeric"
                   placeholder="Max"
                   placeholderTextColor="#9ca3af"
-                  className="flex-1 bg-gray-50 text-gray-900 px-3 py-3 rounded-xl border border-gray-200"
+                className="flex-1 bg-gray-50 text-gray-900 px-3 py-2.5 rounded-xl border border-gray-200"
                 />
               </View>
             </View>
           </View>
 
           <View>
-            <Text className="text-gray-700 text-sm font-semibold mb-2">
+            <Text className="text-gray-700 text-sm font-semibold mb-1.5">
               Search Keywords
             </Text>
             <TextInput
@@ -226,14 +226,14 @@ export const FilterBar = ({
               }
               placeholder="Search description or comments..."
               placeholderTextColor="#9ca3af"
-              className="bg-gray-50 text-gray-900 px-3 py-3 rounded-xl border border-gray-200"
+              className="bg-gray-50 text-gray-900 px-3 py-2.5 rounded-xl border border-gray-200"
             />
           </View>
 
           {onReset ? (
             <TouchableOpacity
               onPress={onReset}
-              className="self-start px-4 py-2 rounded-full border border-gray-200 bg-gray-50 flex-row items-center gap-2"
+              className="self-start px-3 py-1.5 rounded-full border border-gray-200 bg-gray-50 flex-row items-center gap-2"
             >
               <Ionicons name="refresh" size={14} color="#3b82f6" />
               <Text className="text-sm font-semibold text-blue-600">

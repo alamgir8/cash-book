@@ -12,6 +12,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import dayjs from "dayjs";
 import Toast from "react-native-toast-message";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { FilterBar } from "../../../components/filter-bar";
 import { TransactionCard } from "../../../components/transaction-card";
 import { exportTransactionsPdf } from "../../../services/reports";
@@ -128,7 +129,7 @@ export default function AccountDetailScreen() {
       <View className="flex-row items-center gap-3">
         <TouchableOpacity
           onPress={() => router.back()}
-          className="w-10 h-10 rounded-full bg-white border border-gray-200 items-center justify-center"
+          className="w-10 h-10 rounded-full bg-white border border-slate-200 items-center justify-center"
         >
           <Ionicons name="chevron-back" size={20} color="#1f2937" />
         </TouchableOpacity>
@@ -192,7 +193,7 @@ export default function AccountDetailScreen() {
                 params: { accountId },
               })
             }
-            className="flex-1 flex-row items-center justify-center gap-2 border border-gray-200 rounded-xl py-3 bg-gray-50"
+            className="flex-1 flex-row items-center justify-center gap-2 border border-gray-200 rounded-xl py-2.5 bg-gray-50 active:bg-gray-100"
           >
             <Ionicons name="pencil" size={18} color="#334155" />
             <Text className="text-gray-700 font-semibold">Edit Account</Text>
@@ -200,7 +201,7 @@ export default function AccountDetailScreen() {
           <TouchableOpacity
             onPress={handleExport}
             disabled={exporting}
-            className="flex-1 flex-row items-center justify-center gap-2 bg-blue-500 rounded-xl py-3"
+            className="flex-1 flex-row items-center justify-center gap-2 bg-blue-500 rounded-xl py-2.5 active:opacity-90"
           >
             <Ionicons
               name={exporting ? "cloud-download" : "document-text-outline"}
@@ -281,11 +282,16 @@ export default function AccountDetailScreen() {
   );
 
   return (
-    <View className="flex-1 bg-gray-50">
+    <SafeAreaView className="flex-1 bg-slate-50">
       <FlatList
         data={transactions}
         keyExtractor={(item) => item._id}
-        contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 40 }}
+        contentContainerStyle={{
+          paddingHorizontal: 16,
+          paddingVertical: 16,
+          gap: 16,
+          paddingBottom: 80,
+        }}
         ListHeaderComponent={renderHeader}
         ListEmptyComponent={
           transactionsQuery.isLoading ? (
@@ -301,9 +307,9 @@ export default function AccountDetailScreen() {
               </Text>
               <TouchableOpacity
                 onPress={() => router.push("/(app)")}
-                className="px-4 py-2 rounded-full bg-blue-500"
+                className="px-4 py-2 rounded-full bg-blue-500 active:opacity-90"
               >
-                <Text className="text-white font-semibold">
+                <Text className="text-white font-semibold text-sm">
                   Go to Dashboard
                 </Text>
               </TouchableOpacity>
@@ -319,6 +325,6 @@ export default function AccountDetailScreen() {
           />
         }
       />
-    </View>
+    </SafeAreaView>
   );
 }

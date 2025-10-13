@@ -19,6 +19,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import dayjs from "dayjs";
 import Toast from "react-native-toast-message";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { VoiceInputButton } from "../../components/voice-input-button";
 import {
   createAccount,
@@ -342,43 +343,44 @@ export default function AccountsScreen() {
   );
 
   return (
-    <View className="flex-1 bg-gradient-to-b from-green-50 to-gray-50">
-      {/* Enhanced Mobile Header */}
-      <View className="pt-16 pb-6 px-6 bg-white shadow-sm border-b border-gray-100">
+    <View className="flex-1 bg-slate-50">
+      <SafeAreaView
+        edges={["top"]}
+        className="px-5 pb-4 bg-white border-b border-slate-200 shadow-sm"
+      >
         <View className="flex-row items-center justify-between">
           <View className="flex-1">
-            <Text className="text-2xl font-bold text-gray-900">Accounts</Text>
-            <Text className="text-sm text-gray-600 mt-1">
+            <Text className="text-2xl font-bold text-slate-900">Accounts</Text>
+            <Text className="text-sm text-slate-500 mt-1">
               Manage your financial accounts
             </Text>
           </View>
           <TouchableOpacity
             onPress={() => openModal()}
-            className="bg-gradient-to-r from-green-600 to-green-700 px-5 py-3 rounded-2xl shadow-lg"
+            className="bg-blue-600 px-4 py-2 rounded-xl shadow-md active:opacity-90"
             style={{
-              shadowColor: "#16a34a",
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.2,
-              shadowRadius: 8,
-              elevation: 6,
+              shadowColor: "#2563eb",
+              shadowOffset: { width: 0, height: 3 },
+              shadowOpacity: 0.18,
+              shadowRadius: 6,
             }}
           >
             <View className="flex-row items-center gap-2">
-              <Ionicons name="add-circle" size={20} color="white" />
-              <Text className="text-white font-bold text-base">Add</Text>
+              <Ionicons name="add" size={18} color="#fff" />
+              <Text className="text-white font-semibold text-sm">Add</Text>
             </View>
           </TouchableOpacity>
         </View>
-      </View>
+      </SafeAreaView>
 
       <FlatList
         data={accounts}
         keyExtractor={(item) => item._id}
         contentContainerStyle={{
           paddingHorizontal: 16,
-          paddingVertical: 20,
+          paddingVertical: 16,
           gap: 16,
-          paddingBottom: 100,
+          paddingBottom: 88,
         }}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={renderHeader}
@@ -392,21 +394,20 @@ export default function AccountsScreen() {
             </View>
           ) : (
             <View className="items-center mt-16 gap-4 bg-white rounded-3xl p-8 mx-2 shadow-sm border border-gray-100">
-              <View className="w-20 h-20 bg-gradient-to-br from-green-100 to-green-200 rounded-full items-center justify-center">
-                <Ionicons name="wallet-outline" size={36} color="#16a34a" />
+              <View className="w-16 h-16 bg-blue-100 rounded-full items-center justify-center">
+                <Ionicons name="wallet-outline" size={32} color="#2563eb" />
               </View>
-              <Text className="text-gray-800 text-xl font-bold">
+              <Text className="text-gray-800 text-lg font-semibold">
                 No Accounts Yet
               </Text>
-              <Text className="text-gray-600 text-center text-base leading-relaxed">
-                Create your first account to start tracking your finances and
-                transactions
+              <Text className="text-gray-600 text-center text-sm leading-6">
+                Create your first account to start tracking your finances.
               </Text>
               <TouchableOpacity
                 onPress={() => openModal()}
-                className="bg-green-600 px-6 py-3 rounded-full mt-2"
+                className="bg-blue-600 px-5 py-2 rounded-full mt-2 active:opacity-90"
               >
-                <Text className="text-white font-bold text-base">
+                <Text className="text-white font-semibold text-sm">
                   Create Account
                 </Text>
               </TouchableOpacity>
@@ -422,15 +423,14 @@ export default function AccountsScreen() {
           const netFlowPositive = netFlow >= 0;
 
           return (
-            <TouchableOpacity
-              onPress={() => openModal(item)}
-              className="bg-white rounded-3xl p-6 border border-gray-100 shadow-md active:scale-95"
+            <View
+              className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm"
               style={{
                 shadowColor: "#000",
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.08,
-                shadowRadius: 12,
-                elevation: 6,
+                shadowOffset: { width: 0, height: 3 },
+                shadowOpacity: 0.06,
+                shadowRadius: 10,
+                elevation: 4,
               }}
             >
               <View className="flex-row justify-between items-start">
@@ -541,20 +541,20 @@ export default function AccountsScreen() {
                       params: { accountId: item._id },
                     } as any)
                   }
-                  className="flex-1 flex-row items-center justify-center gap-2 bg-blue-500 rounded-xl py-3"
+                  className="flex-1 flex-row items-center justify-center gap-2 bg-blue-500 rounded-xl py-2.5 active:opacity-90"
                 >
                   <Ionicons name="time-outline" size={18} color="#fff" />
                   <Text className="text-white font-semibold">View History</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={() => openModal(item)}
-                  className="flex-1 flex-row items-center justify-center gap-2 border border-gray-200 rounded-xl py-3 bg-gray-50"
+                  className="flex-1 flex-row items-center justify-center gap-2 border border-gray-200 rounded-xl py-2.5 bg-gray-50 active:bg-gray-100"
                 >
                   <Ionicons name="pencil" size={18} color="#334155" />
                   <Text className="text-gray-700 font-semibold">Edit</Text>
                 </TouchableOpacity>
               </View>
-            </TouchableOpacity>
+            </View>
           );
         }}
       />
@@ -608,7 +608,7 @@ export default function AccountsScreen() {
                             onChangeText={onChange}
                             placeholder="e.g. Business Checking, Savings Account"
                             placeholderTextColor="#9ca3af"
-                            className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200 text-base"
+                            className="bg-gray-50 text-gray-900 px-4 py-2.5 rounded-xl border border-gray-200 text-base"
                           />
                         )}
                       />
@@ -633,7 +633,7 @@ export default function AccountsScreen() {
                               <TouchableOpacity
                                 key={option}
                                 onPress={() => onChange(option)}
-                                className={`flex-1 py-4 rounded-xl border-2 ${
+                                className={`flex-1 py-3 rounded-xl border-2 ${
                                   value === option
                                     ? option === "debit"
                                       ? "border-blue-500 bg-blue-50"
@@ -703,7 +703,7 @@ export default function AccountsScreen() {
                             onChangeText={onChange}
                             placeholder="Optional details about this account..."
                             placeholderTextColor="#9ca3af"
-                            className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200 min-h-[80px]"
+                          className="bg-gray-50 text-gray-900 px-4 py-2.5 rounded-xl border border-gray-200 min-h-[80px]"
                             multiline
                             textAlignVertical="top"
                           />
@@ -724,7 +724,7 @@ export default function AccountsScreen() {
                   disabled={
                     createMutation.isPending || updateMutation.isPending
                   }
-                  className="bg-blue-500 rounded-2xl py-4 items-center shadow-lg shadow-blue-500/25"
+                  className="bg-blue-500 rounded-2xl py-3 items-center shadow-lg shadow-blue-500/25"
                   style={{
                     shadowColor: "#3b82f6",
                     shadowOffset: { width: 0, height: 4 },
@@ -744,7 +744,7 @@ export default function AccountsScreen() {
                         size={20}
                         color="white"
                       />
-                      <Text className="text-white font-bold text-base">
+                      <Text className="text-white font-semibold text-sm">
                         {selectedAccount ? "Update Account" : "Create Account"}
                       </Text>
                     </View>

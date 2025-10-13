@@ -11,15 +11,15 @@ const TabIcon = ({
   label: string;
   focused: boolean;
 }) => (
-  <View className="items-center justify-center px-2 py-1">
-    <View
-      className={`p-2 rounded-xl ${focused ? "bg-blue-100" : "bg-transparent"}`}
-    >
-      <Ionicons name={icon} size={26} color={focused ? "#1d4ed8" : "#6b7280"} />
-    </View>
+  <View className="items-center justify-center px-1.5 py-1 gap-1">
+    <Ionicons
+      name={icon}
+      size={22}
+      color={focused ? "#0f172a" : "#94a3b8"}
+    />
     <Text
-      className={`text-xs mt-1 font-semibold ${
-        focused ? "text-blue-700" : "text-gray-600"
+      className={`text-[10px] font-medium ${
+        focused ? "text-slate-900" : "text-slate-400"
       }`}
     >
       {label}
@@ -34,16 +34,10 @@ export default function AppLayout() {
         headerShown: false,
         tabBarStyle: {
           backgroundColor: "#ffffff",
-          borderTopColor: "#e5e7eb",
+          borderTopColor: "#e2e8f0",
           borderTopWidth: 1,
-          paddingVertical: 12,
-          paddingHorizontal: 8,
-          height: 88,
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: -4 },
-          shadowOpacity: 0.1,
-          shadowRadius: 12,
-          elevation: 12,
+          paddingVertical: 8,
+          height: 68,
         },
         tabBarShowLabel: false,
       }}
