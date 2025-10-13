@@ -84,7 +84,7 @@ export const StatsCards = ({
       <View className="flex-row gap-4">
         <StatCard
           title="Total Income"
-          value={`$${totalCredit.toFixed(2)}`}
+          value={`$${Math.round(totalCredit).toLocaleString()}`}
           subtitle="Credit transactions"
           icon="trending-up"
           iconColor="#10b981"
@@ -97,7 +97,7 @@ export const StatsCards = ({
         />
         <StatCard
           title="Total Expenses"
-          value={`$${totalDebit.toFixed(2)}`}
+          value={`$${Math.round(totalDebit).toLocaleString()}`}
           subtitle="Debit transactions"
           icon="trending-down"
           iconColor="#ef4444"

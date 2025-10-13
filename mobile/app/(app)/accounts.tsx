@@ -249,10 +249,7 @@ export default function AccountsScreen() {
   }, [accounts]);
 
   const formatAmount = (value: number) =>
-    `$${value.toLocaleString(undefined, {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })}`;
+    `$${Math.round(value).toLocaleString()}`;
   const formatSignedAmount = (value: number) => {
     const base = formatAmount(Math.abs(value));
     return `${value >= 0 ? "+" : "-"}${base}`;

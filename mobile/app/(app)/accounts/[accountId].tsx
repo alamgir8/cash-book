@@ -30,10 +30,7 @@ const defaultFilters: TransactionFilters = {
 };
 
 const formatAmount = (value: number) =>
-  `$${value.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
+  `$${Math.round(value).toLocaleString()}`;
 
 export default function AccountDetailScreen() {
   const router = useRouter();
