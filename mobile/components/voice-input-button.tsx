@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
-import { TouchableOpacity, Text, ActivityIndicator } from "react-native";
-import * as Speech from "expo-speech";
+import {
+  TouchableOpacity,
+  Text,
+  ActivityIndicator,
+  Platform,
+} from "react-native";
 
 type Props = {
   onResult: (transcript: string) => void;
@@ -9,53 +13,77 @@ type Props = {
 export const VoiceInputButton = ({ onResult }: Props) => {
   const [isListening, setIsListening] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [recognition, setRecognition] = useState<any>(null);
 
   useEffect(() => {
-    const handleResults = (event: SpeechResultsEvent) => {
-      const [result] = event.value ?? [];
-      if (result) {
-        onResult(result);
-      }
-      setIsListening(false);
-      setLoading(false);
-    };
+    // Initialize speech recognition for web platform
+    if (Platform.OS === "web" && "webkitSpeechRecognition" in window) {
+      const SpeechRecognition =
+        (window as any).webkitSpeechRecognition ||
+        (window as any).SpeechRecognition;
+      const recognitionInstance = new SpeechRecognition();
 
-    const handleError = (event: SpeechErrorEvent) => {
-      console.warn("Voice recognition error", event.error);
-      setIsListening(false);
-      setLoading(false);
-    };
+      recognitionInstance.continuous = false;
+      recognitionInstance.interimResults = false;
+      recognitionInstance.lang = "en-US";
 
-    Voice.onSpeechResults = handleResults;
-    Voice.onSpeechError = handleError;
+      recognitionInstance.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        onResult(transcript);
+        setIsListening(false);
+        setLoading(false);
+      };
 
-    return () => {
-      Voice.destroy().catch(() => {});
-      Voice.removeAllListeners();
-    };
+      recognitionInstance.onerror = (event: any) => {
+        console.warn("Speech recognition error:", event.error);
+        setIsListening(false);
+        setLoading(false);
+      };
+
+      recognitionInstance.onend = () => {
+        setIsListening(false);
+        setLoading(false);
+      };
+
+      setRecognition(recognitionInstance);
+    }
   }, [onResult]);
 
   const startListening = async () => {
-    try {
-      setLoading(true);
-      await Voice.start("en-US");
-      setIsListening(true);
-    } catch (error) {
-      console.warn("Failed to start voice recognition", error);
-      setLoading(false);
+    if (Platform.OS === "web" && recognition) {
+      try {
+        setLoading(true);
+        recognition.start();
+        setIsListening(true);
+        setLoading(false);
+      } catch (error) {
+        console.warn("Failed to start speech recognition", error);
+        setLoading(false);
+      }
+    } else {
+      // For mobile platforms, show a message that voice input is only available on web
+      console.warn("Voice input is only available on web platform");
+      // You could show a toast message here or handle this differently
     }
   };
 
   const stopListening = async () => {
-    try {
-      await Voice.stop();
-    } catch (error) {
-      console.warn("Failed to stop voice recognition", error);
-    } finally {
-      setIsListening(false);
-      setLoading(false);
+    if (Platform.OS === "web" && recognition) {
+      try {
+        recognition.stop();
+      } catch (error) {
+        console.warn("Failed to stop speech recognition", error);
+      } finally {
+        setIsListening(false);
+        setLoading(false);
+      }
     }
   };
+
+  // Don't render the button on mobile platforms where it won't work
+  if (Platform.OS !== "web") {
+    return null;
+  }
 
   return (
     <TouchableOpacity
