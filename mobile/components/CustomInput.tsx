@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, TextInput, TextInputProps } from 'react-native';
+import React from "react";
+import { View, Text, TextInput, TextInputProps } from "react-native";
 
 interface CustomInputProps extends TextInputProps {
   label: string;
@@ -12,14 +12,16 @@ interface CustomInputProps extends TextInputProps {
 export const CustomInput: React.FC<CustomInputProps> = ({
   label,
   error,
-  containerClassName = '',
-  labelClassName = '',
-  inputClassName = '',
+  containerClassName = "",
+  labelClassName = "",
+  inputClassName = "",
   ...props
 }) => {
   return (
     <View className={`${containerClassName}`}>
-      <Text className={`text-slate-700 mb-3 text-base font-medium ${labelClassName}`}>
+      <Text
+        className={`text-slate-700 mb-3 text-base font-medium ${labelClassName}`}
+      >
         {label}
       </Text>
       <TextInput
@@ -27,11 +29,7 @@ export const CustomInput: React.FC<CustomInputProps> = ({
         placeholderTextColor="#94a3b8"
         {...props}
       />
-      {error && (
-        <Text className="text-red-500 text-sm mt-2">
-          {error}
-        </Text>
-      )}
+      {error && <Text className="text-red-500 text-sm mt-2">{error}</Text>}
     </View>
   );
 };

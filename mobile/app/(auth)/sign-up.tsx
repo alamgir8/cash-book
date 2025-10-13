@@ -47,7 +47,8 @@ export default function SignUpScreen() {
   const onSubmit = async ({ confirmPassword, ...values }: FormValues) => {
     try {
       setLoading(true);
-      await signUp(values);
+      // Type assertion to ensure values match the required SignupPayload type
+      await signUp(values as Required<Omit<FormValues, "confirmPassword">>);
       router.replace("/(app)");
     } catch (error) {
       console.error(error);

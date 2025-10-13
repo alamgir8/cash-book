@@ -36,7 +36,8 @@ export default function SignInScreen() {
   const onSubmit = async (values: FormValues) => {
     try {
       setLoading(true);
-      await signIn(values);
+      // Type assertion to ensure values match the required Credentials type
+      await signIn(values as Required<FormValues>);
       router.replace("/(app)");
     } catch (error) {
       console.error(error);
@@ -53,7 +54,9 @@ export default function SignInScreen() {
   return (
     <View className="flex-1 bg-slate-50 px-6 justify-center gap-8">
       <View className="items-center mb-8">
-        <Text className="text-4xl font-bold text-slate-900 mb-3">Welcome Back</Text>
+        <Text className="text-4xl font-bold text-slate-900 mb-3">
+          Welcome Back
+        </Text>
         <Text className="text-lg text-slate-600 text-center leading-6">
           Manage your debit and credit accounts effortlessly.
         </Text>
