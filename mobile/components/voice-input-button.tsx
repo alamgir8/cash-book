@@ -88,18 +88,34 @@ export const VoiceInputButton = ({ onResult }: Props) => {
   return (
     <TouchableOpacity
       onPress={isListening ? stopListening : startListening}
-      className={`mt-4 w-full py-3 rounded-2xl border border-slate-700 flex-row gap-2 items-center justify-center ${
-        isListening ? "bg-emerald-500/20 border-emerald-400" : "bg-slate-900/60"
+      className={`w-full py-4 rounded-2xl border-2 flex-row gap-3 items-center justify-center ${
+        isListening
+          ? "bg-green-50 border-green-500"
+          : "bg-purple-50 border-purple-200"
       }`}
+      style={{
+        shadowColor: isListening ? "#10b981" : "#8b5cf6",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 2,
+      }}
     >
       {loading ? (
-        <ActivityIndicator color="#38bdf8" />
+        <ActivityIndicator color={isListening ? "#10b981" : "#8b5cf6"} />
       ) : (
-        <Text className="text-slate-200 font-semibold">
-          {isListening
-            ? "Listening... tap to finish"
-            : "Add details using voice"}
-        </Text>
+        <>
+          <Text className="text-2xl">{isListening ? "🎤" : "🎙️"}</Text>
+          <Text
+            className={`font-bold ${
+              isListening ? "text-green-700" : "text-purple-700"
+            }`}
+          >
+            {isListening
+              ? "Listening... tap to finish"
+              : "🗣️ Add details using voice"}
+          </Text>
+        </>
       )}
     </TouchableOpacity>
   );

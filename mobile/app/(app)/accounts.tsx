@@ -152,20 +152,33 @@ export default function AccountsScreen() {
   };
 
   return (
-    <View className="flex-1 bg-primary">
-      <View className="flex-row justify-between items-center px-6 pt-16 pb-4">
-        <View>
-          <Text className="text-2xl font-semibold text-white">Accounts</Text>
-          <Text className="text-slate-400 text-sm">
-            Manage credit and debit accounts for your business.
-          </Text>
+    <View className="flex-1 bg-gray-50">
+      {/* Header */}
+      <View className="bg-white px-6 pt-16 pb-6 border-b border-gray-100">
+        <View className="flex-row justify-between items-center">
+          <View className="flex-1">
+            <Text className="text-3xl font-bold text-gray-900">Accounts</Text>
+            <Text className="text-gray-600 text-base mt-1">
+              Manage your credit and debit accounts
+            </Text>
+          </View>
+          <TouchableOpacity
+            onPress={() => openModal()}
+            className="bg-blue-500 px-5 py-3 rounded-xl shadow-sm"
+            style={{
+              shadowColor: '#3b82f6',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.1,
+              shadowRadius: 4,
+              elevation: 2,
+            }}
+          >
+            <View className="flex-row items-center gap-2">
+              <Ionicons name="add" size={18} color="white" />
+              <Text className="text-white font-bold">Add Account</Text>
+            </View>
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity
-          onPress={() => openModal()}
-          className="bg-accent px-4 py-2 rounded-xl"
-        >
-          <Text className="text-primary font-semibold">Add</Text>
-        </TouchableOpacity>
       </View>
 
       <FlatList
@@ -174,39 +187,68 @@ export default function AccountsScreen() {
         contentContainerStyle={{ padding: 20, gap: 16 }}
         ListEmptyComponent={
           accountsQuery.isLoading ? (
-            <ActivityIndicator color="#38bdf8" style={{ marginTop: 48 }} />
+            <ActivityIndicator color="#3b82f6" style={{ marginTop: 48 }} />
           ) : (
-            <View className="items-center mt-12 gap-2">
-              <Ionicons name="wallet-outline" size={48} color="#334155" />
-              <Text className="text-slate-500 text-center">
-                Start by adding your first account.
+            <View className="items-center mt-16 gap-4 bg-white rounded-2xl p-8 mx-4">
+              <View className="w-20 h-20 bg-blue-50 rounded-full items-center justify-center">
+                <Ionicons name="wallet-outline" size={40} color="#3b82f6" />
+              </View>
+              <Text className="text-gray-900 text-lg font-bold">No Accounts Yet</Text>
+              <Text className="text-gray-600 text-center">
+                Create your first account to start tracking your finances
               </Text>
+              <TouchableOpacity
+                onPress={() => openModal()}
+                className="bg-blue-500 px-6 py-3 rounded-xl mt-2"
+              >
+                <Text className="text-white font-bold">Create Account</Text>
+              </TouchableOpacity>
             </View>
           )
         }
         renderItem={({ item }) => (
           <TouchableOpacity
             onPress={() => openModal(item)}
-            className="bg-slate-900/60 rounded-2xl p-4 border border-slate-800"
+            className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm"
+            style={{
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 1 },
+              shadowOpacity: 0.05,
+              shadowRadius: 4,
+              elevation: 2,
+            }}
           >
-            <View className="flex-row justify-between items-center">
-              <View>
-                <Text className="text-white text-lg font-semibold">
-                  {item.name}
-                </Text>
-                <Text className="text-slate-400 text-xs mt-1 uppercase">
-                  {item.type}
-                </Text>
+            <View className="flex-row justify-between items-start">
+              <View className="flex-1 mr-4">
+                <View className="flex-row items-center gap-3">
+                  <View className={`w-4 h-4 rounded-full ${
+                    item.type === 'credit' ? 'bg-green-500' : 'bg-blue-500'
+                  }`} />
+                  <Text className="text-gray-900 text-xl font-bold">
+                    {item.name}
+                  </Text>
+                </View>
+                <View className={`px-3 py-1 rounded-full mt-2 self-start ${
+                  item.type === 'credit' ? 'bg-green-50' : 'bg-blue-50'
+                }`}>
+                  <Text className={`text-xs font-bold uppercase ${
+                    item.type === 'credit' ? 'text-green-700' : 'text-blue-700'
+                  }`}>
+                    {item.type} Account
+                  </Text>
+                </View>
               </View>
               <View className="items-end">
-                <Text className="text-slate-500 text-xs">Balance</Text>
-                <Text className="text-emerald-400 text-xl font-semibold">
-                  ${item.balance.toFixed(2)}
+                <Text className="text-gray-500 text-sm font-medium">Balance</Text>
+                <Text className={`text-2xl font-bold ${
+                  item.balance >= 0 ? 'text-green-600' : 'text-red-600'
+                }`}>
+                  ${Math.abs(item.balance).toFixed(2)}
                 </Text>
               </View>
             </View>
             {item.description ? (
-              <Text className="text-slate-400 text-sm mt-3">
+              <Text className="text-gray-600 text-sm mt-4 leading-5">
                 {item.description}
               </Text>
             ) : null}
@@ -215,21 +257,31 @@ export default function AccountsScreen() {
       />
 
       <Modal visible={modalVisible} transparent animationType="slide">
-        <View className="flex-1 bg-black/60 justify-end">
-          <View className="bg-slate-950 rounded-t-3xl p-6 gap-4">
-            <View className="flex-row justify-between items-center">
-              <Text className="text-white text-xl font-semibold">
-                {selectedAccount ? "Edit account" : "Create account"}
-              </Text>
-              <TouchableOpacity onPress={() => setModalVisible(false)}>
-                <Ionicons name="close" size={24} color="#94a3b8" />
+        <View className="flex-1 bg-black/40 justify-end">
+          <View className="bg-white rounded-t-3xl p-6 gap-6 max-h-[85%]">
+            {/* Header */}
+            <View className="flex-row justify-between items-center pb-2 border-b border-gray-100">
+              <View>
+                <Text className="text-gray-900 text-2xl font-bold">
+                  {selectedAccount ? "Edit Account" : "New Account"}
+                </Text>
+                <Text className="text-gray-500 text-sm">
+                  {selectedAccount ? "Update account details" : "Create a new account to track"}
+                </Text>
+              </View>
+              <TouchableOpacity 
+                onPress={() => setModalVisible(false)}
+                className="w-8 h-8 bg-gray-100 rounded-full items-center justify-center"
+              >
+                <Ionicons name="close" size={20} color="#6b7280" />
               </TouchableOpacity>
             </View>
 
-            <View className="gap-4">
+            <View className="gap-5">
+              {/* Account Name */}
               <View>
-                <Text className="text-slate-400 text-xs mb-1">
-                  Account name
+                <Text className="text-gray-700 text-sm font-semibold mb-2">
+                  Account Name
                 </Text>
                 <Controller
                   control={control}
@@ -238,45 +290,70 @@ export default function AccountsScreen() {
                     <TextInput
                       value={value}
                       onChangeText={onChange}
-                      placeholder="e.g. Business Checking"
-                      placeholderTextColor="#64748b"
-                      className="bg-slate-900 text-white px-3 py-2 rounded-xl border border-slate-800"
+                      placeholder="e.g. Business Checking, Savings Account"
+                      placeholderTextColor="#9ca3af"
+                      className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200 text-base"
                     />
                   )}
                 />
                 {errors.name ? (
-                  <Text className="text-red-400 text-sm mt-1">
+                  <Text className="text-red-500 text-sm mt-2">
                     {errors.name.message}
                   </Text>
                 ) : null}
               </View>
 
+              {/* Account Type */}
               <View>
-                <Text className="text-slate-400 text-xs mb-1">Type</Text>
+                <Text className="text-gray-700 text-sm font-semibold mb-3">Account Type</Text>
                 <Controller
                   control={control}
                   name="type"
                   render={({ field: { value, onChange } }) => (
-                    <View className="flex-row gap-2">
+                    <View className="flex-row gap-3">
                       {(["debit", "credit"] as const).map((option) => (
                         <TouchableOpacity
                           key={option}
                           onPress={() => onChange(option)}
-                          className={`flex-1 py-2 rounded-xl border ${
+                          className={`flex-1 py-4 rounded-xl border-2 ${
                             value === option
-                              ? "border-accent bg-accent/20"
-                              : "border-slate-800 bg-slate-900"
+                              ? option === 'debit'
+                                ? "border-blue-500 bg-blue-50"
+                                : "border-green-500 bg-green-50"
+                              : "border-gray-200 bg-gray-50"
                           }`}
                         >
-                          <Text
-                            className={`text-center font-medium ${
+                          <View className="items-center gap-2">
+                            <Ionicons 
+                              name={option === 'debit' ? "card-outline" : "cash-outline"} 
+                              size={24} 
+                              color={
+                                value === option
+                                  ? option === 'debit' ? "#3b82f6" : "#10b981"
+                                  : "#6b7280"
+                              } 
+                            />
+                            <Text
+                              className={`font-bold text-sm ${
+                                value === option
+                                  ? option === 'debit'
+                                    ? "text-blue-700"
+                                    : "text-green-700"
+                                  : "text-gray-600"
+                              }`}
+                            >
+                              {option.toUpperCase()}
+                            </Text>
+                            <Text className={`text-xs text-center ${
                               value === option
-                                ? "text-accent"
-                                : "text-slate-200"
-                            }`}
-                          >
-                            {option.toUpperCase()}
-                          </Text>
+                                ? option === 'debit'
+                                  ? "text-blue-600"
+                                  : "text-green-600"
+                                : "text-gray-500"
+                            }`}>
+                              {option === 'debit' ? 'Money going out' : 'Money coming in'}
+                            </Text>
+                          </View>
                         </TouchableOpacity>
                       ))}
                     </View>
@@ -284,8 +361,9 @@ export default function AccountsScreen() {
                 />
               </View>
 
+              {/* Description */}
               <View>
-                <Text className="text-slate-400 text-xs mb-1">Description</Text>
+                <Text className="text-gray-700 text-sm font-semibold mb-2">Description</Text>
                 <Controller
                   control={control}
                   name="description"
@@ -293,28 +371,45 @@ export default function AccountsScreen() {
                     <TextInput
                       value={value || ""}
                       onChangeText={onChange}
-                      placeholder="Optional details about this account"
-                      placeholderTextColor="#64748b"
-                      className="bg-slate-900 text-white px-3 py-2 rounded-xl border border-slate-800"
+                      placeholder="Optional details about this account..."
+                      placeholderTextColor="#9ca3af"
+                      className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200 min-h-[80px]"
                       multiline
+                      textAlignVertical="top"
                     />
                   )}
                 />
               </View>
 
+              {/* Voice Input */}
               <VoiceInputButton onResult={handleVoiceResult} />
 
+              {/* Save Button */}
               <TouchableOpacity
                 onPress={handleSubmit(onSubmit)}
                 disabled={createMutation.isPending || updateMutation.isPending}
-                className="bg-accent rounded-2xl py-3 mt-2 items-center"
+                className="bg-blue-500 rounded-2xl py-4 mt-2 items-center shadow-lg shadow-blue-500/25"
+                style={{
+                  shadowColor: '#3b82f6',
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.2,
+                  shadowRadius: 8,
+                  elevation: 4,
+                }}
               >
                 {createMutation.isPending || updateMutation.isPending ? (
-                  <ActivityIndicator color="#0f172a" />
+                  <ActivityIndicator color="white" />
                 ) : (
-                  <Text className="text-primary font-semibold text-base">
-                    {selectedAccount ? "Update account" : "Save account"}
-                  </Text>
+                  <View className="flex-row items-center gap-2">
+                    <Ionicons 
+                      name={selectedAccount ? "checkmark-circle" : "add-circle"} 
+                      size={20} 
+                      color="white" 
+                    />
+                    <Text className="text-white font-bold text-base">
+                      {selectedAccount ? "Update Account" : "Create Account"}
+                    </Text>
+                  </View>
                 )}
               </TouchableOpacity>
             </View>

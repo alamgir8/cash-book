@@ -43,7 +43,7 @@ const RootContent = () => {
   return (
     <>
       <Slot />
-      <StatusBar style="dark" />
+      <StatusBar style="dark" backgroundColor="#f9fafb" />
       <Toast />
     </>
   );
