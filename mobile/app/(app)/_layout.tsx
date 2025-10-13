@@ -4,11 +4,11 @@ import { Ionicons } from "@expo/vector-icons";
 
 const TabIcon = ({
   icon,
-  label,
+  // label,
   focused,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
-  label: string;
+  // label: string;
   focused: boolean;
 }) => (
   <View className="items-center">
@@ -18,7 +18,7 @@ const TabIcon = ({
         focused ? "text-blue-600" : "text-gray-500"
       }`}
     >
-      {label}
+      {/* {label} */}
     </Text>
   </View>
 );
@@ -47,7 +47,7 @@ export default function AppLayout() {
         options={{
           title: "Dashboard",
           tabBarIcon: ({ focused }) => (
-            <TabIcon icon="speedometer" label="Home" focused={focused} />
+            <TabIcon icon="speedometer" focused={focused} />
           ),
         }}
       />
@@ -56,16 +56,16 @@ export default function AppLayout() {
         options={{
           title: "Accounts",
           tabBarIcon: ({ focused }) => (
-            <TabIcon icon="wallet" label="Accounts" focused={focused} />
+            <TabIcon icon="wallet" focused={focused} />
           ),
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
-          title: "More",
+          title: "Settings",
           tabBarIcon: ({ focused }) => (
-            <TabIcon icon="settings" label="More" focused={focused} />
+            <TabIcon icon="settings" focused={focused} />
           ),
         }}
       />

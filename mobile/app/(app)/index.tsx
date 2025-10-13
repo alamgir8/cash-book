@@ -1,7 +1,4 @@
-import { useMemo, usimport { StatsCards } from '../../components/stats-cards';
-import { QuickActions } from '../../components/quick-actions';
-import Toast from 'react-native-toast-message';
-import { exportTransactionsPdf } from '../../services/reports';ate } from 'react';
+import { useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -10,19 +7,20 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
-} from 'react-native';
-import { useForm, Controller } from 'react-hook-form';
-import { z } from 'zod';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { Ionicons } from '@expo/vector-icons';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import dayjs from 'dayjs';
-import { FilterBar } from '../../components/filter-bar';
-import { TransactionCard } from '../../components/transaction-card';
-import { VoiceInputButton } from '../../components/voice-input-button';
-import { StatsCards } from '../../components/stats-cards';
-import { QuickActions } from '../../components/quick-actions';
+  View,
+} from "react-native";
+import { useForm, Controller } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Ionicons } from "@expo/vector-icons";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import dayjs from "dayjs";
+import Toast from "react-native-toast-message";
+import { FilterBar } from "../../components/filter-bar";
+import { TransactionCard } from "../../components/transaction-card";
+import { VoiceInputButton } from "../../components/voice-input-button";
+import { StatsCards } from "../../components/stats-cards";
+import { QuickActions } from "../../components/quick-actions";
 import { exportTransactionsPdf } from "../../services/reports";
 import {
   createTransaction,
@@ -31,7 +29,6 @@ import {
 } from "../../services/transactions";
 import { fetchAccounts, type Account } from "../../services/accounts";
 import { queryKeys } from "../../lib/queryKeys";
-import Toast from "react-native-toast-message";
 
 const transactionSchema = z.object({
   accountId: z.string().min(1, "Select an account"),
@@ -179,7 +176,8 @@ export default function DashboardScreen() {
   };
 
   const renderHeader = () => {
-    const transactionCount = (transactionsQuery.data as any)?.transactions?.length || 0;
+    const transactionCount =
+      (transactionsQuery.data as any)?.transactions?.length || 0;
     const accountCount = accountsQuery.data?.length || 0;
 
     return (
@@ -196,21 +194,22 @@ export default function DashboardScreen() {
         <QuickActions
           onAddTransaction={() => setModalVisible(true)}
           onAddAccount={() => {
-            // This would need to be implemented - navigate to accounts screen
-            console.log('Add account from dashboard');
+            console.log("Add account from dashboard");
           }}
           onExportPDF={async () => {
             try {
               await exportTransactionsPdf(filters);
-              Toast.show({ type: 'success', text1: 'PDF exported successfully!' });
+              Toast.show({
+                type: "success",
+                text1: "PDF exported successfully!",
+              });
             } catch (error) {
               console.error(error);
-              Toast.show({ type: 'error', text1: 'Failed to export PDF' });
+              Toast.show({ type: "error", text1: "Failed to export PDF" });
             }
           }}
           onVoiceInput={() => {
             setModalVisible(true);
-            // Could focus on voice input after modal opens
           }}
         />
 
@@ -469,9 +468,7 @@ export default function DashboardScreen() {
               </View>
 
               {/* Voice Input */}
-              <View>
-                <VoiceInputButton onResult={handleVoiceResult} />
-              </View>
+              <VoiceInputButton onResult={handleVoiceResult} />
 
               {/* Amount Preview */}
               {currentAmount > 0 ? (
