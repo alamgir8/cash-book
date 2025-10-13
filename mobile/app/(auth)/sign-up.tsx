@@ -4,7 +4,6 @@ import { View, Text, ScrollView } from "react-native";
 import { useForm, Controller } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import Toast from "react-native-toast-message";
 import { useAuth } from "../../hooks/useAuth";
 import { CustomInput } from "../../components/CustomInput";
 import { CustomButton } from "../../components/CustomButton";
@@ -28,6 +27,7 @@ export default function SignUpScreen() {
   const router = useRouter();
   const { signUp } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const {
     control,
@@ -47,16 +47,17 @@ export default function SignUpScreen() {
   const onSubmit = async ({ confirmPassword, ...values }: FormValues) => {
     try {
       setLoading(true);
+      setFormError(null);
       // Type assertion to ensure values match the required SignupPayload type
       await signUp(values as Required<Omit<FormValues, "confirmPassword">>);
       router.replace("/(app)");
     } catch (error) {
       console.error(error);
-      Toast.show({
-        type: "error",
-        text1: "Sign-up failed",
-        text2: "Please review your details and try again.",
-      });
+      if (error instanceof Error && error.message) {
+        setFormError(error.message);
+      } else {
+        setFormError("Something went wrong. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -135,6 +136,11 @@ export default function SignUpScreen() {
             loading={loading}
             containerClassName="mt-6"
           />
+          {formError ? (
+            <Text className="text-rose-500 text-sm text-center mt-3">
+              {formError}
+            </Text>
+          ) : null}
         </View>
 
         <View className="flex-row justify-center items-center gap-2 mt-6">

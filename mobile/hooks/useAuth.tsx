@@ -4,12 +4,18 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
 import * as SecureStore from "expo-secure-store";
 import Toast from "react-native-toast-message";
-import { api, setAuthToken } from "../lib/api";
+import {
+  api,
+  getApiErrorMessage,
+  setAuthToken,
+  setUnauthorizedHandler,
+} from "../lib/api";
 
 const STORAGE_TOKEN_KEY = "debit-credit-token";
 
@@ -37,6 +43,11 @@ type SignupPayload = {
   password: string;
 };
 
+type AuthResponse = {
+  token: string;
+  admin: Admin;
+};
+
 type AuthContextType = {
   state: AuthState;
   signIn: (credentials: Credentials) => Promise<void>;
@@ -57,57 +68,125 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     user: null,
     token: null,
   });
+  const stateRef = useRef(state);
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+
+  const handlingUnauthorized = useRef(false);
+
+  const clearSession = useCallback(async () => {
+    setAuthToken();
+    try {
+      await SecureStore.deleteItemAsync(STORAGE_TOKEN_KEY);
+    } catch (error) {
+      console.warn("Failed to delete auth token", error);
+    }
+    setState({ status: "unauthenticated", user: null, token: null });
+  }, []);
+
+  const applySession = useCallback(
+    async ({ token, admin }: AuthResponse) => {
+      setAuthToken(token);
+      try {
+        await SecureStore.setItemAsync(STORAGE_TOKEN_KEY, token);
+      } catch (error) {
+        console.warn("Failed to persist auth token", error);
+      }
+      setState({ status: "authenticated", token, user: admin });
+    },
+    []
+  );
+
+  const handleUnauthorized = useCallback(async () => {
+    if (handlingUnauthorized.current) return;
+    handlingUnauthorized.current = true;
+
+    const previousState = stateRef.current;
+
+    try {
+      await clearSession();
+      if (previousState.status === "authenticated") {
+        Toast.show({
+          type: "info",
+          text1: "Session expired",
+          text2: "Please sign in again.",
+        });
+      }
+    } finally {
+      handlingUnauthorized.current = false;
+    }
+  }, [clearSession]);
 
   const bootstrap = useCallback(async () => {
     try {
       const token = await SecureStore.getItemAsync(STORAGE_TOKEN_KEY);
       if (!token) {
-        setAuthToken();
-        setState({ status: "unauthenticated", user: null, token: null });
+        await clearSession();
         return;
       }
 
       setAuthToken(token);
-      const { data } = await api.get("/auth/me");
+      const { data } = await api.get<{ admin: Admin }>("/auth/me");
       setState({ status: "authenticated", token, user: data.admin });
     } catch (error) {
       console.warn("Failed to bootstrap session", error);
-      setAuthToken();
-      await SecureStore.deleteItemAsync(STORAGE_TOKEN_KEY);
-      setState({ status: "unauthenticated", user: null, token: null });
+      await clearSession();
     }
-  }, []);
+  }, [clearSession]);
+
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      void handleUnauthorized();
+    });
+    return () => setUnauthorizedHandler();
+  }, [handleUnauthorized]);
 
   useEffect(() => {
     bootstrap();
   }, [bootstrap]);
 
   const signIn = useCallback(async ({ identifier, password }: Credentials) => {
-    const { data } = await api.post("/auth/login", { identifier, password });
-    setAuthToken(data.token);
-    await SecureStore.setItemAsync(STORAGE_TOKEN_KEY, data.token);
-    setState({ status: "authenticated", token: data.token, user: data.admin });
-    Toast.show({ type: "success", text1: "Welcome back!" });
-  }, []);
+    try {
+      const { data } = await api.post<AuthResponse>("/auth/login", {
+        identifier,
+        password,
+      });
+      await applySession(data);
+      Toast.show({ type: "success", text1: "Welcome back!" });
+    } catch (error) {
+      const message = getApiErrorMessage(
+        error,
+        "Check your credentials and try again."
+      );
+      Toast.show({ type: "error", text1: "Sign-in failed", text2: message });
+      throw new Error(message);
+    }
+  }, [applySession]);
 
   const signUp = useCallback(async (payload: SignupPayload) => {
-    const { data } = await api.post("/auth/signup", payload);
-    setAuthToken(data.token);
-    await SecureStore.setItemAsync(STORAGE_TOKEN_KEY, data.token);
-    setState({ status: "authenticated", token: data.token, user: data.admin });
-    Toast.show({ type: "success", text1: "Account created" });
-  }, []);
+    try {
+      const { data } = await api.post<AuthResponse>("/auth/signup", payload);
+      await applySession(data);
+      Toast.show({ type: "success", text1: "Account created" });
+    } catch (error) {
+      const message = getApiErrorMessage(
+        error,
+        "Please review your details and try again."
+      );
+      Toast.show({ type: "error", text1: "Sign-up failed", text2: message });
+      throw new Error(message);
+    }
+  }, [applySession]);
 
   const signOut = useCallback(async () => {
-    setAuthToken();
-    await SecureStore.deleteItemAsync(STORAGE_TOKEN_KEY);
-    setState({ status: "unauthenticated", user: null, token: null });
-  }, []);
+    await clearSession();
+  }, [clearSession]);
 
   const refreshProfile = useCallback(async () => {
-    if (state.status !== "authenticated") return;
+    if (stateRef.current.status !== "authenticated") return;
     try {
-      const { data } = await api.get("/auth/me");
+      const { data } = await api.get<{ admin: Admin }>("/auth/me");
       setState((prev) =>
         prev.status === "authenticated"
           ? { ...prev, user: data.admin }
@@ -116,7 +195,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     } catch (error) {
       console.warn("Failed to refresh profile", error);
     }
-  }, [state.status]);
+  }, []);
 
   const value = useMemo(
     () => ({

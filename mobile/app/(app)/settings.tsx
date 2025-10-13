@@ -4,6 +4,7 @@ import Constants from 'expo-constants';
 import { Ionicons } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
 import { useAuth } from '../../hooks/useAuth';
+import { baseURL } from '../../lib/api';
 import { exportTransactionsPdf } from '../../services/reports';
 
 export default function SettingsScreen() {
@@ -61,9 +62,7 @@ export default function SettingsScreen() {
 
       <View className="bg-slate-900/60 rounded-3xl p-6 border border-slate-800 gap-4">
         <Text className="text-white text-lg font-semibold">App info</Text>
-        <Text className="text-slate-400 text-sm">
-          API endpoint: {Constants.expoConfig?.extra?.apiBaseUrl}
-        </Text>
+        <Text className="text-slate-400 text-sm">API endpoint: {baseURL}</Text>
         <Text className="text-slate-400 text-sm">
           Version: {Constants.expoConfig?.version}
         </Text>

@@ -4,7 +4,6 @@ import { View, Text } from "react-native";
 import { useForm, Controller } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import Toast from "react-native-toast-message";
 import { useAuth } from "../../hooks/useAuth";
 import { CustomInput } from "../../components/CustomInput";
 import { CustomButton } from "../../components/CustomButton";
@@ -20,6 +19,7 @@ export default function SignInScreen() {
   const router = useRouter();
   const { signIn } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const {
     control,
@@ -36,16 +36,17 @@ export default function SignInScreen() {
   const onSubmit = async (values: FormValues) => {
     try {
       setLoading(true);
+      setFormError(null);
       // Type assertion to ensure values match the required Credentials type
       await signIn(values as Required<FormValues>);
       router.replace("/(app)");
     } catch (error) {
       console.error(error);
-      Toast.show({
-        type: "error",
-        text1: "Sign-in failed",
-        text2: "Check your credentials and try again.",
-      });
+      if (error instanceof Error && error.message) {
+        setFormError(error.message);
+      } else {
+        setFormError("Something went wrong. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -101,6 +102,11 @@ export default function SignInScreen() {
           loading={loading}
           containerClassName="mt-4"
         />
+        {formError ? (
+          <Text className="text-rose-500 text-sm text-center mt-3">
+            {formError}
+          </Text>
+        ) : null}
       </View>
 
       <View className="flex-row justify-center items-center gap-2 mt-8">
