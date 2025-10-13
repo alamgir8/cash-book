@@ -30,7 +30,7 @@ const RootContent = () => {
     const inAuthGroup = segments[0] === "(auth)";
 
     if (state.status === "authenticated" && inAuthGroup) {
-      router.replace("/(app)");
+      router.replace("/(app)/index");
     } else if (state.status === "unauthenticated" && !inAuthGroup) {
       router.replace("/(auth)/sign-in");
     }
@@ -43,7 +43,7 @@ const RootContent = () => {
   return (
     <>
       <Slot />
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
       <Toast />
     </>
   );

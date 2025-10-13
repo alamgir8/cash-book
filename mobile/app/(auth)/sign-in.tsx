@@ -1,15 +1,17 @@
-import { Link, useRouter } from 'expo-router';
-import { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { useForm, Controller } from 'react-hook-form';
-import { z } from 'zod';
-import { zodResolver } from '@hookform/resolvers/zod';
-import Toast from 'react-native-toast-message';
-import { useAuth } from '../../hooks/useAuth';
+import { Link, useRouter } from "expo-router";
+import { useState } from "react";
+import { View, Text } from "react-native";
+import { useForm, Controller } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import Toast from "react-native-toast-message";
+import { useAuth } from "../../hooks/useAuth";
+import { CustomInput } from "../../components/CustomInput";
+import { CustomButton } from "../../components/CustomButton";
 
 const schema = z.object({
-  identifier: z.string().min(2, 'Enter your email or phone'),
-  password: z.string().min(8, 'Password must be at least 8 characters')
+  identifier: z.string().min(2, "Enter your email or phone"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -22,26 +24,26 @@ export default function SignInScreen() {
   const {
     control,
     handleSubmit,
-    formState: { errors }
+    formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
-      identifier: '',
-      password: ''
-    }
+      identifier: "",
+      password: "",
+    },
   });
 
   const onSubmit = async (values: FormValues) => {
     try {
       setLoading(true);
       await signIn(values);
-      router.replace('/(app)');
+      router.replace("/(app)");
     } catch (error) {
       console.error(error);
       Toast.show({
-        type: 'error',
-        text1: 'Sign-in failed',
-        text2: 'Check your credentials and try again.'
+        type: "error",
+        text1: "Sign-in failed",
+        text2: "Check your credentials and try again.",
       });
     } finally {
       setLoading(false);
@@ -49,33 +51,28 @@ export default function SignInScreen() {
   };
 
   return (
-    <View className="flex-1 bg-primary px-6 justify-center gap-6">
-      <View>
-        <Text className="text-4xl font-bold text-white">Welcome Back</Text>
-        <Text className="text-base text-slate-300 mt-2">
+    <View className="flex-1 bg-slate-50 px-6 justify-center gap-8">
+      <View className="items-center mb-8">
+        <Text className="text-4xl font-bold text-slate-900 mb-3">Welcome Back</Text>
+        <Text className="text-lg text-slate-600 text-center leading-6">
           Manage your debit and credit accounts effortlessly.
         </Text>
       </View>
 
-      <View className="gap-4">
+      <View className="gap-6">
         <Controller
           control={control}
           name="identifier"
           render={({ field: { onChange, value } }) => (
-            <View>
-              <Text className="text-slate-200 mb-2">Email or phone</Text>
-              <TextInput
-                value={value}
-                onChangeText={onChange}
-                placeholder="Email or phone number"
-                placeholderTextColor="#94a3b8"
-                autoCapitalize="none"
-                className="bg-slate-900/60 text-white px-4 py-3 rounded-xl border border-slate-700"
-              />
-              {errors.identifier && (
-                <Text className="text-red-400 text-sm mt-1">{errors.identifier.message}</Text>
-              )}
-            </View>
+            <CustomInput
+              label="Email or phone"
+              value={value}
+              onChangeText={onChange}
+              placeholder="Email or phone number"
+              autoCapitalize="none"
+              keyboardType="email-address"
+              error={errors.identifier?.message}
+            />
           )}
         />
 
@@ -83,40 +80,32 @@ export default function SignInScreen() {
           control={control}
           name="password"
           render={({ field: { onChange, value } }) => (
-            <View>
-              <Text className="text-slate-200 mb-2">Password</Text>
-              <TextInput
-                value={value}
-                onChangeText={onChange}
-                placeholder="••••••••"
-                placeholderTextColor="#94a3b8"
-                autoCapitalize="none"
-                secureTextEntry
-                className="bg-slate-900/60 text-white px-4 py-3 rounded-xl border border-slate-700"
-              />
-              {errors.password && (
-                <Text className="text-red-400 text-sm mt-1">{errors.password.message}</Text>
-              )}
-            </View>
+            <CustomInput
+              label="Password"
+              value={value}
+              onChangeText={onChange}
+              placeholder="••••••••"
+              autoCapitalize="none"
+              secureTextEntry
+              error={errors.password?.message}
+            />
           )}
         />
 
-        <TouchableOpacity
+        <CustomButton
+          title="Sign In"
           onPress={handleSubmit(onSubmit)}
-          disabled={loading}
-          className="bg-accent rounded-xl py-3 mt-2 items-center flex-row justify-center"
-        >
-          {loading ? (
-            <ActivityIndicator color="#0f172a" />
-          ) : (
-            <Text className="text-primary font-semibold text-base">Sign In</Text>
-          )}
-        </TouchableOpacity>
+          loading={loading}
+          containerClassName="mt-4"
+        />
       </View>
 
-      <View className="flex-row gap-2">
-        <Text className="text-slate-400">New here?</Text>
-        <Link href="/(auth)/sign-up" className="text-accent font-semibold">
+      <View className="flex-row justify-center items-center gap-2 mt-8">
+        <Text className="text-slate-600 text-base">New here?</Text>
+        <Link
+          href="/(auth)/sign-up"
+          className="text-blue-600 font-semibold text-base"
+        >
           Create an account
         </Link>
       </View>
