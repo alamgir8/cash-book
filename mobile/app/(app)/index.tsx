@@ -271,56 +271,87 @@ export default function DashboardScreen() {
   };
 
   return (
-    <View className="flex-1 bg-gray-50 pt-20">
+    <View className="flex-1 bg-gradient-to-b from-blue-50 to-gray-50">
+      {/* Modern Header */}
+      <View className="pt-16 pb-6 px-6 bg-white shadow-sm border-b border-gray-100">
+        <View className="flex-row items-center justify-between">
+          <View>
+            <Text className="text-2xl font-bold text-gray-900">Dashboard</Text>
+            <Text className="text-sm text-gray-600 mt-1">
+              Track your finances easily
+            </Text>
+          </View>
+          <View className="bg-blue-100 p-3 rounded-full">
+            <Ionicons name="analytics" size={24} color="#1d4ed8" />
+          </View>
+        </View>
+      </View>
+
       <FlatList
         data={(transactionsQuery.data as any)?.transactions ?? []}
         keyExtractor={(item) => item._id}
-        contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 120 }}
+        contentContainerStyle={{
+          paddingHorizontal: 16,
+          paddingVertical: 20,
+          gap: 16,
+          paddingBottom: 120,
+        }}
+        showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={transactionsQuery.isRefetching}
             onRefresh={() => transactionsQuery.refetch()}
-            tintColor="#3b82f6"
+            tintColor="#1d4ed8"
+            colors={["#1d4ed8"]}
           />
         }
         ListHeaderComponent={renderHeader}
         ListEmptyComponent={
           transactionsQuery.isLoading ? (
-            <ActivityIndicator color="#3b82f6" style={{ marginTop: 48 }} />
+            <View className="items-center mt-12">
+              <ActivityIndicator color="#1d4ed8" size="large" />
+              <Text className="text-gray-500 mt-4 text-base">
+                Loading transactions...
+              </Text>
+            </View>
           ) : (
-            <View className="items-center mt-12 gap-3 bg-white rounded-2xl p-8 mx-4">
-              <View className="w-16 h-16 bg-gray-100 rounded-full items-center justify-center">
-                <Ionicons
-                  name="document-text-outline"
-                  size={32}
-                  color="#6b7280"
-                />
+            <View className="items-center mt-12 gap-4 bg-white rounded-3xl p-8 mx-2 shadow-sm border border-gray-100">
+              <View className="w-20 h-20 bg-gradient-to-br from-blue-100 to-blue-200 rounded-full items-center justify-center">
+                <Ionicons name="receipt-outline" size={36} color="#1d4ed8" />
               </View>
-              <Text className="text-gray-600 text-center font-medium">
-                No transactions found
+              <Text className="text-gray-700 text-center font-semibold text-lg">
+                No transactions yet
               </Text>
-              <Text className="text-gray-400 text-center text-sm">
-                Adjust your filters or add your first transaction
+              <Text className="text-gray-500 text-center text-base leading-relaxed">
+                Start tracking your finances by adding your first transaction
               </Text>
+              <TouchableOpacity
+                onPress={() => setModalVisible(true)}
+                className="bg-blue-600 px-6 py-3 rounded-full mt-2"
+              >
+                <Text className="text-white font-semibold text-base">
+                  Add Transaction
+                </Text>
+              </TouchableOpacity>
             </View>
           )
         }
         renderItem={({ item }) => <TransactionCard transaction={item} />}
       />
 
-      {/* Modern Floating Action Button */}
+      {/* Enhanced Mobile-Friendly FAB */}
       <TouchableOpacity
         onPress={() => setModalVisible(true)}
-        className="absolute right-6 bottom-32 bg-blue-500 w-16 h-16 rounded-full items-center justify-center shadow-lg shadow-blue-500/30 border-4 border-white"
+        className="absolute right-6 bottom-32 bg-gradient-to-r from-blue-600 to-blue-700 w-16 h-16 rounded-2xl items-center justify-center shadow-xl border-2 border-white"
         style={{
-          shadowColor: "#3b82f6",
+          shadowColor: "#1d4ed8",
           shadowOffset: { width: 0, height: 8 },
           shadowOpacity: 0.3,
-          shadowRadius: 16,
-          elevation: 8,
+          shadowRadius: 20,
+          elevation: 12,
         }}
       >
-        <Ionicons name="add" size={28} color="white" />
+        <Ionicons name="add" size={32} color="white" />
       </TouchableOpacity>
 
       <Modal visible={isModalVisible} transparent animationType="slide">

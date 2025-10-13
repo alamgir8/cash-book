@@ -25,25 +25,40 @@ export default function SettingsScreen() {
   };
 
   return (
-    <View className="flex-1 bg-gray-50">
-      {/* Header */}
-      <View className="bg-white px-6 pt-16 pb-6 border-b border-gray-100">
-        <Text className="text-3xl font-bold text-gray-900">Settings</Text>
-        <Text className="text-gray-600 text-base mt-1">
-          Manage your profile and app preferences
-        </Text>
+    <View className="flex-1 bg-gradient-to-b from-purple-50 to-gray-50">
+      {/* Enhanced Mobile Header */}
+      <View className="pt-16 pb-6 px-6 bg-white shadow-sm border-b border-gray-100">
+        <View className="flex-row items-center justify-between">
+          <View>
+            <Text className="text-2xl font-bold text-gray-900">Settings</Text>
+            <Text className="text-sm text-gray-600 mt-1">
+              Profile and app preferences
+            </Text>
+          </View>
+          <View className="bg-purple-100 p-3 rounded-full">
+            <Ionicons name="settings" size={24} color="#8b5cf6" />
+          </View>
+        </View>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 20, gap: 20 }}>
-        {/* Profile Section */}
-        <View className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-          <View className="flex-row items-center gap-4 mb-4">
-            <View className="w-16 h-16 bg-blue-100 rounded-full items-center justify-center">
-              <Ionicons name="person" size={28} color="#3b82f6" />
+      <ScrollView
+        contentContainerStyle={{
+          paddingHorizontal: 16,
+          paddingVertical: 20,
+          gap: 20,
+          paddingBottom: 100,
+        }}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Enhanced Profile Section */}
+        <View className="bg-white rounded-3xl p-6 border border-gray-100 shadow-lg">
+          <View className="flex-row items-center gap-4 mb-6">
+            <View className="w-18 h-18 bg-gradient-to-br from-blue-100 to-blue-200 rounded-full items-center justify-center">
+              <Ionicons name="person" size={32} color="#1d4ed8" />
             </View>
             <View className="flex-1">
-              <Text className="text-gray-500 text-sm font-medium uppercase tracking-wide">
-                Profile
+              <Text className="text-gray-500 text-xs font-semibold uppercase tracking-wider">
+                Your Profile
               </Text>
               <Text className="text-gray-900 text-xl font-bold mt-1">
                 {state.status === "authenticated"
@@ -68,24 +83,26 @@ export default function SettingsScreen() {
 
           <TouchableOpacity
             onPress={refreshProfile}
-            className="flex-row gap-2 items-center justify-center bg-blue-50 rounded-xl py-3 mt-4"
+            className="flex-row gap-2 items-center justify-center bg-blue-50 rounded-2xl py-4 mt-4 active:scale-95"
           >
-            <Ionicons name="refresh" size={18} color="#3b82f6" />
-            <Text className="text-blue-700 font-semibold">Refresh Profile</Text>
+            <Ionicons name="refresh" size={20} color="#1d4ed8" />
+            <Text className="text-blue-700 font-bold text-base">
+              Refresh Profile
+            </Text>
           </TouchableOpacity>
         </View>
 
-        {/* Data Export Section */}
-        <View className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-          <View className="flex-row items-center gap-3 mb-4">
-            <View className="w-12 h-12 bg-green-100 rounded-full items-center justify-center">
-              <Ionicons name="document-text" size={24} color="#10b981" />
+        {/* Enhanced Data Export Section */}
+        <View className="bg-white rounded-3xl p-6 border border-gray-100 shadow-lg">
+          <View className="flex-row items-center gap-4 mb-6">
+            <View className="w-14 h-14 bg-gradient-to-br from-green-100 to-green-200 rounded-full items-center justify-center">
+              <Ionicons name="document-text" size={28} color="#16a34a" />
             </View>
             <View className="flex-1">
-              <Text className="text-gray-900 text-lg font-bold">
+              <Text className="text-gray-900 text-xl font-bold">
                 Data Export
               </Text>
-              <Text className="text-gray-600 text-sm mt-1">
+              <Text className="text-gray-600 text-base mt-1">
                 Export complete PDF report of all transactions
               </Text>
             </View>
@@ -94,13 +111,13 @@ export default function SettingsScreen() {
           <TouchableOpacity
             onPress={handleExport}
             disabled={exporting}
-            className="bg-green-500 rounded-xl py-4 items-center shadow-sm"
+            className="bg-gradient-to-r from-green-600 to-green-700 rounded-2xl py-4 items-center shadow-lg active:scale-95"
             style={{
-              shadowColor: "#10b981",
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.1,
-              shadowRadius: 4,
-              elevation: 2,
+              shadowColor: "#16a34a",
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.2,
+              shadowRadius: 8,
+              elevation: 6,
             }}
           >
             <View className="flex-row items-center gap-2">
@@ -121,13 +138,13 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* App Info Section */}
-        <View className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-          <View className="flex-row items-center gap-3 mb-4">
-            <View className="w-12 h-12 bg-purple-100 rounded-full items-center justify-center">
-              <Ionicons name="information-circle" size={24} color="#8b5cf6" />
+        {/* Enhanced App Info Section */}
+        <View className="bg-white rounded-3xl p-6 border border-gray-100 shadow-lg">
+          <View className="flex-row items-center gap-4 mb-6">
+            <View className="w-14 h-14 bg-gradient-to-br from-purple-100 to-purple-200 rounded-full items-center justify-center">
+              <Ionicons name="information-circle" size={28} color="#8b5cf6" />
             </View>
-            <Text className="text-gray-900 text-lg font-bold">
+            <Text className="text-gray-900 text-xl font-bold">
               App Information
             </Text>
           </View>
@@ -155,14 +172,14 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        {/* Sign Out Section */}
-        <View className="bg-white rounded-2xl p-6 border border-red-100 shadow-sm">
+        {/* Enhanced Sign Out Section */}
+        <View className="bg-white rounded-3xl p-6 border border-red-100 shadow-lg">
           <TouchableOpacity
             onPress={signOut}
-            className="flex-row gap-3 items-center justify-center bg-red-50 border-2 border-red-200 rounded-xl py-4"
+            className="flex-row gap-3 items-center justify-center bg-gradient-to-r from-red-50 to-red-100 border-2 border-red-200 rounded-2xl py-4 active:scale-95"
           >
-            <Ionicons name="log-out-outline" size={22} color="#ef4444" />
-            <Text className="text-red-600 font-bold text-base">Sign Out</Text>
+            <Ionicons name="log-out-outline" size={24} color="#dc2626" />
+            <Text className="text-red-600 font-bold text-lg">Sign Out</Text>
           </TouchableOpacity>
         </View>
 

@@ -4,21 +4,25 @@ import { Ionicons } from "@expo/vector-icons";
 
 const TabIcon = ({
   icon,
-  // label,
+  label,
   focused,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
-  // label: string;
+  label: string;
   focused: boolean;
 }) => (
-  <View className="items-center">
-    <Ionicons name={icon} size={24} color={focused ? "#3b82f6" : "#9ca3af"} />
+  <View className="items-center justify-center px-2 py-1">
+    <View
+      className={`p-2 rounded-xl ${focused ? "bg-blue-100" : "bg-transparent"}`}
+    >
+      <Ionicons name={icon} size={26} color={focused ? "#1d4ed8" : "#6b7280"} />
+    </View>
     <Text
-      className={`text-xs mt-1 font-medium ${
-        focused ? "text-blue-600" : "text-gray-500"
+      className={`text-xs mt-1 font-semibold ${
+        focused ? "text-blue-700" : "text-gray-600"
       }`}
     >
-      {/* {label} */}
+      {label}
     </Text>
   </View>
 );
@@ -32,14 +36,16 @@ export default function AppLayout() {
           backgroundColor: "#ffffff",
           borderTopColor: "#e5e7eb",
           borderTopWidth: 1,
-          paddingVertical: 8,
-          height: 80,
+          paddingVertical: 12,
+          paddingHorizontal: 8,
+          height: 88,
           shadowColor: "#000",
-          shadowOffset: { width: 0, height: -2 },
-          shadowOpacity: 0.05,
-          shadowRadius: 8,
-          elevation: 8,
+          shadowOffset: { width: 0, height: -4 },
+          shadowOpacity: 0.1,
+          shadowRadius: 12,
+          elevation: 12,
         },
+        tabBarShowLabel: false,
       }}
     >
       <Tabs.Screen
@@ -47,7 +53,7 @@ export default function AppLayout() {
         options={{
           title: "Dashboard",
           tabBarIcon: ({ focused }) => (
-            <TabIcon icon="speedometer" focused={focused} />
+            <TabIcon icon="home" label="Home" focused={focused} />
           ),
         }}
       />
@@ -56,7 +62,7 @@ export default function AppLayout() {
         options={{
           title: "Accounts",
           tabBarIcon: ({ focused }) => (
-            <TabIcon icon="wallet" focused={focused} />
+            <TabIcon icon="wallet" label="Accounts" focused={focused} />
           ),
         }}
       />
@@ -65,7 +71,7 @@ export default function AppLayout() {
         options={{
           title: "Settings",
           tabBarIcon: ({ focused }) => (
-            <TabIcon icon="settings" focused={focused} />
+            <TabIcon icon="settings" label="Settings" focused={focused} />
           ),
         }}
       />

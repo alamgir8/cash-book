@@ -141,24 +141,24 @@ export default function AccountsScreen() {
 
   const openModal = useCallback(
     (account?: Account | AccountOverview) => {
-    if (account) {
-      const baseAccount: Account = {
-        _id: account._id,
-        name: account.name,
-        type: account.type,
-        description: account.description,
-        balance: account.balance,
-      };
-      setSelectedAccount(baseAccount);
-      reset({
-        name: account.name,
-        type: account.type,
-        description: account.description ?? "",
-      });
-    } else {
-      setSelectedAccount(null);
-      reset({ ...DEFAULT_FORM_VALUES });
-    }
+      if (account) {
+        const baseAccount: Account = {
+          _id: account._id,
+          name: account.name,
+          type: account.type,
+          description: account.description,
+          balance: account.balance,
+        };
+        setSelectedAccount(baseAccount);
+        reset({
+          name: account.name,
+          type: account.type,
+          description: account.description ?? "",
+        });
+      } else {
+        setSelectedAccount(null);
+        reset({ ...DEFAULT_FORM_VALUES });
+      }
       setModalVisible(true);
     },
     [reset]
@@ -234,10 +234,7 @@ export default function AccountsScreen() {
 
       if (account.summary.lastTransactionDate) {
         const activityDate = new Date(account.summary.lastTransactionDate);
-        if (
-          !aggregate.lastActivity ||
-          activityDate > aggregate.lastActivity
-        ) {
+        if (!aggregate.lastActivity || activityDate > aggregate.lastActivity) {
           aggregate.lastActivity = activityDate;
         }
       }
@@ -345,30 +342,30 @@ export default function AccountsScreen() {
   );
 
   return (
-    <View className="flex-1 bg-gray-50">
-      {/* Header */}
-      <View className="bg-white px-6 pt-16 pb-6 border-b border-gray-100">
-        <View className="flex-row justify-between items-center">
+    <View className="flex-1 bg-gradient-to-b from-green-50 to-gray-50">
+      {/* Enhanced Mobile Header */}
+      <View className="pt-16 pb-6 px-6 bg-white shadow-sm border-b border-gray-100">
+        <View className="flex-row items-center justify-between">
           <View className="flex-1">
-            <Text className="text-3xl font-bold text-gray-900">Accounts</Text>
-            <Text className="text-gray-600 text-base mt-1">
-              Manage your credit and debit accounts
+            <Text className="text-2xl font-bold text-gray-900">Accounts</Text>
+            <Text className="text-sm text-gray-600 mt-1">
+              Manage your financial accounts
             </Text>
           </View>
           <TouchableOpacity
             onPress={() => openModal()}
-            className="bg-blue-500 px-5 py-3 rounded-xl shadow-sm"
+            className="bg-gradient-to-r from-green-600 to-green-700 px-5 py-3 rounded-2xl shadow-lg"
             style={{
-              shadowColor: "#3b82f6",
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.1,
-              shadowRadius: 4,
-              elevation: 2,
+              shadowColor: "#16a34a",
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.2,
+              shadowRadius: 8,
+              elevation: 6,
             }}
           >
             <View className="flex-row items-center gap-2">
-              <Ionicons name="add" size={18} color="white" />
-              <Text className="text-white font-bold">Add Account</Text>
+              <Ionicons name="add-circle" size={20} color="white" />
+              <Text className="text-white font-bold text-base">Add</Text>
             </View>
           </TouchableOpacity>
         </View>
@@ -377,27 +374,41 @@ export default function AccountsScreen() {
       <FlatList
         data={accounts}
         keyExtractor={(item) => item._id}
-        contentContainerStyle={{ padding: 20, gap: 16 }}
+        contentContainerStyle={{
+          paddingHorizontal: 16,
+          paddingVertical: 20,
+          gap: 16,
+          paddingBottom: 100,
+        }}
+        showsVerticalScrollIndicator={false}
         ListHeaderComponent={renderHeader}
         ListEmptyComponent={
           accountsQuery.isLoading ? (
-            <ActivityIndicator color="#3b82f6" style={{ marginTop: 48 }} />
+            <View className="items-center mt-12">
+              <ActivityIndicator color="#16a34a" size="large" />
+              <Text className="text-gray-500 mt-4 text-base">
+                Loading accounts...
+              </Text>
+            </View>
           ) : (
-            <View className="items-center mt-16 gap-4 bg-white rounded-2xl p-8 mx-4">
-              <View className="w-20 h-20 bg-blue-50 rounded-full items-center justify-center">
-                <Ionicons name="wallet-outline" size={40} color="#3b82f6" />
+            <View className="items-center mt-16 gap-4 bg-white rounded-3xl p-8 mx-2 shadow-sm border border-gray-100">
+              <View className="w-20 h-20 bg-gradient-to-br from-green-100 to-green-200 rounded-full items-center justify-center">
+                <Ionicons name="wallet-outline" size={36} color="#16a34a" />
               </View>
-              <Text className="text-gray-900 text-lg font-bold">
+              <Text className="text-gray-800 text-xl font-bold">
                 No Accounts Yet
               </Text>
-              <Text className="text-gray-600 text-center">
-                Create your first account to start tracking your finances
+              <Text className="text-gray-600 text-center text-base leading-relaxed">
+                Create your first account to start tracking your finances and
+                transactions
               </Text>
               <TouchableOpacity
                 onPress={() => openModal()}
-                className="bg-blue-500 px-6 py-3 rounded-xl mt-2"
+                className="bg-green-600 px-6 py-3 rounded-full mt-2"
               >
-                <Text className="text-white font-bold">Create Account</Text>
+                <Text className="text-white font-bold text-base">
+                  Create Account
+                </Text>
               </TouchableOpacity>
             </View>
           )
@@ -411,14 +422,15 @@ export default function AccountsScreen() {
           const netFlowPositive = netFlow >= 0;
 
           return (
-            <View
-              className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm"
+            <TouchableOpacity
+              onPress={() => openModal(item)}
+              className="bg-white rounded-3xl p-6 border border-gray-100 shadow-md active:scale-95"
               style={{
                 shadowColor: "#000",
-                shadowOffset: { width: 0, height: 1 },
-                shadowOpacity: 0.05,
-                shadowRadius: 4,
-                elevation: 2,
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.08,
+                shadowRadius: 12,
+                elevation: 6,
               }}
             >
               <View className="flex-row justify-between items-start">
@@ -542,7 +554,7 @@ export default function AccountsScreen() {
                   <Text className="text-gray-700 font-semibold">Edit</Text>
                 </TouchableOpacity>
               </View>
-            </View>
+            </TouchableOpacity>
           );
         }}
       />
