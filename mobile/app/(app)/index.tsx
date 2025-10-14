@@ -434,15 +434,15 @@ export default function DashboardScreen() {
     }
   };
 
-  const handleVoiceResult = (transcript: string) => {
-    if (!accountsQuery.data) return;
-    const parsed = parseVoiceTranscript(transcript, accountsQuery.data);
-    Object.entries(parsed).forEach(([key, value]) => {
-      setValue(key as keyof TransactionFormValues, value as never, {
-        shouldDirty: true,
-      });
-    });
-  };
+  // const handleVoiceResult = (transcript: string) => {
+  //   if (!accountsQuery.data) return;
+  //   const parsed = parseVoiceTranscript(transcript, accountsQuery.data);
+  //   Object.entries(parsed).forEach(([key, value]) => {
+  //     setValue(key as keyof TransactionFormValues, value as never, {
+  //       shouldDirty: true,
+  //     });
+  //   });
+  // };
 
   const handleCategoryFilter = useCallback((categoryId?: string) => {
     setFilters((prev) => ({
@@ -842,7 +842,7 @@ export default function DashboardScreen() {
                     </View>
 
                     {/* Voice Input */}
-                    <VoiceInputButton onResult={handleVoiceResult} />
+                    {/* <VoiceInputButton onResult={handleVoiceResult} /> */}
 
                     {/* Amount Preview */}
                     {currentAmount > 0 ? (

@@ -93,15 +93,15 @@ export const QuickActions = ({
       bgColor: "bg-yellow-50",
       onPress: onExportPDF,
     },
-    {
-      id: "voice",
-      icon: "mic" as const,
-      title: "Voice Input",
-      subtitle: "Speak to add",
-      color: "#8b5cf6",
-      bgColor: "bg-purple-50",
-      onPress: onVoiceInput,
-    },
+    // {
+    //   id: "voice",
+    //   icon: "mic" as const,
+    //   title: "Voice Input",
+    //   subtitle: "Speak to add",
+    //   color: "#8b5cf6",
+    //   bgColor: "bg-purple-50",
+    //   onPress: onVoiceInput,
+    // },
   ];
 
   return (
