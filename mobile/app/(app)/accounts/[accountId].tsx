@@ -63,10 +63,7 @@ export default function AccountDetailScreen() {
   const summary = detailQuery.data?.summary;
   const transactions = transactionsQuery.data?.transactions ?? [];
 
-  const netFlow = useMemo(() => {
-    if (!summary) return 0;
-    return (summary.totalCredit ?? 0) - (summary.totalDebit ?? 0);
-  }, [summary]);
+  const netFlow = useMemo(() => summary?.net ?? 0, [summary]);
 
   const handleFilterChange = (next: TransactionFilters) => {
     setFilters((prev) => ({

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -29,13 +29,15 @@ import { QuickActions } from "../../components/quick-actions";
 import { ScreenHeader } from "../../components/screen-header";
 import { EmptyState } from "../../components/empty-state";
 import { FloatingActionButton } from "../../components/floating-action-button";
+import SearchableSelect from "../../components/searchable-select";
 import { exportTransactionsPdf } from "../../services/reports";
 import {
   createTransaction,
   fetchTransactions,
   type TransactionFilters,
 } from "../../services/transactions";
-import { fetchAccounts, type Account } from "../../services/accounts";
+import { fetchAccounts, type AccountOverview } from "../../services/accounts";
+import { fetchCategories } from "../../services/categories";
 import { queryKeys } from "../../lib/queryKeys";
 import { usePreferences } from "../../hooks/usePreferences";
 
@@ -46,6 +48,8 @@ const transactionSchema = z.object({
   date: z.string().optional(),
   description: z.string().optional(),
   comment: z.string().optional(),
+  categoryId: z.string().optional().or(z.literal("")),
+  counterparty: z.string().optional(),
 });
 
 type TransactionFormValues = z.infer<typeof transactionSchema>;
@@ -58,7 +62,7 @@ const defaultFilters: TransactionFilters = {
 
 const parseVoiceTranscript = (
   transcript: string,
-  accounts: Account[]
+  accounts: AccountOverview[]
 ): Partial<TransactionFormValues> => {
   const lower = transcript.toLowerCase();
   const parsed: Partial<TransactionFormValues> = {
@@ -107,6 +111,11 @@ export default function DashboardScreen() {
     queryFn: fetchAccounts,
   });
 
+  const categoriesQuery = useQuery({
+    queryKey: queryKeys.categories,
+    queryFn: fetchCategories,
+  });
+
   const transactionsQuery = useQuery({
     queryKey: queryKeys.transactions(filters),
     queryFn: () => fetchTransactions(filters),
@@ -117,9 +126,14 @@ export default function DashboardScreen() {
     mutationFn: createTransaction,
     onSuccess: async () => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["transactions"] }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.accounts }),
+        queryClient.invalidateQueries({
+          predicate: (query) => query.queryKey[0] === "transactions",
+        }),
+        queryClient.invalidateQueries({
+          predicate: (query) => query.queryKey[0] === "accounts",
+        }),
       ]);
+      Toast.show({ type: "success", text1: "Transaction added" });
     },
     onError: (error) => {
       console.error("Transaction creation error:", error);
@@ -147,10 +161,80 @@ export default function DashboardScreen() {
       date: dayjs().format("YYYY-MM-DD"),
       description: "",
       comment: "",
+      categoryId: "",
+      counterparty: "",
     },
   });
 
   const currentAmount = watch("amount");
+  const selectedType = watch("type");
+  const selectedCategoryId = watch("categoryId");
+
+  const accountOptions = useMemo(
+    () =>
+      (accountsQuery.data ?? []).map((account) => ({
+        value: account._id,
+        label: account.name,
+        subtitle: `${formatAmount(account.balance)}${
+          account.currency_symbol ? ` · ${account.currency_symbol}` : ""
+        }`,
+      })),
+    [accountsQuery.data, formatAmount]
+  );
+
+  const debitCategoryTypes = [
+    "expense",
+    "purchase",
+    "donation",
+    "loan_out",
+    "salary",
+    "other",
+  ];
+  const creditCategoryTypes = [
+    "income",
+    "sell",
+    "loan_in",
+    "donation",
+    "other",
+  ];
+
+  const allowedCategoryTypes = useMemo(
+    () => (selectedType === "credit" ? creditCategoryTypes : debitCategoryTypes),
+    [selectedType]
+  );
+
+  const formatCategoryGroup = (type: string) =>
+    type
+      .split("_")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
+
+  const categoryOptions = useMemo(() => {
+    const categories = categoriesQuery.data ?? [];
+    return categories
+      .filter((category) => allowedCategoryTypes.includes(category.type))
+      .map((category) => ({
+        value: category._id,
+        label: category.name,
+        group: formatCategoryGroup(category.type),
+      }))
+      .sort((a, b) => (a.group ?? "").localeCompare(b.group ?? ""));
+  }, [categoriesQuery.data, allowedCategoryTypes]);
+
+  useEffect(() => {
+    if (!selectedCategoryId) return;
+    const match = categoriesQuery.data?.find(
+      (category) => category._id === selectedCategoryId
+    );
+    if (match && !allowedCategoryTypes.includes(match.type)) {
+      setValue("categoryId", "");
+    }
+  }, [
+    allowedCategoryTypes,
+    categoriesQuery.data,
+    selectedCategoryId,
+    setValue,
+  ]);
 
   const handleDateChange = (event: any, date?: Date) => {
     setShowDatePicker(false);
@@ -188,6 +272,10 @@ export default function DashboardScreen() {
           ? values.description.trim()
           : undefined,
         comment: values.comment?.trim() ? values.comment.trim() : undefined,
+        categoryId: values.categoryId ? values.categoryId : undefined,
+        counterparty: values.counterparty?.trim()
+          ? values.counterparty.trim()
+          : undefined,
       };
       await createMutation.mutateAsync(payload as any);
       setModalVisible(false);
@@ -198,6 +286,8 @@ export default function DashboardScreen() {
         date: dayjs().format("YYYY-MM-DD"),
         description: "",
         comment: "",
+        categoryId: "",
+        counterparty: "",
       });
       Toast.show({
         type: "success",
@@ -368,44 +458,70 @@ export default function DashboardScreen() {
                 >
                   <View className="gap-5">
                     {/* Account Selection */}
-                    <View>
-                      <Text className="text-gray-700 text-sm font-semibold mb-3">
-                        Choose Account
-                      </Text>
-                      <View className="flex-row flex-wrap gap-2">
-                        {accountsQuery.data?.map((account) => {
-                          const selected = watch("accountId") === account._id;
-                          return (
-                            <TouchableOpacity
-                              key={account._id}
-                              onPress={() =>
-                                setValue("accountId", account._id, {
-                                  shouldValidate: true,
-                                })
-                              }
-                              className={`px-4 py-3 rounded-xl border-2 ${
-                                selected
-                                  ? "border-blue-500 bg-blue-50"
-                                  : "border-gray-200 bg-gray-50"
-                              }`}
-                            >
-                              <Text
-                                className={`text-sm font-medium ${
-                                  selected ? "text-blue-700" : "text-gray-600"
-                                }`}
-                              >
-                                {account.name}
-                              </Text>
-                            </TouchableOpacity>
-                          );
-                        })}
-                      </View>
-                      {errors.accountId ? (
-                        <Text className="text-red-500 text-sm mt-2">
-                          {errors.accountId.message}
-                        </Text>
-                      ) : null}
-                    </View>
+                    <Controller
+                      control={control}
+                      name="accountId"
+                      render={({ field: { value, onChange }, fieldState }) => (
+                        <View className="gap-2">
+                          <SearchableSelect
+                            label="Account"
+                            placeholder={
+                              accountsQuery.isLoading
+                                ? "Loading accounts..."
+                                : accountOptions.length > 0
+                                ? "Select source account"
+                                : "No accounts available"
+                            }
+                            value={value}
+                            options={accountOptions}
+                            onSelect={(val) =>
+                              onChange(val)
+                            }
+                            disabled={
+                              accountsQuery.isLoading ||
+                              accountOptions.length === 0
+                            }
+                          />
+                          {fieldState.error ? (
+                            <Text className="text-red-500 text-sm">
+                              {fieldState.error.message}
+                            </Text>
+                          ) : null}
+                        </View>
+                      )}
+                    />
+
+                    {/* Category Selection */}
+                    <Controller
+                      control={control}
+                      name="categoryId"
+                      render={({ field: { value, onChange } }) => (
+                        <View className="gap-2">
+                          <SearchableSelect
+                            label="Category"
+                            placeholder={
+                              categoriesQuery.isLoading
+                                ? "Loading categories..."
+                                : categoryOptions.length > 0
+                                ? "Select category"
+                                : "No categories available"
+                            }
+                            value={value}
+                            options={categoryOptions}
+                            onSelect={(val) => onChange(val)}
+                            disabled={
+                              categoriesQuery.isLoading ||
+                              categoryOptions.length === 0
+                            }
+                          />
+                          {errors.categoryId ? (
+                            <Text className="text-red-500 text-sm">
+                              {errors.categoryId.message}
+                            </Text>
+                          ) : null}
+                        </View>
+                      )}
+                    />
 
                     {/* Amount and Type Row */}
                     <View className="flex-row gap-4">
@@ -421,7 +537,7 @@ export default function DashboardScreen() {
                               value={String(value || "")}
                               onChangeText={(text) =>
                                 onChange(
-                                  Number(text.replace(/[^0-9]/g, "")) || 0
+                                  Number(text.replace(/[^0-9.]/g, "")) || 0
                                 )
                               }
                               keyboardType="numeric"
@@ -532,6 +648,26 @@ export default function DashboardScreen() {
                             value={value || ""}
                             onChangeText={onChange}
                             placeholder="What is this transaction about?"
+                            placeholderTextColor="#9ca3af"
+                            className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200"
+                          />
+                        )}
+                      />
+                    </View>
+
+                    {/* Counterparty Field */}
+                    <View>
+                      <Text className="text-gray-700 text-sm font-semibold mb-2">
+                        Counterparty
+                      </Text>
+                      <Controller
+                        control={control}
+                        name="counterparty"
+                        render={({ field: { value, onChange } }) => (
+                          <TextInput
+                            value={value || ""}
+                            onChangeText={onChange}
+                            placeholder="Customer, supplier, or contact"
                             placeholderTextColor="#9ca3af"
                             className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200"
                           />

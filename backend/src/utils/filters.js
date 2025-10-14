@@ -1,4 +1,5 @@
 import dayjs from "dayjs";
+import mongoose from "mongoose";
 
 const rangeConfig = {
   daily: () => ({
@@ -19,59 +20,75 @@ const rangeConfig = {
   }),
 };
 
-export const buildTransactionFilters = ({ adminId, query }) => {
-  const filter = { admin: adminId };
+const parseDate = (value) => {
+  if (!value) return null;
+  const parsed = dayjs(value);
+  return parsed.isValid() ? parsed : null;
+};
 
-  if (query.accountId) {
-    filter.account = query.accountId;
+export const buildTransactionFilters = ({ adminId, query }) => {
+  const filter = {
+    admin: new mongoose.Types.ObjectId(adminId),
+    is_deleted: false,
+  };
+
+  if (query.accountId || query.account_id) {
+    const accountId = query.accountId ?? query.account_id;
+    if (accountId && mongoose.isValidObjectId(accountId)) {
+      filter.account = new mongoose.Types.ObjectId(accountId);
+    }
+  }
+
+  if (query.categoryId || query.category_id) {
+    const categoryId = query.categoryId ?? query.category_id;
+    if (categoryId && mongoose.isValidObjectId(categoryId)) {
+      filter.category_id = new mongoose.Types.ObjectId(categoryId);
+    }
   }
 
   if (query.type) {
     filter.type = query.type;
   }
 
-  if (query.search) {
-    filter.$or = [
-      { description: { $regex: query.search, $options: "i" } },
-      { comment: { $regex: query.search, $options: "i" } },
-    ];
+  const searchTerm = query.q ?? query.search;
+  if (searchTerm) {
+    filter.$text = { $search: searchTerm };
   }
 
-  let startDate;
-  let endDate;
+  let from = parseDate(query.from ?? query.startDate);
+  let to = parseDate(query.to ?? query.endDate);
 
-  if (query.range && rangeConfig[query.range]) {
+  if (!from && !to && query.range && rangeConfig[query.range]) {
     const { start, end } = rangeConfig[query.range]();
-    startDate = start;
-    endDate = end;
+    from = start;
+    to = end;
   }
 
-  if (query.startDate) {
-    startDate = dayjs(query.startDate);
-  }
-
-  if (query.endDate) {
-    endDate = dayjs(query.endDate);
-  }
-
-  if (startDate || endDate) {
+  if (from || to) {
     filter.date = {};
-    if (startDate?.isValid()) {
-      filter.date.$gte = startDate.startOf("day").toDate();
+    if (from) {
+      filter.date.$gte = from.startOf("day").toDate();
     }
-    if (endDate?.isValid()) {
-      filter.date.$lte = endDate.endOf("day").toDate();
+    if (to) {
+      filter.date.$lte = to.endOf("day").toDate();
     }
   }
 
-  if (query.minAmount || query.maxAmount) {
+  const minAmount = query.minAmount ?? query.min_amount;
+  const maxAmount = query.maxAmount ?? query.max_amount;
+
+  if (minAmount !== undefined || maxAmount !== undefined) {
     filter.amount = {};
-    if (query.minAmount) {
-      filter.amount.$gte = Number(query.minAmount);
+    if (minAmount !== undefined) {
+      filter.amount.$gte = Number(minAmount);
     }
-    if (query.maxAmount) {
-      filter.amount.$lte = Number(query.maxAmount);
+    if (maxAmount !== undefined) {
+      filter.amount.$lte = Number(maxAmount);
     }
+  }
+
+  if (query.includeDeleted === "true" || query.include_deleted === "true") {
+    delete filter.is_deleted;
   }
 
   return filter;

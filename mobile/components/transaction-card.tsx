@@ -11,6 +11,9 @@ export const TransactionCard = ({ transaction }: Props) => {
   const { formatAmount } = usePreferences();
   const isCredit = transaction.type === "credit";
   const amountColor = isCredit ? "text-green-600" : "text-red-600";
+  const accountKindLabel = transaction.account?.kind
+    ? transaction.account.kind.replace(/_/g, " ")
+    : "Account";
 
   return (
     <View className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
@@ -53,9 +56,15 @@ export const TransactionCard = ({ transaction }: Props) => {
         </Text>
       ) : null}
 
+      {transaction.counterparty ? (
+        <Text className="text-gray-500 mt-2 text-xs">
+          Counterparty: {transaction.counterparty}
+        </Text>
+      ) : null}
+
       <View className="flex-row justify-between items-center mt-4 pt-3 border-t border-gray-100">
         <Text className="text-xs text-gray-500 font-medium">
-          {transaction.account?.type || "Account"}
+          {transaction.category?.name ?? accountKindLabel}
         </Text>
       </View>
     </View>

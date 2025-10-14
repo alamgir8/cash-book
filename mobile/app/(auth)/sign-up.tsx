@@ -12,7 +12,12 @@ const schema = z
   .object({
     name: z.string().min(2, "Name is required"),
     email: z.string().email("Enter a valid email"),
-    phone: z.string().min(6, "Enter a valid phone number"),
+    phone: z
+      .string()
+      .trim()
+      .min(6, "Enter a valid phone number")
+      .optional()
+      .or(z.literal("")),
     password: z.string().min(8, "Password must be at least 8 characters"),
     confirmPassword: z.string().min(8, "Please confirm your password"),
   })
@@ -48,8 +53,12 @@ export default function SignUpScreen() {
     try {
       setLoading(true);
       setFormError(null);
-      // Type assertion to ensure values match the required SignupPayload type
-      await signUp(values as Required<Omit<FormValues, "confirmPassword">>);
+      await signUp({
+        name: values.name,
+        email: values.email,
+        password: values.password,
+        phone: values.phone?.trim() ? values.phone.trim() : undefined,
+      });
       router.replace("/(app)");
     } catch (error) {
       console.error(error);
@@ -88,7 +97,7 @@ export default function SignUpScreen() {
               render={({ field: { onChange, value } }) => (
                 <CustomInput
                   label={field.charAt(0).toUpperCase() + field.slice(1)}
-                  value={value}
+                  value={value ?? ""}
                   onChangeText={onChange}
                   placeholder={
                     field === "phone" ? "Phone number" : `Your ${field}`

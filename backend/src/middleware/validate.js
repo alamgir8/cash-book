@@ -6,9 +6,9 @@ export const validate = (schema) => (req, res, next) => {
       query: req.query,
     };
     const parseResult = schema.parse(data);
-    req.body = parseResult.body;
-    req.params = parseResult.params;
-    req.query = parseResult.query;
+    req.body = parseResult.body ?? {};
+    req.params = parseResult.params ?? {};
+    req.query = parseResult.query ?? {};
     return next();
   } catch (error) {
     const formatted = error.errors?.map((issue) => ({

@@ -11,69 +11,33 @@ import {
 import * as SecureStore from "expo-secure-store";
 import Toast from "react-native-toast-message";
 import {
-  api,
   getApiErrorMessage,
   setAuthToken,
   setUnauthorizedHandler,
 } from "../lib/api";
 import * as authService from "../services/auth";
+import type {
+  AuthResponse,
+  LoginRequest,
+  SignupRequest,
+  UpdateProfileRequest,
+  User as Admin,
+} from "../services/auth";
 
 const STORAGE_TOKEN_KEY = "debit-credit-token";
-
-type Admin = {
-  _id: string;
-  name: string;
-  email: string;
-  phone: string;
-  settings: {
-    currency: string;
-    language: string;
-    week_starts_on: number;
-  };
-  createdAt: string;
-  updatedAt: string;
-};
 
 type AuthState =
   | { status: "loading"; user: null; token: null }
   | { status: "unauthenticated"; user: null; token: null }
   | { status: "authenticated"; user: Admin; token: string };
 
-type Credentials = {
-  identifier: string;
-  password: string;
-};
-
-type SignupPayload = {
-  name: string;
-  email: string;
-  phone: string;
-  password: string;
-};
-
-type AuthResponse = {
-  token: string;
-  admin: Admin;
-};
-
-type UpdateProfilePayload = {
-  name?: string;
-  email?: string;
-  phone?: string;
-  settings?: {
-    currency?: string;
-    language?: string;
-    week_starts_on?: number;
-  };
-};
-
 type AuthContextType = {
   state: AuthState;
-  signIn: (credentials: Credentials) => Promise<void>;
-  signUp: (payload: SignupPayload) => Promise<void>;
+  signIn: (credentials: LoginRequest) => Promise<void>;
+  signUp: (payload: SignupRequest) => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
-  updateProfile: (payload: UpdateProfilePayload) => Promise<void>;
+  updateProfile: (payload: UpdateProfileRequest) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -144,8 +108,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       }
 
       setAuthToken(token);
-      const { data } = await api.get<{ admin: Admin }>("/auth/me");
-      setState({ status: "authenticated", token, user: data.admin });
+      const profile = await authService.getProfile();
+      setState({ status: "authenticated", token, user: profile.admin });
     } catch (error) {
       console.warn("Failed to bootstrap session", error);
       await clearSession();
@@ -164,7 +128,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   }, [bootstrap]);
 
   const signIn = useCallback(
-    async ({ identifier, password }: Credentials) => {
+    async ({ identifier, password }: LoginRequest) => {
       try {
         const data = await authService.login({ identifier, password });
         await applySession(data);
@@ -182,7 +146,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   );
 
   const signUp = useCallback(
-    async (payload: SignupPayload) => {
+    async (payload: SignupRequest) => {
       try {
         const data = await authService.signup(payload);
         await applySession(data);
@@ -217,7 +181,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   }, []);
 
-  const updateProfile = useCallback(async (payload: UpdateProfilePayload) => {
+  const updateProfile = useCallback(async (payload: UpdateProfileRequest) => {
     if (stateRef.current.status !== "authenticated") return;
     try {
       const data = await authService.updateProfile(payload);

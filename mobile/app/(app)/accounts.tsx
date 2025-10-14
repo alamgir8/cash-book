@@ -5,6 +5,7 @@ import {
   KeyboardAvoidingView,
   Modal,
   Platform,
+  RefreshControl,
   ScrollView,
   Text,
   TextInput,
@@ -364,26 +365,41 @@ export default function AccountsScreen() {
           paddingBottom: 88,
         }}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={accountsQuery.isRefetching}
+            onRefresh={() => accountsQuery.refetch()}
+            tintColor="#1d4ed8"
+            colors={["#1d4ed8"]}
+          />
+        }
         ListHeaderComponent={renderHeader}
-        // ListEmptyComponent={
-        //   <EmptyState
-        //     isLoading={accountsQuery?.isLoading}
-        //     loadingText="Loading accounts..."
-        //     icon="wallet-outline"
-        //     title="No Accounts Yet"
-        //     description="Create your first account to start tracking your finances."
-        //     actionButton={{
-        //       label: "Create Account",
-        //       onPress: () => openModal(),
-        //     }}
-        //   />
-        // }
+        ListEmptyComponent={
+          accountsQuery.isLoading ? (
+            <View className="items-center mt-12">
+              <ActivityIndicator color="#1d4ed8" size="large" />
+              <Text className="text-gray-500 mt-4 text-base">
+                Loading accounts...
+              </Text>
+            </View>
+          ) : (
+            <EmptyState
+              isLoading={false}
+              icon="wallet-outline"
+              title="No Accounts Yet"
+              description="Create your first account to start tracking your finances."
+              actionButton={{
+                label: "Create Account",
+                onPress: () => openModal(),
+              }}
+            />
+          )
+        }
         renderItem={({ item }) => {
           const lastActivity = item.summary.lastTransactionDate
             ? dayjs(item.summary.lastTransactionDate).format("MMM D, YYYY")
             : "No activity yet";
-          const netFlow =
-            (item.summary.totalCredit ?? 0) - (item.summary.totalDebit ?? 0);
+          const netFlow = item.summary.net ?? 0;
           const netFlowPositive = netFlow >= 0;
 
           return (

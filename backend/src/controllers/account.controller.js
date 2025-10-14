@@ -1,14 +1,147 @@
 import mongoose from "mongoose";
 import { Account } from "../models/Account.js";
+import { Admin } from "../models/Admin.js";
 import { Transaction } from "../models/Transaction.js";
 import { buildTransactionFilters } from "../utils/filters.js";
 
+const pickAccountUpdateFields = (payload) => {
+  const allowed = [
+    "name",
+    "description",
+    "kind",
+    "currency_code",
+    "currency_symbol",
+  ];
+  return allowed.reduce((acc, field) => {
+    if (payload[field] !== undefined) {
+      acc[field] = payload[field];
+    }
+    return acc;
+  }, {});
+};
+
+const computeAccountSummary = async ({ adminId, accountId }) => {
+  const [aggregates] = await Transaction.aggregate([
+    {
+      $match: {
+        admin: new mongoose.Types.ObjectId(adminId),
+        account: new mongoose.Types.ObjectId(accountId),
+        is_deleted: { $ne: true },
+      },
+    },
+    {
+      $group: {
+        _id: "$account",
+        total_transactions: { $sum: 1 },
+        total_debit: {
+          $sum: {
+            $cond: [{ $eq: ["$type", "debit"] }, "$amount", 0],
+          },
+        },
+        total_credit: {
+          $sum: {
+            $cond: [{ $eq: ["$type", "credit"] }, "$amount", 0],
+          },
+        },
+        last_transaction_date: { $max: "$date" },
+      },
+    },
+  ]);
+
+  return aggregates
+    ? {
+        total_transactions: aggregates.total_transactions,
+        total_debit: aggregates.total_debit ?? 0,
+        total_credit: aggregates.total_credit ?? 0,
+        net: (aggregates.total_credit ?? 0) - (aggregates.total_debit ?? 0),
+        last_transaction_date: aggregates.last_transaction_date,
+      }
+    : {
+        total_transactions: 0,
+        total_debit: 0,
+        total_credit: 0,
+        net: 0,
+        last_transaction_date: null,
+      };
+};
+
+const decorateWithSummary = async ({ adminId, accounts }) => {
+  if (accounts.length === 0) {
+    return [];
+  }
+
+  const accountIds = accounts.map((account) => account._id);
+  const aggregates = await Transaction.aggregate([
+    {
+      $match: {
+        admin: new mongoose.Types.ObjectId(adminId),
+        account: { $in: accountIds },
+        is_deleted: { $ne: true },
+      },
+    },
+    {
+      $group: {
+        _id: "$account",
+        total_transactions: { $sum: 1 },
+        total_debit: {
+          $sum: {
+            $cond: [{ $eq: ["$type", "debit"] }, "$amount", 0],
+          },
+        },
+        total_credit: {
+          $sum: {
+            $cond: [{ $eq: ["$type", "credit"] }, "$amount", 0],
+          },
+        },
+        last_transaction_date: { $max: "$date" },
+      },
+    },
+  ]);
+
+  const summaries = new Map(
+    aggregates.map((item) => [
+      item._id.toString(),
+      {
+        total_transactions: item.total_transactions,
+        total_debit: item.total_debit ?? 0,
+        total_credit: item.total_credit ?? 0,
+        net: (item.total_credit ?? 0) - (item.total_debit ?? 0),
+        last_transaction_date: item.last_transaction_date,
+      },
+    ])
+  );
+
+  return accounts.map((account) => ({
+    ...account,
+    summary:
+      summaries.get(account._id.toString()) ?? {
+        total_transactions: 0,
+        total_debit: 0,
+        total_credit: 0,
+        net: 0,
+        last_transaction_date: null,
+      },
+  }));
+};
+
 export const listAccounts = async (req, res, next) => {
   try {
-    const accounts = await Account.find({ admin: req.user.id }).sort({
-      name: 1,
+    const includeArchived =
+      req.query.include_archived === "true" ||
+      req.query.includeArchived === "true";
+
+    const filter = {
+      admin: req.user.id,
+      ...(includeArchived ? {} : { archived: false }),
+    };
+
+    const accounts = await Account.find(filter).sort({ name: 1 }).lean();
+    const withSummary = await decorateWithSummary({
+      adminId: req.user.id,
+      accounts,
     });
-    res.json({ accounts });
+
+    res.json({ accounts: withSummary });
   } catch (error) {
     next(error);
   }
@@ -16,13 +149,40 @@ export const listAccounts = async (req, res, next) => {
 
 export const createAccount = async (req, res, next) => {
   try {
-    const { name, description } = req.body;
+    const {
+      name,
+      description,
+      kind,
+      opening_balance: openingBalance,
+      currency_code,
+      currency_symbol,
+    } = req.body;
+
+    let finalCurrencyCode = currency_code;
+    let finalCurrencySymbol = currency_symbol;
+
+    if (!finalCurrencyCode || !finalCurrencySymbol) {
+      const admin = await Admin.findById(req.user.id).lean();
+      if (admin?.profile_settings) {
+        finalCurrencyCode = finalCurrencyCode ?? admin.profile_settings.currency_code;
+        finalCurrencySymbol =
+          finalCurrencySymbol ?? admin.profile_settings.currency_symbol;
+      }
+    }
+
+    const opening = Number(openingBalance ?? 0);
+
     const account = await Account.create({
       admin: req.user.id,
       name,
-      // type,
       description,
+      kind,
+      opening_balance: opening,
+      current_balance: opening,
+      currency_code: finalCurrencyCode,
+      currency_symbol: finalCurrencySymbol,
     });
+
     res.status(201).json({ account });
   } catch (error) {
     if (error.code === 11000) {
@@ -37,12 +197,12 @@ export const createAccount = async (req, res, next) => {
 export const updateAccount = async (req, res, next) => {
   try {
     const { accountId } = req.params;
-    const update = req.body;
+    const update = pickAccountUpdateFields(req.body);
 
     const account = await Account.findOneAndUpdate(
       { _id: accountId, admin: req.user.id },
       update,
-      { new: true }
+      { new: true, runValidators: true }
     );
 
     if (!account) {
@@ -55,6 +215,33 @@ export const updateAccount = async (req, res, next) => {
   }
 };
 
+export const archiveAccount = async (req, res, next) => {
+  try {
+    const { accountId } = req.params;
+    const { archived } = req.body;
+
+    const account = await Account.findOne({
+      _id: accountId,
+      admin: req.user.id,
+    });
+
+    if (!account) {
+      return res.status(404).json({ message: "Account not found" });
+    }
+
+    const nextArchivedState = Boolean(archived);
+    account.archived = nextArchivedState;
+    account.archived_at = nextArchivedState ? new Date() : undefined;
+    await account.save();
+
+    res.json({
+      account,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const getAccountSummary = async (req, res, next) => {
   try {
     const { accountId } = req.params;
@@ -62,106 +249,24 @@ export const getAccountSummary = async (req, res, next) => {
     const account = await Account.findOne({
       _id: accountId,
       admin: req.user.id,
-    });
+    }).lean();
+
     if (!account) {
       return res.status(404).json({ message: "Account not found" });
     }
 
-    const totals = await Transaction.aggregate([
-      {
-        $match: {
-          admin: account.admin,
-          account: account._id,
-        },
-      },
-      {
-        $group: {
-          _id: "$type",
-          total: { $sum: "$amount" },
-        },
-      },
-    ]);
-
-    const summary = totals.reduce(
-      (acc, item) => {
-        acc[item._id] = item.total;
-        return acc;
-      },
-      { debit: 0, credit: 0 }
-    );
+    const summary = await computeAccountSummary({
+      adminId: req.user.id,
+      accountId,
+    });
 
     res.json({
       account,
-      summary,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-export const listAccountsWithSummary = async (req, res, next) => {
-  try {
-    const accounts = await Account.find({ admin: req.user.id })
-      .sort({ name: 1 })
-      .lean();
-
-    if (accounts.length === 0) {
-      return res.json({ accounts: [] });
-    }
-
-    const accountIds = accounts.map((account) => account._id);
-    const aggregates = await Transaction.aggregate([
-      {
-        $match: {
-          admin: new mongoose.Types.ObjectId(req.user.id),
-          account: { $in: accountIds },
-        },
+      summary: {
+        ...summary,
+        current_balance: account.current_balance,
       },
-      {
-        $group: {
-          _id: "$account",
-          totalTransactions: { $sum: 1 },
-          totalDebit: {
-            $sum: {
-              $cond: [{ $eq: ["$type", "debit"] }, "$amount", 0],
-            },
-          },
-          totalCredit: {
-            $sum: {
-              $cond: [{ $eq: ["$type", "credit"] }, "$amount", 0],
-            },
-          },
-          lastTransactionDate: { $max: "$date" },
-        },
-      },
-    ]);
-
-    const aggregateMap = new Map(
-      aggregates.map((item) => [
-        item._id.toString(),
-        {
-          totalTransactions: item.totalTransactions,
-          totalDebit: item.totalDebit,
-          totalCredit: item.totalCredit,
-          lastTransactionDate: item.lastTransactionDate,
-        },
-      ])
-    );
-
-    const enriched = accounts.map((account) => {
-      const summary = aggregateMap.get(account._id.toString()) ?? {
-        totalTransactions: 0,
-        totalDebit: 0,
-        totalCredit: 0,
-        lastTransactionDate: null,
-      };
-      return {
-        ...account,
-        summary,
-      };
     });
-
-    res.json({ accounts: enriched });
   } catch (error) {
     next(error);
   }
@@ -175,47 +280,22 @@ export const getAccountDetail = async (req, res, next) => {
       _id: accountId,
       admin: req.user.id,
     }).lean();
+
     if (!account) {
       return res.status(404).json({ message: "Account not found" });
     }
 
-    const [aggregate] = await Transaction.aggregate([
-      {
-        $match: {
-          admin: new mongoose.Types.ObjectId(req.user.id),
-          account: new mongoose.Types.ObjectId(accountId),
-        },
-      },
-      {
-        $group: {
-          _id: "$account",
-          totalTransactions: { $sum: 1 },
-          totalDebit: {
-            $sum: {
-              $cond: [{ $eq: ["$type", "debit"] }, "$amount", 0],
-            },
-          },
-          totalCredit: {
-            $sum: {
-              $cond: [{ $eq: ["$type", "credit"] }, "$amount", 0],
-            },
-          },
-          lastTransactionDate: { $max: "$date" },
-        },
-      },
-    ]);
-
-    const summary = aggregate ?? {
-      totalTransactions: 0,
-      totalDebit: 0,
-      totalCredit: 0,
-      lastTransactionDate: null,
-    };
+    const summary = await computeAccountSummary({
+      adminId: req.user.id,
+      accountId,
+    });
 
     const recentTransactions = await Transaction.find({
       admin: req.user.id,
       account: account._id,
+      is_deleted: { $ne: true },
     })
+      .populate("category_id", "name type")
       .sort({ date: -1 })
       .limit(5)
       .lean();
@@ -223,12 +303,10 @@ export const getAccountDetail = async (req, res, next) => {
     res.json({
       account,
       summary: {
-        totalTransactions: summary.totalTransactions,
-        totalDebit: summary.totalDebit ?? 0,
-        totalCredit: summary.totalCredit ?? 0,
-        lastTransactionDate: summary.lastTransactionDate,
+        ...summary,
+        current_balance: account.current_balance,
       },
-      recentTransactions,
+      recent_transactions: recentTransactions,
     });
   } catch (error) {
     next(error);
@@ -254,18 +332,19 @@ export const getAccountTransactions = async (req, res, next) => {
         accountId,
       },
     });
-    filter.account = account._id;
 
-    const page = Number(req.query.page) || 1;
+    const page = Math.max(Number(req.query.page) || 1, 1);
     const limit = Math.min(Number(req.query.limit) || 20, 100);
     const skip = (page - 1) * limit;
 
     const [transactions, total] = await Promise.all([
       Transaction.find(filter)
-        .populate("account", "name type")
-        .sort({ date: -1 })
+        .populate("account", "name kind")
+        .populate("category_id", "name type")
+        .sort({ date: -1, createdAt: -1 })
         .skip(skip)
-        .limit(limit),
+        .limit(limit)
+        .lean(),
       Transaction.countDocuments(filter),
     ]);
 
@@ -276,7 +355,7 @@ export const getAccountTransactions = async (req, res, next) => {
         page,
         limit,
         total,
-        pages: Math.ceil(total / limit) || 1,
+        pages: Math.max(Math.ceil(total / limit), 1),
       },
     });
   } catch (error) {

@@ -1,90 +1,257 @@
-import PDFDocument from "pdfkit";
 import dayjs from "dayjs";
-import { Transaction } from "../models/Transaction.js";
+import mongoose from "mongoose";
 import { Account } from "../models/Account.js";
+import { Category } from "../models/Category.js";
+import { Transaction } from "../models/Transaction.js";
 import { buildTransactionFilters } from "../utils/filters.js";
 
-export const exportTransactionsPdf = async (req, res, next) => {
+const parseBoundaryDate = (value, fallback = new Date()) => {
+  if (!value) return fallback;
+  const parsed = dayjs(value);
+  return parsed.isValid() ? parsed.toDate() : fallback;
+};
+
+export const getSummaryReport = async (req, res, next) => {
   try {
     const filter = buildTransactionFilters({
       adminId: req.user.id,
       query: req.query,
     });
 
-    if (req.query.accountName) {
-      const accounts = await Account.find({
-        admin: req.user.id,
-        name: { $regex: req.query.accountName, $options: "i" },
-      }).select("_id");
+    const results = await Transaction.aggregate([
+      { $match: filter },
+      {
+        $group: {
+          _id: "$type",
+          total: { $sum: "$amount" },
+          count: { $sum: 1 },
+        },
+      },
+    ]);
 
-      if (accounts.length === 0) {
-        res.setHeader("Content-Type", "application/pdf");
-        res.setHeader(
-          "Content-Disposition"
-          // 'attachment; filename="transactions-empty.pdf"'
-        );
-        const doc = new PDFDocument({ margin: 40, size: "A4" });
-        doc.pipe(res);
-        doc
-          .fontSize(16)
-          .text("No transactions found for the requested filters.", {
-            align: "center",
-          });
-        doc.end();
-        return;
+    const summary = results.reduce(
+      (acc, item) => {
+        if (item._id === "debit") {
+          acc.total_debit = item.total;
+          acc.debit_count = item.count;
+        } else if (item._id === "credit") {
+          acc.total_credit = item.total;
+          acc.credit_count = item.count;
+        }
+        return acc;
+      },
+      {
+        total_debit: 0,
+        total_credit: 0,
+        debit_count: 0,
+        credit_count: 0,
       }
+    );
 
-      filter.account = { $in: accounts.map((item) => item._id) };
-    }
+    summary.net = summary.total_credit - summary.total_debit;
 
-    const transactions = await Transaction.find(filter)
-      .populate("account", "name type")
-      .sort({ date: -1 });
+    res.json({
+      summary,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
 
-    const doc = new PDFDocument({ margin: 40, size: "A4" });
-    const filename = `transactions-${dayjs().format("YYYYMMDD-HHmmss")}.pdf`;
+export const getSeriesReport = async (req, res, next) => {
+  try {
+    const granularity = req.query.granularity === "month" ? "month" : "day";
 
-    res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-
-    doc.pipe(res);
-
-    doc
-      .fontSize(20)
-      .text("Debit/Credit Transactions Report", { align: "center" });
-    doc.moveDown();
-    doc.fontSize(12).text(`Generated: ${dayjs().format("YYYY-MM-DD HH:mm")}`);
-    doc.moveDown();
-
-    if (transactions.length === 0) {
-      doc.fontSize(14).text("No transactions found for the selected filters.", {
-        align: "center",
-      });
-      doc.end();
-      return;
-    }
-
-    transactions.forEach((txn) => {
-      doc
-        .fontSize(12)
-        .text(`Date: ${dayjs(txn.date).format("YYYY-MM-DD")}`)
-        .text(
-          `Account: ${txn.account?.name ?? "N/A"} (${txn.account?.type ?? "-"})`
-        )
-        .text(`Type: ${txn.type}`)
-        .text(`Amount: ${Math.round(txn.amount).toLocaleString()}`)
-        .text(`Description: ${txn.description ?? "-"}`)
-        .text(`Comment: ${txn.comment ?? "-"}`)
-        .text(
-          `Balance after transaction: ${Math.round(
-            txn.balance_after_transaction ?? 0
-          ).toLocaleString()}`
-        )
-        .moveDown();
-      doc.moveDown(0.5);
+    const filter = buildTransactionFilters({
+      adminId: req.user.id,
+      query: req.query,
     });
 
-    doc.end();
+    const dateFormat = granularity === "month" ? "%Y-%m-01" : "%Y-%m-%d";
+
+    const series = await Transaction.aggregate([
+      { $match: filter },
+      {
+        $group: {
+          _id: {
+            period: {
+              $dateToString: {
+                format: dateFormat,
+                date: "$date",
+              },
+            },
+          },
+          total_debit: {
+            $sum: {
+              $cond: [{ $eq: ["$type", "debit"] }, "$amount", 0],
+            },
+          },
+          total_credit: {
+            $sum: {
+              $cond: [{ $eq: ["$type", "credit"] }, "$amount", 0],
+            },
+          },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          period_start: "$_id.period",
+          total_debit: 1,
+          total_credit: 1,
+          net: { $subtract: ["$total_credit", "$total_debit"] },
+        },
+      },
+      { $sort: { period_start: 1 } },
+    ]);
+
+    res.json({
+      granularity,
+      series,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getAccountBalancesReport = async (req, res, next) => {
+  try {
+    const onDate = parseBoundaryDate(req.query.on);
+
+    const accounts = await Account.find({
+      admin: req.user.id,
+    })
+      .lean()
+      .sort({ name: 1 });
+
+    if (accounts.length === 0) {
+      return res.json({ accounts: [] });
+    }
+
+    const aggregates = await Transaction.aggregate([
+      {
+        $match: {
+          admin: new mongoose.Types.ObjectId(req.user.id),
+          account: {
+            $in: accounts.map((account) => account._id),
+          },
+          date: { $lte: onDate },
+          is_deleted: { $ne: true },
+        },
+      },
+      {
+        $group: {
+          _id: "$account",
+          total_debit: {
+            $sum: {
+              $cond: [{ $eq: ["$type", "debit"] }, "$amount", 0],
+            },
+          },
+          total_credit: {
+            $sum: {
+              $cond: [{ $eq: ["$type", "credit"] }, "$amount", 0],
+            },
+          },
+        },
+      },
+    ]);
+
+    const aggregateMap = new Map(
+      aggregates.map((item) => [
+        item._id.toString(),
+        {
+          total_debit: item.total_debit ?? 0,
+          total_credit: item.total_credit ?? 0,
+        },
+      ])
+    );
+
+    const balances = accounts.map((account) => {
+      const movements = aggregateMap.get(account._id.toString()) ?? {
+        total_debit: 0,
+        total_credit: 0,
+      };
+      const closing_balance =
+        (account.opening_balance ?? 0) +
+        movements.total_credit -
+        movements.total_debit;
+      return {
+        account_id: account._id,
+        name: account.name,
+        kind: account.kind,
+        currency_code: account.currency_code,
+        currency_symbol: account.currency_symbol,
+        opening_balance: account.opening_balance,
+        closing_balance,
+        total_debit: movements.total_debit,
+        total_credit: movements.total_credit,
+      };
+    });
+
+    res.json({
+      as_of: onDate.toISOString(),
+      accounts: balances,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getTopCategoriesReport = async (req, res, next) => {
+  try {
+    const filter = buildTransactionFilters({
+      adminId: req.user.id,
+      query: req.query,
+    });
+
+    if (req.query.type) {
+      const categoryFilter = await Category.find({
+        admin: req.user.id,
+        type: req.query.type,
+      }).select("_id");
+
+      filter.category_id = {
+        $in: categoryFilter.map((category) => category._id),
+      };
+    }
+
+    const limit = Math.min(Number(req.query.limit) || 5, 20);
+
+    const categories = await Transaction.aggregate([
+      { $match: { ...filter, category_id: { $exists: true, $ne: null } } },
+      {
+        $group: {
+          _id: "$category_id",
+          total_amount: { $sum: "$amount" },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { total_amount: -1 } },
+      { $limit: limit },
+      {
+        $lookup: {
+          from: "categories",
+          localField: "_id",
+          foreignField: "_id",
+          as: "category",
+        },
+      },
+      { $unwind: "$category" },
+      {
+        $project: {
+          _id: 0,
+          category_id: "$category._id",
+          name: "$category.name",
+          type: "$category.type",
+          total_amount: 1,
+          count: 1,
+        },
+      },
+    ]);
+
+    res.json({
+      categories,
+    });
   } catch (error) {
     next(error);
   }

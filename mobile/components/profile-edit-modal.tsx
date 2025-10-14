@@ -1,356 +1,317 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
-  View,
-  Text,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
+  ScrollView,
+  Text,
   TextInput,
   TouchableOpacity,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
+  View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useForm, Controller } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import Toast from "react-native-toast-message";
+import SearchableSelect, {
+  type SelectOption,
+} from "./searchable-select";
 import { ActionButton } from "./action-button";
 import { useAuth } from "../hooks/useAuth";
 
-// Profile edit schema
 const profileSchema = z.object({
   name: z.string().min(1, "Name is required"),
-  email: z.string().email("Invalid email"),
+  email: z.string().email("Invalid email address"),
   phone: z.string().optional(),
-  currency: z.string().min(1, "Currency is required"),
-  language: z.string().min(1, "Language is required"),
+  currency: z.string().min(1, "Select a currency"),
+  language: z.string().min(1, "Select a language"),
 });
 
 type ProfileFormData = z.infer<typeof profileSchema>;
 
-interface ProfileEditModalProps {
+type ProfileEditModalProps = {
   visible: boolean;
   onClose: () => void;
-}
+};
 
-// Currency options
-const currencies = [
-  { label: "US Dollar ($)", value: "USD", symbol: "$" },
-  { label: "Euro (€)", value: "EUR", symbol: "€" },
-  { label: "British Pound (£)", value: "GBP", symbol: "£" },
-  { label: "Japanese Yen (¥)", value: "JPY", symbol: "¥" },
-  { label: "Canadian Dollar (C$)", value: "CAD", symbol: "C$" },
-  { label: "Australian Dollar (A$)", value: "AUD", symbol: "A$" },
-  { label: "Swiss Franc (CHF)", value: "CHF", symbol: "CHF" },
-  { label: "Chinese Yuan (¥)", value: "CNY", symbol: "¥" },
-  { label: "Indian Rupee (₹)", value: "INR", symbol: "₹" },
-  { label: "Bangladesh Taka (৳)", value: "BDT", symbol: "৳" },
+const currencyOptions: SelectOption[] = [
+  { label: "US Dollar ($)", value: "USD", subtitle: "$" },
+  { label: "Euro (€)", value: "EUR", subtitle: "€" },
+  { label: "British Pound (£)", value: "GBP", subtitle: "£" },
+  { label: "Japanese Yen (¥)", value: "JPY", subtitle: "¥" },
+  { label: "Canadian Dollar (C$)", value: "CAD", subtitle: "C$" },
+  { label: "Australian Dollar (A$)", value: "AUD", subtitle: "A$" },
+  { label: "Swiss Franc (CHF)", value: "CHF", subtitle: "CHF" },
+  { label: "Chinese Yuan (¥)", value: "CNY", subtitle: "¥" },
+  { label: "Indian Rupee (₹)", value: "INR", subtitle: "₹" },
+  { label: "Bangladeshi Taka (৳)", value: "BDT", subtitle: "৳" },
+  { label: "Saudi Riyal (﷼)", value: "SAR", subtitle: "﷼" },
+  { label: "UAE Dirham (د.إ)", value: "AED", subtitle: "د.إ" },
 ];
 
-// Language options
-const languages = [
-  { label: "English", value: "en", flag: "🇺🇸" },
-  { label: "Spanish", value: "es", flag: "🇪🇸" },
-  { label: "French", value: "fr", flag: "🇫🇷" },
-  { label: "German", value: "de", flag: "🇩🇪" },
-  { label: "Italian", value: "it", flag: "🇮🇹" },
-  { label: "Portuguese", value: "pt", flag: "🇵🇹" },
-  { label: "Russian", value: "ru", flag: "🇷🇺" },
-  { label: "Chinese", value: "zh", flag: "🇨🇳" },
-  { label: "Japanese", value: "ja", flag: "🇯🇵" },
-  { label: "Arabic", value: "ar", flag: "🇸🇦" },
-  { label: "Hindi", value: "hi", flag: "🇮🇳" },
-  { label: "Bengali", value: "bn", flag: "🇧🇩" },
+const languageOptions: SelectOption[] = [
+  { label: "🇺🇸 English", value: "en" },
+  { label: "🇪🇸 Spanish", value: "es" },
+  { label: "🇫🇷 French", value: "fr" },
+  { label: "🇩🇪 German", value: "de" },
+  { label: "🇮🇹 Italian", value: "it" },
+  { label: "🇵🇹 Portuguese", value: "pt" },
+  { label: "🇷🇺 Russian", value: "ru" },
+  { label: "🇨🇳 Chinese", value: "zh" },
+  { label: "🇯🇵 Japanese", value: "ja" },
+  { label: "🇸🇦 Arabic", value: "ar" },
+  { label: "🇮🇳 Hindi", value: "hi" },
+  { label: "🇧🇩 Bengali", value: "bn" },
 ];
+
+const currencySymbolMap = Object.fromEntries(
+  currencyOptions.map((option) => [option.value, option.subtitle ?? "$"])
+);
 
 export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
   const { state, updateProfile } = useAuth();
-  const [isLoading, setIsLoading] = useState(false);
-  const [showCurrencyPicker, setShowCurrencyPicker] = useState(false);
-  const [showLanguagePicker, setShowLanguagePicker] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const currentProfile = state.status === "authenticated" ? state.user : null;
+
+  const defaultCurrency =
+    currentProfile?.profile_settings?.currency_code ??
+    currentProfile?.settings?.currency ??
+    "USD";
+  const defaultLanguage =
+    currentProfile?.profile_settings?.language ??
+    currentProfile?.settings?.language ??
+    "en";
 
   const {
     control,
     handleSubmit,
-    formState: { errors },
-    setValue,
-    watch,
+    reset,
+    formState: { errors, isDirty },
   } = useForm<ProfileFormData>({
     resolver: zodResolver(profileSchema),
     defaultValues: {
-      name: currentProfile?.name || "",
-      email: currentProfile?.email || "",
-      phone: currentProfile?.phone || "",
-      currency: currentProfile?.settings?.currency || "USD",
-      language: currentProfile?.settings?.language || "en",
+      name: currentProfile?.name ?? "",
+      email: currentProfile?.email ?? "",
+      phone: currentProfile?.phone ?? "",
+      currency: defaultCurrency,
+      language: defaultLanguage,
     },
   });
 
-  const selectedCurrency = watch("currency");
-  const selectedLanguage = watch("language");
+  useEffect(() => {
+    if (!currentProfile) return;
+    reset({
+      name: currentProfile.name ?? "",
+      email: currentProfile.email ?? "",
+      phone: currentProfile.phone ?? "",
+      currency:
+        currentProfile.profile_settings?.currency_code ??
+        currentProfile.settings?.currency ??
+        "USD",
+      language:
+        currentProfile.profile_settings?.language ??
+        currentProfile.settings?.language ??
+        "en",
+    });
+  }, [currentProfile, reset]);
 
-  const handleSave = async (data: ProfileFormData) => {
+  const handleClose = () => {
+    reset();
+    onClose();
+  };
+
+  const handleSave = async (values: ProfileFormData) => {
+    if (submitting) return;
     try {
-      setIsLoading(true);
+      setSubmitting(true);
       await updateProfile({
-        name: data.name,
-        email: data.email,
-        phone: data.phone,
-        settings: {
-          currency: data.currency,
-          language: data.language,
+        name: values.name,
+        email: values.email,
+        phone: values.phone?.trim() ? values.phone.trim() : undefined,
+        profile_settings: {
+          currency_code: values.currency,
+          currency_symbol: currencySymbolMap[values.currency] ?? "$",
+          language: values.language,
         },
       });
       Toast.show({
         type: "success",
-        text1: "Profile updated successfully",
+        text1: "Profile updated",
       });
-      onClose();
+      handleClose();
     } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Unable to update profile. Try again.";
       Toast.show({
         type: "error",
-        text1: "Failed to update profile",
-        text2: error instanceof Error ? error.message : "Unknown error",
+        text1: "Update failed",
+        text2: message,
       });
     } finally {
-      setIsLoading(false);
+      setSubmitting(false);
     }
   };
 
-  const getCurrencyLabel = (value: string) => {
-    const currency = currencies.find((c) => c.value === value);
-    return currency ? currency.label : value;
-  };
-
-  const getLanguageLabel = (value: string) => {
-    const language = languages.find((l) => l.value === value);
-    return language ? `${language.flag} ${language.label}` : value;
-  };
-
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      presentationStyle="pageSheet"
-    >
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        className="flex-1 bg-gray-50"
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        style={{ flex: 1 }}
       >
-        {/* Header */}
-        <View className="bg-white border-b border-gray-200 px-4 py-4 pt-16">
-          <View className="flex-row items-center justify-between">
-            <TouchableOpacity onPress={onClose} className="p-2">
-              <Ionicons name="close" size={24} color="#374151" />
+        <SafeAreaView style={{ flex: 1, backgroundColor: "#F9FAFB" }}>
+          <View className="flex-row items-center justify-between px-5 py-4 border-b border-gray-200">
+            <TouchableOpacity onPress={handleClose} className="p-2">
+              <Ionicons name="close" size={22} color="#374151" />
             </TouchableOpacity>
-            <Text className="text-lg font-bold text-gray-900">
-              Edit Profile
-            </Text>
-            <View className="w-10" />
-          </View>
-        </View>
-
-        <ScrollView className="flex-1 px-4 py-6">
-          {/* Profile Information */}
-          <View className="bg-white rounded-2xl p-4 mb-4 shadow-sm">
-            <Text className="text-lg font-bold text-gray-900 mb-4">
-              Personal Information
-            </Text>
-
-            <View className="mb-4">
-              <Text className="text-gray-700 text-sm font-semibold mb-2">
-                Full Name
-              </Text>
-              <Controller
-                control={control}
-                name="name"
-                render={({ field: { onChange, value } }) => (
-                  <TextInput
-                    value={value}
-                    onChangeText={onChange}
-                    placeholder="Enter your full name"
-                    className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200"
-                  />
-                )}
-              />
-              {errors.name && (
-                <Text className="text-red-500 text-sm mt-1">
-                  {errors.name.message}
-                </Text>
-              )}
-            </View>
-
-            <View className="mb-4">
-              <Text className="text-gray-700 text-sm font-semibold mb-2">
-                Email Address
-              </Text>
-              <Controller
-                control={control}
-                name="email"
-                render={({ field: { onChange, value } }) => (
-                  <TextInput
-                    value={value}
-                    onChangeText={onChange}
-                    placeholder="Enter your email"
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200"
-                  />
-                )}
-              />
-              {errors.email && (
-                <Text className="text-red-500 text-sm mt-1">
-                  {errors.email.message}
-                </Text>
-              )}
-            </View>
-
-            <View className="mb-4">
-              <Text className="text-gray-700 text-sm font-semibold mb-2">
-                Phone Number (Optional)
-              </Text>
-              <Controller
-                control={control}
-                name="phone"
-                render={({ field: { onChange, value } }) => (
-                  <TextInput
-                    value={value}
-                    onChangeText={onChange}
-                    placeholder="Enter your phone number"
-                    keyboardType="phone-pad"
-                    className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200"
-                  />
-                )}
-              />
-            </View>
+            <Text className="text-lg font-bold text-gray-900">Edit Profile</Text>
+            <View style={{ width: 32 }} />
           </View>
 
-          {/* App Preferences */}
-          <View className="bg-white rounded-2xl p-4 mb-4 shadow-sm">
-            <Text className="text-lg font-bold text-gray-900 mb-4">
-              App Preferences
-            </Text>
-
-            <View className="mb-4">
-              <Text className="text-gray-700 text-sm font-semibold mb-2">
-                Default Currency
+          <ScrollView
+            contentContainerStyle={{ paddingHorizontal: 20, paddingVertical: 16, gap: 20 }}
+            showsVerticalScrollIndicator={false}
+          >
+            <View className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+              <Text className="text-base font-semibold text-gray-900 mb-3">
+                Personal Information
               </Text>
-              <TouchableOpacity
-                onPress={() => setShowCurrencyPicker(true)}
-                className="bg-gray-50 px-4 py-3 rounded-xl border border-gray-200 flex-row items-center justify-between"
-              >
-                <Text className="text-gray-900">
-                  {getCurrencyLabel(selectedCurrency)}
-                </Text>
-                <Ionicons name="chevron-down" size={20} color="#6b7280" />
-              </TouchableOpacity>
-            </View>
 
-            <View className="mb-4">
-              <Text className="text-gray-700 text-sm font-semibold mb-2">
-                Language
-              </Text>
-              <TouchableOpacity
-                onPress={() => setShowLanguagePicker(true)}
-                className="bg-gray-50 px-4 py-3 rounded-xl border border-gray-200 flex-row items-center justify-between"
-              >
-                <Text className="text-gray-900">
-                  {getLanguageLabel(selectedLanguage)}
-                </Text>
-                <Ionicons name="chevron-down" size={20} color="#6b7280" />
-              </TouchableOpacity>
-            </View>
-          </View>
+              <View className="gap-4">
+                <View>
+                  <Text className="text-sm font-semibold text-gray-700 mb-2">
+                    Full name
+                  </Text>
+                  <Controller
+                    control={control}
+                    name="name"
+                    render={({ field: { value, onChange } }) => (
+                      <TextInput
+                        value={value}
+                        onChangeText={onChange}
+                        placeholder="Your name"
+                        placeholderTextColor="#9ca3af"
+                        className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200"
+                      />
+                    )}
+                  />
+                  {errors.name ? (
+                    <Text className="text-sm text-red-500 mt-1">
+                      {errors.name.message}
+                    </Text>
+                  ) : null}
+                </View>
 
-          {/* Save Button */}
-          <ActionButton
-            label="Save Changes"
-            onPress={handleSubmit(handleSave)}
-            isLoading={isLoading}
-            variant="primary"
-            size="large"
-            icon="checkmark"
-            fullWidth
-          />
-        </ScrollView>
+                <View>
+                  <Text className="text-sm font-semibold text-gray-700 mb-2">
+                    Email
+                  </Text>
+                  <Controller
+                    control={control}
+                    name="email"
+                    render={({ field: { value, onChange } }) => (
+                      <TextInput
+                        value={value}
+                        onChangeText={onChange}
+                        placeholder="you@example.com"
+                        placeholderTextColor="#9ca3af"
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                        className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200"
+                      />
+                    )}
+                  />
+                  {errors.email ? (
+                    <Text className="text-sm text-red-500 mt-1">
+                      {errors.email.message}
+                    </Text>
+                  ) : null}
+                </View>
 
-        {/* Currency Picker Modal */}
-        <Modal
-          visible={showCurrencyPicker}
-          animationType="slide"
-          presentationStyle="pageSheet"
-        >
-          <View className="flex-1 bg-white">
-            <View className="border-b border-gray-200 px-4 py-4 pt-16">
-              <View className="flex-row items-center justify-between">
-                <TouchableOpacity onPress={() => setShowCurrencyPicker(false)}>
-                  <Text className="text-blue-600 font-semibold">Cancel</Text>
-                </TouchableOpacity>
-                <Text className="text-lg font-bold">Select Currency</Text>
-                <View className="w-12" />
+                <View>
+                  <Text className="text-sm font-semibold text-gray-700 mb-2">
+                    Phone (optional)
+                  </Text>
+                  <Controller
+                    control={control}
+                    name="phone"
+                    render={({ field: { value, onChange } }) => (
+                      <TextInput
+                        value={value ?? ""}
+                        onChangeText={onChange}
+                        placeholder="Phone number"
+                        placeholderTextColor="#9ca3af"
+                        keyboardType="phone-pad"
+                        className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200"
+                      />
+                    )}
+                  />
+                </View>
               </View>
             </View>
-            <ScrollView className="flex-1">
-              {currencies.map((currency) => (
-                <TouchableOpacity
-                  key={currency.value}
-                  onPress={() => {
-                    setValue("currency", currency.value);
-                    setShowCurrencyPicker(false);
-                  }}
-                  className="px-4 py-4 border-b border-gray-100 flex-row items-center justify-between"
-                >
-                  <Text className="text-gray-900 text-base">
-                    {currency.label}
-                  </Text>
-                  {selectedCurrency === currency.value && (
-                    <Ionicons name="checkmark" size={20} color="#2563eb" />
-                  )}
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        </Modal>
 
-        {/* Language Picker Modal */}
-        <Modal
-          visible={showLanguagePicker}
-          animationType="slide"
-          presentationStyle="pageSheet"
-        >
-          <View className="flex-1 bg-white">
-            <View className="border-b border-gray-200 px-4 py-4 pt-16">
-              <View className="flex-row items-center justify-between">
-                <TouchableOpacity onPress={() => setShowLanguagePicker(false)}>
-                  <Text className="text-blue-600 font-semibold">Cancel</Text>
-                </TouchableOpacity>
-                <Text className="text-lg font-bold">Select Language</Text>
-                <View className="w-12" />
+            <View className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+              <Text className="text-base font-semibold text-gray-900 mb-3">
+                Preferences
+              </Text>
+
+              <View className="gap-4">
+                <Controller
+                  control={control}
+                  name="currency"
+                  render={({ field: { value, onChange } }) => (
+                    <SearchableSelect
+                      label="Currency"
+                      placeholder="Select currency"
+                      value={value}
+                      options={currencyOptions}
+                      onSelect={(val) => onChange(val)}
+                    />
+                  )}
+                />
+                {errors.currency ? (
+                  <Text className="text-sm text-red-500">
+                    {errors.currency.message}
+                  </Text>
+                ) : null}
+
+                <Controller
+                  control={control}
+                  name="language"
+                  render={({ field: { value, onChange } }) => (
+                    <SearchableSelect
+                      label="Language"
+                      placeholder="Select language"
+                      value={value}
+                      options={languageOptions}
+                      onSelect={(val) => onChange(val)}
+                    />
+                  )}
+                />
+                {errors.language ? (
+                  <Text className="text-sm text-red-500">
+                    {errors.language.message}
+                  </Text>
+                ) : null}
               </View>
             </View>
-            <ScrollView className="flex-1">
-              {languages.map((language) => (
-                <TouchableOpacity
-                  key={language.value}
-                  onPress={() => {
-                    setValue("language", language.value);
-                    setShowLanguagePicker(false);
-                  }}
-                  className="px-4 py-4 border-b border-gray-100 flex-row items-center justify-between"
-                >
-                  <Text className="text-gray-900 text-base">
-                    {language.flag} {language.label}
-                  </Text>
-                  {selectedLanguage === language.value && (
-                    <Ionicons name="checkmark" size={20} color="#2563eb" />
-                  )}
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        </Modal>
+
+            <ActionButton
+              label="Save changes"
+              onPress={handleSubmit(handleSave)}
+              isLoading={submitting}
+              disabled={!isDirty && !submitting}
+              icon="checkmark"
+              variant="primary"
+              size="large"
+              fullWidth
+            />
+          </ScrollView>
+        </SafeAreaView>
       </KeyboardAvoidingView>
     </Modal>
   );

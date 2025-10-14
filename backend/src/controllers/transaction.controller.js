@@ -1,13 +1,73 @@
 import dayjs from "dayjs";
 import { Account } from "../models/Account.js";
+import { Category } from "../models/Category.js";
 import { Transaction } from "../models/Transaction.js";
 import { buildTransactionFilters } from "../utils/filters.js";
 
-const applyBalanceDelta = async ({ account, amount, type }) => {
+const parseTransactionDate = (value) => {
+  if (!value) {
+    return new Date();
+  }
+  if (typeof value === "string" && value.trim().length === 0) {
+    return new Date();
+  }
+  if (value instanceof Date) {
+    return value;
+  }
+  const parsed = dayjs(value);
+  if (!parsed.isValid()) {
+    throw new Error("Invalid transaction date");
+  }
+  return parsed.toDate();
+};
+
+const adjustAccountBalance = async ({
+  account,
+  amount,
+  type,
+  direction = "apply",
+}) => {
   const delta = type === "credit" ? amount : -amount;
-  account.balance = (account.balance || 0) + delta;
+  const nextDelta = direction === "revert" ? -delta : delta;
+  account.current_balance = (account.current_balance ?? 0) + nextDelta;
   await account.save();
-  return account.balance;
+  return account.current_balance;
+};
+
+const loadAccount = async ({ adminId, accountId }) => {
+  return Account.findOne({
+    _id: accountId,
+    admin: adminId,
+  });
+};
+
+const loadCategory = async ({ adminId, categoryId }) => {
+  if (!categoryId) return null;
+  return Category.findOne({
+    _id: categoryId,
+    admin: adminId,
+    archived: { $ne: true },
+  });
+};
+
+const applyIdempotency = async ({ adminId, clientRequestId }) => {
+  if (!clientRequestId) return null;
+  return Transaction.findOne({
+    admin: adminId,
+    client_request_id: clientRequestId,
+  })
+    .populate("account", "name kind")
+    .populate("category_id", "name type")
+    .lean();
+};
+
+const extractIdempotencyKey = (req) => {
+  return (
+    req.headers["x-idempotency-key"] ||
+    req.headers["x_idempotency_key"] ||
+    req.body?.client_request_id ||
+    null
+  );
 };
 
 export const listTransactions = async (req, res, next) => {
@@ -17,32 +77,18 @@ export const listTransactions = async (req, res, next) => {
       query: req.query,
     });
 
-    const page = Number(req.query.page) || 1;
-    const limit = Math.min(Number(req.query.limit) || 20, 100);
+    const page = Math.max(Number(req.query.page) || 1, 1);
+    const limit = Math.min(Number(req.query.limit) || 50, 200);
     const skip = (page - 1) * limit;
-
-    if (req.query.accountName) {
-      const accounts = await Account.find({
-        admin: req.user.id,
-        name: { $regex: req.query.accountName, $options: "i" },
-      }).select("_id");
-
-      if (accounts.length === 0) {
-        return res.json({
-          transactions: [],
-          pagination: { page, limit, total: 0, pages: 0 },
-        });
-      }
-
-      filter.account = { $in: accounts.map((item) => item._id) };
-    }
 
     const [transactions, total] = await Promise.all([
       Transaction.find(filter)
-        .populate("account", "name type")
-        .sort({ date: -1 })
+        .populate("account", "name kind")
+        .populate("category_id", "name type")
+        .sort({ date: -1, createdAt: -1 })
         .skip(skip)
-        .limit(limit),
+        .limit(limit)
+        .lean(),
       Transaction.countDocuments(filter),
     ]);
 
@@ -52,7 +98,7 @@ export const listTransactions = async (req, res, next) => {
         page,
         limit,
         total,
-        pages: Math.ceil(total / limit) || 1,
+        pages: Math.max(Math.ceil(total / limit), 1),
       },
     });
   } catch (error) {
@@ -60,42 +106,118 @@ export const listTransactions = async (req, res, next) => {
   }
 };
 
+export const getTransaction = async (req, res, next) => {
+  try {
+    const { transactionId } = req.params;
+
+    const transaction = await Transaction.findOne({
+      _id: transactionId,
+      admin: req.user.id,
+    })
+      .populate("account", "name kind")
+      .populate("category_id", "name type")
+      .lean();
+
+    if (!transaction || transaction.is_deleted) {
+      return res.status(404).json({ message: "Transaction not found" });
+    }
+
+    res.json({ transaction });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const createTransaction = async (req, res, next) => {
   try {
-    const { accountId, type, amount, date, description, comment } = req.body;
+    const {
+      account_id: accountIdAlias,
+      accountId,
+      type,
+      amount,
+      date,
+      description,
+      keyword,
+      counterparty,
+      category_id: categoryIdAlias,
+      categoryId,
+      meta_data: metaData,
+    } = req.body;
 
-    const account = await Account.findOne({
-      _id: accountId,
-      admin: req.user.id,
+    const idempotencyKey = extractIdempotencyKey(req);
+    const existing = await applyIdempotency({
+      adminId: req.user.id,
+      clientRequestId: idempotencyKey,
     });
+    if (existing) {
+      return res.status(200).json({
+        transaction: existing,
+        idempotent: true,
+      });
+    }
+
+    const accountIdentifier = accountIdAlias ?? accountId;
+    if (!accountIdentifier) {
+      return res.status(400).json({ message: "Account is required" });
+    }
+    const account = await loadAccount({
+      adminId: req.user.id,
+      accountId: accountIdentifier,
+    });
+
     if (!account) {
       return res.status(404).json({ message: "Account not found" });
     }
 
-    let txnDate = new Date();
-    if (typeof date === "string" && date.trim().length > 0) {
-      const parsed = dayjs(date.trim());
-      if (!parsed.isValid()) {
-        return res.status(400).json({ message: "Invalid transaction date" });
+    const categoryIdentifier = categoryIdAlias ?? categoryId;
+    let categoryDocument = null;
+    if (categoryIdentifier) {
+      categoryDocument = await loadCategory({
+        adminId: req.user.id,
+        categoryId: categoryIdentifier,
+      });
+      if (!categoryDocument) {
+        return res.status(404).json({ message: "Category not found" });
       }
-      txnDate = parsed.toDate();
+    }
+
+    let txnDate;
+    try {
+      txnDate = parseTransactionDate(date);
+    } catch (err) {
+      return res.status(400).json({ message: err.message });
     }
 
     const transaction = await Transaction.create({
       admin: req.user.id,
       account: account._id,
+      category_id: categoryDocument?._id,
       type,
       amount,
       date: txnDate,
       description,
-      comment,
+      keyword,
+      counterparty,
+      meta_data: metaData,
+      client_request_id: idempotencyKey ?? undefined,
     });
 
-    const balanceAfter = await applyBalanceDelta({ account, amount, type });
+    const balanceAfter = await adjustAccountBalance({
+      account,
+      amount,
+      type,
+      direction: "apply",
+    });
+
     transaction.balance_after_transaction = balanceAfter;
     await transaction.save();
 
-    res.status(201).json({ transaction });
+    const populated = await Transaction.findById(transaction._id)
+      .populate("account", "name kind")
+      .populate("category_id", "name type")
+      .lean();
+
+    res.status(201).json({ transaction: populated });
   } catch (error) {
     next(error);
   }
@@ -104,85 +226,202 @@ export const createTransaction = async (req, res, next) => {
 export const updateTransaction = async (req, res, next) => {
   try {
     const { transactionId } = req.params;
+    const {
+      account_id: incomingAccountId,
+      accountId,
+      category_id: incomingCategoryId,
+      categoryId,
+      type,
+      amount,
+      date,
+      description,
+      keyword,
+      counterparty,
+      meta_data: metaData,
+    } = req.body;
 
     const transaction = await Transaction.findOne({
       _id: transactionId,
       admin: req.user.id,
+      is_deleted: { $ne: true },
     });
 
     if (!transaction) {
       return res.status(404).json({ message: "Transaction not found" });
     }
 
-    const account = await Account.findOne({
-      _id: transaction.account,
-      admin: req.user.id,
+    const originalAccount = await loadAccount({
+      adminId: req.user.id,
+      accountId: transaction.account,
     });
-    if (!account) {
+    if (!originalAccount) {
       return res.status(404).json({ message: "Account not found" });
     }
 
-    // revert previous balance impact
-    await applyBalanceDelta({
-      account,
-      amount: transaction.amount,
-      type: transaction.type === "credit" ? "debit" : "credit",
-    });
-
-    const { accountId, type, amount, date, description, comment } = req.body;
-
-    if (accountId && accountId !== account._id.toString()) {
-      const newAccount = await Account.findOne({
-        _id: accountId,
-        admin: req.user.id,
+    let targetAccount = originalAccount;
+    const nextAccountId = incomingAccountId ?? accountId;
+    if (nextAccountId && nextAccountId !== transaction.account.toString()) {
+      targetAccount = await loadAccount({
+        adminId: req.user.id,
+        accountId: nextAccountId,
       });
-      if (!newAccount) {
+      if (!targetAccount) {
         return res.status(404).json({ message: "Target account not found" });
       }
-      transaction.account = newAccount._id;
+    }
+
+    const nextCategoryId = incomingCategoryId ?? categoryId;
+    if (nextCategoryId !== undefined) {
+      if (!nextCategoryId) {
+        transaction.category_id = undefined;
+      } else {
+        const categoryDoc = await loadCategory({
+          adminId: req.user.id,
+          categoryId: nextCategoryId,
+        });
+        if (!categoryDoc) {
+          return res.status(404).json({ message: "Category not found" });
+        }
+        transaction.category_id = categoryDoc._id;
+      }
+    }
+
+    await adjustAccountBalance({
+      account: originalAccount,
+      amount: transaction.amount,
+      type: transaction.type,
+      direction: "revert",
+    });
+
+    if (targetAccount._id.toString() !== originalAccount._id.toString()) {
+      transaction.account = targetAccount._id;
     }
 
     if (type) {
       transaction.type = type;
     }
-
     if (amount !== undefined) {
       transaction.amount = amount;
     }
-
-    if (typeof date === "string") {
-      const trimmed = date.trim();
-      if (trimmed.length > 0) {
-        const parsed = dayjs(trimmed);
-        if (!parsed.isValid()) {
-          return res.status(400).json({ message: "Invalid transaction date" });
-        }
-        transaction.date = parsed.toDate();
+    if (date !== undefined) {
+      try {
+        transaction.date = parseTransactionDate(date);
+      } catch (err) {
+        return res.status(400).json({ message: err.message });
       }
     }
-
     if (description !== undefined) {
       transaction.description = description;
     }
-
-    if (comment !== undefined) {
-      transaction.comment = comment;
+    if (keyword !== undefined) {
+      transaction.keyword = keyword;
+    }
+    if (counterparty !== undefined) {
+      transaction.counterparty = counterparty;
+    }
+    if (metaData !== undefined) {
+      transaction.meta_data = metaData;
     }
 
-    const updatedAccount = await Account.findOne({
-      _id: transaction.account,
-      admin: req.user.id,
-    });
-    const balanceAfter = await applyBalanceDelta({
-      account: updatedAccount,
+    const balanceAfter = await adjustAccountBalance({
+      account: targetAccount,
       amount: transaction.amount,
       type: transaction.type,
+      direction: "apply",
     });
 
     transaction.balance_after_transaction = balanceAfter;
     await transaction.save();
 
-    res.json({ transaction });
+    const populated = await Transaction.findById(transaction._id)
+      .populate("account", "name kind")
+      .populate("category_id", "name type")
+      .lean();
+
+    res.json({ transaction: populated });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteTransaction = async (req, res, next) => {
+  try {
+    const { transactionId } = req.params;
+
+    const transaction = await Transaction.findOne({
+      _id: transactionId,
+      admin: req.user.id,
+      is_deleted: { $ne: true },
+    });
+
+    if (!transaction) {
+      return res.status(404).json({ message: "Transaction not found" });
+    }
+
+    const account = await loadAccount({
+      adminId: req.user.id,
+      accountId: transaction.account,
+    });
+
+    if (account) {
+      await adjustAccountBalance({
+        account,
+        amount: transaction.amount,
+        type: transaction.type,
+        direction: "revert",
+      });
+    }
+
+    transaction.softDelete();
+    await transaction.save();
+
+    res.status(200).json({ message: "Transaction deleted" });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const restoreTransaction = async (req, res, next) => {
+  try {
+    const { transactionId } = req.params;
+
+    const transaction = await Transaction.findOne({
+      _id: transactionId,
+      admin: req.user.id,
+      is_deleted: true,
+    });
+
+    if (!transaction) {
+      return res.status(404).json({ message: "Transaction not found" });
+    }
+
+    const account = await loadAccount({
+      adminId: req.user.id,
+      accountId: transaction.account,
+    });
+
+    if (!account) {
+      return res.status(404).json({ message: "Account not found" });
+    }
+
+    transaction.restore();
+
+    const balanceAfter = await adjustAccountBalance({
+      account,
+      amount: transaction.amount,
+      type: transaction.type,
+      direction: "apply",
+    });
+
+    transaction.balance_after_transaction = balanceAfter;
+    await transaction.save();
+
+    const populated = await Transaction.findById(transaction._id)
+      .populate("account", "name kind")
+      .populate("category_id", "name type")
+      .lean();
+
+    res.json({ transaction: populated });
   } catch (error) {
     next(error);
   }
