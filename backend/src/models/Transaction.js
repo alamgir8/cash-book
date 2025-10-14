@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 const { Schema } = mongoose;
 
 const TRANSACTION_TYPES = ["debit", "credit"];
+const TRANSFER_DIRECTIONS = ["outgoing", "incoming"];
 
 const transactionSchema = new Schema(
   {
@@ -62,6 +63,16 @@ const transactionSchema = new Schema(
       type: String,
       trim: true,
     },
+    transfer_id: {
+      type: Schema.Types.ObjectId,
+      ref: "Transfer",
+      index: true,
+    },
+    transfer_direction: {
+      type: String,
+      enum: TRANSFER_DIRECTIONS,
+      index: true,
+    },
     is_deleted: {
       type: Boolean,
       default: false,
@@ -118,3 +129,4 @@ export const Transaction = mongoose.model(
 );
 
 export const TRANSACTION_TYPE_OPTIONS = TRANSACTION_TYPES;
+export const TRANSACTION_TRANSFER_DIRECTION_OPTIONS = TRANSFER_DIRECTIONS;

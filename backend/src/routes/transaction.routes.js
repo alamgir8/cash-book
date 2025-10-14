@@ -4,6 +4,7 @@ import {
   listTransactions,
   getTransaction,
   createTransaction,
+  createTransfer,
   updateTransaction,
   deleteTransaction,
   restoreTransaction,
@@ -46,6 +47,53 @@ const createSchema = z.object({
     meta_data: metaSchema,
     client_request_id: z.string().trim().max(128).optional(),
   }),
+  params: z.object({}).optional(),
+  query: z.object({}).optional(),
+});
+
+const transferSchema = z.object({
+  body: z
+    .object({
+      fromAccountId: z.string().trim().min(1).optional(),
+      from_account_id: z.string().trim().min(1).optional(),
+      toAccountId: z.string().trim().min(1).optional(),
+      to_account_id: z.string().trim().min(1).optional(),
+      amount: amountValidator,
+      date: dateValidator,
+      description: z.string().optional(),
+      keyword: z.string().optional(),
+      counterparty: z.string().optional(),
+      meta_data: metaSchema,
+      client_request_id: z.string().trim().max(128).optional(),
+    })
+    .superRefine((data, ctx) => {
+      const source = data.fromAccountId ?? data.from_account_id;
+      const destination = data.toAccountId ?? data.to_account_id;
+
+      if (!source) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Source account is required",
+          path: ["body", "fromAccountId"],
+        });
+      }
+
+      if (!destination) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Destination account is required",
+          path: ["body", "toAccountId"],
+        });
+      }
+
+      if (source && destination && source === destination) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Source and destination accounts must differ",
+          path: ["body", "toAccountId"],
+        });
+      }
+    }),
   params: z.object({}).optional(),
   query: z.object({}).optional(),
 });
@@ -130,6 +178,7 @@ router.use(authenticate);
 router.get("/", validate(listQuerySchema), listTransactions);
 router.get("/:transactionId", validate(transactionIdParams), getTransaction);
 router.post("/", validate(createSchema), createTransaction);
+router.post("/transfer", validate(transferSchema), createTransfer);
 router.put("/:transactionId", validate(updateSchema), updateTransaction);
 router.patch("/:transactionId", validate(updateSchema), updateTransaction);
 router.delete("/:transactionId", validate(transactionIdParams), deleteTransaction);

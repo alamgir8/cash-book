@@ -33,6 +33,7 @@ import SearchableSelect from "../../components/searchable-select";
 import { exportTransactionsPdf } from "../../services/reports";
 import {
   createTransaction,
+  createTransfer,
   fetchTransactions,
   type TransactionFilters,
 } from "../../services/transactions";
@@ -53,6 +54,32 @@ const transactionSchema = z.object({
 });
 
 type TransactionFormValues = z.infer<typeof transactionSchema>;
+
+const transferSchema = z
+  .object({
+    fromAccountId: z.string().min(1, "Select source account"),
+    toAccountId: z.string().min(1, "Select destination account"),
+    amount: z.number().positive("Amount must be greater than zero"),
+    date: z.string().optional(),
+    description: z.string().optional(),
+    comment: z.string().optional(),
+    counterparty: z.string().optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (
+      value.fromAccountId &&
+      value.toAccountId &&
+      value.fromAccountId === value.toAccountId
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["toAccountId"],
+        message: "Destination account must be different from source account",
+      });
+    }
+  });
+
+type TransferFormValues = z.infer<typeof transferSchema>;
 
 const defaultFilters: TransactionFilters = {
   range: "monthly",
@@ -98,6 +125,16 @@ const parseVoiceTranscript = (
   return parsed;
 };
 
+const createTransferDefaults = (): TransferFormValues => ({
+  fromAccountId: "",
+  toAccountId: "",
+  amount: 0,
+  date: dayjs().format("YYYY-MM-DD"),
+  description: "",
+  comment: "",
+  counterparty: "",
+});
+
 export default function DashboardScreen() {
   const { formatAmount } = usePreferences();
   const queryClient = useQueryClient();
@@ -105,6 +142,9 @@ export default function DashboardScreen() {
   const [isModalVisible, setModalVisible] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [isTransferModalVisible, setTransferModalVisible] = useState(false);
+  const [showTransferDatePicker, setShowTransferDatePicker] = useState(false);
+  const [selectedTransferDate, setSelectedTransferDate] = useState(new Date());
 
   const accountsQuery = useQuery({
     queryKey: queryKeys.accounts,
@@ -113,7 +153,7 @@ export default function DashboardScreen() {
 
   const categoriesQuery = useQuery({
     queryKey: queryKeys.categories,
-    queryFn: fetchCategories,
+    queryFn: () => fetchCategories(),
   });
 
   const transactionsQuery = useQuery({
@@ -145,6 +185,32 @@ export default function DashboardScreen() {
     },
   });
 
+  const createTransferMutation = useMutation({
+    mutationFn: createTransfer,
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          predicate: (query) => query.queryKey[0] === "transactions",
+        }),
+        queryClient.invalidateQueries({
+          predicate: (query) => query.queryKey[0] === "accounts",
+        }),
+      ]);
+      resetTransfer(createTransferDefaults());
+      setTransferModalVisible(false);
+      setSelectedTransferDate(new Date());
+      Toast.show({ type: "success", text1: "Transfer completed" });
+    },
+    onError: (error) => {
+      console.error("Transfer creation error:", error);
+      Toast.show({
+        type: "error",
+        text1: "Error creating transfer",
+        text2: "Please try again.",
+      });
+    },
+  });
+
   const {
     control,
     handleSubmit,
@@ -166,9 +232,22 @@ export default function DashboardScreen() {
     },
   });
 
+  const {
+    control: transferControl,
+    handleSubmit: handleTransferSubmit,
+    reset: resetTransfer,
+    setValue: setTransferValue,
+    watch: watchTransfer,
+  } = useForm<TransferFormValues>({
+    resolver: zodResolver(transferSchema),
+    defaultValues: createTransferDefaults(),
+  });
+
   const currentAmount = watch("amount");
   const selectedType = watch("type");
   const selectedCategoryId = watch("categoryId");
+  const transferAmount = watchTransfer("amount");
+  const transferFromAccountId = watchTransfer("fromAccountId");
 
   const accountOptions = useMemo(
     () =>
@@ -182,6 +261,12 @@ export default function DashboardScreen() {
     [accountsQuery.data, formatAmount]
   );
 
+  const destinationAccountOptions = useMemo(
+    () =>
+      accountOptions.filter((option) => option.value !== transferFromAccountId),
+    [accountOptions, transferFromAccountId]
+  );
+
   const formatCategoryGroup = (type: string) =>
     type
       .split("_")
@@ -189,7 +274,12 @@ export default function DashboardScreen() {
       .join(" ");
 
   const categoryOptions = useMemo(() => {
-    const categories = categoriesQuery.data ?? [];
+    const categories = (categoriesQuery.data ?? []) as {
+      _id: string;
+      name: string;
+      flow: string;
+      type: string;
+    }[];
     const targetFlow = selectedType === "credit" ? "credit" : "debit";
     const sorted = categories
       .filter((category) => category.flow === targetFlow)
@@ -205,7 +295,7 @@ export default function DashboardScreen() {
 
   useEffect(() => {
     if (!selectedCategoryId) return;
-    const match = categoriesQuery.data?.find(
+    const match = (categoriesQuery.data as any[] | undefined)?.find(
       (category) => category._id === selectedCategoryId
     );
     const currentFlow = selectedType === "credit" ? "credit" : "debit";
@@ -226,6 +316,46 @@ export default function DashboardScreen() {
 
   const openDatePicker = () => {
     setShowDatePicker(true);
+  };
+
+  const handleTransferDateChange = (event: any, date?: Date) => {
+    setShowTransferDatePicker(false);
+    if (date) {
+      setSelectedTransferDate(date);
+      setTransferValue("date", dayjs(date).format("YYYY-MM-DD"), {
+        shouldValidate: true,
+      });
+    }
+  };
+
+  const openTransferDatePicker = () => {
+    setShowTransferDatePicker(true);
+  };
+
+  const openTransferModal = () => {
+    if (accountsQuery.isLoading) {
+      Toast.show({
+        type: "info",
+        text1: "Loading accounts",
+        text2: "Please wait a moment.",
+      });
+      return;
+    }
+    if (accountOptions.length < 2) {
+      Toast.show({
+        type: "info",
+        text1: "Add another account to transfer funds",
+      });
+      return;
+    }
+    resetTransfer(createTransferDefaults());
+    setSelectedTransferDate(new Date());
+    setTransferModalVisible(true);
+  };
+
+  const closeTransferModal = () => {
+    setTransferModalVisible(false);
+    setShowTransferDatePicker(false);
   };
 
   const totals = useMemo(() => {
@@ -282,6 +412,28 @@ export default function DashboardScreen() {
     }
   };
 
+  const onTransferSubmit = async (values: TransferFormValues) => {
+    const payload = {
+      fromAccountId: values.fromAccountId,
+      toAccountId: values.toAccountId,
+      amount: Number(values.amount),
+      date: values.date?.trim() ? values.date.trim() : undefined,
+      description: values.description?.trim()
+        ? values.description.trim()
+        : undefined,
+      comment: values.comment?.trim() ? values.comment.trim() : undefined,
+      counterparty: values.counterparty?.trim()
+        ? values.counterparty.trim()
+        : undefined,
+    };
+
+    try {
+      await createTransferMutation.mutateAsync(payload as any);
+    } catch (error) {
+      console.error("Transfer submission error:", error);
+    }
+  };
+
   const handleVoiceResult = (transcript: string) => {
     if (!accountsQuery.data) return;
     const parsed = parseVoiceTranscript(transcript, accountsQuery.data);
@@ -318,6 +470,7 @@ export default function DashboardScreen() {
         {/* Quick Actions */}
         <QuickActions
           onAddTransaction={() => setModalVisible(true)}
+          onAddTransfer={openTransferModal}
           onAddAccount={() => {
             router.push("/(app)/accounts");
           }}
@@ -467,9 +620,7 @@ export default function DashboardScreen() {
                             }
                             value={value}
                             options={accountOptions}
-                            onSelect={(val) =>
-                              onChange(val || undefined)
-                            }
+                            onSelect={(val) => onChange(val || undefined)}
                             disabled={
                               accountsQuery.isLoading ||
                               accountOptions.length === 0
@@ -730,6 +881,277 @@ export default function DashboardScreen() {
                       />
                       <Text className="text-white font-bold text-base">
                         Save Transaction
+                      </Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+      <Modal
+        visible={isTransferModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={closeTransferModal}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          className="flex-1"
+        >
+          <View className="flex-1 bg-black/40 justify-end">
+            <View className="bg-white rounded-t-3xl" style={{ height: "85%" }}>
+              <View className="flex-row justify-between items-center p-6 pb-4 border-b border-gray-100">
+                <View>
+                  <Text className="text-gray-900 text-xl font-bold">
+                    Transfer Funds
+                  </Text>
+                  <Text className="text-gray-500 text-sm">
+                    Move money between your accounts
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={closeTransferModal}
+                  className="w-8 h-8 bg-gray-100 rounded-full items-center justify-center"
+                >
+                  <Ionicons name="close" size={20} color="#6b7280" />
+                </TouchableOpacity>
+              </View>
+
+              <View className="flex-1 px-6 py-4">
+                <ScrollView
+                  showsVerticalScrollIndicator={false}
+                  contentContainerStyle={{ paddingBottom: 20 }}
+                >
+                  <View className="gap-5">
+                    <Controller
+                      control={transferControl}
+                      name="fromAccountId"
+                      render={({ field: { value, onChange }, fieldState }) => (
+                        <View className="gap-2">
+                          <SearchableSelect
+                            label="From Account"
+                            placeholder={
+                              accountsQuery.isLoading
+                                ? "Loading accounts..."
+                                : accountOptions.length > 0
+                                ? "Select source account"
+                                : "No accounts available"
+                            }
+                            value={value}
+                            options={accountOptions}
+                            onSelect={(val) => onChange(val || undefined)}
+                            disabled={
+                              accountsQuery.isLoading ||
+                              accountOptions.length === 0
+                            }
+                          />
+                          {fieldState.error ? (
+                            <Text className="text-red-500 text-sm">
+                              {fieldState.error.message}
+                            </Text>
+                          ) : null}
+                        </View>
+                      )}
+                    />
+
+                    <Controller
+                      control={transferControl}
+                      name="toAccountId"
+                      render={({ field: { value, onChange }, fieldState }) => (
+                        <View className="gap-2">
+                          <SearchableSelect
+                            label="To Account"
+                            placeholder={
+                              accountsQuery.isLoading
+                                ? "Loading accounts..."
+                                : destinationAccountOptions.length > 0
+                                ? "Select destination account"
+                                : "No destination accounts available"
+                            }
+                            value={value}
+                            options={destinationAccountOptions}
+                            onSelect={(val) => onChange(val || undefined)}
+                            disabled={
+                              accountsQuery.isLoading ||
+                              destinationAccountOptions.length === 0
+                            }
+                          />
+                          {fieldState.error ? (
+                            <Text className="text-red-500 text-sm">
+                              {fieldState.error.message}
+                            </Text>
+                          ) : null}
+                        </View>
+                      )}
+                    />
+
+                    <Controller
+                      control={transferControl}
+                      name="amount"
+                      render={({ field: { value, onChange }, fieldState }) => (
+                        <View>
+                          <Text className="text-gray-700 text-sm font-semibold mb-2">
+                            Amount
+                          </Text>
+                          <TextInput
+                            value={
+                              value === undefined || value === null
+                                ? ""
+                                : String(value)
+                            }
+                            onChangeText={(text) =>
+                              onChange(
+                                Number(text.replace(/[^0-9.]/g, "")) || 0
+                              )
+                            }
+                            keyboardType="numeric"
+                            placeholder="0"
+                            placeholderTextColor="#9ca3af"
+                            className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200 text-lg font-semibold"
+                          />
+                          {fieldState.error ? (
+                            <Text className="text-red-500 text-sm mt-1">
+                              {fieldState.error.message}
+                            </Text>
+                          ) : null}
+                        </View>
+                      )}
+                    />
+
+                    <Controller
+                      control={transferControl}
+                      name="date"
+                      render={({ field: { value } }) => (
+                        <View>
+                          <Text className="text-gray-700 text-sm font-semibold mb-2">
+                            Date
+                          </Text>
+                          <TouchableOpacity
+                            onPress={openTransferDatePicker}
+                            className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200 flex-row items-center justify-between"
+                          >
+                            <Text className="text-gray-900 text-base">
+                              {value
+                                ? dayjs(value).format("MMM DD, YYYY")
+                                : "Select Date"}
+                            </Text>
+                            <Ionicons
+                              name="calendar-outline"
+                              size={20}
+                              color="#6b7280"
+                            />
+                          </TouchableOpacity>
+                          {showTransferDatePicker && (
+                            <DateTimePicker
+                              value={selectedTransferDate}
+                              mode="date"
+                              display={
+                                Platform.OS === "ios" ? "compact" : "default"
+                              }
+                              onChange={handleTransferDateChange}
+                              maximumDate={new Date()}
+                            />
+                          )}
+                        </View>
+                      )}
+                    />
+
+                    <View>
+                      <Text className="text-gray-700 text-sm font-semibold mb-2">
+                        Description
+                      </Text>
+                      <Controller
+                        control={transferControl}
+                        name="description"
+                        render={({ field: { value, onChange } }) => (
+                          <TextInput
+                            value={value || ""}
+                            onChangeText={onChange}
+                            placeholder="What is this transfer for?"
+                            placeholderTextColor="#9ca3af"
+                            className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200"
+                          />
+                        )}
+                      />
+                    </View>
+
+                    <View>
+                      <Text className="text-gray-700 text-sm font-semibold mb-2">
+                        Counterparty
+                      </Text>
+                      <Controller
+                        control={transferControl}
+                        name="counterparty"
+                        render={({ field: { value, onChange } }) => (
+                          <TextInput
+                            value={value || ""}
+                            onChangeText={onChange}
+                            placeholder="Optional reference"
+                            placeholderTextColor="#9ca3af"
+                            className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200"
+                          />
+                        )}
+                      />
+                    </View>
+
+                    <View>
+                      <Text className="text-gray-700 text-sm font-semibold mb-2">
+                        Additional Notes
+                      </Text>
+                      <Controller
+                        control={transferControl}
+                        name="comment"
+                        render={({ field: { value, onChange } }) => (
+                          <TextInput
+                            value={value || ""}
+                            onChangeText={onChange}
+                            placeholder="Any additional details..."
+                            placeholderTextColor="#9ca3af"
+                            className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200 min-h-[80px]"
+                            multiline
+                            textAlignVertical="top"
+                          />
+                        )}
+                      />
+                    </View>
+
+                    {transferAmount > 0 ? (
+                      <View className="bg-green-50 rounded-xl p-3 border border-green-100">
+                        <Text className="text-green-700 text-sm font-medium text-center">
+                          🔄 Transfer Preview: {formatAmount(transferAmount)}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+                </ScrollView>
+              </View>
+
+              <View className="p-6 pt-4 border-t border-gray-100">
+                <TouchableOpacity
+                  onPress={handleTransferSubmit(onTransferSubmit)}
+                  disabled={createTransferMutation.isPending}
+                  className="bg-indigo-500 rounded-2xl py-4 items-center shadow-lg shadow-indigo-500/25"
+                  style={{
+                    shadowColor: "#6366f1",
+                    shadowOffset: { width: 0, height: 4 },
+                    shadowOpacity: 0.2,
+                    shadowRadius: 8,
+                    elevation: 4,
+                  }}
+                >
+                  {createTransferMutation.isPending ? (
+                    <ActivityIndicator color="white" />
+                  ) : (
+                    <View className="flex-row items-center gap-2">
+                      <Ionicons
+                        name="swap-horizontal"
+                        size={20}
+                        color="white"
+                      />
+                      <Text className="text-white font-bold text-base">
+                        Submit Transfer
                       </Text>
                     </View>
                   )}

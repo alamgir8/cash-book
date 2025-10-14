@@ -47,6 +47,20 @@ export type TransactionFilters = {
   limit?: number;
 };
 
+export type Transfer = {
+  _id: string;
+  amount: number;
+  date: string;
+  description?: string;
+  keyword?: string;
+  counterparty?: string;
+  meta_data?: Record<string, unknown>;
+  from_account: TransactionAccount;
+  to_account: TransactionAccount;
+  debit_transaction?: Transaction;
+  credit_transaction?: Transaction;
+};
+
 const mapFilters = (filters: TransactionFilters) => {
   const params: Record<string, unknown> = {};
   const from = filters.from ?? filters.startDate;
@@ -74,6 +88,30 @@ const mapFilters = (filters: TransactionFilters) => {
   return params;
 };
 
+const normalizeAccount = (
+  accountSource: Record<string, any> | string | null | undefined
+): TransactionAccount => {
+  if (!accountSource) {
+    return {
+      _id: "",
+      name: "",
+    };
+  }
+
+  if (typeof accountSource === "object") {
+    return {
+      _id: accountSource._id ?? "",
+      name: accountSource.name ?? "",
+      kind: accountSource.kind,
+    };
+  }
+
+  return {
+    _id: accountSource,
+    name: "",
+  };
+};
+
 export const normalizeTransaction = (
   transaction: Record<string, any>
 ): Transaction => {
@@ -87,24 +125,7 @@ export const normalizeTransaction = (
       }
     : null;
 
-  const accountSource = transaction.account;
-  let account: TransactionAccount = {
-    _id: "",
-    name: "",
-  };
-
-  if (accountSource && typeof accountSource === "object") {
-    account = {
-      _id: accountSource._id ?? "",
-      name: accountSource.name ?? "",
-      kind: accountSource.kind,
-    };
-  } else if (accountSource) {
-    account = {
-      _id: accountSource,
-      name: "",
-    };
-  }
+  const account = normalizeAccount(transaction.account);
 
   return {
     _id: transaction._id,
@@ -165,6 +186,61 @@ export const createTransaction = async (
     requestBody
   );
   return normalizeTransaction(data.transaction);
+};
+
+type CreateTransferPayload = {
+  fromAccountId: string;
+  toAccountId: string;
+  amount: number;
+  date?: string;
+  description?: string;
+  comment?: string;
+  counterparty?: string;
+};
+
+export const normalizeTransfer = (
+  transfer: Record<string, any>
+): Transfer => {
+  const debitTransaction = transfer.debit_transaction
+    ? normalizeTransaction(transfer.debit_transaction)
+    : undefined;
+  const creditTransaction = transfer.credit_transaction
+    ? normalizeTransaction(transfer.credit_transaction)
+    : undefined;
+
+  return {
+    _id: transfer._id,
+    amount: Number(transfer.amount ?? 0),
+    date: transfer.date,
+    description: transfer.description ?? undefined,
+    keyword: transfer.keyword ?? undefined,
+    counterparty: transfer.counterparty ?? undefined,
+    meta_data: transfer.meta_data ?? undefined,
+    from_account: normalizeAccount(transfer.from_account),
+    to_account: normalizeAccount(transfer.to_account),
+    debit_transaction: debitTransaction,
+    credit_transaction: creditTransaction,
+  };
+};
+
+export const createTransfer = async (payload: CreateTransferPayload) => {
+  const requestBody: Record<string, unknown> = {
+    fromAccountId: payload.fromAccountId,
+    toAccountId: payload.toAccountId,
+    amount: payload.amount,
+  };
+
+  if (payload.date) requestBody.date = payload.date;
+  if (payload.description) requestBody.description = payload.description;
+  if (payload.comment) requestBody.keyword = payload.comment;
+  if (payload.counterparty) requestBody.counterparty = payload.counterparty;
+
+  const { data } = await api.post<{ transfer: Record<string, any> }>(
+    "/transactions/transfer",
+    requestBody
+  );
+
+  return normalizeTransfer(data.transfer);
 };
 
 type UpdateTransactionPayload = {

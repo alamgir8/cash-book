@@ -43,6 +43,7 @@ const QuickAction = ({
 
 type QuickActionsProps = {
   onAddTransaction: () => void;
+  onAddTransfer: () => void;
   onAddAccount: () => void;
   onExportPDF: () => void;
   onVoiceInput: () => void;
@@ -50,52 +51,71 @@ type QuickActionsProps = {
 
 export const QuickActions = ({
   onAddTransaction,
+  onAddTransfer,
   onAddAccount,
   onExportPDF,
   onVoiceInput,
 }: QuickActionsProps) => {
+  const actions = [
+    {
+      id: "add-transaction",
+      icon: "add-circle" as const,
+      title: "Add Transaction",
+      subtitle: "Record new entry",
+      color: "#3b82f6",
+      bgColor: "bg-blue-50",
+      onPress: onAddTransaction,
+    },
+    {
+      id: "transfer",
+      icon: "swap-horizontal" as const,
+      title: "Transfer Funds",
+      subtitle: "Move between accounts",
+      color: "#ec4899",
+      bgColor: "bg-pink-50",
+      onPress: onAddTransfer,
+    },
+    {
+      id: "add-account",
+      icon: "wallet" as const,
+      title: "New Account",
+      subtitle: "Create account",
+      color: "#10b981",
+      bgColor: "bg-green-50",
+      onPress: onAddAccount,
+    },
+    {
+      id: "export",
+      icon: "document-text" as const,
+      title: "Export PDF",
+      subtitle: "Download report",
+      color: "#f59e0b",
+      bgColor: "bg-yellow-50",
+      onPress: onExportPDF,
+    },
+    {
+      id: "voice",
+      icon: "mic" as const,
+      title: "Voice Input",
+      subtitle: "Speak to add",
+      color: "#8b5cf6",
+      bgColor: "bg-purple-50",
+      onPress: onVoiceInput,
+    },
+  ];
+
   return (
     <View className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
       <Text className="text-gray-900 text-lg font-bold mb-4">
         Quick Actions
       </Text>
 
-      <View className="flex-row gap-3 mb-3">
-        <QuickAction
-          icon="add-circle"
-          title="Add Transaction"
-          subtitle="Record new entry"
-          color="#3b82f6"
-          bgColor="bg-blue-50"
-          onPress={onAddTransaction}
-        />
-        <QuickAction
-          icon="wallet"
-          title="New Account"
-          subtitle="Create account"
-          color="#10b981"
-          bgColor="bg-green-50"
-          onPress={onAddAccount}
-        />
-      </View>
-
-      <View className="flex-row gap-3">
-        <QuickAction
-          icon="document-text"
-          title="Export PDF"
-          subtitle="Download report"
-          color="#f59e0b"
-          bgColor="bg-yellow-50"
-          onPress={onExportPDF}
-        />
-        <QuickAction
-          icon="mic"
-          title="Voice Input"
-          subtitle="Speak to add"
-          color="#8b5cf6"
-          bgColor="bg-purple-50"
-          onPress={onVoiceInput}
-        />
+      <View className="flex-row flex-wrap gap-3">
+        {actions.map((action) => (
+          <View key={action.id} className="flex-1 basis-[48%] min-w-[140px]">
+            <QuickAction {...action} />
+          </View>
+        ))}
       </View>
     </View>
   );

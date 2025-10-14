@@ -1,7 +1,9 @@
 import dayjs from "dayjs";
+import mongoose from "mongoose";
 import { Account } from "../models/Account.js";
 import { Category } from "../models/Category.js";
 import { Transaction } from "../models/Transaction.js";
+import { Transfer } from "../models/Transfer.js";
 import { buildTransactionFilters } from "../utils/filters.js";
 
 const parseTransactionDate = (value) => {
@@ -68,6 +70,37 @@ const extractIdempotencyKey = (req) => {
     req.body?.client_request_id ||
     null
   );
+};
+
+const populateTransfer = ({ filter }) => {
+  return Transfer.findOne(filter)
+    .populate("from_account", "name kind")
+    .populate("to_account", "name kind")
+    .populate({
+      path: "debit_transaction",
+      populate: [
+        { path: "account", select: "name kind" },
+        { path: "category_id", select: "name type" },
+      ],
+    })
+    .populate({
+      path: "credit_transaction",
+      populate: [
+        { path: "account", select: "name kind" },
+        { path: "category_id", select: "name type" },
+      ],
+    })
+    .lean();
+};
+
+const applyTransferIdempotency = async ({ adminId, clientRequestId }) => {
+  if (!clientRequestId) return null;
+  return populateTransfer({
+    filter: {
+      admin: adminId,
+      client_request_id: clientRequestId,
+    },
+  });
 };
 
 export const listTransactions = async (req, res, next) => {
@@ -223,6 +256,196 @@ export const createTransaction = async (req, res, next) => {
       .lean();
 
     res.status(201).json({ transaction: populated });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const createTransfer = async (req, res, next) => {
+  try {
+    const {
+      from_account_id: fromAccountIdAlias,
+      fromAccountId,
+      to_account_id: toAccountIdAlias,
+      toAccountId,
+      amount,
+      date,
+      description,
+      keyword,
+      counterparty,
+      meta_data: metaData,
+    } = req.body;
+
+    const idempotencyKey = extractIdempotencyKey(req);
+    const existingTransfer = await applyTransferIdempotency({
+      adminId: req.user.id,
+      clientRequestId: idempotencyKey,
+    });
+    if (existingTransfer) {
+      return res.status(200).json({
+        transfer: existingTransfer,
+        idempotent: true,
+      });
+    }
+
+    const sourceAccountId = fromAccountIdAlias ?? fromAccountId;
+    const destinationAccountId = toAccountIdAlias ?? toAccountId;
+
+    if (!sourceAccountId || !destinationAccountId) {
+      return res.status(400).json({
+        message: "Both source and destination accounts are required",
+      });
+    }
+
+    if (sourceAccountId === destinationAccountId) {
+      return res
+        .status(400)
+        .json({ message: "Source and destination accounts must differ" });
+    }
+
+    const [sourceAccount, destinationAccount] = await Promise.all([
+      loadAccount({
+        adminId: req.user.id,
+        accountId: sourceAccountId,
+      }),
+      loadAccount({
+        adminId: req.user.id,
+        accountId: destinationAccountId,
+      }),
+    ]);
+
+    if (!sourceAccount) {
+      return res.status(404).json({ message: "Source account not found" });
+    }
+
+    if (!destinationAccount) {
+      return res.status(404).json({ message: "Destination account not found" });
+    }
+
+    let transferDate;
+    try {
+      transferDate = parseTransactionDate(date);
+    } catch (err) {
+      return res.status(400).json({ message: err.message });
+    }
+
+    const transferId = new mongoose.Types.ObjectId();
+    const outgoingDescription =
+      description ?? `Transfer to ${destinationAccount.name}`;
+    const incomingDescription =
+      description ?? `Transfer from ${sourceAccount.name}`;
+    const outgoingCounterparty = counterparty ?? destinationAccount.name;
+    const incomingCounterparty = counterparty ?? sourceAccount.name;
+
+    const debitTransaction = new Transaction({
+      admin: req.user.id,
+      account: sourceAccount._id,
+      type: "debit",
+      amount,
+      date: transferDate,
+      description: outgoingDescription,
+      keyword,
+      counterparty: outgoingCounterparty,
+      meta_data: metaData,
+      transfer_id: transferId,
+      transfer_direction: "outgoing",
+      client_request_id: `transfer:${transferId.toString()}:outgoing`,
+    });
+
+    const creditTransaction = new Transaction({
+      admin: req.user.id,
+      account: destinationAccount._id,
+      type: "credit",
+      amount,
+      date: transferDate,
+      description: incomingDescription,
+      keyword,
+      counterparty: incomingCounterparty,
+      meta_data: metaData,
+      transfer_id: transferId,
+      transfer_direction: "incoming",
+      client_request_id: `transfer:${transferId.toString()}:incoming`,
+    });
+
+    let sourceBalanceAdjusted = false;
+    let destinationBalanceAdjusted = false;
+    let debitTransactionSaved = false;
+    let creditTransactionSaved = false;
+
+    try {
+      const sourceBalanceAfter = await adjustAccountBalance({
+        account: sourceAccount,
+        amount,
+        type: "debit",
+        direction: "apply",
+      });
+      sourceBalanceAdjusted = true;
+      debitTransaction.balance_after_transaction = sourceBalanceAfter;
+      await debitTransaction.save();
+      debitTransactionSaved = true;
+
+      const destinationBalanceAfter = await adjustAccountBalance({
+        account: destinationAccount,
+        amount,
+        type: "credit",
+        direction: "apply",
+      });
+      destinationBalanceAdjusted = true;
+      creditTransaction.balance_after_transaction = destinationBalanceAfter;
+      await creditTransaction.save();
+      creditTransactionSaved = true;
+
+      const transferDocument = new Transfer({
+        _id: transferId,
+        admin: req.user.id,
+        from_account: sourceAccount._id,
+        to_account: destinationAccount._id,
+        amount,
+        date: transferDate,
+        description,
+        keyword,
+        counterparty,
+        meta_data: metaData,
+        debit_transaction: debitTransaction._id,
+        credit_transaction: creditTransaction._id,
+      });
+
+      if (idempotencyKey) {
+        transferDocument.client_request_id = idempotencyKey;
+      }
+
+      await transferDocument.save();
+
+      const populatedTransfer = await populateTransfer({
+        filter: { _id: transferDocument._id },
+      });
+
+      return res.status(201).json({ transfer: populatedTransfer });
+    } catch (error) {
+      if (creditTransactionSaved) {
+        await Transaction.deleteOne({ _id: creditTransaction._id });
+      }
+      if (destinationBalanceAdjusted) {
+        await adjustAccountBalance({
+          account: destinationAccount,
+          amount,
+          type: "credit",
+          direction: "revert",
+        });
+      }
+      if (debitTransactionSaved) {
+        await Transaction.deleteOne({ _id: debitTransaction._id });
+      }
+      if (sourceBalanceAdjusted) {
+        await adjustAccountBalance({
+          account: sourceAccount,
+          amount,
+          type: "debit",
+          direction: "revert",
+        });
+      }
+      throw error;
+    }
   } catch (error) {
     next(error);
   }
