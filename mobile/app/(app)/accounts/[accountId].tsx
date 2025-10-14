@@ -22,6 +22,7 @@ import {
 } from "../../../services/accounts";
 import { queryKeys } from "../../../lib/queryKeys";
 import type { TransactionFilters } from "../../../services/transactions";
+import { usePreferences } from "@/hooks/usePreferences";
 
 const defaultFilters: TransactionFilters = {
   range: "monthly",
@@ -29,10 +30,8 @@ const defaultFilters: TransactionFilters = {
   limit: 50,
 };
 
-const formatAmount = (value: number) =>
-  `$${Math.round(value).toLocaleString()}`;
-
 export default function AccountDetailScreen() {
+  const { formatAmount: prefFormatAmount } = usePreferences();
   const router = useRouter();
   const params = useLocalSearchParams<{ accountId?: string }>();
   const accountId = Array.isArray(params.accountId)
@@ -141,23 +140,6 @@ export default function AccountDetailScreen() {
         <View className="flex-row items-start justify-between">
           <View className="flex-1 pr-4">
             <View className="flex-row items-center gap-2">
-              <View
-                className={`px-3 py-1 rounded-full ${
-                  account?.type === "credit"
-                    ? "bg-green-50 border border-green-200"
-                    : "bg-blue-50 border border-blue-200"
-                }`}
-              >
-                <Text
-                  className={`text-xs font-semibold uppercase ${
-                    account?.type === "credit"
-                      ? "text-green-700"
-                      : "text-blue-600"
-                  }`}
-                >
-                  {account?.type ?? "Account"}
-                </Text>
-              </View>
               <Text className="text-xs text-gray-500">
                 Last activity: {lastActivityLabel}
               </Text>
@@ -179,7 +161,7 @@ export default function AccountDetailScreen() {
                   : "text-rose-600"
               }`}
             >
-              {formatAmount(Math.abs(account?.balance ?? 0))}
+              {prefFormatAmount(Math.abs(account?.balance ?? 0))}
             </Text>
           </View>
         </View>
@@ -224,7 +206,7 @@ export default function AccountDetailScreen() {
               Total Credit
             </Text>
             <Text className="text-xl font-bold text-blue-700 mt-1">
-              {formatAmount(summary?.totalCredit ?? 0)}
+              {prefFormatAmount(summary?.totalCredit ?? 0)}
             </Text>
           </View>
           <View className="flex-1 bg-amber-50 rounded-xl p-3 border border-amber-100">
@@ -232,7 +214,7 @@ export default function AccountDetailScreen() {
               Total Debit
             </Text>
             <Text className="text-xl font-bold text-amber-700 mt-1">
-              {formatAmount(summary?.totalDebit ?? 0)}
+              {prefFormatAmount(summary?.totalDebit ?? 0)}
             </Text>
           </View>
         </View>
@@ -256,7 +238,9 @@ export default function AccountDetailScreen() {
                 netPositive ? "text-emerald-600" : "text-rose-600"
               }`}
             >
-              {`${netPositive ? "+" : "-"}${formatAmount(Math.abs(netFlow))}`}
+              {`${netPositive ? "+" : "-"}${prefFormatAmount(
+                Math.abs(netFlow)
+              )}`}
             </Text>
           </View>
           <View className="flex-1 bg-gray-50 rounded-xl p-3 border border-gray-200">

@@ -16,11 +16,11 @@ export const listAccounts = async (req, res, next) => {
 
 export const createAccount = async (req, res, next) => {
   try {
-    const { name, type, description } = req.body;
+    const { name, description } = req.body;
     const account = await Account.create({
       admin: req.user.id,
       name,
-      type,
+      // type,
       description,
     });
     res.status(201).json({ account });

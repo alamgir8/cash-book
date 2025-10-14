@@ -10,9 +10,12 @@ import { useAuth } from "./useAuth";
 
 interface UserPreferences {
   currency: string;
-  currencySymbol: string;
+  currency_symbol: string;
+  locale: string;
+  date_format: string;
+  time_format: string;
   language: string;
-  languageLabel: string;
+  language_label: string;
 }
 
 interface PreferencesContextType {
@@ -24,25 +27,56 @@ interface PreferencesContextType {
 
 const defaultPreferences: UserPreferences = {
   currency: "USD",
-  currencySymbol: "$",
+  currency_symbol: "$",
+  locale: "en-US",
+  date_format: "MMM D, YYYY",
+  time_format: "12h",
   language: "en",
-  languageLabel: "English",
+  language_label: "English",
 };
 
 const PREFERENCES_STORAGE_KEY = "user_preferences";
 
 // Currency mapping
-const currencyMap: Record<string, string> = {
-  USD: "$",
-  EUR: "€",
-  GBP: "£",
-  JPY: "¥",
-  CAD: "C$",
-  AUD: "A$",
-  CHF: "CHF",
-  CNY: "¥",
-  INR: "₹",
-  BDT: "৳",
+export const currencyMap: Record<
+  string,
+  { symbol: string; locale: string; name: string }
+> = {
+  USD: { symbol: "$", locale: "en-US", name: "US Dollar" },
+  EUR: { symbol: "€", locale: "fr-FR", name: "Euro" },
+  GBP: { symbol: "£", locale: "en-GB", name: "British Pound" },
+  JPY: { symbol: "¥", locale: "ja-JP", name: "Japanese Yen" },
+  CNY: { symbol: "¥", locale: "zh-CN", name: "Chinese Yuan" },
+  INR: { symbol: "₹", locale: "hi-IN", name: "Indian Rupee" },
+  BDT: { symbol: "৳", locale: "bn-BD", name: "Bangladeshi Taka" },
+  PKR: { symbol: "₨", locale: "ur-PK", name: "Pakistani Rupee" },
+  AUD: { symbol: "A$", locale: "en-AU", name: "Australian Dollar" },
+  CAD: { symbol: "C$", locale: "en-CA", name: "Canadian Dollar" },
+  CHF: { symbol: "CHF", locale: "de-CH", name: "Swiss Franc" },
+  SEK: { symbol: "kr", locale: "sv-SE", name: "Swedish Krona" },
+  NOK: { symbol: "kr", locale: "nb-NO", name: "Norwegian Krone" },
+  DKK: { symbol: "kr", locale: "da-DK", name: "Danish Krone" },
+  RUB: { symbol: "₽", locale: "ru-RU", name: "Russian Ruble" },
+  SAR: { symbol: "﷼", locale: "ar-SA", name: "Saudi Riyal" },
+  AED: { symbol: "د.إ", locale: "ar-AE", name: "UAE Dirham" },
+  TRY: { symbol: "₺", locale: "tr-TR", name: "Turkish Lira" },
+  THB: { symbol: "฿", locale: "th-TH", name: "Thai Baht" },
+  KRW: { symbol: "₩", locale: "ko-KR", name: "South Korean Won" },
+  MYR: { symbol: "RM", locale: "ms-MY", name: "Malaysian Ringgit" },
+  SGD: { symbol: "S$", locale: "en-SG", name: "Singapore Dollar" },
+  HKD: { symbol: "HK$", locale: "zh-HK", name: "Hong Kong Dollar" },
+  NZD: { symbol: "NZ$", locale: "en-NZ", name: "New Zealand Dollar" },
+  ZAR: { symbol: "R", locale: "en-ZA", name: "South African Rand" },
+  NGN: { symbol: "₦", locale: "en-NG", name: "Nigerian Naira" },
+  EGP: { symbol: "£", locale: "ar-EG", name: "Egyptian Pound" },
+  BRL: { symbol: "R$", locale: "pt-BR", name: "Brazilian Real" },
+  MXN: { symbol: "$", locale: "es-MX", name: "Mexican Peso" },
+  IDR: { symbol: "Rp", locale: "id-ID", name: "Indonesian Rupiah" },
+  PHP: { symbol: "₱", locale: "en-PH", name: "Philippine Peso" },
+  VND: { symbol: "₫", locale: "vi-VN", name: "Vietnamese Dong" },
+  PLN: { symbol: "zł", locale: "pl-PL", name: "Polish Złoty" },
+  CZK: { symbol: "Kč", locale: "cs-CZ", name: "Czech Koruna" },
+  HUF: { symbol: "Ft", locale: "hu-HU", name: "Hungarian Forint" },
 };
 
 // Language mapping
@@ -77,9 +111,12 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       const userSettings = state.user.settings;
       setPreferences({
         currency: userSettings.currency,
-        currencySymbol: currencyMap[userSettings.currency] || "$",
+        currency_symbol: currencyMap[userSettings.currency]?.symbol || "$",
+        locale: currencyMap[userSettings.currency]?.locale || "en-US",
+        date_format: "MMM D, YYYY", // Could be extended to userSettings.date_format
+        time_format: "12h", // Could be extended to userSettings.time_format
         language: userSettings.language,
-        languageLabel: languageMap[userSettings.language] || "English",
+        language_label: languageMap[userSettings.language] || "English",
       });
     } else {
       // Fallback to local storage
@@ -94,8 +131,11 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         const parsed = JSON.parse(stored);
         setPreferences({
           ...parsed,
-          currencySymbol: currencyMap[parsed.currency] || "$",
-          languageLabel: languageMap[parsed.language] || "English",
+          currency_symbol: currencyMap[parsed.currency]?.symbol || "$",
+          locale: currencyMap[parsed.currency]?.locale || "en-US",
+          date_format: "MMM D, YYYY", // Could be extended to userSettings.date_format
+          time_format: "12h", // Could be extended to userSettings.time_format
+          language_label: languageMap[parsed.language] || "English",
         });
       }
     } catch (error) {
@@ -108,9 +148,9 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       const updatedPrefs = {
         ...preferences,
         ...newPrefs,
-        currencySymbol:
-          currencyMap[newPrefs.currency || preferences.currency] || "$",
-        languageLabel:
+        currency_symbol:
+          currencyMap[newPrefs.currency || preferences.currency]?.symbol || "$",
+        language_label:
           languageMap[newPrefs.language || preferences.language] || "English",
       };
 
@@ -138,13 +178,20 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   };
 
   const formatAmount = (amount: number): string => {
-    return `${preferences.currencySymbol}${Math.round(
-      amount
-    ).toLocaleString()}`;
+    // console.log("Formatting amount:", amount, "with preferences:", preferences);
+
+    const currency = preferences.currency || "USD";
+    const locale = preferences.locale || "en-US";
+    return new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency,
+      maximumFractionDigits: 0,
+      minimumFractionDigits: 0,
+    }).format(amount);
   };
 
   const getCurrencySymbol = (): string => {
-    return preferences.currencySymbol;
+    return preferences.currency_symbol;
   };
 
   return (

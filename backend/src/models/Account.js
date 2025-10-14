@@ -13,11 +13,11 @@ const accountSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
-    type: {
-      type: String,
-      enum: ["debit", "credit"],
-      required: true,
-    },
+    // type: {
+    //   type: String,
+    //   enum: ["debit", "credit"],
+    //   required: true,
+    // },
     description: {
       type: String,
       trim: true,

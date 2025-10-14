@@ -24,7 +24,6 @@ import { VoiceInputButton } from "../../components/voice-input-button";
 import { ScreenHeader } from "../../components/screen-header";
 import { EmptyState } from "../../components/empty-state";
 import { ActionButton } from "../../components/action-button";
-import { FloatingActionButton } from "../../components/floating-action-button";
 import {
   createAccount,
   fetchAccountsOverview,
@@ -37,7 +36,7 @@ import { usePreferences } from "../../hooks/usePreferences";
 
 const schema = z.object({
   name: z.string().min(2, "Account name is required"),
-  type: z.enum(["debit", "credit"]),
+  // type: z.enum(["debit", "credit"]),
   description: z.string().optional(),
 });
 
@@ -45,7 +44,7 @@ type FormValues = z.infer<typeof schema>;
 
 const DEFAULT_FORM_VALUES: FormValues = {
   name: "",
-  type: "debit",
+  // type: "debit",
   description: "",
 };
 
@@ -64,11 +63,11 @@ const parseVoiceForAccount = (transcript: string): Partial<FormValues> => {
     parsed.name = transcript.split(" account")[0] || transcript;
   }
 
-  if (lower.includes("debit")) {
-    parsed.type = "debit";
-  } else if (lower.includes("credit")) {
-    parsed.type = "credit";
-  }
+  // if (lower.includes("debit")) {
+  //   parsed.type = "debit";
+  // } else if (lower.includes("credit")) {
+  //   parsed.type = "credit";
+  // }
 
   return parsed;
 };
@@ -149,14 +148,14 @@ export default function AccountsScreen() {
         const baseAccount: Account = {
           _id: account._id,
           name: account.name,
-          type: account.type,
+          // type: account.type,
           description: account.description,
           balance: account.balance,
         };
         setSelectedAccount(baseAccount);
         reset({
           name: account.name,
-          type: account.type,
+          // type: account.type,
           description: account.description ?? "",
         });
       } else {
@@ -172,7 +171,7 @@ export default function AccountsScreen() {
     try {
       const payload = {
         name: values.name,
-        type: values.type,
+        // type: values.type,
         description: values.description,
       };
       if (selectedAccount) {
@@ -404,23 +403,6 @@ export default function AccountsScreen() {
                     {item.name}
                   </Text>
                   <View className="flex-row items-center gap-2 mt-2">
-                    <View
-                      className={`px-3 py-1 rounded-full ${
-                        item.type === "credit"
-                          ? "bg-green-50 border border-green-200"
-                          : "bg-blue-50 border border-blue-200"
-                      }`}
-                    >
-                      <Text
-                        className={`text-xs font-bold uppercase ${
-                          item.type === "credit"
-                            ? "text-green-700"
-                            : "text-blue-600"
-                        }`}
-                      >
-                        {item.type} Account
-                      </Text>
-                    </View>
                     <Text className="text-xs text-gray-500">
                       Last activity: {lastActivity}
                     </Text>
@@ -582,76 +564,6 @@ export default function AccountsScreen() {
                           {errors.name.message}
                         </Text>
                       ) : null}
-                    </View>
-
-                    {/* Account Type */}
-                    <View>
-                      <Text className="text-gray-700 text-sm font-semibold mb-3">
-                        Account Type
-                      </Text>
-                      <Controller
-                        control={control}
-                        name="type"
-                        render={({ field: { value, onChange } }) => (
-                          <View className="flex-row gap-3">
-                            {(["debit", "credit"] as const).map((option) => (
-                              <TouchableOpacity
-                                key={option}
-                                onPress={() => onChange(option)}
-                                className={`flex-1 py-3 rounded-xl border-2 ${
-                                  value === option
-                                    ? option === "debit"
-                                      ? "border-blue-500 bg-blue-50"
-                                      : "border-green-500 bg-green-50"
-                                    : "border-gray-200 bg-gray-50"
-                                }`}
-                              >
-                                <View className="items-center gap-2">
-                                  <Ionicons
-                                    name={
-                                      option === "debit"
-                                        ? "card-outline"
-                                        : "cash-outline"
-                                    }
-                                    size={24}
-                                    color={
-                                      value === option
-                                        ? option === "debit"
-                                          ? "#3b82f6"
-                                          : "#10b981"
-                                        : "#6b7280"
-                                    }
-                                  />
-                                  <Text
-                                    className={`font-bold text-sm ${
-                                      value === option
-                                        ? option === "debit"
-                                          ? "text-blue-700"
-                                          : "text-green-700"
-                                        : "text-gray-600"
-                                    }`}
-                                  >
-                                    {option.toUpperCase()}
-                                  </Text>
-                                  <Text
-                                    className={`text-xs text-center ${
-                                      value === option
-                                        ? option === "debit"
-                                          ? "text-blue-600"
-                                          : "text-green-600"
-                                        : "text-gray-500"
-                                    }`}
-                                  >
-                                    {option === "debit"
-                                      ? "Money going out"
-                                      : "Money coming in"}
-                                  </Text>
-                                </View>
-                              </TouchableOpacity>
-                            ))}
-                          </View>
-                        )}
-                      />
                     </View>
 
                     {/* Description */}

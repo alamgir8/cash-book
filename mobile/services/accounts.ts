@@ -4,7 +4,7 @@ import type { Transaction, TransactionFilters } from "./transactions";
 export type Account = {
   _id: string;
   name: string;
-  type: "debit" | "credit";
+  // type: "debit" | "credit";
   description?: string;
   balance: number;
 };
@@ -40,7 +40,7 @@ export const fetchAccountsOverview = async (): Promise<AccountOverview[]> => {
 
 export const createAccount = async (payload: {
   name: string;
-  type: "debit" | "credit";
+  // type: "debit" | "credit";
   description?: string;
 }) => {
   const { data } = await api.post<{ account: Account }>("/accounts", payload);
