@@ -29,7 +29,6 @@ import { QuickActions } from "../../components/quick-actions";
 import { ScreenHeader } from "../../components/screen-header";
 import { EmptyState } from "../../components/empty-state";
 import { FloatingActionButton } from "../../components/floating-action-button";
-// import SearchableSelect from "../../components/searchable-select";
 import { exportTransactionsPdf } from "../../services/reports";
 import {
   createTransaction,
@@ -41,6 +40,7 @@ import { fetchAccounts, type AccountOverview } from "../../services/accounts";
 import { fetchCategories } from "../../services/categories";
 import { queryKeys } from "../../lib/queryKeys";
 import { usePreferences } from "../../hooks/usePreferences";
+import { SearchableSelect } from "@/components/searchable-select";
 
 const transactionSchema = z.object({
   accountId: z.string().min(1, "Select an account"),

@@ -144,7 +144,7 @@ export default function SettingsScreen() {
           </View>
 
           <View className="gap-3">
-            <View className="flex-row items-center gap-3 py-2">
+            {/* <View className="flex-row items-center gap-3 py-2">
               <Ionicons name="server" size={18} color="#6b7280" />
               <View className="flex-1">
                 <Text className="text-gray-600 text-sm">API Endpoint</Text>
@@ -152,7 +152,7 @@ export default function SettingsScreen() {
                   {baseURL}
                 </Text>
               </View>
-            </View>
+            </View> */}
 
             <View className="flex-row items-center gap-3 py-2">
               <Ionicons name="code-working" size={18} color="#6b7280" />
