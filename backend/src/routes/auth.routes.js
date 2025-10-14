@@ -30,10 +30,37 @@ const registerSchema = z.object({
 });
 
 const loginSchema = z.object({
-  body: z.object({
-    email: z.string().email(),
-    password: z.string().min(8),
-  }),
+  body: z
+    .object({
+      identifier: z.string().trim().min(2).optional(),
+      email: z.string().email().optional(),
+      password: z.string().min(8).optional(),
+      pin: z
+        .string()
+        .regex(/^[0-9]{5}$/g, "PIN must be a 5 digit code")
+        .optional(),
+    })
+    .superRefine((data, ctx) => {
+      if (!data.identifier && !data.email) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Provide your email or phone",
+          path: ["identifier"],
+        });
+      }
+      if (!data.password && !data.pin) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Enter your password or PIN",
+          path: ["password"],
+        });
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Enter your password or PIN",
+          path: ["pin"],
+        });
+      }
+    }),
   params: z.object({}).optional(),
   query: z.object({}).optional(),
 });
@@ -73,9 +100,22 @@ const updateProfileSchema = z.object({
       email: z.string().email().optional(),
       phone: z.string().trim().min(6).optional(),
       profile_settings: profileSettingsSchema.optional(),
+      login_pin: z
+        .union([
+          z.string().regex(/^[0-9]{5}$/g, "PIN must be 5 digits"),
+          z.literal(""),
+          z.null(),
+        ])
+        .optional(),
     })
     .superRefine((data, ctx) => {
-      if (!data.name && !data.email && !data.phone && !data.profile_settings) {
+      if (
+        data.name === undefined &&
+        data.email === undefined &&
+        data.phone === undefined &&
+        data.profile_settings === undefined &&
+        data.login_pin === undefined
+      ) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: "At least one field must be provided",

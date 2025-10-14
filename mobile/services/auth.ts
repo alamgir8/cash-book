@@ -5,6 +5,11 @@ export type User = {
   name: string;
   email: string;
   phone?: string;
+  security?: {
+    has_login_pin?: boolean;
+    pin_updated_at?: string;
+    password_updated_at?: string;
+  };
   settings?: {
     currency: string;
     language: string;
@@ -25,7 +30,8 @@ export type User = {
 
 export type LoginRequest = {
   identifier: string;
-  password: string;
+  password?: string;
+  pin?: string;
 };
 
 export type SignupRequest = {
@@ -39,6 +45,7 @@ export type UpdateProfileRequest = {
   name?: string;
   email?: string;
   phone?: string;
+  login_pin?: string | null;
   settings?: {
     currency?: string;
     language?: string;
@@ -113,10 +120,24 @@ const normalizeAuthResponse = (data: any): AuthSessionResponse => {
 export const login = async (
   data: LoginRequest
 ): Promise<AuthSessionResponse> => {
-  const payload = {
-    email: data.identifier?.trim().toLowerCase(),
-    password: data.password,
-  };
+  const payload: Record<string, unknown> = {};
+  const identifier = data.identifier?.trim();
+
+  if (identifier) {
+    payload.identifier = identifier;
+    if (identifier.includes("@")) {
+      payload.email = identifier.toLowerCase();
+    }
+  }
+
+  if (data.password) {
+    payload.password = data.password;
+  }
+
+  if (data.pin) {
+    payload.pin = data.pin;
+  }
+
   const response = await api.post("/auth/login", payload);
   return normalizeAuthResponse(response.data);
 };
@@ -172,6 +193,10 @@ export const updateProfile = async (
         ? { week_starts_on: data.settings.week_starts_on }
         : {}),
     };
+  }
+
+  if (data.login_pin !== undefined) {
+    payload.login_pin = data.login_pin;
   }
 
   const response = await api.put("/auth/me/profile", payload);

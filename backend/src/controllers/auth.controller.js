@@ -141,20 +141,59 @@ export const register = async (req, res, next) => {
 
 export const login = async (req, res, next) => {
   try {
-    const { email, password } = req.body;
-    const normalizedEmail = email?.toLowerCase();
+    const { identifier, email, password, pin } = req.body;
+
+    const normalizedEmail =
+      typeof email === "string" ? email.toLowerCase() : undefined;
+    const trimmedIdentifier = identifier?.trim();
+
+    const searchConditions = [];
+
+    if (normalizedEmail) {
+      searchConditions.push({ email: normalizedEmail });
+    }
+
+    if (trimmedIdentifier) {
+      if (trimmedIdentifier.includes("@")) {
+        searchConditions.push({ email: trimmedIdentifier.toLowerCase() });
+      } else {
+        searchConditions.push({ phone: trimmedIdentifier });
+      }
+    }
+
+    if (searchConditions.length === 0) {
+      return res.status(400).json({ message: "Provide your email or phone" });
+    }
 
     const admin = await Admin.findOne({
-      email: normalizedEmail,
       status: { $ne: "disabled" },
+      $or: searchConditions,
     });
 
     if (!admin) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    const passwordValid = await argon2.verify(admin.password_hash, password);
-    if (!passwordValid) {
+    let credentialValid = false;
+
+    if (password) {
+      credentialValid = await argon2.verify(admin.password_hash, password);
+    }
+
+    if (!credentialValid && pin) {
+      const loginPinHash = admin.security?.login_pin_hash;
+      if (!loginPinHash) {
+        return res.status(401).json({ message: "Invalid credentials" });
+      }
+
+      try {
+        credentialValid = await argon2.verify(loginPinHash, pin);
+      } catch (error) {
+        credentialValid = false;
+      }
+    }
+
+    if (!credentialValid) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
@@ -252,20 +291,32 @@ export const getProfile = async (req, res, next) => {
 
 export const updateProfile = async (req, res, next) => {
   try {
-    const { name, email, phone, profile_settings: profileSettings } = req.body;
+    const {
+      name,
+      email,
+      phone,
+      profile_settings: profileSettings,
+      login_pin: loginPin,
+    } = req.body;
+
+    const normalizedEmail =
+      typeof email === "string" ? email.toLowerCase() : undefined;
+    const normalizedPhone =
+      typeof phone === "string" ? phone.trim() : undefined;
 
     const updateData = {};
+    const unsetData = {};
 
     if (name !== undefined) {
       updateData.name = name;
     }
 
-    if (email !== undefined) {
-      updateData.email = email.toLowerCase();
+    if (normalizedEmail !== undefined) {
+      updateData.email = normalizedEmail;
     }
 
     if (phone !== undefined) {
-      updateData.phone = phone;
+      updateData.phone = normalizedPhone;
     }
 
     if (profileSettings !== undefined) {
@@ -274,12 +325,23 @@ export const updateProfile = async (req, res, next) => {
       });
     }
 
-    if (email || phone) {
+    if (loginPin !== undefined) {
+      if (typeof loginPin === "string" && loginPin.trim()) {
+        const hashedPin = await argon2.hash(loginPin.trim());
+        updateData["security.login_pin_hash"] = hashedPin;
+        updateData["security.pin_updated_at"] = new Date();
+      } else {
+        unsetData["security.login_pin_hash"] = "";
+        unsetData["security.pin_updated_at"] = "";
+      }
+    }
+
+    if (normalizedEmail || normalizedPhone) {
       const existing = await Admin.findOne({
         _id: { $ne: req.user.id },
         $or: [
-          ...(email ? [{ email: email.toLowerCase() }] : []),
-          ...(phone ? [{ phone }] : []),
+          ...(normalizedEmail ? [{ email: normalizedEmail }] : []),
+          ...(normalizedPhone ? [{ phone: normalizedPhone }] : []),
         ],
       });
 
@@ -290,7 +352,19 @@ export const updateProfile = async (req, res, next) => {
       }
     }
 
-    const admin = await Admin.findByIdAndUpdate(req.user.id, updateData, {
+    const updatePayload = {};
+    if (Object.keys(updateData).length > 0) {
+      updatePayload.$set = updateData;
+    }
+    if (Object.keys(unsetData).length > 0) {
+      updatePayload.$unset = unsetData;
+    }
+
+    if (Object.keys(updatePayload).length === 0) {
+      return res.status(400).json({ message: "No changes provided" });
+    }
+
+    const admin = await Admin.findByIdAndUpdate(req.user.id, updatePayload, {
       new: true,
       runValidators: true,
     });

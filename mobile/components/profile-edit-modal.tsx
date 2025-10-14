@@ -4,6 +4,7 @@ import {
   Modal,
   Platform,
   ScrollView,
+  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -18,13 +19,62 @@ import SearchableSelect, { type SelectOption } from "./searchable-select";
 import { ActionButton } from "./action-button";
 import { useAuth } from "../hooks/useAuth";
 
-const profileSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  email: z.string().email("Invalid email address"),
-  phone: z.string().optional(),
-  currency: z.string().min(1, "Select a currency"),
-  language: z.string().min(1, "Select a language"),
-});
+const pinValueSchema = z
+  .union([
+    z.string().regex(/^[0-9]{5}$/, "PIN must be 5 digits"),
+    z.literal(""),
+    z.null(),
+  ])
+  .optional();
+
+const profileSchema = z
+  .object({
+    name: z.string().min(1, "Name is required"),
+    email: z.string().email("Invalid email address"),
+    phone: z.string().optional(),
+    currency: z.string().min(1, "Select a currency"),
+    language: z.string().min(1, "Select a language"),
+    enablePin: z.boolean(),
+    loginPin: pinValueSchema,
+    confirmPin: pinValueSchema,
+    hasExistingPin: z.boolean(),
+  })
+  .superRefine((data, ctx) => {
+    const pinProvided =
+      typeof data.loginPin === "string" && data.loginPin.trim() !== "";
+    const confirmProvided =
+      typeof data.confirmPin === "string" && data.confirmPin.trim() !== "";
+
+    if (data.enablePin) {
+      if (!data.hasExistingPin && !pinProvided) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Enter a 5-digit PIN",
+          path: ["loginPin"],
+        });
+      }
+
+      if (pinProvided !== confirmProvided) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Confirm your PIN",
+          path: pinProvided ? ["confirmPin"] : ["loginPin"],
+        });
+      }
+
+      if (
+        pinProvided &&
+        confirmProvided &&
+        data.loginPin !== data.confirmPin
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "PINs do not match",
+          path: ["confirmPin"],
+        });
+      }
+    }
+  });
 
 type ProfileFormData = z.infer<typeof profileSchema>;
 
@@ -72,6 +122,7 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
   const [submitting, setSubmitting] = useState(false);
 
   const currentProfile = state.status === "authenticated" ? state.user : null;
+  const hasExistingPin = currentProfile?.security?.has_login_pin ?? false;
 
   const defaultCurrency =
     currentProfile?.profile_settings?.currency_code ??
@@ -86,6 +137,8 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
     control,
     handleSubmit,
     reset,
+    setValue,
+    watch,
     formState: { errors, isDirty },
   } = useForm<ProfileFormData>({
     resolver: zodResolver(profileSchema),
@@ -95,8 +148,14 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
       phone: currentProfile?.phone ?? "",
       currency: defaultCurrency,
       language: defaultLanguage,
+      enablePin: hasExistingPin,
+      loginPin: "",
+      confirmPin: "",
+      hasExistingPin,
     },
   });
+
+  const enablePin = watch("enablePin");
 
   useEffect(() => {
     if (!currentProfile) return;
@@ -112,6 +171,10 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
         currentProfile.profile_settings?.language ??
         currentProfile.settings?.language ??
         "en",
+      enablePin: currentProfile.security?.has_login_pin ?? false,
+      loginPin: "",
+      confirmPin: "",
+      hasExistingPin: currentProfile.security?.has_login_pin ?? false,
     });
   }, [currentProfile, reset]);
 
@@ -124,7 +187,7 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
     if (submitting) return;
     try {
       setSubmitting(true);
-      await updateProfile({
+      const payload = {
         name: values.name,
         email: values.email,
         phone: values.phone?.trim() ? values.phone.trim() : undefined,
@@ -133,7 +196,19 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
           currency_symbol: currencySymbolMap[values.currency] ?? "$",
           language: values.language,
         },
-      });
+      } as Parameters<typeof updateProfile>[0];
+
+      if (values.enablePin) {
+        const pinValue =
+          typeof values.loginPin === "string" ? values.loginPin.trim() : "";
+        if (pinValue) {
+          payload.login_pin = pinValue;
+        }
+      } else if (values.hasExistingPin) {
+        payload.login_pin = "";
+      }
+
+      await updateProfile(payload);
       Toast.show({
         type: "success",
         text1: "Profile updated",
@@ -259,6 +334,97 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
                   />
                 </View>
               </View>
+            </View>
+
+            <View className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+              <View className="flex-row items-center justify-between mb-2">
+                <Text className="text-base font-semibold text-gray-900">
+                  Security
+                </Text>
+                <Controller
+                  control={control}
+                  name="enablePin"
+                  render={({ field: { value, onChange } }) => (
+                    <Switch
+                      value={value}
+                      onValueChange={(next) => {
+                        onChange(next);
+                        if (!next) {
+                          setValue("loginPin", "");
+                          setValue("confirmPin", "");
+                        }
+                      }}
+                      trackColor={{ false: "#d1d5db", true: "#2563eb" }}
+                      thumbColor="#ffffff"
+                    />
+                  )}
+                />
+              </View>
+              <Text className="text-xs text-gray-500 mb-4">
+                {enablePin
+                  ? "Enter a new 5-digit PIN to enable quick logins."
+                  : hasExistingPin
+                  ? "Your login PIN will be removed when you save changes."
+                  : "Enable a 5-digit PIN to sign in without your password."}
+              </Text>
+              {enablePin ? (
+                <View className="gap-4">
+                  <View>
+                    <Text className="text-sm font-semibold text-gray-700 mb-2">
+                      New PIN
+                    </Text>
+                    <Controller
+                      control={control}
+                      name="loginPin"
+                      render={({ field: { value, onChange } }) => (
+                        <TextInput
+                          value={value ?? ""}
+                          onChangeText={onChange}
+                          placeholder="12345"
+                          placeholderTextColor="#9ca3af"
+                          keyboardType="number-pad"
+                          secureTextEntry
+                          maxLength={5}
+                          autoCapitalize="none"
+                          className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200"
+                        />
+                      )}
+                    />
+                    {errors.loginPin ? (
+                      <Text className="text-sm text-red-500 mt-1">
+                        {errors.loginPin.message}
+                      </Text>
+                    ) : null}
+                  </View>
+                  <View>
+                    <Text className="text-sm font-semibold text-gray-700 mb-2">
+                      Confirm PIN
+                    </Text>
+                    <Controller
+                      control={control}
+                      name="confirmPin"
+                      render={({ field: { value, onChange } }) => (
+                        <TextInput
+                          value={value ?? ""}
+                          onChangeText={onChange}
+                          placeholder="12345"
+                          placeholderTextColor="#9ca3af"
+                          keyboardType="number-pad"
+                          secureTextEntry
+                          maxLength={5}
+                          autoCapitalize="none"
+                          className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200"
+                        />
+                      )}
+                    />
+                    {errors.confirmPin ? (
+                      <Text className="text-sm text-red-500 mt-1">
+                        {errors.confirmPin.message}
+                      </Text>
+                    ) : null}
+                  </View>
+                </View>
+              ) : null}
             </View>
 
             <View className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">

@@ -257,9 +257,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   }, [startRefreshTimer, state.status, stopRefreshTimer]);
 
   const signIn = useCallback(
-    async ({ identifier, password }: LoginRequest) => {
+    async ({ identifier, password, pin }: LoginRequest) => {
       try {
-        const data = await authService.login({ identifier, password });
+        const data = await authService.login({ identifier, password, pin });
         await applySession(data);
         Toast.show({ type: "success", text1: "Welcome back!" });
       } catch (error) {

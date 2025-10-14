@@ -92,6 +92,12 @@ const securitySchema = new mongoose.Schema(
     password_updated_at: {
       type: Date,
     },
+    login_pin_hash: {
+      type: String,
+    },
+    pin_updated_at: {
+      type: Date,
+    },
   },
   { _id: false }
 );
@@ -145,6 +151,14 @@ const adminSchema = new mongoose.Schema(
 adminSchema.methods.toJSON = function () {
   const obj = this.toObject();
   delete obj.password_hash;
+  if (obj.security) {
+    const hasPin = Boolean(obj.security.login_pin_hash);
+    obj.security = {
+      ...obj.security,
+      has_login_pin: hasPin,
+    };
+    delete obj.security.login_pin_hash;
+  }
   return obj;
 };
 

@@ -15,8 +15,6 @@ import { fetchCategories } from "../../services/categories";
 import { queryKeys } from "../../lib/queryKeys";
 import type { SelectOption } from "../../components/searchable-select";
 import Toast from "react-native-toast-message";
-import { ScrollView } from "react-native-gesture-handler";
-
 const defaultFilters: TransactionFilters = {
   page: 1,
   limit: 20,

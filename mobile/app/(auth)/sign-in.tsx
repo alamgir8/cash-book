@@ -1,6 +1,6 @@
 import { Link, useRouter } from "expo-router";
-import { useState } from "react";
-import { View, Text, Image } from "react-native";
+import { useEffect, useState } from "react";
+import { View, Text, TouchableOpacity } from "react-native";
 import { useForm, Controller } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -10,7 +10,36 @@ import { CustomButton } from "../../components/custom-button";
 
 const schema = z.object({
   identifier: z.string().min(2, "Enter your email or phone"),
-  password: z.string().min(8, "Password must be at least 8 characters"),
+  password: z
+    .union([
+      z.string().min(8, "Password must be at least 8 characters"),
+      z.literal(""),
+    ])
+    .optional(),
+  pin: z
+    .union([
+      z
+        .string()
+        .regex(/^[0-9]{5}$/, "PIN must be 5 digits"),
+      z.literal(""),
+    ])
+    .optional(),
+}).superRefine((data, ctx) => {
+  const hasPassword = Boolean(data.password && data.password !== "");
+  const hasPin = Boolean(data.pin && data.pin !== "");
+
+  if (!hasPassword && !hasPin) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Enter your password or PIN",
+      path: ["password"],
+    });
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Enter your password or PIN",
+      path: ["pin"],
+    });
+  }
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -20,25 +49,49 @@ export default function SignInScreen() {
   const { signIn } = useAuth();
   const [loading, setLoading] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [usePinLogin, setUsePinLogin] = useState(false);
 
   const {
     control,
     handleSubmit,
+    setValue,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
       identifier: "",
       password: "",
+      pin: "",
     },
   });
+
+  useEffect(() => {
+    if (usePinLogin) {
+      setValue("password", "");
+    } else {
+      setValue("pin", "");
+    }
+  }, [setValue, usePinLogin]);
 
   const onSubmit = async (values: FormValues) => {
     try {
       setLoading(true);
       setFormError(null);
-      // Type assertion to ensure values match the required Credentials type
-      await signIn(values as Required<FormValues>);
+      const credentials: { identifier: string; password?: string; pin?: string } =
+        {
+          identifier: values.identifier.trim(),
+        };
+
+      if (usePinLogin) {
+        const pinValue = values.pin?.trim();
+        if (pinValue) {
+          credentials.pin = pinValue;
+        }
+      } else if (values.password) {
+        credentials.password = values.password;
+      }
+
+      await signIn(credentials);
       router.replace("/(app)");
     } catch (error) {
       console.error(error);
@@ -85,21 +138,50 @@ export default function SignInScreen() {
           )}
         />
 
-        <Controller
-          control={control}
-          name="password"
-          render={({ field: { onChange, value } }) => (
-            <CustomInput
-              label="Password"
-              value={value}
-              onChangeText={onChange}
-              placeholder="••••••••"
-              autoCapitalize="none"
-              secureTextEntry
-              error={errors.password?.message}
-            />
-          )}
-        />
+        {usePinLogin ? (
+          <Controller
+            control={control}
+            name="pin"
+            render={({ field: { onChange, value } }) => (
+              <CustomInput
+                label="5-digit PIN"
+                value={value ?? ""}
+                onChangeText={onChange}
+                placeholder="Enter PIN"
+                autoCapitalize="none"
+                secureTextEntry
+                keyboardType="number-pad"
+                maxLength={5}
+                error={errors.pin?.message}
+              />
+            )}
+          />
+        ) : (
+          <Controller
+            control={control}
+            name="password"
+            render={({ field: { onChange, value } }) => (
+              <CustomInput
+                label="Password"
+                value={value ?? ""}
+                onChangeText={onChange}
+                placeholder="••••••••"
+                autoCapitalize="none"
+                secureTextEntry
+                error={errors.password?.message}
+              />
+            )}
+          />
+        )}
+
+        <TouchableOpacity
+          onPress={() => setUsePinLogin((prev) => !prev)}
+          className="self-end"
+        >
+          <Text className="text-blue-600 font-semibold text-sm">
+            {usePinLogin ? "Use password instead" : "Use PIN instead"}
+          </Text>
+        </TouchableOpacity>
 
         <CustomButton
           title="Sign In"
