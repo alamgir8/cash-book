@@ -79,11 +79,11 @@ export const TransactionCard = ({ transaction, onCategoryPress }: Props) => {
         </Text>
       ) : null}
 
-      <View className="flex-row justify-between items-center mt-4 pt-3 border-t border-gray-100">
+      {/* <View className="flex-row justify-between items-center mt-4 pt-3 border-t border-gray-100">
         <Text className="text-xs text-gray-500 font-medium">
           {transaction.category?.name ?? accountKindLabel}
         </Text>
-      </View>
+      </View> */}
     </View>
   );
 };
