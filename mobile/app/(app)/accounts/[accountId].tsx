@@ -48,7 +48,7 @@ export default function AccountDetailScreen() {
 
   const categoriesQuery = useQuery({
     queryKey: queryKeys.categories,
-    queryFn: fetchCategories,
+    queryFn: () => fetchCategories(),
   });
 
   const categoryOptions: SelectOption[] = useMemo(() => {
