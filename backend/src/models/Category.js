@@ -84,7 +84,11 @@ categorySchema.pre("validate", function (next) {
   return next();
 });
 
-export const Category = mongoose.model("Category", categorySchema, "categories");
+export const Category = mongoose.model(
+  "Category",
+  categorySchema,
+  "categories"
+);
 export const CATEGORY_TYPE_OPTIONS = CATEGORY_TYPES;
 export const CATEGORY_FLOW_OPTIONS = CATEGORY_FLOW;
 export const CATEGORY_FLOW_MAP = CATEGORY_DEFINITIONS;

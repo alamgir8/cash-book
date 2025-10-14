@@ -64,7 +64,7 @@ const applyIdempotency = async ({ adminId, clientRequestId }) => {
 const extractIdempotencyKey = (req) => {
   return (
     req.headers["x-idempotency-key"] ||
-    req.headers["x_idempotency_key"] ||
+    req.headers.x_idempotency_key ||
     req.body?.client_request_id ||
     null
   );
@@ -188,7 +188,7 @@ export const createTransaction = async (req, res, next) => {
       return res.status(400).json({ message: err.message });
     }
 
-    const transaction = await Transaction.create({
+    const transactionPayload = {
       admin: req.user.id,
       account: account._id,
       category_id: categoryDocument?._id,
@@ -199,8 +199,13 @@ export const createTransaction = async (req, res, next) => {
       keyword,
       counterparty,
       meta_data: metaData,
-      client_request_id: idempotencyKey ?? undefined,
-    });
+    };
+
+    if (idempotencyKey) {
+      transactionPayload.client_request_id = idempotencyKey;
+    }
+
+    const transaction = await Transaction.create(transactionPayload);
 
     const balanceAfter = await adjustAccountBalance({
       account,
@@ -321,6 +326,15 @@ export const updateTransaction = async (req, res, next) => {
     }
     if (metaData !== undefined) {
       transaction.meta_data = metaData;
+    }
+
+    if (req.body.client_request_id) {
+      transaction.client_request_id = req.body.client_request_id.trim();
+    } else if (
+      req.body.client_request_id === null ||
+      req.body.client_request_id === ""
+    ) {
+      transaction.client_request_id = undefined;
     }
 
     const balanceAfter = await adjustAccountBalance({

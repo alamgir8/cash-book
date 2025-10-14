@@ -84,9 +84,16 @@ transactionSchema.index({ admin: 1, account: 1, date: -1 });
 transactionSchema.index({ admin: 1, type: 1, date: -1 });
 transactionSchema.index({ admin: 1, category_id: 1, date: -1 });
 transactionSchema.index(
-  { admin: 1, client_request_id: 1 },
-  { unique: true, sparse: true }
+  { admin: 1, client_request_id: 1, is_deleted: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      is_deleted: false,
+      client_request_id: { $type: "string", $ne: "" },
+    },
+  }
 );
+
 transactionSchema.index({
   keyword: "text",
   description: "text",

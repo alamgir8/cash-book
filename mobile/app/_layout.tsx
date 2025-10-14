@@ -1,29 +1,53 @@
-import { useEffect } from "react";
-import { Slot, SplashScreen, useRouter, useSegments } from "expo-router";
+import { useEffect, useState } from "react";
+import { Slot, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import Toast from "react-native-toast-message";
+import * as Font from "expo-font";
+import * as SplashScreen from "expo-splash-screen";
 import { AuthProvider, useAuth } from "../hooks/useAuth";
 import { PreferencesProvider } from "../hooks/usePreferences";
 import "../global.css";
 
-SplashScreen.preventAutoHideAsync().catch(() => {
-  // noop
-});
-
 const queryClient = new QueryClient();
+
+// Keep the splash screen visible while we fetch resources
+SplashScreen.preventAutoHideAsync().catch(() => {
+  /* no-op */
+});
 
 const RootContent = () => {
   const { state } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+  const [isReady, setReady] = useState(false);
 
   useEffect(() => {
-    if (state.status !== "loading") {
-      SplashScreen.hideAsync().catch(() => {});
+    async function prepare() {
+      try {
+        // Pre-load fonts, make any API calls you need to do here
+        await Font.loadAsync({
+          // Add any custom fonts here if needed
+        });
+      } catch (e) {
+        console.warn(e);
+      } finally {
+        setReady(true);
+      }
     }
-  }, [state.status]);
+
+    prepare();
+  }, []);
+
+  useEffect(() => {
+    const maybeHideSplash = async () => {
+      if (isReady && state.status !== "loading") {
+        await SplashScreen.hideAsync();
+      }
+    };
+    void maybeHideSplash();
+  }, [isReady, state.status]);
 
   useEffect(() => {
     if (state.status === "loading") return;
@@ -37,7 +61,7 @@ const RootContent = () => {
     }
   }, [segments, state.status, router]);
 
-  if (state.status === "loading") {
+  if (!isReady || state.status === "loading") {
     return null;
   }
 
