@@ -114,7 +114,7 @@ export const StatsCards = ({
 
       {/* Net Balance Card */}
       <View
-        className={`rounded-2xl p-6 border shadow-sm ${
+        className={`rounded-2xl bg-white p-6 border shadow-sm ${
           isPositiveBalance
             ? "bg-gradient-to-r from-green-50 to-emerald-50 border-green-100"
             : "bg-gradient-to-r from-red-50 to-rose-50 border-red-100"
