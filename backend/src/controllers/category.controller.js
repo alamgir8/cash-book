@@ -1,4 +1,5 @@
-import { Category } from "../models/Category.js";
+import { Category, CATEGORY_FLOW_MAP } from "../models/Category.js";
+import { DEFAULT_CATEGORIES } from "../constants/defaultCategories.js";
 
 const pickCategoryUpdate = (payload) => {
   const allowed = ["name", "description", "color", "type"];
@@ -21,10 +22,80 @@ export const listCategories = async (req, res, next) => {
       ...(includeArchived ? {} : { archived: false }),
     };
 
-    const categories = await Category.find(filter).sort({
+    let categories = await Category.find(filter).sort({
       type: 1,
       name: 1,
     });
+
+    if (categories.length === 0 && DEFAULT_CATEGORIES.length > 0) {
+      try {
+        await Category.insertMany(
+          DEFAULT_CATEGORIES.map((category) => ({
+            admin: req.user.id,
+            ...category,
+          })),
+          { ordered: false }
+        );
+        categories = await Category.find(filter).sort({
+          type: 1,
+          name: 1,
+        });
+      } catch (seedError) {
+        if (seedError.code !== 11000) {
+          console.warn("Failed to seed default categories", seedError);
+        }
+      }
+    }
+
+    const legacyUpdates = [];
+    for (const category of categories) {
+      const expectedFlow = CATEGORY_FLOW_MAP[category.type];
+      if (!expectedFlow) {
+        let nextType = category.type;
+        if (category.type === "donation") {
+          const lowerName = category.name?.toLowerCase() ?? "";
+          nextType = lowerName.includes("out")
+            ? "donation_out"
+            : "donation_in";
+        } else if (category.type === "other") {
+          const lowerName = category.name?.toLowerCase() ?? "";
+          nextType = lowerName.includes("credit")
+            ? "other_income"
+            : "other_expense";
+        } else {
+          continue;
+        }
+
+        const nextFlow = CATEGORY_FLOW_MAP[nextType];
+        if (nextFlow) {
+          legacyUpdates.push(
+            Category.updateOne(
+              { _id: category._id },
+              { $set: { type: nextType, flow: nextFlow } }
+            )
+          );
+          category.type = nextType;
+          category.flow = nextFlow;
+        }
+      } else if (category.flow !== expectedFlow) {
+        legacyUpdates.push(
+          Category.updateOne(
+            { _id: category._id },
+            { $set: { flow: expectedFlow } }
+          )
+        );
+        category.flow = expectedFlow;
+      }
+    }
+
+    if (legacyUpdates.length > 0) {
+      try {
+        await Promise.allSettled(legacyUpdates);
+      } catch (legacyError) {
+        console.warn("Failed to update legacy categories", legacyError);
+      }
+      categories = await Category.find(filter).sort({ type: 1, name: 1 });
+    }
 
     res.json({ categories });
   } catch (error) {
@@ -34,15 +105,21 @@ export const listCategories = async (req, res, next) => {
 
 export const createCategory = async (req, res, next) => {
   try {
-    const { name, type, color, description } = req.body;
+    const { name, type, color, description, flow } = req.body;
 
-    const category = await Category.create({
+    const categoryPayload = {
       admin: req.user.id,
       name,
       type,
       color,
       description,
-    });
+    };
+
+    if (flow) {
+      categoryPayload.flow = flow;
+    }
+
+    const category = await Category.create(categoryPayload);
 
     res.status(201).json({ category });
   } catch (error) {
@@ -58,7 +135,13 @@ export const createCategory = async (req, res, next) => {
 export const updateCategory = async (req, res, next) => {
   try {
     const { categoryId } = req.params;
-    const update = pickCategoryUpdate(req.body);
+    const update = {
+      ...pickCategoryUpdate(req.body),
+    };
+
+    if (req.body.flow) {
+      update.flow = req.body.flow;
+    }
 
     const category = await Category.findOneAndUpdate(
       { _id: categoryId, admin: req.user.id },

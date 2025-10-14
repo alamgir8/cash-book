@@ -74,8 +74,7 @@ export const SearchableSelect = ({
 
   const handleSelect = (option: SelectOption) => {
     onSelect(option.value, option);
-    setVisible(false);
-    setSearch("");
+    closeModal();
   };
 
   const closeModal = () => {

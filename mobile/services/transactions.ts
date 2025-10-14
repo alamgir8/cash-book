@@ -10,6 +10,7 @@ export type TransactionCategory = {
   _id: string;
   name: string;
   type: string;
+  flow?: "credit" | "debit";
 };
 
 export type Transaction = {
@@ -79,30 +80,51 @@ const mapFilters = (filters: TransactionFilters) => {
 
 export const normalizeTransaction = (
   transaction: Record<string, any>
-): Transaction => ({
-  _id: transaction._id,
-  account: transaction.account ?? {
-    _id: transaction.account?._id ?? transaction.account,
-    name: transaction.account?.name ?? "",
-    kind: transaction.account?.kind,
-  },
-  category: transaction.category_id
+): Transaction => {
+  const categorySource = transaction.category_id ?? transaction.category;
+  const category: TransactionCategory | null = categorySource
     ? {
-        _id: transaction.category_id._id ?? transaction.category_id,
-        name: transaction.category_id.name ?? "",
-        type: transaction.category_id.type ?? "",
+        _id: categorySource._id ?? categorySource,
+        name: categorySource.name ?? "",
+        type: categorySource.type ?? "",
+        flow: categorySource.flow,
       }
-    : transaction.category ?? null,
-  type: transaction.type,
-  amount: Number(transaction.amount ?? 0),
-  date: transaction.date,
-  description: transaction.description ?? undefined,
-  keyword: transaction.keyword ?? undefined,
-  comment: transaction.comment ?? transaction.keyword ?? undefined,
-  counterparty: transaction.counterparty ?? undefined,
-  balance_after_transaction: transaction.balance_after_transaction,
-  is_deleted: transaction.is_deleted,
-});
+    : null;
+
+  const accountSource = transaction.account;
+  let account: TransactionAccount = {
+    _id: "",
+    name: "",
+  };
+
+  if (accountSource && typeof accountSource === "object") {
+    account = {
+      _id: accountSource._id ?? "",
+      name: accountSource.name ?? "",
+      kind: accountSource.kind,
+    };
+  } else if (accountSource) {
+    account = {
+      _id: accountSource,
+      name: "",
+    };
+  }
+
+  return {
+    _id: transaction._id,
+    account,
+    category,
+    type: transaction.type,
+    amount: Number(transaction.amount ?? 0),
+    date: transaction.date,
+    description: transaction.description ?? undefined,
+    keyword: transaction.keyword ?? undefined,
+    comment: transaction.comment ?? transaction.keyword ?? undefined,
+    counterparty: transaction.counterparty ?? undefined,
+    balance_after_transaction: transaction.balance_after_transaction,
+    is_deleted: transaction.is_deleted,
+  };
+};
 
 export const fetchTransactions = async (filters: TransactionFilters) => {
   const { data } = await api.get<{

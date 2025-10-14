@@ -4,6 +4,7 @@ export type Category = {
   _id: string;
   name: string;
   type: string;
+  flow: "credit" | "debit";
   description?: string;
   color?: string;
   archived?: boolean;

@@ -1,6 +1,8 @@
 import * as argon2 from "argon2";
 import { Admin } from "../models/Admin.js";
 import { RefreshToken } from "../models/RefreshToken.js";
+import { Category } from "../models/Category.js";
+import { DEFAULT_CATEGORIES } from "../constants/defaultCategories.js";
 import {
   createAccessToken,
   generateRefreshToken,
@@ -73,6 +75,22 @@ export const register = async (req, res, next) => {
     }
 
     const admin = await Admin.create(adminPayload);
+
+    if (DEFAULT_CATEGORIES.length > 0) {
+      try {
+        await Category.insertMany(
+          DEFAULT_CATEGORIES.map((category) => ({
+            admin: admin._id,
+            ...category,
+          })),
+          { ordered: false }
+        );
+      } catch (categoryError) {
+        if (categoryError.code !== 11000) {
+          console.warn("Failed to seed default categories", categoryError);
+        }
+      }
+    }
 
     const tokens = await issueSessionTokens({ admin, req });
 

@@ -182,27 +182,6 @@ export default function DashboardScreen() {
     [accountsQuery.data, formatAmount]
   );
 
-  const debitCategoryTypes = [
-    "expense",
-    "purchase",
-    "donation",
-    "loan_out",
-    "salary",
-    "other",
-  ];
-  const creditCategoryTypes = [
-    "income",
-    "sell",
-    "loan_in",
-    "donation",
-    "other",
-  ];
-
-  const allowedCategoryTypes = useMemo(
-    () => (selectedType === "credit" ? creditCategoryTypes : debitCategoryTypes),
-    [selectedType]
-  );
-
   const formatCategoryGroup = (type: string) =>
     type
       .split("_")
@@ -211,30 +190,27 @@ export default function DashboardScreen() {
 
   const categoryOptions = useMemo(() => {
     const categories = categoriesQuery.data ?? [];
+    const targetFlow = selectedType === "credit" ? "credit" : "debit";
     return categories
-      .filter((category) => allowedCategoryTypes.includes(category.type))
+      .filter((category) => category.flow === targetFlow)
       .map((category) => ({
         value: category._id,
         label: category.name,
         group: formatCategoryGroup(category.type),
       }))
       .sort((a, b) => (a.group ?? "").localeCompare(b.group ?? ""));
-  }, [categoriesQuery.data, allowedCategoryTypes]);
+  }, [categoriesQuery.data, selectedType]);
 
   useEffect(() => {
     if (!selectedCategoryId) return;
     const match = categoriesQuery.data?.find(
       (category) => category._id === selectedCategoryId
     );
-    if (match && !allowedCategoryTypes.includes(match.type)) {
+    const currentFlow = selectedType === "credit" ? "credit" : "debit";
+    if (match && match.flow !== currentFlow) {
       setValue("categoryId", "");
     }
-  }, [
-    allowedCategoryTypes,
-    categoriesQuery.data,
-    selectedCategoryId,
-    setValue,
-  ]);
+  }, [categoriesQuery.data, selectedCategoryId, selectedType, setValue]);
 
   const handleDateChange = (event: any, date?: Date) => {
     setShowDatePicker(false);

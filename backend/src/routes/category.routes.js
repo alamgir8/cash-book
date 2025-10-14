@@ -8,7 +8,10 @@ import {
 } from "../controllers/category.controller.js";
 import { authenticate } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
-import { CATEGORY_TYPE_OPTIONS } from "../models/Category.js";
+import {
+  CATEGORY_TYPE_OPTIONS,
+  CATEGORY_FLOW_OPTIONS,
+} from "../models/Category.js";
 
 const router = Router();
 
@@ -27,6 +30,7 @@ const createSchema = z.object({
     type: z.enum(CATEGORY_TYPE_OPTIONS),
     description: z.string().trim().max(512).optional(),
     color: z.string().trim().max(32).optional(),
+    flow: z.enum(CATEGORY_FLOW_OPTIONS).optional(),
   }),
   params: z.object({}).optional(),
   query: z.object({}).optional(),
@@ -39,13 +43,15 @@ const updateSchema = z.object({
       type: z.enum(CATEGORY_TYPE_OPTIONS).optional(),
       description: z.string().trim().max(512).optional(),
       color: z.string().trim().max(32).optional(),
+      flow: z.enum(CATEGORY_FLOW_OPTIONS).optional(),
     })
     .superRefine((data, ctx) => {
       if (
         data.name === undefined &&
         data.type === undefined &&
         data.description === undefined &&
-        data.color === undefined
+        data.color === undefined &&
+        data.flow === undefined
       ) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
