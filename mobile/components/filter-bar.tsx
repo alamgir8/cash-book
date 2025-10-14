@@ -62,6 +62,7 @@ export const FilterBar = ({
     ...filters,
     searchInput: filters.search || "",
     accountNameInput: filters.accountName || "",
+    financialScope: filters.financialScope ?? "actual",
   });
 
   useEffect(() => {
@@ -69,6 +70,7 @@ export const FilterBar = ({
       ...filters,
       searchInput: filters.search ?? "",
       accountNameInput: filters.accountName ?? "",
+      financialScope: filters.financialScope ?? "actual",
     });
   }, [filters]);
 
@@ -109,28 +111,28 @@ export const FilterBar = ({
       ? hasActiveFilters
       : Boolean(
           filters.startDate ||
-          filters.endDate ||
-          filters.accountId ||
-          filters.categoryId ||
-          filters.counterparty ||
-          filters.financialScope ||
-          filters.type ||
-          filters.search ||
-          filters.q ||
-          filters.accountName ||
-          filters.minAmount !== undefined ||
-          filters.maxAmount !== undefined ||
-          filters.includeDeleted
+            filters.endDate ||
+            filters.accountId ||
+            filters.categoryId ||
+            filters.counterparty ||
+            (filters.financialScope && filters.financialScope !== "actual") ||
+            filters.type ||
+            filters.search ||
+            filters.q ||
+            filters.accountName ||
+            filters.minAmount !== undefined ||
+            filters.maxAmount !== undefined ||
+            filters.includeDeleted
         );
 
   const financialScopeOptions: Array<{
     label: string;
-    value: "actual" | "income" | "expense" | undefined;
+    value: "actual" | "income" | "expense" | "both";
   }> = [
-    { label: "All", value: undefined },
     { label: "Actual", value: "actual" },
     { label: "Income", value: "income" },
     { label: "Expense", value: "expense" },
+    { label: "Both", value: "both" },
   ];
 
   return (
@@ -138,6 +140,8 @@ export const FilterBar = ({
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
+        nestedScrollEnabled
+        contentContainerStyle={{ paddingRight: 12 }}
         className="flex-row gap-2.5"
       >
         {ranges.map((range) => (
@@ -250,9 +254,8 @@ export const FilterBar = ({
               <View className="flex-row gap-2 flex-wrap">
                 {financialScopeOptions.map((option) => {
                   const isActive =
-                    option.value === undefined
-                      ? !formFilters.financialScope
-                      : formFilters.financialScope === option.value;
+                    formFilters.financialScope === option.value ||
+                    (!formFilters.financialScope && option.value === "actual");
                   return (
                     <TouchableOpacity
                       key={option.label}
@@ -495,9 +498,7 @@ export const FilterBar = ({
                   updatedFilters.counterparty = counterparty;
                 }
 
-                if (financialScope) {
-                  updatedFilters.financialScope = financialScope;
-                }
+                updatedFilters.financialScope = financialScope ?? "actual";
 
                 if (searchInput && searchInput.trim().length > 0) {
                   updatedFilters.search = searchInput.trim();
@@ -519,6 +520,7 @@ export const FilterBar = ({
                 label="Reset"
                 onPress={() => {
                   onReset();
+                  setExpanded(false);
                 }}
                 variant="outline"
                 size="small"

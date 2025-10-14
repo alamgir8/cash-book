@@ -4,15 +4,15 @@ import { Account } from "../models/Account.js";
 import { Category } from "../models/Category.js";
 import { Transaction } from "../models/Transaction.js";
 import { buildTransactionFilters } from "../utils/filters.js";
-import { resolveFinancialCategoryIds } from "../utils/financialCategories.js";
+import { resolveFinancialCategoryScope } from "../utils/financialCategories.js";
 
 const buildScopedFilter = async ({ req, extraQuery = {} }) => {
   const financialScope =
     req.query.financialScope ?? req.query.financial_scope ?? null;
 
-  let allowedCategoryIds = null;
+  let categoryScope = null;
   if (financialScope) {
-    allowedCategoryIds = await resolveFinancialCategoryIds({
+    categoryScope = await resolveFinancialCategoryScope({
       adminId: req.user.id,
       scope: financialScope,
     });
@@ -21,7 +21,7 @@ const buildScopedFilter = async ({ req, extraQuery = {} }) => {
   return buildTransactionFilters({
     adminId: req.user.id,
     query: { ...req.query, ...extraQuery },
-    allowedCategoryIds,
+    categoryScope,
   });
 };
 

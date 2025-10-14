@@ -14,36 +14,50 @@ const EXPENSE_CATEGORY_TYPES = [
   "other_expense",
 ];
 
-const FINANCIAL_SCOPE_MAP = {
-  actual: [...INCOME_CATEGORY_TYPES, ...EXPENSE_CATEGORY_TYPES],
-  income: INCOME_CATEGORY_TYPES,
-  expense: EXPENSE_CATEGORY_TYPES,
-  actual_income: INCOME_CATEGORY_TYPES,
-  actual_expense: EXPENSE_CATEGORY_TYPES,
+const FINANCIAL_SCOPE_CONFIG = {
+  actual: {
+    types: [...INCOME_CATEGORY_TYPES, ...EXPENSE_CATEGORY_TYPES],
+    includeUncategorized: true,
+  },
+  income: {
+    types: INCOME_CATEGORY_TYPES,
+    includeUncategorized: false,
+  },
+  expense: {
+    types: EXPENSE_CATEGORY_TYPES,
+    includeUncategorized: false,
+  },
+  both: {
+    types: [...INCOME_CATEGORY_TYPES, ...EXPENSE_CATEGORY_TYPES],
+    includeUncategorized: false,
+  },
 };
 
 const normalizeScopeKey = (value) => {
   if (!value || typeof value !== "string") return null;
   const trimmed = value.toLowerCase().trim();
-  return FINANCIAL_SCOPE_MAP[trimmed] ? trimmed : null;
+  return FINANCIAL_SCOPE_CONFIG[trimmed] ? trimmed : null;
 };
 
-export const resolveFinancialCategoryIds = async ({ adminId, scope }) => {
+export const resolveFinancialCategoryScope = async ({ adminId, scope }) => {
   const key = normalizeScopeKey(scope);
   if (!key) return null;
 
-  const types = FINANCIAL_SCOPE_MAP[key];
-  if (!types || types.length === 0) {
-    return [];
+  const config = FINANCIAL_SCOPE_CONFIG[key];
+  if (!config?.types?.length) {
+    return { ids: [], includeUncategorized: Boolean(config?.includeUncategorized) };
   }
 
   const categories = await Category.find({
     admin: adminId,
-    type: { $in: types },
+    type: { $in: config.types },
     archived: { $ne: true },
   })
     .select("_id")
     .lean();
 
-  return categories.map((category) => category._id);
+  return {
+    ids: categories.map((category) => category._id),
+    includeUncategorized: Boolean(config.includeUncategorized),
+  };
 };

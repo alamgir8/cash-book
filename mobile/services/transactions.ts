@@ -39,7 +39,7 @@ export type TransactionFilters = {
   accountName?: string;
   categoryId?: string;
   counterparty?: string;
-  financialScope?: "actual" | "income" | "expense";
+  financialScope?: "actual" | "income" | "expense" | "both";
   type?: "debit" | "credit";
   q?: string;
   search?: string;

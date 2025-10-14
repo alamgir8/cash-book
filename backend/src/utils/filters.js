@@ -38,7 +38,7 @@ const asObjectIdArray = (ids = []) =>
 export const buildTransactionFilters = ({
   adminId,
   query,
-  allowedCategoryIds,
+  categoryScope,
 }) => {
   const filter = {
     admin: new mongoose.Types.ObjectId(adminId),
@@ -73,42 +73,35 @@ export const buildTransactionFilters = ({
     }
   }
 
-  if (Array.isArray(allowedCategoryIds)) {
-    const allowedObjectIds = asObjectIdArray(allowedCategoryIds);
-    const allowUncategorized = true;
+  if (categoryScope) {
+    const allowedObjectIds = asObjectIdArray(categoryScope.ids ?? []);
+    const allowUncategorized = Boolean(categoryScope.includeUncategorized);
+
+    const scopeClauses = [];
+    if (allowedObjectIds.length > 0) {
+      scopeClauses.push({ category_id: { $in: allowedObjectIds } });
+    }
+    if (allowUncategorized) {
+      scopeClauses.push({ category_id: { $exists: false } });
+      scopeClauses.push({ category_id: null });
+    }
+    if (scopeClauses.length === 0) {
+      scopeClauses.push({ category_id: { $in: [] } });
+    }
+
+    const scopeCondition = scopeClauses.length === 1
+      ? scopeClauses[0]
+      : { $or: scopeClauses };
 
     const userCategoryCondition = filter.category_id;
     if (userCategoryCondition) {
       delete filter.category_id;
-    }
-
-    if (userCategoryCondition) {
       filter.$and = filter.$and ?? [];
       filter.$and.push({ category_id: userCategoryCondition });
-
-      if (allowedObjectIds.length > 0) {
-        filter.$and.push({ category_id: { $in: allowedObjectIds } });
-      } else if (!allowUncategorized) {
-        filter.$and.push({ category_id: { $in: [] } });
-      } else {
-        filter.$and.push({ category_id: { $in: [] } });
-      }
+      filter.$and.push(scopeCondition);
     } else {
-      const scopeConditions = [];
-      if (allowedObjectIds.length > 0) {
-        scopeConditions.push({ category_id: { $in: allowedObjectIds } });
-      }
-      if (allowUncategorized) {
-        scopeConditions.push({ category_id: { $exists: false } });
-        scopeConditions.push({ category_id: null });
-      }
-
-      if (scopeConditions.length === 0) {
-        filter.$and = filter.$and ?? [];
-        filter.$and.push({ category_id: { $in: [] } });
-      } else {
-        filter.$or = [...(filter.$or ?? []), ...scopeConditions];
-      }
+      filter.$and = filter.$and ?? [];
+      filter.$and.push(scopeCondition);
     }
   }
 

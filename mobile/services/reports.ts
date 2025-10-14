@@ -379,9 +379,10 @@ const buildFiltersSection = (
 
   if (display.financialScope) {
     const scopeLabels: Record<string, string> = {
-      actual: "Actual income & expense",
-      income: "Actual income",
-      expense: "Actual expense",
+      actual: "Actual (income & expense)",
+      income: "Income only",
+      expense: "Expense only",
+      both: "Income & expense",
     };
     const scopeLabel = scopeLabels[display.financialScope] ?? capitalize(display.financialScope);
     chips.push(`Scope: ${scopeLabel}`);
@@ -437,6 +438,7 @@ const buildReportHtml = ({
   currencySymbol,
   displayFilters,
   totalCount,
+  showBalanceColumn,
 }: {
   transactions: Transaction[];
   totals: Totals;
@@ -445,6 +447,7 @@ const buildReportHtml = ({
   currencySymbol?: string;
   displayFilters: DisplayFilters;
   totalCount: number;
+  showBalanceColumn: boolean;
 }): string => {
   const title = accountName
     ? `${accountName} · Transactions Report`
@@ -502,14 +505,18 @@ const buildReportHtml = ({
                 <td class="${amountClass} col-amt">${escapeHtml(
               formatAmount(txn.amount, currencySymbol)
             )}</td>
-                <td class="amount balance col-bal">${escapeHtml(
-                  formatAmount(balanceAfter, currencySymbol)
-                )}</td>
+                ${
+                  showBalanceColumn
+                    ? `<td class="amount balance col-bal">${escapeHtml(
+                        formatAmount(balanceAfter, currencySymbol)
+                      )}</td>`
+                    : ""
+                }
               </tr>
             `;
           })
           .join("")
-      : `<tr><td class="empty" colspan="9">No transactions found for the selected filters.</td></tr>`;
+      : `<tr><td class="empty" colspan="${showBalanceColumn ? 9 : 8}">No transactions found for the selected filters.</td></tr>`;
 
   const bannerClass = totals.net >= 0 ? "banner positive" : "banner negative";
 
@@ -812,17 +819,17 @@ const buildReportHtml = ({
       <table>
         <thead>
           <tr>
-            <th>#</th>
-            <th>Date</th>
-            <th>Account</th>
-            <th>Category</th>
-            <th>Counterparty</th>
-            <th>Type</th>
-            <th>Description</th>
-            <th>Amount</th>
-            <th>Balance</th>
-          </tr>
-        </thead>
+          <th>#</th>
+          <th>Date</th>
+          <th>Account</th>
+          <th>Category</th>
+          <th>Counterparty</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Amount</th>
+          ${showBalanceColumn ? "<th>Balance</th>" : ""}
+        </tr>
+      </thead>
         <tbody>
           ${rows}
         </tbody>
@@ -894,6 +901,8 @@ export const exportTransactionsPdf = async (
     currencySymbol,
     displayFilters: display,
     totalCount: total,
+    showBalanceColumn:
+      !filters.financialScope || filters.financialScope === "actual",
   });
 
   const { uri } = await Print.printToFileAsync({ html });
