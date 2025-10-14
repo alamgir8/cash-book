@@ -13,23 +13,26 @@ import Toast from "react-native-toast-message";
 import {
   getApiErrorMessage,
   setAuthToken,
+  setTokenRefreshHandler,
   setUnauthorizedHandler,
 } from "../lib/api";
 import * as authService from "../services/auth";
 import type {
-  AuthResponse,
+  AuthSessionResponse,
+  AuthTokens,
   LoginRequest,
   SignupRequest,
   UpdateProfileRequest,
   User as Admin,
 } from "../services/auth";
 
-const STORAGE_TOKEN_KEY = "debit-credit-token";
+const LEGACY_TOKEN_KEY = "debit-credit-token";
+const STORAGE_SESSION_KEY = "cash-book-auth-session";
 
 type AuthState =
-  | { status: "loading"; user: null; token: null }
-  | { status: "unauthenticated"; user: null; token: null }
-  | { status: "authenticated"; user: Admin; token: string };
+  | { status: "loading"; user: null; tokens: null }
+  | { status: "unauthenticated"; user: null; tokens: null }
+  | { status: "authenticated"; user: Admin; tokens: AuthTokens };
 
 type AuthContextType = {
   state: AuthState;
@@ -50,7 +53,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [state, setState] = useState<AuthState>({
     status: "loading",
     user: null,
-    token: null,
+    tokens: null,
   });
   const stateRef = useRef(state);
   useEffect(() => {
@@ -59,32 +62,58 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   const handlingUnauthorized = useRef(false);
 
+  const persistSession = useCallback(async (tokens: AuthTokens) => {
+    try {
+      await SecureStore.setItemAsync(
+        STORAGE_SESSION_KEY,
+        JSON.stringify(tokens)
+      );
+      await SecureStore.setItemAsync(LEGACY_TOKEN_KEY, tokens.accessToken);
+    } catch (error) {
+      console.warn("Failed to persist auth session", error);
+    }
+  }, []);
+
   const clearSession = useCallback(async () => {
     setAuthToken();
     try {
-      await SecureStore.deleteItemAsync(STORAGE_TOKEN_KEY);
+      await SecureStore.deleteItemAsync(STORAGE_SESSION_KEY);
+      await SecureStore.deleteItemAsync(LEGACY_TOKEN_KEY);
     } catch (error) {
-      console.warn("Failed to delete auth token", error);
+      console.warn("Failed to clear stored session", error);
     }
-    setState({ status: "unauthenticated", user: null, token: null });
+    setState({ status: "unauthenticated", user: null, tokens: null });
   }, []);
 
-  const applySession = useCallback(async ({ token, admin }: AuthResponse) => {
-    setAuthToken(token);
+  const applySession = useCallback(
+    async ({ tokens, admin }: AuthSessionResponse) => {
+      setAuthToken(tokens.accessToken);
+      await persistSession(tokens);
+      setState({ status: "authenticated", tokens, user: admin });
+    },
+    [persistSession]
+  );
+
+  const refreshAccessToken = useCallback(async () => {
+    const current = stateRef.current;
+    if (current.status !== "authenticated") return null;
     try {
-      await SecureStore.setItemAsync(STORAGE_TOKEN_KEY, token);
+      const refreshed = await authService.refreshSession(
+        current.tokens.refreshToken
+      );
+      await applySession(refreshed);
+      return refreshed.tokens.accessToken;
     } catch (error) {
-      console.warn("Failed to persist auth token", error);
+      await clearSession();
+      return null;
     }
-    setState({ status: "authenticated", token, user: admin });
-  }, []);
+  }, [applySession, clearSession]);
 
   const handleUnauthorized = useCallback(async () => {
     if (handlingUnauthorized.current) return;
     handlingUnauthorized.current = true;
 
     const previousState = stateRef.current;
-
     try {
       await clearSession();
       if (previousState.status === "authenticated") {
@@ -101,27 +130,62 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   const bootstrap = useCallback(async () => {
     try {
-      const token = await SecureStore.getItemAsync(STORAGE_TOKEN_KEY);
-      if (!token) {
+      const stored = await SecureStore.getItemAsync(STORAGE_SESSION_KEY);
+      if (!stored) {
         await clearSession();
         return;
       }
 
-      setAuthToken(token);
-      const profile = await authService.getProfile();
-      setState({ status: "authenticated", token, user: profile.admin });
+      let tokens: AuthTokens | null = null;
+      try {
+        tokens = JSON.parse(stored) as AuthTokens;
+      } catch (parseError) {
+        console.warn("Failed to parse stored session", parseError);
+        await clearSession();
+        return;
+      }
+
+      if (!tokens?.accessToken || !tokens.refreshToken) {
+        await clearSession();
+        return;
+      }
+
+      setAuthToken(tokens.accessToken);
+      try {
+        const profile = await authService.getProfile();
+        await persistSession(tokens);
+        setState({
+          status: "authenticated",
+          tokens,
+          user: profile.admin,
+        });
+      } catch (profileError) {
+        try {
+          const refreshed = await authService.refreshSession(
+            tokens.refreshToken
+          );
+          await applySession(refreshed);
+        } catch (refreshError) {
+          console.warn("Failed to refresh session during bootstrap", refreshError);
+          await clearSession();
+        }
+      }
     } catch (error) {
       console.warn("Failed to bootstrap session", error);
       await clearSession();
     }
-  }, [clearSession]);
+  }, [applySession, clearSession, persistSession]);
 
   useEffect(() => {
     setUnauthorizedHandler(() => {
       void handleUnauthorized();
     });
-    return () => setUnauthorizedHandler();
-  }, [handleUnauthorized]);
+    setTokenRefreshHandler(() => refreshAccessToken());
+    return () => {
+      setUnauthorizedHandler();
+      setTokenRefreshHandler();
+    };
+  }, [handleUnauthorized, refreshAccessToken]);
 
   useEffect(() => {
     bootstrap();
@@ -164,6 +228,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   );
 
   const signOut = useCallback(async () => {
+    const current = stateRef.current;
+    if (current.status === "authenticated") {
+      await authService.logout(current.tokens.refreshToken);
+    }
     await clearSession();
   }, [clearSession]);
 
@@ -174,7 +242,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       setState((prev) =>
         prev.status === "authenticated"
           ? { ...prev, user: data.admin }
-          : { status: "unauthenticated", user: null, token: null }
+          : { status: "unauthenticated", user: null, tokens: null }
       );
     } catch (error) {
       console.warn("Failed to refresh profile", error);
@@ -188,7 +256,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       setState((prev) =>
         prev.status === "authenticated"
           ? { ...prev, user: data.admin }
-          : { status: "unauthenticated", user: null, token: null }
+          : { status: "unauthenticated", user: null, tokens: null }
       );
       Toast.show({ type: "success", text1: "Profile updated successfully" });
     } catch (error) {

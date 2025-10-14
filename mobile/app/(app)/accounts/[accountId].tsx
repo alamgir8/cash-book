@@ -20,9 +20,11 @@ import {
   fetchAccountDetail,
   fetchAccountTransactions,
 } from "../../../services/accounts";
+import { fetchCategories } from "../../../services/categories";
 import { queryKeys } from "../../../lib/queryKeys";
 import type { TransactionFilters } from "../../../services/transactions";
 import { usePreferences } from "@/hooks/usePreferences";
+import type { SelectOption } from "../../../components/searchable-select";
 
 const defaultFilters: TransactionFilters = {
   range: "monthly",
@@ -40,8 +42,24 @@ export default function AccountDetailScreen() {
 
   const [filters, setFilters] = useState<TransactionFilters>({
     ...defaultFilters,
+    ...(accountId ? { accountId } : {}),
   });
   const [exporting, setExporting] = useState(false);
+
+  const categoriesQuery = useQuery({
+    queryKey: queryKeys.categories,
+    queryFn: fetchCategories,
+  });
+
+  const categoryOptions: SelectOption[] = useMemo(() => {
+    const categories = categoriesQuery.data ?? [];
+    return categories.map((category) => ({
+      value: category._id,
+      label: category.name,
+      subtitle: category.flow === "credit" ? "Credit" : "Debit",
+      group: category.flow === "credit" ? "Credit" : "Debit",
+    }));
+  }, [categoriesQuery.data]);
 
   const detailQuery = useQuery({
     queryKey: accountId
@@ -74,7 +92,10 @@ export default function AccountDetailScreen() {
   };
 
   const handleResetFilters = () => {
-    setFilters({ ...defaultFilters });
+    setFilters({
+      ...defaultFilters,
+      ...(accountId ? { accountId } : {}),
+    });
   };
 
   const handleExport = async () => {
@@ -256,6 +277,8 @@ export default function AccountDetailScreen() {
         onChange={handleFilterChange}
         showAccountField={false}
         showTypeToggle
+        showCategoryField
+        categories={categoryOptions}
         onReset={handleResetFilters}
         onApplyFilters={() => transactionsQuery.refetch()}
       />
@@ -302,7 +325,18 @@ export default function AccountDetailScreen() {
             </View>
           )
         }
-        renderItem={({ item }) => <TransactionCard transaction={item} />}
+        renderItem={({ item }) => (
+          <TransactionCard
+            transaction={item}
+            onCategoryPress={(categoryId) =>
+              setFilters((prev) => ({
+                ...prev,
+                categoryId: categoryId || undefined,
+                page: 1,
+              }))
+            }
+          />
+        )}
         refreshControl={
           <RefreshControl
             refreshing={transactionsQuery.isRefetching}

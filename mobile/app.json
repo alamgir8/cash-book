@@ -10,7 +10,7 @@
     "splash": {
       "resizeMode": "contain",
       "backgroundColor": "#ffffff",
-      "image": "./image/splash.png"
+      "image": "./image/logo.png"
     },
     "ios": {
       "supportsTablet": true,
@@ -19,7 +19,7 @@
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#ffffff",
-        "foregroundImage": "./image/icon.png"
+        "foregroundImage": "./image/logo.png"
       },
       "package": "com.cashbook.app"
     },

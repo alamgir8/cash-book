@@ -1,13 +1,14 @@
-import { View, Text } from "react-native";
+import { View, Text, TouchableOpacity } from "react-native";
 import dayjs from "dayjs";
 import type { Transaction } from "../services/transactions";
 import { usePreferences } from "../hooks/usePreferences";
 
 type Props = {
   transaction: Transaction;
+  onCategoryPress?: (categoryId: string) => void;
 };
 
-export const TransactionCard = ({ transaction }: Props) => {
+export const TransactionCard = ({ transaction, onCategoryPress }: Props) => {
   const { formatAmount } = usePreferences();
   const isCredit = transaction.type === "credit";
   const amountColor = isCredit ? "text-green-600" : "text-red-600";
@@ -54,6 +55,22 @@ export const TransactionCard = ({ transaction }: Props) => {
         <Text className="text-gray-700 mt-3 text-sm leading-5">
           {transaction.description}
         </Text>
+      ) : null}
+
+      {transaction.category ? (
+        <TouchableOpacity
+          activeOpacity={onCategoryPress ? 0.8 : 1}
+          onPress={() => {
+            if (transaction.category?._id && onCategoryPress) {
+              onCategoryPress(transaction.category._id);
+            }
+          }}
+          className="self-start mt-3 px-3 py-1 rounded-full bg-blue-50 border border-blue-100"
+        >
+          <Text className="text-xs font-semibold text-blue-700">
+            {transaction.category.name}
+          </Text>
+        </TouchableOpacity>
       ) : null}
 
       {transaction.counterparty ? (

@@ -1,4 +1,8 @@
-import axios, { AxiosHeaders, type AxiosRequestHeaders } from "axios";
+import axios, {
+  AxiosHeaders,
+  type AxiosRequestHeaders,
+  type AxiosRequestConfig,
+} from "axios";
 import Constants from "expo-constants";
 import { NativeModules } from "react-native";
 
@@ -68,10 +72,20 @@ export const api = axios.create({
 });
 
 let currentToken: string | null = null;
-let unauthorizedHandler: (() => void) | null = null;
+let unauthorizedHandler: (() => void | Promise<void>) | null = null;
+let tokenRefreshHandler: (() => Promise<string | null>) | null = null;
+let refreshPromise: Promise<string | null> | null = null;
 
-export const setUnauthorizedHandler = (handler?: () => void) => {
+export const setUnauthorizedHandler = (
+  handler?: (() => void | Promise<void>) | null
+) => {
   unauthorizedHandler = handler ?? null;
+};
+
+export const setTokenRefreshHandler = (
+  handler?: (() => Promise<string | null>) | null
+) => {
+  tokenRefreshHandler = handler ?? null;
 };
 
 export const setAuthToken = (token?: string) => {
@@ -107,12 +121,53 @@ api.interceptors.request.use((config) => {
 
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (axios.isAxiosError(error)) {
-      if (error.response?.status === 401 && currentToken) {
-        unauthorizedHandler?.();
+  async (error) => {
+    if (!axios.isAxiosError(error)) {
+      return Promise.reject(error);
+    }
+
+    const originalRequest = error.config as AxiosRequestConfig & {
+      _retry?: boolean;
+    };
+
+    if (
+      error.response?.status === 401 &&
+      tokenRefreshHandler &&
+      !originalRequest?._retry
+    ) {
+      originalRequest._retry = true;
+
+      try {
+        if (!refreshPromise) {
+          refreshPromise = tokenRefreshHandler().finally(() => {
+            refreshPromise = null;
+          });
+        }
+
+        const newToken = await refreshPromise;
+
+        if (newToken) {
+          if (!originalRequest.headers) {
+            originalRequest.headers = new AxiosHeaders();
+          }
+          if (originalRequest.headers instanceof AxiosHeaders) {
+            originalRequest.headers.set("Authorization", `Bearer ${newToken}`);
+          } else {
+            (originalRequest.headers as Record<string, string>).Authorization =
+              `Bearer ${newToken}`;
+          }
+          return api(originalRequest);
+        }
+      } catch (refreshError) {
+        await Promise.resolve(unauthorizedHandler?.());
+        return Promise.reject(refreshError);
       }
     }
+
+    if (error.response?.status === 401 && currentToken) {
+      await Promise.resolve(unauthorizedHandler?.());
+    }
+
     return Promise.reject(error);
   }
 );

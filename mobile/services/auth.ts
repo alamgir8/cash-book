@@ -44,10 +44,26 @@ export type UpdateProfileRequest = {
     language?: string;
     week_starts_on?: number;
   };
+  profile_settings?: {
+    currency_code?: string;
+    currency_symbol?: string;
+    language?: string;
+    locale?: string;
+    date_format?: string;
+    time_format?: string;
+    week_starts_on?: number;
+  };
 };
 
-export type AuthResponse = {
-  token: string;
+export type AuthTokens = {
+  accessToken: string;
+  refreshToken: string;
+  refreshTokenExpiresAt?: string;
+  sessionId?: string;
+};
+
+export type AuthSessionResponse = {
+  tokens: AuthTokens;
   admin: User;
 };
 
@@ -71,24 +87,32 @@ const normalizeUser = (admin: any): User => {
   return normalized;
 };
 
-const normalizeAuthResponse = (data: any): AuthResponse => {
+const normalizeAuthResponse = (data: any): AuthSessionResponse => {
   if (data?.admin) {
     data.admin = normalizeUser(data.admin);
   }
 
   const accessToken = data?.token ?? data?.access_token;
+  const refreshToken = data?.refresh_token;
 
-  if (!accessToken || !data?.admin) {
-    throw new Error("Authentication response missing token");
+  if (!accessToken || !refreshToken || !data?.admin) {
+    throw new Error("Authentication response missing token information");
   }
 
   return {
-    token: accessToken,
+    tokens: {
+      accessToken,
+      refreshToken,
+      refreshTokenExpiresAt: data?.refresh_token_expires_at,
+      sessionId: data?.session_id,
+    },
     admin: data.admin,
   };
 };
 
-export const login = async (data: LoginRequest): Promise<AuthResponse> => {
+export const login = async (
+  data: LoginRequest
+): Promise<AuthSessionResponse> => {
   const payload = {
     email: data.identifier?.trim().toLowerCase(),
     password: data.password,
@@ -97,9 +121,29 @@ export const login = async (data: LoginRequest): Promise<AuthResponse> => {
   return normalizeAuthResponse(response.data);
 };
 
-export const signup = async (data: SignupRequest): Promise<AuthResponse> => {
+export const signup = async (
+  data: SignupRequest
+): Promise<AuthSessionResponse> => {
   const response = await api.post("/auth/signup", data);
   return normalizeAuthResponse(response.data);
+};
+
+export const refreshSession = async (
+  refreshToken: string
+): Promise<AuthSessionResponse> => {
+  const response = await api.post("/auth/refresh", {
+    refresh_token: refreshToken,
+  });
+  return normalizeAuthResponse(response.data);
+};
+
+export const logout = async (refreshToken?: string | null) => {
+  try {
+    await api.post("/auth/logout", refreshToken ? { refresh_token: refreshToken } : {});
+  } catch (error) {
+    // swallow logout errors to avoid blocking client-side sign out
+    console.warn("Logout request failed", error);
+  }
 };
 
 export const getProfile = async (): Promise<{ admin: User }> => {

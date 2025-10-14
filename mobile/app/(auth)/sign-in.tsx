@@ -1,6 +1,6 @@
 import { Link, useRouter } from "expo-router";
 import { useState } from "react";
-import { View, Text } from "react-native";
+import { View, Text, Image } from "react-native";
 import { useForm, Controller } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -61,6 +61,11 @@ export default function SignInScreen() {
         <Text className="text-lg text-slate-600 text-center leading-6">
           Manage your debit and credit accounts effortlessly.
         </Text>
+        {/* <Image
+          source={require("../../image/logo.png")}
+          className="w-64 h-64 mt-6"
+          resizeMode="contain"
+        /> */}
       </View>
 
       <View className="gap-6">

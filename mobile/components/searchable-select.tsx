@@ -60,13 +60,18 @@ export const SearchableSelect = ({
 
     const items: RenderItem[] = [];
     let previousGroup: string | undefined;
+    let fallbackCounter = 0;
 
     filtered.forEach((option) => {
       if (option.group && option.group !== previousGroup) {
         items.push({ type: "GROUP", id: `group-${option.group}`, title: option.group });
         previousGroup = option.group;
       }
-      items.push({ type: "OPTION", id: option.value, option });
+      const id =
+        option.value && option.value.length > 0
+          ? option.value
+          : `option-empty-${fallbackCounter++}`;
+      items.push({ type: "OPTION", id, option });
     });
 
     return items;

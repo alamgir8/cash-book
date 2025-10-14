@@ -59,11 +59,7 @@ const mapFilters = (filters: TransactionFilters) => {
   if (filters.type) params.type = filters.type;
   if (filters.q || filters.search)
     params.q = filters.q ?? filters.search;
-  if (filters.accountName) {
-    params.q = params.q
-      ? `${params.q} ${filters.accountName}`
-      : filters.accountName;
-  }
+  if (filters.accountName) params.accountName = filters.accountName;
   if (filters.minAmount !== undefined && filters.minAmount !== null) {
     const value = Number(filters.minAmount);
     if (!Number.isNaN(value)) params.minAmount = value;

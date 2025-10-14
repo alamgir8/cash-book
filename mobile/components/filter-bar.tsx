@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -11,6 +11,9 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
 import { ActionButton } from "./action-button";
 import type { TransactionFilters } from "../services/transactions";
+import SearchableSelect, {
+  type SelectOption,
+} from "./searchable-select";
 
 const ranges = [
   { label: "Daily", value: "daily" },
@@ -24,6 +27,8 @@ type Props = {
   onChange: (filters: TransactionFilters) => void;
   showAccountField?: boolean;
   showTypeToggle?: boolean;
+  showCategoryField?: boolean;
+  categories?: SelectOption[];
   onReset?: () => void;
   onApplyFilters?: () => void;
 };
@@ -39,6 +44,8 @@ export const FilterBar = ({
   onChange,
   showAccountField = true,
   showTypeToggle = false,
+  showCategoryField = false,
+  categories,
   onReset,
   onApplyFilters,
 }: Props) => {
@@ -50,6 +57,14 @@ export const FilterBar = ({
     searchInput: filters.search || "",
     accountNameInput: filters.accountName || "",
   });
+
+  useEffect(() => {
+    setFormFilters({
+      ...filters,
+      searchInput: filters.search ?? "",
+      accountNameInput: filters.accountName ?? "",
+    });
+  }, [filters]);
 
   // Convert date strings to Date objects for the picker
   const startDate = formFilters.startDate
@@ -255,6 +270,32 @@ export const FilterBar = ({
             ) : null}
           </View>
 
+          {showCategoryField && categories ? (
+            <View>
+              <SearchableSelect
+                label="Category"
+                placeholder={
+                  categories.length === 0
+                    ? "No categories"
+                    : "Filter by category"
+                }
+                value={formFilters.categoryId ?? ""}
+                options={
+                  categories.length > 0
+                    ? [{ value: "", label: "All categories" }, ...categories]
+                    : [{ value: "", label: "All categories" }]
+                }
+                onSelect={(val) =>
+                  setFormFilters({
+                    ...formFilters,
+                    categoryId: val || undefined,
+                  })
+                }
+                disabled={categories.length === 0}
+              />
+            </View>
+          ) : null}
+
           <View className="flex-row gap-3">
             <View className="flex-1">
               <Text className="text-gray-700 text-sm font-semibold mb-1.5">
@@ -315,12 +356,33 @@ export const FilterBar = ({
             <ActionButton
               label="Apply Filters"
               onPress={() => {
-                const updatedFilters = {
-                  ...formFilters,
-                  search: formFilters.searchInput,
-                  accountName: formFilters.accountNameInput,
+                const {
+                  searchInput,
+                  accountNameInput,
+                  ...rest
+                } = formFilters;
+                const {
+                  categoryId,
+                  search: _ignoreSearch,
+                  accountName: _ignoreAccountName,
+                  ...other
+                } = rest;
+                const updatedFilters: TransactionFilters = {
+                  ...other,
                   page: 1,
                 };
+
+                if (categoryId) {
+                  updatedFilters.categoryId = categoryId;
+                }
+
+                if (searchInput && searchInput.trim().length > 0) {
+                  updatedFilters.search = searchInput.trim();
+                }
+
+                if (accountNameInput && accountNameInput.trim().length > 0) {
+                  updatedFilters.accountName = accountNameInput.trim();
+                }
                 onChange(updatedFilters);
                 onApplyFilters?.();
               }}
@@ -338,6 +400,7 @@ export const FilterBar = ({
                     page: 1,
                     searchInput: "",
                     accountNameInput: "",
+                    categoryId: undefined,
                   };
                   setFormFilters(resetFilters);
                   onReset();

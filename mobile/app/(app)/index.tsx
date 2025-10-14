@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -191,7 +191,7 @@ export default function DashboardScreen() {
   const categoryOptions = useMemo(() => {
     const categories = categoriesQuery.data ?? [];
     const targetFlow = selectedType === "credit" ? "credit" : "debit";
-    return categories
+    const sorted = categories
       .filter((category) => category.flow === targetFlow)
       .map((category) => ({
         value: category._id,
@@ -199,6 +199,8 @@ export default function DashboardScreen() {
         group: formatCategoryGroup(category.type),
       }))
       .sort((a, b) => (a.group ?? "").localeCompare(b.group ?? ""));
+
+    return [{ value: "", label: "No category" }, ...sorted];
   }, [categoriesQuery.data, selectedType]);
 
   useEffect(() => {
@@ -290,6 +292,14 @@ export default function DashboardScreen() {
     });
   };
 
+  const handleCategoryFilter = useCallback((categoryId?: string) => {
+    setFilters((prev) => ({
+      ...prev,
+      categoryId: categoryId || undefined,
+      page: 1,
+    }));
+  }, []);
+
   const renderHeader = () => {
     const transactionCount =
       (transactionsQuery.data as any)?.transactions?.length || 0;
@@ -335,11 +345,13 @@ export default function DashboardScreen() {
           onApplyFilters={() => transactionsQuery.refetch()}
           onReset={() => {
             setFilters({
-              range: "daily",
-              page: 1,
+              ...defaultFilters,
+              categoryId: undefined,
             });
             transactionsQuery.refetch();
           }}
+          showCategoryField
+          categories={categoryOptions}
         />
       </View>
     );
@@ -392,7 +404,12 @@ export default function DashboardScreen() {
             />
           )
         }
-        renderItem={({ item }) => <TransactionCard transaction={item} />}
+        renderItem={({ item }) => (
+          <TransactionCard
+            transaction={item}
+            onCategoryPress={handleCategoryFilter}
+          />
+        )}
       />
 
       <FloatingActionButton
@@ -451,7 +468,7 @@ export default function DashboardScreen() {
                             value={value}
                             options={accountOptions}
                             onSelect={(val) =>
-                              onChange(val)
+                              onChange(val || undefined)
                             }
                             disabled={
                               accountsQuery.isLoading ||
@@ -484,7 +501,7 @@ export default function DashboardScreen() {
                             }
                             value={value}
                             options={categoryOptions}
-                            onSelect={(val) => onChange(val)}
+                            onSelect={(val) => onChange(val || undefined)}
                             disabled={
                               categoriesQuery.isLoading ||
                               categoryOptions.length === 0
