@@ -9,15 +9,12 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import Toast from "react-native-toast-message";
-import SearchableSelect, {
-  type SelectOption,
-} from "./searchable-select";
+import SearchableSelect, { type SelectOption } from "./searchable-select";
 import { ActionButton } from "./action-button";
 import { useAuth } from "../hooks/useAuth";
 
@@ -158,22 +155,32 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
   };
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
+    <Modal
+      visible={visible}
+      animationType="slide"
+      presentationStyle="pageSheet"
+    >
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={{ flex: 1 }}
       >
-        <SafeAreaView style={{ flex: 1, backgroundColor: "#F9FAFB" }}>
+        <View style={{ flex: 1, backgroundColor: "#F9FAFB" }}>
           <View className="flex-row items-center justify-between px-5 py-4 border-b border-gray-200">
             <TouchableOpacity onPress={handleClose} className="p-2">
               <Ionicons name="close" size={22} color="#374151" />
             </TouchableOpacity>
-            <Text className="text-lg font-bold text-gray-900">Edit Profile</Text>
+            <Text className="text-lg font-bold text-gray-900">
+              Edit Profile
+            </Text>
             <View style={{ width: 32 }} />
           </View>
 
           <ScrollView
-            contentContainerStyle={{ paddingHorizontal: 20, paddingVertical: 16, gap: 20 }}
+            contentContainerStyle={{
+              paddingHorizontal: 20,
+              paddingVertical: 16,
+              gap: 20,
+            }}
             showsVerticalScrollIndicator={false}
           >
             <View className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
@@ -311,7 +318,7 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
               fullWidth
             />
           </ScrollView>
-        </SafeAreaView>
+        </View>
       </KeyboardAvoidingView>
     </Modal>
   );

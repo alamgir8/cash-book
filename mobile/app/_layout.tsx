@@ -9,6 +9,7 @@ import * as SplashScreen from "expo-splash-screen";
 import { AuthProvider, useAuth } from "../hooks/useAuth";
 import { PreferencesProvider } from "../hooks/usePreferences";
 import "../global.css";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 const queryClient = new QueryClient();
 
@@ -66,11 +67,15 @@ const RootContent = () => {
   }
 
   return (
-    <>
+    <SafeAreaView
+      edges={["top", "bottom"]}
+      style={{ flex: 1 }}
+      // className="[bg-[#f8f7f4]"
+    >
       <Slot />
       <StatusBar style="dark" backgroundColor="#f9fafb" />
       <Toast />
-    </>
+    </SafeAreaView>
   );
 };
 

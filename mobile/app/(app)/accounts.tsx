@@ -20,7 +20,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import dayjs from "dayjs";
 import Toast from "react-native-toast-message";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { VoiceInputButton } from "../../components/voice-input-button";
 import { ScreenHeader } from "../../components/screen-header";
 import { EmptyState } from "../../components/empty-state";

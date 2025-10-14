@@ -12,7 +12,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import dayjs from "dayjs";
 import Toast from "react-native-toast-message";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { FilterBar } from "../../../components/filter-bar";
 import { TransactionCard } from "../../../components/transaction-card";
 import { exportTransactionsPdf } from "../../../services/reports";
@@ -356,7 +355,7 @@ export default function AccountDetailScreen() {
   );
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50">
+    <View className="flex-1 bg-slate-50">
       <FlatList
         data={transactions}
         keyExtractor={(item) => item._id}
@@ -410,6 +409,6 @@ export default function AccountDetailScreen() {
           />
         }
       />
-    </SafeAreaView>
+    </View>
   );
 }

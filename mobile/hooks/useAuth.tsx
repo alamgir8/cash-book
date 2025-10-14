@@ -10,6 +10,7 @@ import {
 } from "react";
 import * as SecureStore from "expo-secure-store";
 import Toast from "react-native-toast-message";
+import axios from "axios";
 import {
   getApiErrorMessage,
   setAuthToken,
@@ -28,6 +29,7 @@ import type {
 
 const LEGACY_TOKEN_KEY = "debit-credit-token";
 const STORAGE_SESSION_KEY = "cash-book-auth-session";
+const REFRESH_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
 
 type AuthState =
   | { status: "loading"; user: null; tokens: null }
@@ -61,6 +63,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   }, [state]);
 
   const handlingUnauthorized = useRef(false);
+  const refreshIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const stopRefreshTimer = useCallback(() => {
+    if (refreshIntervalRef.current) {
+      clearInterval(refreshIntervalRef.current);
+      refreshIntervalRef.current = null;
+    }
+  }, []);
 
   const persistSession = useCallback(async (tokens: AuthTokens) => {
     try {
@@ -76,6 +86,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   const clearSession = useCallback(async () => {
     setAuthToken();
+    stopRefreshTimer();
     try {
       await SecureStore.deleteItemAsync(STORAGE_SESSION_KEY);
       await SecureStore.deleteItemAsync(LEGACY_TOKEN_KEY);
@@ -83,7 +94,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       console.warn("Failed to clear stored session", error);
     }
     setState({ status: "unauthenticated", user: null, tokens: null });
-  }, []);
+  }, [stopRefreshTimer]);
 
   const applySession = useCallback(
     async ({ tokens, admin }: AuthSessionResponse) => {
@@ -104,10 +115,22 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       await applySession(refreshed);
       return refreshed.tokens.accessToken;
     } catch (error) {
+      if (axios.isAxiosError(error) && !error.response) {
+        console.warn("Refresh token request failed (network issue)", error.message);
+        return null;
+      }
       await clearSession();
       return null;
     }
   }, [applySession, clearSession]);
+
+  const startRefreshTimer = useCallback(() => {
+    stopRefreshTimer();
+    if (stateRef.current.status !== "authenticated") return;
+    refreshIntervalRef.current = setInterval(() => {
+      void refreshAccessToken();
+    }, REFRESH_INTERVAL_MS);
+  }, [refreshAccessToken, stopRefreshTimer]);
 
   const handleUnauthorized = useCallback(async () => {
     if (handlingUnauthorized.current) return;
@@ -190,6 +213,18 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   useEffect(() => {
     bootstrap();
   }, [bootstrap]);
+
+  useEffect(() => {
+    if (state.status === "authenticated") {
+      startRefreshTimer();
+    } else {
+      stopRefreshTimer();
+    }
+
+    return () => {
+      stopRefreshTimer();
+    };
+  }, [startRefreshTimer, state.status, stopRefreshTimer]);
 
   const signIn = useCallback(
     async ({ identifier, password }: LoginRequest) => {

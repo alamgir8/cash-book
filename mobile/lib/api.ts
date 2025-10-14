@@ -159,6 +159,9 @@ api.interceptors.response.use(
           return api(originalRequest);
         }
       } catch (refreshError) {
+        if (axios.isAxiosError(refreshError) && !refreshError.response) {
+          return Promise.reject(refreshError);
+        }
         await Promise.resolve(unauthorizedHandler?.());
         return Promise.reject(refreshError);
       }

@@ -17,7 +17,6 @@ import type { SelectOption } from "../../components/searchable-select";
 import Toast from "react-native-toast-message";
 
 const defaultFilters: TransactionFilters = {
-  range: "monthly",
   page: 1,
   limit: 20,
   financialScope: "actual",
