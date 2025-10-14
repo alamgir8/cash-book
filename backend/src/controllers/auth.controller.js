@@ -14,24 +14,60 @@ const buildAccessPayload = (admin) => ({
   email: admin.email,
 });
 
-const issueSessionTokens = async ({ admin, req, previousTokenDoc }) => {
+const findReusableRefreshToken = async ({ adminId, userAgent }) => {
+  const query = {
+    admin: adminId,
+    revoked_at: { $exists: false },
+  };
+
+  if (userAgent) {
+    query.user_agent = userAgent;
+  }
+
+  return RefreshToken.findOne(query).sort({ updatedAt: -1 });
+};
+
+const issueSessionTokens = async ({ admin, req, refreshTokenDoc }) => {
   const access_token = createAccessToken(buildAccessPayload(admin));
   const { token: refresh_token, token_hash, expires_at } =
     generateRefreshToken();
 
-  const refreshDoc = await RefreshToken.create({
-    admin: admin._id,
-    token_hash,
-    expires_at,
-    user_agent: req.headers["user-agent"],
-    created_ip: req.ip,
-  });
+  let refreshDoc = refreshTokenDoc;
 
-  if (previousTokenDoc) {
-    previousTokenDoc.revoked_at = new Date();
-    previousTokenDoc.replaced_by_token = token_hash;
-    await previousTokenDoc.save();
+  if (!refreshDoc) {
+    refreshDoc = await findReusableRefreshToken({
+      adminId: admin._id,
+      userAgent: req.headers["user-agent"],
+    });
   }
+
+  if (refreshDoc) {
+    refreshDoc.token_hash = token_hash;
+    refreshDoc.expires_at = expires_at;
+    refreshDoc.user_agent = req.headers["user-agent"];
+    refreshDoc.created_ip = req.ip;
+    refreshDoc.revoked_at = undefined;
+    refreshDoc.replaced_by_token = undefined;
+    await refreshDoc.save();
+  } else {
+    refreshDoc = await RefreshToken.create({
+      admin: admin._id,
+      token_hash,
+      expires_at,
+      user_agent: req.headers["user-agent"],
+      created_ip: req.ip,
+    });
+  }
+
+  await RefreshToken.updateMany(
+    {
+      admin: admin._id,
+      _id: { $ne: refreshDoc._id },
+      revoked_at: { $exists: false },
+      user_agent: req.headers["user-agent"] ?? null,
+    },
+    { $set: { revoked_at: new Date() } }
+  );
 
   return {
     access_token,
@@ -165,7 +201,7 @@ export const refreshSession = async (req, res, next) => {
     const tokens = await issueSessionTokens({
       admin,
       req,
-      previousTokenDoc: refreshDoc,
+      refreshTokenDoc: refreshDoc,
     });
 
     res.json({
