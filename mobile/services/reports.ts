@@ -19,6 +19,8 @@ type DisplayFilters = {
   accounts?: string[];
   categoryId?: string;
   categoryNames?: string[];
+  counterparty?: string;
+  financialScope?: string;
   type?: string;
   search?: string;
   minAmount?: number;
@@ -132,6 +134,19 @@ const parseFilters = (raw: RawFilters): ParsedFilters => {
     display.categoryId = categoryId;
   }
 
+  const counterparty = toStringValue(raw.counterparty);
+  if (counterparty) {
+    filters.counterparty = counterparty;
+    display.counterparty = counterparty;
+  }
+
+  const financialScope =
+    toStringValue(raw.financialScope) ?? toStringValue(raw.financial_scope);
+  if (financialScope) {
+    filters.financialScope = financialScope as TransactionFilters["financialScope"];
+    display.financialScope = financialScope;
+  }
+
   const type = toStringValue(raw.type);
   if (type) {
     filters.type = type as TransactionFilters["type"];
@@ -211,8 +226,8 @@ const formatAmount = (
     return "—";
   }
   const formatter = new Intl.NumberFormat(undefined, {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   });
   const sign = amount < 0 ? "-" : "";
   const absolute = Math.abs(amount);
@@ -263,6 +278,12 @@ const collectTransactions = async (
     currentPage += 1;
   } while (currentPage <= totalPages);
 
+  transactions.sort((a, b) => {
+    const left = dayjs(a.date).valueOf();
+    const right = dayjs(b.date).valueOf();
+    return left - right;
+  });
+
   return { transactions, total: grandTotal };
 };
 
@@ -298,6 +319,20 @@ const buildFiltersSection = (
     );
   } else if (display.categoryId) {
     chips.push(`Category ID: ${display.categoryId}`);
+  }
+
+  if (display.counterparty) {
+    chips.push(`Counterparty: ${display.counterparty}`);
+  }
+
+  if (display.financialScope) {
+    const scopeLabels: Record<string, string> = {
+      actual: "Actual income & expense",
+      income: "Actual income",
+      expense: "Actual expense",
+    };
+    const scopeLabel = scopeLabels[display.financialScope] ?? capitalize(display.financialScope);
+    chips.push(`Scope: ${scopeLabel}`);
   }
 
   if (display.type) {

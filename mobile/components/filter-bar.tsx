@@ -11,9 +11,7 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
 import { ActionButton } from "./action-button";
 import type { TransactionFilters } from "../services/transactions";
-import SearchableSelect, {
-  type SelectOption,
-} from "./searchable-select";
+import SearchableSelect, { type SelectOption } from "./searchable-select";
 
 const ranges = [
   { label: "Daily", value: "daily" },
@@ -29,6 +27,10 @@ type Props = {
   showTypeToggle?: boolean;
   showCategoryField?: boolean;
   categories?: SelectOption[];
+  showCounterpartyField?: boolean;
+  counterparties?: SelectOption[];
+  showFinancialScopeToggle?: boolean;
+  hasActiveFilters?: boolean;
   onReset?: () => void;
   onApplyFilters?: () => void;
 };
@@ -46,6 +48,10 @@ export const FilterBar = ({
   showTypeToggle = false,
   showCategoryField = false,
   categories,
+  showCounterpartyField = false,
+  counterparties,
+  showFinancialScopeToggle = false,
+  hasActiveFilters,
   onReset,
   onApplyFilters,
 }: Props) => {
@@ -98,6 +104,35 @@ export const FilterBar = ({
     }
   };
 
+  const derivedHasActiveFilters =
+    typeof hasActiveFilters === "boolean"
+      ? hasActiveFilters
+      : Boolean(
+          filters.startDate ||
+          filters.endDate ||
+          filters.accountId ||
+          filters.categoryId ||
+          filters.counterparty ||
+          filters.financialScope ||
+          filters.type ||
+          filters.search ||
+          filters.q ||
+          filters.accountName ||
+          filters.minAmount !== undefined ||
+          filters.maxAmount !== undefined ||
+          filters.includeDeleted
+        );
+
+  const financialScopeOptions: Array<{
+    label: string;
+    value: "actual" | "income" | "expense" | undefined;
+  }> = [
+    { label: "All", value: undefined },
+    { label: "Actual", value: "actual" },
+    { label: "Income", value: "income" },
+    { label: "Expense", value: "expense" },
+  ];
+
   return (
     <View className="bg-white rounded-2xl p-3 border border-gray-200 shadow-sm">
       <ScrollView
@@ -140,6 +175,19 @@ export const FilterBar = ({
           />
           <Text className="text-gray-600 text-sm font-semibold">Filters</Text>
         </TouchableOpacity>
+
+        {onReset && derivedHasActiveFilters ? (
+          <TouchableOpacity
+            onPress={() => {
+              onReset();
+              setExpanded(false);
+            }}
+            className="flex-row items-center gap-1 px-3 py-1.5 rounded-full border border-gray-200 bg-red-50"
+          >
+            <Ionicons name="refresh" size={16} color="#dc2626" />
+            <Text className="text-red-600 text-sm font-semibold">Reset</Text>
+          </TouchableOpacity>
+        ) : null}
       </ScrollView>
 
       {showTypeToggle ? (
@@ -194,6 +242,46 @@ export const FilterBar = ({
 
       {expanded ? (
         <View className="mt-3 gap-3">
+          {showFinancialScopeToggle ? (
+            <View>
+              <Text className="text-gray-700 text-sm font-semibold mb-1.5">
+                Financial Scope
+              </Text>
+              <View className="flex-row gap-2 flex-wrap">
+                {financialScopeOptions.map((option) => {
+                  const isActive =
+                    option.value === undefined
+                      ? !formFilters.financialScope
+                      : formFilters.financialScope === option.value;
+                  return (
+                    <TouchableOpacity
+                      key={option.label}
+                      onPress={() =>
+                        setFormFilters((prev) => ({
+                          ...prev,
+                          financialScope: option.value,
+                        }))
+                      }
+                      className={`px-3 py-1.5 rounded-full border ${
+                        isActive
+                          ? "border-emerald-500 bg-emerald-50"
+                          : "border-gray-200 bg-gray-50"
+                      }`}
+                    >
+                      <Text
+                        className={`text-sm font-semibold ${
+                          isActive ? "text-emerald-600" : "text-gray-600"
+                        }`}
+                      >
+                        {option.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          ) : null}
+
           <View className="flex-row gap-3">
             <View className="flex-1">
               <Text className="text-gray-700 text-sm font-semibold mb-1.5">
@@ -296,6 +384,35 @@ export const FilterBar = ({
             </View>
           ) : null}
 
+          {showCounterpartyField && counterparties ? (
+            <View>
+              <SearchableSelect
+                label="Counterparty"
+                placeholder={
+                  counterparties.length === 0
+                    ? "No counterparties"
+                    : "Filter by counterparty"
+                }
+                value={formFilters.counterparty ?? ""}
+                options={
+                  counterparties.length > 0
+                    ? [
+                        { value: "", label: "All counterparties" },
+                        ...counterparties,
+                      ]
+                    : [{ value: "", label: "All counterparties" }]
+                }
+                onSelect={(val) =>
+                  setFormFilters({
+                    ...formFilters,
+                    counterparty: val || undefined,
+                  })
+                }
+                disabled={counterparties.length === 0}
+              />
+            </View>
+          ) : null}
+
           <View className="flex-row gap-3">
             <View className="flex-1">
               <Text className="text-gray-700 text-sm font-semibold mb-1.5">
@@ -356,15 +473,13 @@ export const FilterBar = ({
             <ActionButton
               label="Apply Filters"
               onPress={() => {
-                const {
-                  searchInput,
-                  accountNameInput,
-                  ...rest
-                } = formFilters;
+                const { searchInput, accountNameInput, ...rest } = formFilters;
                 const {
                   categoryId,
-                  search: _ignoreSearch,
-                  accountName: _ignoreAccountName,
+                  counterparty,
+                  financialScope,
+                  search: _ignoredSearch,
+                  accountName: _ignoredAccountName,
                   ...other
                 } = rest;
                 const updatedFilters: TransactionFilters = {
@@ -374,6 +489,14 @@ export const FilterBar = ({
 
                 if (categoryId) {
                   updatedFilters.categoryId = categoryId;
+                }
+
+                if (counterparty) {
+                  updatedFilters.counterparty = counterparty;
+                }
+
+                if (financialScope) {
+                  updatedFilters.financialScope = financialScope;
                 }
 
                 if (searchInput && searchInput.trim().length > 0) {
@@ -395,14 +518,6 @@ export const FilterBar = ({
               <ActionButton
                 label="Reset"
                 onPress={() => {
-                  const resetFilters = {
-                    range: "daily",
-                    page: 1,
-                    searchInput: "",
-                    accountNameInput: "",
-                    categoryId: undefined,
-                  };
-                  setFormFilters(resetFilters);
                   onReset();
                 }}
                 variant="outline"

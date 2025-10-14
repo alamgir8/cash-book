@@ -4,6 +4,26 @@ import { Account } from "../models/Account.js";
 import { Category } from "../models/Category.js";
 import { Transaction } from "../models/Transaction.js";
 import { buildTransactionFilters } from "../utils/filters.js";
+import { resolveFinancialCategoryIds } from "../utils/financialCategories.js";
+
+const buildScopedFilter = async ({ req, extraQuery = {} }) => {
+  const financialScope =
+    req.query.financialScope ?? req.query.financial_scope ?? null;
+
+  let allowedCategoryIds = null;
+  if (financialScope) {
+    allowedCategoryIds = await resolveFinancialCategoryIds({
+      adminId: req.user.id,
+      scope: financialScope,
+    });
+  }
+
+  return buildTransactionFilters({
+    adminId: req.user.id,
+    query: { ...req.query, ...extraQuery },
+    allowedCategoryIds,
+  });
+};
 
 const parseBoundaryDate = (value, fallback = new Date()) => {
   if (!value) return fallback;
@@ -13,10 +33,7 @@ const parseBoundaryDate = (value, fallback = new Date()) => {
 
 export const getSummaryReport = async (req, res, next) => {
   try {
-    const filter = buildTransactionFilters({
-      adminId: req.user.id,
-      query: req.query,
-    });
+    const filter = await buildScopedFilter({ req });
 
     const results = await Transaction.aggregate([
       { $match: filter },
@@ -62,10 +79,7 @@ export const getSeriesReport = async (req, res, next) => {
   try {
     const granularity = req.query.granularity === "month" ? "month" : "day";
 
-    const filter = buildTransactionFilters({
-      adminId: req.user.id,
-      query: req.query,
-    });
+    const filter = await buildScopedFilter({ req });
 
     const dateFormat = granularity === "month" ? "%Y-%m-01" : "%Y-%m-%d";
 
@@ -199,10 +213,7 @@ export const getAccountBalancesReport = async (req, res, next) => {
 
 export const getTopCategoriesReport = async (req, res, next) => {
   try {
-    const filter = buildTransactionFilters({
-      adminId: req.user.id,
-      query: req.query,
-    });
+    const filter = await buildScopedFilter({ req });
 
     if (req.query.type) {
       const categoryFilter = await Category.find({

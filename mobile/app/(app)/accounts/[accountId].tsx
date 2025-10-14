@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -83,6 +83,53 @@ export default function AccountDetailScreen() {
 
   const netFlow = useMemo(() => summary?.net ?? 0, [summary]);
 
+  const counterpartyOptions = useMemo(() => {
+    const seen = new Set<string>();
+    return transactions
+      .map((txn) => txn.counterparty?.trim())
+      .filter((name): name is string => Boolean(name))
+      .filter((name) => {
+        const key = name.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .map((name) => ({ value: name, label: name }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [transactions]);
+
+  const hasActiveFilters = useMemo(() => {
+    if (filters.range && filters.range !== defaultFilters.range) {
+      return true;
+    }
+    const keys: (keyof TransactionFilters)[] = [
+      "categoryId",
+      "counterparty",
+      "financialScope",
+      "type",
+      "search",
+      "accountName",
+      "startDate",
+      "endDate",
+      "from",
+      "to",
+      "minAmount",
+      "maxAmount",
+      "includeDeleted",
+    ];
+    return keys.some((key) => {
+      const value = filters[key];
+      const defaultValue = defaultFilters[key];
+      if (typeof value === "number") {
+        return value !== undefined && value !== defaultValue;
+      }
+      if (typeof value === "boolean") {
+        return value !== undefined && value !== defaultValue;
+      }
+      return value !== undefined && value !== "" && value !== defaultValue;
+    });
+  }, [filters]);
+
   const handleFilterChange = (next: TransactionFilters) => {
     setFilters((prev) => ({
       ...prev,
@@ -97,6 +144,24 @@ export default function AccountDetailScreen() {
       ...(accountId ? { accountId } : {}),
     });
   };
+
+  const handleCategoryFilter = useCallback((categoryId?: string) => {
+    setFilters((prev) => ({
+      ...prev,
+      categoryId: categoryId || undefined,
+      counterparty: undefined,
+      page: 1,
+    }));
+  }, []);
+
+  const handleCounterpartyFilter = useCallback((counterparty?: string) => {
+    setFilters((prev) => ({
+      ...prev,
+      counterparty: counterparty || undefined,
+      categoryId: undefined,
+      page: 1,
+    }));
+  }, []);
 
   const handleExport = async () => {
     if (!accountId) return;
@@ -275,10 +340,14 @@ export default function AccountDetailScreen() {
       <FilterBar
         filters={filters}
         onChange={handleFilterChange}
+        showFinancialScopeToggle
+        hasActiveFilters={hasActiveFilters}
         showAccountField={false}
         showTypeToggle
         showCategoryField
         categories={categoryOptions}
+        showCounterpartyField
+        counterparties={counterpartyOptions}
         onReset={handleResetFilters}
         onApplyFilters={() => transactionsQuery.refetch()}
       />
@@ -328,13 +397,8 @@ export default function AccountDetailScreen() {
         renderItem={({ item }) => (
           <TransactionCard
             transaction={item}
-            onCategoryPress={(categoryId) =>
-              setFilters((prev) => ({
-                ...prev,
-                categoryId: categoryId || undefined,
-                page: 1,
-              }))
-            }
+            onCategoryPress={handleCategoryFilter}
+            onCounterpartyPress={handleCounterpartyFilter}
           />
         )}
         refreshControl={

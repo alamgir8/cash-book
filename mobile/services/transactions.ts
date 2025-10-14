@@ -37,6 +37,8 @@ export type TransactionFilters = {
   accountId?: string;
   accountName?: string;
   categoryId?: string;
+  counterparty?: string;
+  financialScope?: "actual" | "income" | "expense";
   type?: "debit" | "credit";
   q?: string;
   search?: string;
@@ -70,6 +72,8 @@ const mapFilters = (filters: TransactionFilters) => {
   if (filters.range) params.range = filters.range;
   if (filters.accountId) params.accountId = filters.accountId;
   if (filters.categoryId) params.categoryId = filters.categoryId;
+  if (filters.counterparty) params.counterparty = filters.counterparty;
+  if (filters.financialScope) params.financialScope = filters.financialScope;
   if (filters.type) params.type = filters.type;
   if (filters.q || filters.search)
     params.q = filters.q ?? filters.search;

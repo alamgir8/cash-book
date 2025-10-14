@@ -26,7 +26,20 @@ const parseDate = (value) => {
   return parsed.isValid() ? parsed : null;
 };
 
-export const buildTransactionFilters = ({ adminId, query }) => {
+const escapeRegex = (value) => {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+};
+
+const asObjectIdArray = (ids = []) =>
+  ids.map((id) =>
+    id instanceof mongoose.Types.ObjectId ? id : new mongoose.Types.ObjectId(id)
+  );
+
+export const buildTransactionFilters = ({
+  adminId,
+  query,
+  allowedCategoryIds,
+}) => {
   const filter = {
     admin: new mongoose.Types.ObjectId(adminId),
     is_deleted: false,
@@ -48,6 +61,42 @@ export const buildTransactionFilters = ({ adminId, query }) => {
 
   if (query.type) {
     filter.type = query.type;
+  }
+
+  if (query.counterparty) {
+    const normalized = String(query.counterparty).trim();
+    if (normalized.length > 0) {
+      filter.counterparty = {
+        $regex: `^${escapeRegex(normalized)}$`,
+        $options: "i",
+      };
+    }
+  }
+
+  if (Array.isArray(allowedCategoryIds)) {
+    if (allowedCategoryIds.length === 0) {
+      filter.category_id = { $in: [] };
+    } else if (!filter.category_id) {
+      filter.category_id = { $in: asObjectIdArray(allowedCategoryIds) };
+    } else if (filter.category_id instanceof mongoose.Types.ObjectId) {
+      const matches = allowedCategoryIds.some((id) =>
+        id.toString() === filter.category_id.toString()
+      );
+      if (!matches) {
+        filter.category_id = { $in: [] };
+      }
+    } else if (filter.category_id.$in) {
+      const allowedSet = new Set(
+        allowedCategoryIds.map((id) => id.toString())
+      );
+      const intersection = filter.category_id.$in.filter((id) =>
+        allowedSet.has(id.toString())
+      );
+      filter.category_id.$in = intersection;
+      if (intersection.length === 0) {
+        filter.category_id = { $in: [] };
+      }
+    }
   }
 
   const searchTerm = query.q ?? query.search;

@@ -293,6 +293,54 @@ export default function DashboardScreen() {
     return [{ value: "", label: "No category" }, ...sorted];
   }, [categoriesQuery.data, selectedType]);
 
+  const counterpartyOptions = useMemo(() => {
+    const seen = new Set<string>();
+    return (transactionsQuery.data?.transactions ?? [])
+      .map((txn) => txn.counterparty?.trim())
+      .filter((name): name is string => Boolean(name))
+      .filter((name) => {
+        const key = name.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .map((name) => ({ value: name, label: name }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [transactionsQuery.data]);
+
+  const hasActiveFilters = useMemo(() => {
+    if (filters.range && filters.range !== defaultFilters.range) {
+      return true;
+    }
+    const keys: (keyof TransactionFilters)[] = [
+      "accountId",
+      "categoryId",
+      "counterparty",
+      "financialScope",
+      "type",
+      "search",
+      "accountName",
+      "startDate",
+      "endDate",
+      "from",
+      "to",
+      "minAmount",
+      "maxAmount",
+      "includeDeleted",
+    ];
+    return keys.some((key) => {
+      const value = filters[key];
+      const defaultValue = defaultFilters[key];
+      if (typeof value === "number") {
+        return value !== undefined && value !== defaultValue;
+      }
+      if (typeof value === "boolean") {
+        return value !== undefined && value !== defaultValue;
+      }
+      return value !== undefined && value !== "" && value !== defaultValue;
+    });
+  }, [filters]);
+
   useEffect(() => {
     if (!selectedCategoryId) return;
     const match = (categoriesQuery.data as any[] | undefined)?.find(
@@ -448,6 +496,16 @@ export default function DashboardScreen() {
     setFilters((prev) => ({
       ...prev,
       categoryId: categoryId || undefined,
+      counterparty: undefined,
+      page: 1,
+    }));
+  }, []);
+
+  const handleCounterpartyFilter = useCallback((counterparty?: string) => {
+    setFilters((prev) => ({
+      ...prev,
+      counterparty: counterparty || undefined,
+      categoryId: undefined,
       page: 1,
     }));
   }, []);
@@ -495,16 +553,17 @@ export default function DashboardScreen() {
         <FilterBar
           filters={filters}
           onChange={(next) => setFilters((prev) => ({ ...prev, ...next }))}
+          hasActiveFilters={hasActiveFilters}
           onApplyFilters={() => transactionsQuery.refetch()}
           onReset={() => {
-            setFilters({
-              ...defaultFilters,
-              categoryId: undefined,
-            });
+            setFilters({ ...defaultFilters });
             transactionsQuery.refetch();
           }}
           showCategoryField
           categories={categoryOptions}
+          showCounterpartyField
+          counterparties={counterpartyOptions}
+          showFinancialScopeToggle
         />
       </View>
     );
@@ -561,6 +620,7 @@ export default function DashboardScreen() {
           <TransactionCard
             transaction={item}
             onCategoryPress={handleCategoryFilter}
+            onCounterpartyPress={handleCounterpartyFilter}
           />
         )}
       />

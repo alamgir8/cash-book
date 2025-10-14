@@ -6,9 +6,14 @@ import { usePreferences } from "../hooks/usePreferences";
 type Props = {
   transaction: Transaction;
   onCategoryPress?: (categoryId: string) => void;
+  onCounterpartyPress?: (counterparty: string) => void;
 };
 
-export const TransactionCard = ({ transaction, onCategoryPress }: Props) => {
+export const TransactionCard = ({
+  transaction,
+  onCategoryPress,
+  onCounterpartyPress,
+}: Props) => {
   const { formatAmount } = usePreferences();
   const isCredit = transaction.type === "credit";
   const amountColor = isCredit ? "text-green-600" : "text-red-600";
@@ -74,9 +79,19 @@ export const TransactionCard = ({ transaction, onCategoryPress }: Props) => {
       ) : null}
 
       {transaction.counterparty ? (
-        <Text className="text-gray-500 mt-2 text-xs">
-          Counterparty: {transaction.counterparty}
-        </Text>
+        <TouchableOpacity
+          activeOpacity={onCounterpartyPress ? 0.8 : 1}
+          onPress={() => {
+            if (transaction.counterparty && onCounterpartyPress) {
+              onCounterpartyPress(transaction.counterparty);
+            }
+          }}
+          className="self-start mt-2"
+        >
+          <Text className="text-gray-500 text-xs underline">
+            Counterparty: {transaction.counterparty}
+          </Text>
+        </TouchableOpacity>
       ) : null}
 
       {/* <View className="flex-row justify-between items-center mt-4 pt-3 border-t border-gray-100">

@@ -18,6 +18,7 @@ const defaultFilters: TransactionFilters = {
   range: "daily",
   page: 1,
   limit: 20,
+  financialScope: "actual",
 };
 
 export default function TransactionsScreen() {
@@ -61,6 +62,54 @@ export default function TransactionsScreen() {
     return (transactionsQuery.data as any)?.transactions ?? [];
   }, [transactionsQuery.data]);
 
+  const counterpartyOptions = useMemo(() => {
+    const seen = new Set<string>();
+    return transactions
+      .map((txn) => txn.counterparty?.trim())
+      .filter((name): name is string => Boolean(name))
+      .filter((name) => {
+        const key = name.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .map((name) => ({ value: name, label: name }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [transactions]);
+
+  const hasActiveFilters = useMemo(() => {
+    if (filters.range && filters.range !== defaultFilters.range) {
+      return true;
+    }
+    const keys: (keyof TransactionFilters)[] = [
+      "accountId",
+      "categoryId",
+      "counterparty",
+      "financialScope",
+      "type",
+      "search",
+      "accountName",
+      "startDate",
+      "endDate",
+      "from",
+      "to",
+      "minAmount",
+      "maxAmount",
+      "includeDeleted",
+    ];
+    return keys.some((key) => {
+      const value = filters[key];
+      const defaultValue = defaultFilters[key];
+      if (typeof value === "number") {
+        return value !== undefined && value !== defaultValue;
+      }
+      if (typeof value === "boolean") {
+        return value !== undefined && value !== defaultValue;
+      }
+      return value !== undefined && value !== "" && value !== defaultValue;
+    });
+  }, [filters]);
+
   const handleResetFilters = () => {
     const resetFilters: TransactionFilters = {
       ...defaultFilters,
@@ -74,6 +123,16 @@ export default function TransactionsScreen() {
     setFilters((prev) => ({
       ...prev,
       categoryId: categoryId || undefined,
+      counterparty: undefined,
+      page: 1,
+    }));
+  }, []);
+
+  const handleCounterpartyPress = useCallback((counterparty?: string) => {
+    setFilters((prev) => ({
+      ...prev,
+      counterparty: counterparty || undefined,
+      categoryId: undefined,
       page: 1,
     }));
   }, []);
@@ -93,10 +152,14 @@ export default function TransactionsScreen() {
           onChange={(nextFilters) =>
             setFilters((prev) => ({ ...prev, ...nextFilters }))
           }
+          hasActiveFilters={hasActiveFilters}
           showAccountField={!accountId}
           showTypeToggle={true}
           showCategoryField
           categories={categoryOptions}
+          showCounterpartyField
+          counterparties={counterpartyOptions}
+          showFinancialScopeToggle
           onReset={handleResetFilters}
           onApplyFilters={() => transactionsQuery.refetch()}
         />
@@ -110,6 +173,7 @@ export default function TransactionsScreen() {
           <TransactionCard
             transaction={item}
             onCategoryPress={handleCategoryPress}
+            onCounterpartyPress={handleCounterpartyPress}
           />
         )}
         contentContainerStyle={{

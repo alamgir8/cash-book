@@ -5,6 +5,8 @@ import { Category } from "../models/Category.js";
 import { Transaction } from "../models/Transaction.js";
 import { Transfer } from "../models/Transfer.js";
 import { buildTransactionFilters } from "../utils/filters.js";
+import { resolveFinancialCategoryIds } from "../utils/financialCategories.js";
+import { recomputeDescendingBalances } from "../utils/balance.js";
 
 const parseTransactionDate = (value) => {
   if (!value) {
@@ -103,27 +105,111 @@ const applyTransferIdempotency = async ({ adminId, clientRequestId }) => {
   });
 };
 
+const extractAccountBalanceMap = async ({ adminId, transactions }) => {
+  const accountIds = Array.from(
+    new Set(
+      transactions
+        .map((txn) => {
+          const accountRef = txn.account;
+          if (!accountRef) return null;
+          if (typeof accountRef === "string") return accountRef;
+          if (accountRef instanceof mongoose.Types.ObjectId) {
+            return accountRef.toString();
+          }
+          if (typeof accountRef === "object" && accountRef._id) {
+            return accountRef._id.toString();
+          }
+          return null;
+        })
+        .filter(Boolean)
+    )
+  );
+
+  if (accountIds.length === 0) {
+    return new Map();
+  }
+
+  const accounts = await Account.find({
+    admin: adminId,
+    _id: { $in: accountIds },
+  })
+    .select("_id current_balance")
+    .lean();
+
+  return new Map(
+    accounts.map((account) => [
+      account._id.toString(),
+      Number(account.current_balance ?? 0),
+    ])
+  );
+};
+
 export const listTransactions = async (req, res, next) => {
   try {
+    const financialScope =
+      req.query.financialScope ?? req.query.financial_scope ?? null;
+
+    let allowedCategoryIds = null;
+    if (financialScope) {
+      allowedCategoryIds = await resolveFinancialCategoryIds({
+        adminId: req.user.id,
+        scope: financialScope,
+      });
+    }
+
     const filter = buildTransactionFilters({
       adminId: req.user.id,
       query: req.query,
+      allowedCategoryIds,
     });
 
     const page = Math.max(Number(req.query.page) || 1, 1);
     const limit = Math.min(Number(req.query.limit) || 50, 200);
     const skip = (page - 1) * limit;
 
-    const [transactions, total] = await Promise.all([
+    const upperLimit = skip + limit;
+
+    const [baseTransactions, total] = await Promise.all([
       Transaction.find(filter)
-        .populate("account", "name kind")
-        .populate("category_id", "name type")
-        .sort({ date: -1, createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
+        .sort({ date: -1, createdAt: -1, _id: -1 })
+        .limit(upperLimit)
+        .select("_id account amount type")
         .lean(),
       Transaction.countDocuments(filter),
     ]);
+
+    const balanceMap = new Map();
+
+    if (baseTransactions.length > 0) {
+      const accountBalances = await extractAccountBalanceMap({
+        adminId: req.user.id,
+        transactions: baseTransactions,
+      });
+      recomputeDescendingBalances({
+        transactions: baseTransactions,
+        accountBalances,
+      });
+      baseTransactions.forEach((txn) => {
+        balanceMap.set(txn._id.toString(), txn.balance_after_transaction);
+      });
+    }
+
+    const transactions = await Transaction.find(filter)
+      .populate("account", "name kind")
+      .populate("category_id", "name type")
+      .sort({ date: -1, createdAt: -1, _id: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    if (transactions.length > 0 && balanceMap.size > 0) {
+      transactions.forEach((txn) => {
+        const computed = balanceMap.get(txn._id.toString());
+        if (typeof computed === "number") {
+          txn.balance_after_transaction = computed;
+        }
+      });
+    }
 
     res.json({
       transactions,
