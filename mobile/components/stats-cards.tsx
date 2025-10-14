@@ -99,7 +99,7 @@ export const StatsCards = ({
         />
         <StatCard
           title="Total Expenses"
-          value={`$${Math.round(totalDebit).toLocaleString()}`}
+          value={formatAmount(totalDebit)}
           subtitle="Debit transactions"
           icon="trending-down"
           iconColor="#ef4444"

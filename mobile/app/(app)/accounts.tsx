@@ -344,6 +344,8 @@ export default function AccountsScreen() {
     </View>
   );
 
+  // console.log("accounts", accounts);
+
   return (
     <View className="flex-1 bg-slate-50">
       <ScreenHeader
@@ -368,19 +370,19 @@ export default function AccountsScreen() {
         }}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={renderHeader}
-        ListEmptyComponent={
-          <EmptyState
-            isLoading={accountsQuery.isLoading}
-            loadingText="Loading accounts..."
-            icon="wallet-outline"
-            title="No Accounts Yet"
-            description="Create your first account to start tracking your finances."
-            actionButton={{
-              label: "Create Account",
-              onPress: () => openModal(),
-            }}
-          />
-        }
+        // ListEmptyComponent={
+        //   <EmptyState
+        //     isLoading={accountsQuery?.isLoading}
+        //     loadingText="Loading accounts..."
+        //     icon="wallet-outline"
+        //     title="No Accounts Yet"
+        //     description="Create your first account to start tracking your finances."
+        //     actionButton={{
+        //       label: "Create Account",
+        //       onPress: () => openModal(),
+        //     }}
+        //   />
+        // }
         renderItem={({ item }) => {
           const lastActivity = item.summary.lastTransactionDate
             ? dayjs(item.summary.lastTransactionDate).format("MMM D, YYYY")
