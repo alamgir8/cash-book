@@ -31,11 +31,15 @@ export default function TransactionsScreen() {
 
   const categoriesQuery = useQuery({
     queryKey: queryKeys.categories,
-    queryFn: fetchCategories,
+    queryFn: () => fetchCategories(),
   });
 
   const categoryOptions: SelectOption[] = useMemo(() => {
-    const categories = categoriesQuery.data ?? [];
+    const categories = (categoriesQuery.data ?? []) as {
+      _id: string;
+      name: string;
+      flow: string;
+    }[];
     return categories.map((category) => ({
       value: category._id,
       label: category.name,
