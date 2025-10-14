@@ -70,7 +70,7 @@ const updateProfileSchema = z.object({
             "bn",
           ])
           .optional(),
-        weekStartsOn: z.number().min(0).max(6).optional(),
+        week_starts_on: z.number().min(0).max(6).optional(),
       })
       .optional(),
   }),

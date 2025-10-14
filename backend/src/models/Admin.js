@@ -20,7 +20,7 @@ const adminSchema = new mongoose.Schema(
       unique: true,
       trim: true,
     },
-    passwordHash: {
+    password_hash: {
       type: String,
       required: true,
     },
@@ -61,7 +61,7 @@ const adminSchema = new mongoose.Schema(
         ],
         default: "en",
       },
-      weekStartsOn: {
+      week_starts_on: {
         type: Number,
         default: 1,
       },
@@ -72,7 +72,7 @@ const adminSchema = new mongoose.Schema(
 
 adminSchema.methods.toJSON = function () {
   const obj = this.toObject();
-  delete obj.passwordHash;
+  delete obj.password_hash;
   return obj;
 };
 

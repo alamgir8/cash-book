@@ -8,7 +8,7 @@ export type User = {
   settings: {
     currency: string;
     language: string;
-    weekStartsOn: number;
+    week_starts_on: number;
   };
   createdAt: string;
   updatedAt: string;
@@ -33,7 +33,7 @@ export type UpdateProfileRequest = {
   settings?: {
     currency?: string;
     language?: string;
-    weekStartsOn?: number;
+    week_starts_on?: number;
   };
 };
 

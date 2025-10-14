@@ -92,7 +92,7 @@ export const createTransaction = async (req, res, next) => {
     });
 
     const balanceAfter = await applyBalanceDelta({ account, amount, type });
-    transaction.balanceAfterTransaction = balanceAfter;
+    transaction.balance_after_transaction = balanceAfter;
     await transaction.save();
 
     res.status(201).json({ transaction });
@@ -179,7 +179,7 @@ export const updateTransaction = async (req, res, next) => {
       type: transaction.type,
     });
 
-    transaction.balanceAfterTransaction = balanceAfter;
+    transaction.balance_after_transaction = balanceAfter;
     await transaction.save();
 
     res.json({ transaction });

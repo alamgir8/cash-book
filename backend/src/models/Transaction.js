@@ -37,7 +37,7 @@ const transactionSchema = new mongoose.Schema(
       trim: true,
     },
 
-    balanceAfterTransaction: {
+    balance_after_transaction: {
       type: Number,
     },
   },

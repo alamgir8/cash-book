@@ -28,7 +28,7 @@ type Admin = {
   settings: {
     currency: string;
     language: string;
-    weekStartsOn: number;
+    week_starts_on: number;
   };
   createdAt: string;
   updatedAt: string;
@@ -63,7 +63,7 @@ type UpdateProfilePayload = {
   settings?: {
     currency?: string;
     language?: string;
-    weekStartsOn?: number;
+    week_starts_on?: number;
   };
 };
 

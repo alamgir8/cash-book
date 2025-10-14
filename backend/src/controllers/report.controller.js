@@ -77,7 +77,7 @@ export const exportTransactionsPdf = async (req, res, next) => {
         .text(`Comment: ${txn.comment ?? "-"}`)
         .text(
           `Balance after transaction: ${Math.round(
-            txn.balanceAfterTransaction ?? 0
+            txn.balance_after_transaction ?? 0
           ).toLocaleString()}`
         )
         .moveDown();

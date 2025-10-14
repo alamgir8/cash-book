@@ -12,7 +12,7 @@ export type Transaction = {
   date: string;
   description?: string;
   comment?: string;
-  balanceAfterTransaction?: number;
+  balance_after_transaction?: number;
 };
 
 export type TransactionFilters = {

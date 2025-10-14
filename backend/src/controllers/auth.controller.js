@@ -51,7 +51,7 @@ export const login = async (req, res, next) => {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    const passwordValid = await argon2.verify(admin.passwordHash, password);
+    const passwordValid = await argon2.verify(admin.password_hash, password);
     if (!passwordValid) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
