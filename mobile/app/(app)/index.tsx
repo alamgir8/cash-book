@@ -46,7 +46,6 @@ const transactionSchema = z.object({
   date: z.string().optional(),
   description: z.string().optional(),
   comment: z.string().optional(),
-  createdViaVoice: z.boolean().optional(),
 });
 
 type TransactionFormValues = z.infer<typeof transactionSchema>;
@@ -63,7 +62,6 @@ const parseVoiceTranscript = (
 ): Partial<TransactionFormValues> => {
   const lower = transcript.toLowerCase();
   const parsed: Partial<TransactionFormValues> = {
-    createdViaVoice: true,
     comment: transcript,
   };
 
@@ -190,7 +188,6 @@ export default function DashboardScreen() {
           ? values.description.trim()
           : undefined,
         comment: values.comment?.trim() ? values.comment.trim() : undefined,
-        createdViaVoice: Boolean(values.createdViaVoice),
       };
       await createMutation.mutateAsync(payload as any);
       setModalVisible(false);
@@ -201,7 +198,6 @@ export default function DashboardScreen() {
         date: dayjs().format("YYYY-MM-DD"),
         description: "",
         comment: "",
-        createdViaVoice: false,
       });
       Toast.show({
         type: "success",

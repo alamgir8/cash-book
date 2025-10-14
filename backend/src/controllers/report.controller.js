@@ -75,7 +75,6 @@ export const exportTransactionsPdf = async (req, res, next) => {
         .text(`Amount: ${Math.round(txn.amount).toLocaleString()}`)
         .text(`Description: ${txn.description ?? "-"}`)
         .text(`Comment: ${txn.comment ?? "-"}`)
-        .text(`Created via voice: ${txn.createdViaVoice ? "Yes" : "No"}`)
         .text(
           `Balance after transaction: ${Math.round(
             txn.balanceAfterTransaction ?? 0

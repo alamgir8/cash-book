@@ -62,15 +62,7 @@ export const listTransactions = async (req, res, next) => {
 
 export const createTransaction = async (req, res, next) => {
   try {
-    const {
-      accountId,
-      type,
-      amount,
-      date,
-      description,
-      comment,
-      createdViaVoice,
-    } = req.body;
+    const { accountId, type, amount, date, description, comment } = req.body;
 
     const account = await Account.findOne({
       _id: accountId,
@@ -97,7 +89,6 @@ export const createTransaction = async (req, res, next) => {
       date: txnDate,
       description,
       comment,
-      createdViaVoice: Boolean(createdViaVoice),
     });
 
     const balanceAfter = await applyBalanceDelta({ account, amount, type });

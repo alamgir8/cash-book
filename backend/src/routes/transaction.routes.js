@@ -32,7 +32,6 @@ const createSchema = z.object({
     date: dateValidator,
     description: z.string().optional(),
     comment: z.string().optional(),
-    createdViaVoice: z.coerce.boolean().optional(),
   }),
   params: z.object({}).optional(),
   query: z.object({}).optional(),

@@ -57,11 +57,6 @@ export const TransactionCard = ({ transaction }: Props) => {
         <Text className="text-xs text-gray-500 font-medium">
           {transaction.account?.type || "Account"}
         </Text>
-        {transaction.createdViaVoice ? (
-          <View className="flex-row items-center gap-1 bg-blue-50 px-2 py-1 rounded-full">
-            <Text className="text-xs text-blue-700 font-medium">🎤 Voice</Text>
-          </View>
-        ) : null}
       </View>
     </View>
   );

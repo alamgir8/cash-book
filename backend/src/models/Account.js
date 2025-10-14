@@ -26,10 +26,6 @@ const accountSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
-    createdViaVoice: {
-      type: Boolean,
-      default: false,
-    },
   },
   {
     timestamps: true,

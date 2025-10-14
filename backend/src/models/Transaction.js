@@ -36,10 +36,7 @@ const transactionSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
-    createdViaVoice: {
-      type: Boolean,
-      default: false,
-    },
+
     balanceAfterTransaction: {
       type: Number,
     },

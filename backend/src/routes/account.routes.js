@@ -19,7 +19,6 @@ const createSchema = z.object({
     name: z.string().min(2),
     type: z.enum(["debit", "credit"]),
     description: z.string().optional(),
-    createdViaVoice: z.boolean().optional(),
   }),
   params: z.object({}).optional(),
   query: z.object({}).optional(),

@@ -39,7 +39,6 @@ const schema = z.object({
   name: z.string().min(2, "Account name is required"),
   type: z.enum(["debit", "credit"]),
   description: z.string().optional(),
-  createdViaVoice: z.boolean().optional(),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -48,14 +47,12 @@ const DEFAULT_FORM_VALUES: FormValues = {
   name: "",
   type: "debit",
   description: "",
-  createdViaVoice: false,
 };
 
 const parseVoiceForAccount = (transcript: string): Partial<FormValues> => {
   const lower = transcript.toLowerCase();
   const parsed: Partial<FormValues> = {
     description: transcript,
-    createdViaVoice: true,
   };
 
   const nameMatch = transcript.match(
@@ -177,10 +174,9 @@ export default function AccountsScreen() {
         name: values.name,
         type: values.type,
         description: values.description,
-        createdViaVoice: values.createdViaVoice,
       };
       if (selectedAccount) {
-        const { createdViaVoice, ...updatePayload } = payload;
+        const { ...updatePayload } = payload;
         await updateMutation.mutateAsync({
           accountId: selectedAccount._id,
           ...updatePayload,
