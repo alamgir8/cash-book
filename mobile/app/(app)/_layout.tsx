@@ -38,6 +38,7 @@ export default function AppLayout() {
           borderTopWidth: 1,
           paddingVertical: 6,
           paddingHorizontal: 8,
+          paddingBottom: 40,
           height: 72,
           shadowColor: "#000",
           shadowOffset: { width: 0, height: -2 },
@@ -45,6 +46,7 @@ export default function AppLayout() {
           shadowRadius: 8,
           elevation: 5,
         },
+
         tabBarShowLabel: false,
       }}
     >

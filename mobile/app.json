@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "Cash Book",
-    "slug": "cash-book",
+    "name": "Hisab Boi",
+    "slug": "hisab-boi",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "scheme": "cash-book",
+    "scheme": "hisab-boi",
     "icon": "./image/icon.png",
     "platforms": ["ios", "android", "web"],
     "newArchEnabled": true,
