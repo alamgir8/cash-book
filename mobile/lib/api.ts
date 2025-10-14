@@ -128,6 +128,7 @@ api.interceptors.response.use(
 
     const originalRequest = error.config as AxiosRequestConfig & {
       _retry?: boolean;
+      _refreshNetworkError?: boolean;
     };
 
     if (
@@ -160,6 +161,7 @@ api.interceptors.response.use(
         }
       } catch (refreshError) {
         if (axios.isAxiosError(refreshError) && !refreshError.response) {
+          (originalRequest as any)._refreshNetworkError = true;
           return Promise.reject(refreshError);
         }
         await Promise.resolve(unauthorizedHandler?.());
@@ -167,7 +169,11 @@ api.interceptors.response.use(
       }
     }
 
-    if (error.response?.status === 401 && currentToken) {
+    if (
+      error.response?.status === 401 &&
+      currentToken &&
+      !(originalRequest as any)?._refreshNetworkError
+    ) {
       await Promise.resolve(unauthorizedHandler?.());
     }
 

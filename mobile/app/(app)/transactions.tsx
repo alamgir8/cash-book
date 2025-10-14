@@ -15,6 +15,7 @@ import { fetchCategories } from "../../services/categories";
 import { queryKeys } from "../../lib/queryKeys";
 import type { SelectOption } from "../../components/searchable-select";
 import Toast from "react-native-toast-message";
+import { ScrollView } from "react-native-gesture-handler";
 
 const defaultFilters: TransactionFilters = {
   page: 1,
@@ -162,22 +163,10 @@ export default function TransactionsScreen() {
   // console.log("transactions", transactions, "query", transactionsQuery.data);
   // console.log("transactionsQuery>>>>>", transactionsQuery.data);
 
-  return (
-    <View className="flex-1 bg-gray-50">
-      <ScreenHeader
-        title="Transactions"
-        subtitle={accountId ? "Account transactions" : "All transactions"}
-        icon="receipt"
-        actionButton={{
-          label: exporting ? "Exporting..." : "Export PDF",
-          onPress: handleExport,
-          icon: "document-text",
-          color: "green",
-        }}
-      />
-
-      {/* Filter Section */}
-      <View className="px-4 py-3">
+  const renderHeader = () => {
+    return (
+      <View className="gap-6">
+        {/* Filter Section */}
         <FilterBar
           filters={filters}
           onChange={(nextFilters) =>
@@ -195,6 +184,22 @@ export default function TransactionsScreen() {
           onApplyFilters={() => transactionsQuery.refetch()}
         />
       </View>
+    );
+  };
+
+  return (
+    <View className="flex-1 bg-gray-50">
+      <ScreenHeader
+        title="Transactions"
+        subtitle={accountId ? "Account transactions" : "All transactions"}
+        icon="receipt"
+        actionButton={{
+          label: exporting ? "Exporting..." : "Export PDF",
+          onPress: handleExport,
+          icon: "document-text",
+          color: "green",
+        }}
+      />
 
       {/* Transaction List */}
       <FlatList
@@ -221,6 +226,7 @@ export default function TransactionsScreen() {
         //     }
         //   />
         // }
+        ListHeaderComponent={renderHeader}
         refreshing={transactionsQuery.isFetching}
         onRefresh={() => transactionsQuery.refetch()}
         showsVerticalScrollIndicator={false}

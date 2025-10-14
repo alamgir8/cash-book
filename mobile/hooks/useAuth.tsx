@@ -29,6 +29,7 @@ import type {
 
 const LEGACY_TOKEN_KEY = "debit-credit-token";
 const STORAGE_SESSION_KEY = "cash-book-auth-session";
+const STORAGE_USER_KEY = "cash-book-auth-user";
 const REFRESH_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
 
 type AuthState =
@@ -72,13 +73,19 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   }, []);
 
-  const persistSession = useCallback(async (tokens: AuthTokens) => {
+  const persistSession = useCallback(async (tokens: AuthTokens, user?: Admin) => {
     try {
       await SecureStore.setItemAsync(
         STORAGE_SESSION_KEY,
         JSON.stringify(tokens)
       );
       await SecureStore.setItemAsync(LEGACY_TOKEN_KEY, tokens.accessToken);
+      if (user) {
+        await SecureStore.setItemAsync(
+          STORAGE_USER_KEY,
+          JSON.stringify(user)
+        );
+      }
     } catch (error) {
       console.warn("Failed to persist auth session", error);
     }
@@ -90,6 +97,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     try {
       await SecureStore.deleteItemAsync(STORAGE_SESSION_KEY);
       await SecureStore.deleteItemAsync(LEGACY_TOKEN_KEY);
+      await SecureStore.deleteItemAsync(STORAGE_USER_KEY);
     } catch (error) {
       console.warn("Failed to clear stored session", error);
     }
@@ -99,7 +107,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const applySession = useCallback(
     async ({ tokens, admin }: AuthSessionResponse) => {
       setAuthToken(tokens.accessToken);
-      await persistSession(tokens);
+      await persistSession(tokens, admin);
       setState({ status: "authenticated", tokens, user: admin });
     },
     [persistSession]
@@ -117,10 +125,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     } catch (error) {
       if (axios.isAxiosError(error) && !error.response) {
         console.warn("Refresh token request failed (network issue)", error.message);
-        return null;
+        throw error;
       }
       await clearSession();
-      return null;
+      throw error;
     }
   }, [applySession, clearSession]);
 
@@ -128,7 +136,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     stopRefreshTimer();
     if (stateRef.current.status !== "authenticated") return;
     refreshIntervalRef.current = setInterval(() => {
-      void refreshAccessToken();
+      void refreshAccessToken().catch((err) => {
+        if (axios.isAxiosError(err) && !err.response) {
+          // transient network failure already logged
+          return;
+        }
+        console.warn("Scheduled token refresh failed", err);
+      });
     }, REFRESH_INTERVAL_MS);
   }, [refreshAccessToken, stopRefreshTimer]);
 
@@ -154,6 +168,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const bootstrap = useCallback(async () => {
     try {
       const stored = await SecureStore.getItemAsync(STORAGE_SESSION_KEY);
+      const storedUser = await SecureStore.getItemAsync(STORAGE_USER_KEY);
       if (!stored) {
         await clearSession();
         return;
@@ -173,10 +188,19 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         return;
       }
 
+      let cachedUser: Admin | null = null;
+      if (storedUser) {
+        try {
+          cachedUser = JSON.parse(storedUser) as Admin;
+        } catch (error) {
+          console.warn("Failed to parse stored user", error);
+        }
+      }
+
       setAuthToken(tokens.accessToken);
       try {
         const profile = await authService.getProfile();
-        await persistSession(tokens);
+        await persistSession(tokens, profile.admin);
         setState({
           status: "authenticated",
           tokens,
@@ -189,6 +213,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           );
           await applySession(refreshed);
         } catch (refreshError) {
+          if (axios.isAxiosError(refreshError) && !refreshError.response && cachedUser) {
+            console.warn("Bootstrap refresh failed due to network; using cached session");
+            setState({ status: "authenticated", tokens, user: cachedUser });
+            await persistSession(tokens, cachedUser);
+            return;
+          }
           console.warn("Failed to refresh session during bootstrap", refreshError);
           await clearSession();
         }

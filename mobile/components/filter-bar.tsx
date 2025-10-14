@@ -125,10 +125,10 @@ export const FilterBar = ({
             filters.includeDeleted
         );
 
-  const financialScopeOptions: Array<{
+  const financialScopeOptions: {
     label: string;
     value: "actual" | "income" | "expense" | "both";
-  }> = [
+  }[] = [
     { label: "Actual", value: "actual" },
     { label: "Income", value: "income" },
     { label: "Expense", value: "expense" },
@@ -136,13 +136,15 @@ export const FilterBar = ({
   ];
 
   return (
-    <View className="bg-white rounded-2xl p-3 border border-gray-200 shadow-sm">
+    <View
+      className={`bg-white rounded-2xl p-3 border border-gray-200 shadow-sm`}
+    >
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         nestedScrollEnabled
         contentContainerStyle={{ paddingRight: 12 }}
-        className="flex-row gap-2.5"
+        className={`flex-row gap-2.5`}
       >
         {ranges.map((range) => (
           <TouchableOpacity
