@@ -9,13 +9,15 @@ import {
   fetchTransactions,
   type TransactionFilters,
 } from "../../services/transactions";
+import { exportTransactionsPdf } from "../../services/reports";
 import { useLocalSearchParams } from "expo-router";
 import { fetchCategories } from "../../services/categories";
 import { queryKeys } from "../../lib/queryKeys";
 import type { SelectOption } from "../../components/searchable-select";
+import Toast from "react-native-toast-message";
 
 const defaultFilters: TransactionFilters = {
-  range: "daily",
+  range: "monthly",
   page: 1,
   limit: 20,
   financialScope: "actual",
@@ -29,6 +31,7 @@ export default function TransactionsScreen() {
     ...defaultFilters,
     ...(accountId ? { accountId } : {}),
   });
+  const [exporting, setExporting] = useState(false);
 
   const categoriesQuery = useQuery({
     queryKey: queryKeys.categories,
@@ -49,11 +52,17 @@ export default function TransactionsScreen() {
     }));
   }, [categoriesQuery.data]);
 
+  // const transactionsQuery = useQuery({
+  //   queryKey: ["transactions", filters],
+  //   queryFn: () => fetchTransactions(filters),
+  //   retry: false,
+  //   refetchOnWindowFocus: false,
+  // });
+
   const transactionsQuery = useQuery({
-    queryKey: ["transactions", filters],
+    queryKey: queryKeys.transactions(filters),
     queryFn: () => fetchTransactions(filters),
-    retry: false,
-    refetchOnWindowFocus: false,
+    placeholderData: (previousData) => previousData,
   });
 
   const transactions = useMemo(() => {
@@ -137,12 +146,35 @@ export default function TransactionsScreen() {
     }));
   }, []);
 
+  const handleExport = useCallback(async () => {
+    if (exporting) return;
+    try {
+      setExporting(true);
+      await exportTransactionsPdf(filters);
+      Toast.show({ type: "success", text1: "PDF exported successfully" });
+    } catch (error) {
+      console.error("Transactions export error", error);
+      Toast.show({ type: "error", text1: "Failed to export PDF" });
+    } finally {
+      setExporting(false);
+    }
+  }, [exporting, filters]);
+
+  // console.log("transactions", transactions, "query", transactionsQuery.data);
+  // console.log("transactionsQuery>>>>>", transactionsQuery.data);
+
   return (
     <View className="flex-1 bg-gray-50">
       <ScreenHeader
         title="Transactions"
         subtitle={accountId ? "Account transactions" : "All transactions"}
         icon="receipt"
+        actionButton={{
+          label: exporting ? "Exporting..." : "Export PDF",
+          onPress: handleExport,
+          icon: "document-text",
+          color: "green",
+        }}
       />
 
       {/* Filter Section */}
@@ -169,16 +201,11 @@ export default function TransactionsScreen() {
       <FlatList
         data={transactions}
         keyExtractor={(item) => item._id}
-        renderItem={({ item }) => (
-          <TransactionCard
-            transaction={item}
-            onCategoryPress={handleCategoryPress}
-            onCounterpartyPress={handleCounterpartyPress}
-          />
-        )}
         contentContainerStyle={{
-          padding: 16,
-          gap: 8,
+          paddingHorizontal: 16,
+          paddingVertical: 20,
+          gap: 16,
+          paddingBottom: 120,
         }}
         // ListEmptyComponent={
         //   <EmptyState
@@ -197,6 +224,14 @@ export default function TransactionsScreen() {
         // }
         refreshing={transactionsQuery.isFetching}
         onRefresh={() => transactionsQuery.refetch()}
+        showsVerticalScrollIndicator={false}
+        renderItem={({ item }) => (
+          <TransactionCard
+            transaction={item}
+            onCategoryPress={handleCategoryPress}
+            onCounterpartyPress={handleCounterpartyPress}
+          />
+        )}
       />
     </View>
   );

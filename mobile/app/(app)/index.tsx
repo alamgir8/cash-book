@@ -85,6 +85,7 @@ const defaultFilters: TransactionFilters = {
   range: "monthly",
   page: 1,
   limit: 20,
+  financialScope: "actual",
 };
 
 const parseVoiceTranscript = (
@@ -568,6 +569,8 @@ export default function DashboardScreen() {
       </View>
     );
   };
+
+  // console.log("transactionsQuery", transactionsQuery.data);
 
   return (
     <View className="flex-1 bg-gradient-to-b from-blue-50 to-gray-50">

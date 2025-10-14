@@ -265,11 +265,27 @@ const collectTransactions = async (
   let grandTotal = 0;
   const pageSize = 200; // backend caps at 200 per request
 
+  const accountSnapshots = new Map<
+    string,
+    { after: number; amount: number; type: "credit" | "debit" }
+  >();
+
   do {
     const response = await fetchTransactions({
       ...baseFilters,
       page: currentPage,
       limit: pageSize,
+    });
+
+    response.transactions.forEach((txn) => {
+      const accountId =
+        typeof txn.account === "object" ? txn.account?._id : txn.account;
+      if (!accountId) return;
+      accountSnapshots.set(accountId, {
+        after: Number(txn.balance_after_transaction ?? 0),
+        amount: Number(txn.amount ?? 0),
+        type: txn.type,
+      });
     });
 
     transactions.push(...response.transactions);
@@ -278,10 +294,46 @@ const collectTransactions = async (
     currentPage += 1;
   } while (currentPage <= totalPages);
 
+  const startingBalances = new Map<string, number>();
+  accountSnapshots.forEach((snapshot, accountId) => {
+    let starting = snapshot.after;
+    if (snapshot.type === "credit") {
+      starting -= snapshot.amount;
+    } else {
+      starting += snapshot.amount;
+    }
+    startingBalances.set(accountId, starting);
+  });
+
   transactions.sort((a, b) => {
     const left = dayjs(a.date).valueOf();
     const right = dayjs(b.date).valueOf();
+    if (left === right) {
+      return dayjs(a.createdAt ?? a.date).valueOf() -
+        dayjs(b.createdAt ?? b.date).valueOf();
+    }
     return left - right;
+  });
+
+  const runningBalances = new Map<string, number>();
+  transactions.forEach((txn) => {
+    const accountId =
+      typeof txn.account === "object" ? txn.account?._id : txn.account;
+    if (!accountId) return;
+
+    let running = runningBalances.get(accountId);
+    if (running === undefined) {
+      running = startingBalances.get(accountId) ?? 0;
+    }
+
+    if (txn.type === "credit") {
+      running += Number(txn.amount ?? 0);
+    } else {
+      running -= Number(txn.amount ?? 0);
+    }
+
+    txn.balance_after_transaction = running;
+    runningBalances.set(accountId, running);
   });
 
   return { transactions, total: grandTotal };

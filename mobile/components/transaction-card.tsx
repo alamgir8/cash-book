@@ -62,37 +62,38 @@ export const TransactionCard = ({
         </Text>
       ) : null}
 
-      {transaction.category ? (
-        <TouchableOpacity
-          activeOpacity={onCategoryPress ? 0.8 : 1}
-          onPress={() => {
-            if (transaction.category?._id && onCategoryPress) {
-              onCategoryPress(transaction.category._id);
-            }
-          }}
-          className="self-start mt-3 px-3 py-1 rounded-full bg-blue-50 border border-blue-100"
-        >
-          <Text className="text-xs font-semibold text-blue-700">
-            {transaction.category.name}
-          </Text>
-        </TouchableOpacity>
-      ) : null}
-
-      {transaction.counterparty ? (
-        <TouchableOpacity
-          activeOpacity={onCounterpartyPress ? 0.8 : 1}
-          onPress={() => {
-            if (transaction.counterparty && onCounterpartyPress) {
-              onCounterpartyPress(transaction.counterparty);
-            }
-          }}
-          className="self-start mt-2"
-        >
-          <Text className="text-gray-500 text-xs underline">
-            Counterparty: {transaction.counterparty}
-          </Text>
-        </TouchableOpacity>
-      ) : null}
+      <View className="flex-row flex-wrap mt-2 gap-x-4">
+        {transaction.category ? (
+          <TouchableOpacity
+            activeOpacity={onCategoryPress ? 0.8 : 1}
+            onPress={() => {
+              if (transaction.category?._id && onCategoryPress) {
+                onCategoryPress(transaction.category._id);
+              }
+            }}
+            className="self-start mt-3 px-3 py-1 rounded-full bg-blue-50 border border-blue-100"
+          >
+            <Text className="text-xs font-semibold text-blue-700">
+              {transaction.category.name}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
+        {transaction.counterparty ? (
+          <TouchableOpacity
+            activeOpacity={onCounterpartyPress ? 0.8 : 1}
+            onPress={() => {
+              if (transaction.counterparty && onCounterpartyPress) {
+                onCounterpartyPress(transaction.counterparty);
+              }
+            }}
+            className="self-start mt-3 px-3 py-1 rounded-full bg-blue-50 border border-blue-100"
+          >
+            <Text className="text-xs font-semibold text-blue-700">
+              Counterparty: {transaction.counterparty}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
 
       {/* <View className="flex-row justify-between items-center mt-4 pt-3 border-t border-gray-100">
         <Text className="text-xs text-gray-500 font-medium">

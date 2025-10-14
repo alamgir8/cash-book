@@ -30,6 +30,7 @@ const defaultFilters: TransactionFilters = {
   range: "monthly",
   page: 1,
   limit: 50,
+  financialScope: "actual",
 };
 
 export default function AccountDetailScreen() {

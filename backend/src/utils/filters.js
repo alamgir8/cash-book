@@ -74,27 +74,40 @@ export const buildTransactionFilters = ({
   }
 
   if (Array.isArray(allowedCategoryIds)) {
-    if (allowedCategoryIds.length === 0) {
-      filter.category_id = { $in: [] };
-    } else if (!filter.category_id) {
-      filter.category_id = { $in: asObjectIdArray(allowedCategoryIds) };
-    } else if (filter.category_id instanceof mongoose.Types.ObjectId) {
-      const matches = allowedCategoryIds.some((id) =>
-        id.toString() === filter.category_id.toString()
-      );
-      if (!matches) {
-        filter.category_id = { $in: [] };
+    const allowedObjectIds = asObjectIdArray(allowedCategoryIds);
+    const allowUncategorized = true;
+
+    const userCategoryCondition = filter.category_id;
+    if (userCategoryCondition) {
+      delete filter.category_id;
+    }
+
+    if (userCategoryCondition) {
+      filter.$and = filter.$and ?? [];
+      filter.$and.push({ category_id: userCategoryCondition });
+
+      if (allowedObjectIds.length > 0) {
+        filter.$and.push({ category_id: { $in: allowedObjectIds } });
+      } else if (!allowUncategorized) {
+        filter.$and.push({ category_id: { $in: [] } });
+      } else {
+        filter.$and.push({ category_id: { $in: [] } });
       }
-    } else if (filter.category_id.$in) {
-      const allowedSet = new Set(
-        allowedCategoryIds.map((id) => id.toString())
-      );
-      const intersection = filter.category_id.$in.filter((id) =>
-        allowedSet.has(id.toString())
-      );
-      filter.category_id.$in = intersection;
-      if (intersection.length === 0) {
-        filter.category_id = { $in: [] };
+    } else {
+      const scopeConditions = [];
+      if (allowedObjectIds.length > 0) {
+        scopeConditions.push({ category_id: { $in: allowedObjectIds } });
+      }
+      if (allowUncategorized) {
+        scopeConditions.push({ category_id: { $exists: false } });
+        scopeConditions.push({ category_id: null });
+      }
+
+      if (scopeConditions.length === 0) {
+        filter.$and = filter.$and ?? [];
+        filter.$and.push({ category_id: { $in: [] } });
+      } else {
+        filter.$or = [...(filter.$or ?? []), ...scopeConditions];
       }
     }
   }

@@ -20,6 +20,7 @@ export type Transaction = {
   type: "debit" | "credit";
   amount: number;
   date: string;
+  createdAt?: string;
   description?: string;
   keyword?: string;
   comment?: string;
@@ -138,6 +139,7 @@ export const normalizeTransaction = (
     type: transaction.type,
     amount: Number(transaction.amount ?? 0),
     date: transaction.date,
+    createdAt: transaction.createdAt ?? transaction.created_at,
     description: transaction.description ?? undefined,
     keyword: transaction.keyword ?? undefined,
     comment: transaction.comment ?? transaction.keyword ?? undefined,
