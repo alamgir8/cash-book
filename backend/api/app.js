@@ -23,6 +23,10 @@ export const createApp = () => {
     res.json({ status: "ok" });
   });
 
+  app.get("/", (_req, res) => {
+    res.send("App working fine!");
+  });
+
   app.use("/api", routes);
 
   app.use(notFoundHandler);
