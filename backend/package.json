@@ -5,8 +5,10 @@
   "main": "src/server.js",
   "type": "module",
   "scripts": {
-    "dev": "nodemon src/server.js",
-    "start": "node src/server.js",
+    "dev": "nodemon api/server.js",
+    "start": "node api/server.js",
+    "production": "NODE_ENV=production nodemon api/server.js",
+    "test": "echo \"Error: no test specified\" && exit 1",
     "lint": "eslint \"src/**/*.js\""
   },
   "engines": {

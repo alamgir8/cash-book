@@ -1,7 +1,7 @@
 import "dotenv/config.js";
 import http from "http";
 import { createApp } from "./app.js";
-import { connectDatabase } from "./config/database.js";
+import { connectDatabase } from "../config/database.js";
 
 const port = Number(process.env.PORT) || 4000;
 const mongoUri = process.env.MONGODB_URI;
