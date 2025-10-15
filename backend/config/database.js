@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 
 export const connectDatabase = async (mongoUri) => {
   try {
-    mongoose.set("strictQuery", false);
+    // mongoose.set("strictQuery", false);
     await mongoose.connect(mongoUri, {
       autoIndex: true,
     });
