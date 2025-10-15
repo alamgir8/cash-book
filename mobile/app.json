@@ -16,17 +16,23 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.cashbook.app"
+      "bundleIdentifier": "com.alamgir.hisabboi"
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#ffffff",
         "foregroundImage": "./image/adaptive-icon.png"
       },
-      "package": "com.cashbook.app"
+      "package": "com.alamgir.hisabboi",
+      "versionCode": 1
     },
     "web": {
       "bundler": "metro"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "5fcddc2a-ddf0-40ed-b466-8df0326471a7"
+      }
     },
     "plugins": [
       "expo-router",
