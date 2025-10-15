@@ -27,7 +27,7 @@ export function ScreenHeader({
 }: ScreenHeaderProps) {
   return (
     <View
-      className="pt-16 pb-6 px-6 shadow-sm border-b border-gray-100"
+      className="pt-6 pb-6 px-6 shadow-sm border-b border-gray-100"
       style={{ backgroundColor }}
     >
       <View className="flex-row items-center justify-between">
