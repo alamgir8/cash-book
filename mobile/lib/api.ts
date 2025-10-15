@@ -9,6 +9,27 @@ import { NativeModules } from "react-native";
 const API_PORT = 4000;
 const API_PATH = "/api";
 
+const normalizeUrl = (value?: string | null) => {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+
+  const candidates = trimmed.includes("://")
+    ? [trimmed]
+    : [`https://${trimmed}`, `http://${trimmed}`];
+
+  for (const candidate of candidates) {
+    try {
+      const url = new URL(candidate);
+      const pathname = url.pathname.replace(/\/+$/, "");
+      return `${url.origin}${pathname}${url.search}${url.hash}` || url.origin;
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
+};
+
 const buildUrlFromHostname = (hostname: string) => {
   if (!hostname) return null;
   const needsBrackets =
@@ -33,9 +54,14 @@ const parseHostname = (value?: string | null) => {
 
 // Determine the best base URL we can for the current runtime.
 const getBaseURL = () => {
+  const envUrl = normalizeUrl(process.env.EXPO_PUBLIC_BASE_URL);
+  if (envUrl) {
+    return envUrl;
+  }
+
   const explicit =
-    Constants.expoConfig?.extra?.apiBaseUrl ??
-    Constants.manifest?.extra?.apiBaseUrl;
+    normalizeUrl(Constants.expoConfig?.extra?.apiBaseUrl) ??
+    normalizeUrl(Constants.manifest?.extra?.apiBaseUrl);
   if (explicit) {
     return explicit;
   }
