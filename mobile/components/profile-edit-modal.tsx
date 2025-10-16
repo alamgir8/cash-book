@@ -62,11 +62,7 @@ const profileSchema = z
         });
       }
 
-      if (
-        pinProvided &&
-        confirmProvided &&
-        data.loginPin !== data.confirmPin
-      ) {
+      if (pinProvided && confirmProvided && data.loginPin !== data.confirmPin) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: "PINs do not match",

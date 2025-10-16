@@ -920,7 +920,7 @@ export default function DashboardScreen() {
               </View>
 
               {/* Submit Button - Fixed at bottom */}
-              <View className="p-6 pt-4 border-t border-gray-100">
+              <View className="p-6 pt-4 mb-10 border-t border-gray-100">
                 <TouchableOpacity
                   onPress={handleSubmit(onSubmit)}
                   disabled={createMutation.isPending}

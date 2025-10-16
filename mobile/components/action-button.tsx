@@ -79,7 +79,7 @@ export function ActionButton({
         ${getVariantStyles()} 
         ${getSizeStyles()} 
         ${fullWidth ? "w-full" : ""} 
-        items-center justify-center 
+        items-center justify-center mb-10
         shadow-lg active:scale-95
         ${disabled ? "opacity-50" : ""}
       `}
