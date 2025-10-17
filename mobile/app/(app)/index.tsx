@@ -511,6 +511,26 @@ export default function DashboardScreen() {
     }));
   }, []);
 
+  const renderTransactionItem = useCallback(
+    ({ item }: { item: any }) => (
+      <TransactionCard
+        transaction={item}
+        onCategoryPress={handleCategoryFilter}
+        onCounterpartyPress={handleCounterpartyFilter}
+      />
+    ),
+    [handleCategoryFilter, handleCounterpartyFilter]
+  );
+
+  const getItemLayout = useCallback(
+    (_: any, index: number) => ({
+      length: 200, // Approximate height of each item
+      offset: 200 * index,
+      index,
+    }),
+    []
+  );
+
   const renderHeader = () => {
     const transactionCount =
       (transactionsQuery.data as any)?.transactions?.length || 0;
@@ -619,13 +639,12 @@ export default function DashboardScreen() {
             />
           )
         }
-        renderItem={({ item }) => (
-          <TransactionCard
-            transaction={item}
-            onCategoryPress={handleCategoryFilter}
-            onCounterpartyPress={handleCounterpartyFilter}
-          />
-        )}
+        renderItem={renderTransactionItem}
+        removeClippedSubviews={true}
+        maxToRenderPerBatch={10}
+        updateCellsBatchingPeriod={50}
+        initialNumToRender={10}
+        windowSize={10}
       />
 
       <FloatingActionButton

@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import dayjs from "dayjs";
 import type { Transaction } from "../services/transactions";
@@ -9,7 +10,7 @@ type Props = {
   onCounterpartyPress?: (counterparty: string) => void;
 };
 
-export const TransactionCard = ({
+const TransactionCardComponent = ({
   transaction,
   onCategoryPress,
   onCounterpartyPress,
@@ -103,3 +104,26 @@ export const TransactionCard = ({
     </View>
   );
 };
+
+// Memoize the component with custom comparison
+export const TransactionCard = memo(
+  TransactionCardComponent,
+  (prevProps, nextProps) => {
+    // Only re-render if transaction ID or callbacks change
+    return (
+      prevProps.transaction._id === nextProps.transaction._id &&
+      prevProps.transaction.amount === nextProps.transaction.amount &&
+      prevProps.transaction.type === nextProps.transaction.type &&
+      prevProps.transaction.description === nextProps.transaction.description &&
+      prevProps.transaction.date === nextProps.transaction.date &&
+      prevProps.transaction.account?.name ===
+        nextProps.transaction.account?.name &&
+      prevProps.transaction.category?.name ===
+        nextProps.transaction.category?.name &&
+      prevProps.transaction.counterparty ===
+        nextProps.transaction.counterparty &&
+      prevProps.onCategoryPress === nextProps.onCategoryPress &&
+      prevProps.onCounterpartyPress === nextProps.onCounterpartyPress
+    );
+  }
+);

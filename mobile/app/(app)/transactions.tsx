@@ -158,6 +158,17 @@ export default function TransactionsScreen() {
     }
   }, [exporting, filters]);
 
+  const renderTransactionItem = useCallback(
+    ({ item }: { item: any }) => (
+      <TransactionCard
+        transaction={item}
+        onCategoryPress={handleCategoryPress}
+        onCounterpartyPress={handleCounterpartyPress}
+      />
+    ),
+    [handleCategoryPress, handleCounterpartyPress]
+  );
+
   // console.log("transactions", transactions, "query", transactionsQuery.data);
   // console.log("transactionsQuery>>>>>", transactionsQuery.data);
 
@@ -209,32 +220,16 @@ export default function TransactionsScreen() {
           gap: 16,
           paddingBottom: 120,
         }}
-        // ListEmptyComponent={
-        //   <EmptyState
-        //     isLoading={transactionsQuery.isLoading}
-        //     loadingText="Loading transactions..."
-        //     icon="receipt-outline"
-        //     title={
-        //       accountId ? "No account transactions" : "No transactions found"
-        //     }
-        //     description={
-        //       accountId
-        //         ? "This account has no transactions yet"
-        //         : "Start adding transactions to see them here or adjust your filters"
-        //     }
-        //   />
-        // }
         ListHeaderComponent={renderHeader}
         refreshing={transactionsQuery.isFetching}
         onRefresh={() => transactionsQuery.refetch()}
         showsVerticalScrollIndicator={false}
-        renderItem={({ item }) => (
-          <TransactionCard
-            transaction={item}
-            onCategoryPress={handleCategoryPress}
-            onCounterpartyPress={handleCounterpartyPress}
-          />
-        )}
+        renderItem={renderTransactionItem}
+        removeClippedSubviews={true}
+        maxToRenderPerBatch={10}
+        updateCellsBatchingPeriod={50}
+        initialNumToRender={10}
+        windowSize={10}
       />
     </View>
   );
