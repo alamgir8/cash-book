@@ -59,12 +59,16 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     tokens: null,
   });
   const stateRef = useRef(state);
+  const isMountedRef = useRef(true);
+
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
 
   const handlingUnauthorized = useRef(false);
-  const refreshIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const refreshIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
+    null
+  );
 
   const stopRefreshTimer = useCallback(() => {
     if (refreshIntervalRef.current) {
@@ -73,23 +77,26 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   }, []);
 
-  const persistSession = useCallback(async (tokens: AuthTokens, user?: Admin) => {
-    try {
-      await SecureStore.setItemAsync(
-        STORAGE_SESSION_KEY,
-        JSON.stringify(tokens)
-      );
-      await SecureStore.setItemAsync(LEGACY_TOKEN_KEY, tokens.accessToken);
-      if (user) {
+  const persistSession = useCallback(
+    async (tokens: AuthTokens, user?: Admin) => {
+      try {
         await SecureStore.setItemAsync(
-          STORAGE_USER_KEY,
-          JSON.stringify(user)
+          STORAGE_SESSION_KEY,
+          JSON.stringify(tokens)
         );
+        await SecureStore.setItemAsync(LEGACY_TOKEN_KEY, tokens.accessToken);
+        if (user) {
+          await SecureStore.setItemAsync(
+            STORAGE_USER_KEY,
+            JSON.stringify(user)
+          );
+        }
+      } catch (error) {
+        console.warn("Failed to persist auth session", error);
       }
-    } catch (error) {
-      console.warn("Failed to persist auth session", error);
-    }
-  }, []);
+    },
+    []
+  );
 
   const clearSession = useCallback(async () => {
     setAuthToken();
@@ -101,14 +108,18 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     } catch (error) {
       console.warn("Failed to clear stored session", error);
     }
-    setState({ status: "unauthenticated", user: null, tokens: null });
+    if (isMountedRef.current) {
+      setState({ status: "unauthenticated", user: null, tokens: null });
+    }
   }, [stopRefreshTimer]);
 
   const applySession = useCallback(
     async ({ tokens, admin }: AuthSessionResponse) => {
       setAuthToken(tokens.accessToken);
       await persistSession(tokens, admin);
-      setState({ status: "authenticated", tokens, user: admin });
+      if (isMountedRef.current) {
+        setState({ status: "authenticated", tokens, user: admin });
+      }
     },
     [persistSession]
   );
@@ -124,7 +135,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       return refreshed.tokens.accessToken;
     } catch (error) {
       if (axios.isAxiosError(error) && !error.response) {
-        console.warn("Refresh token request failed (network issue)", error.message);
+        console.warn(
+          "Refresh token request failed (network issue)",
+          error.message
+        );
         throw error;
       }
       await clearSession();
@@ -213,13 +227,22 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           );
           await applySession(refreshed);
         } catch (refreshError) {
-          if (axios.isAxiosError(refreshError) && !refreshError.response && cachedUser) {
-            console.warn("Bootstrap refresh failed due to network; using cached session");
+          if (
+            axios.isAxiosError(refreshError) &&
+            !refreshError.response &&
+            cachedUser
+          ) {
+            console.warn(
+              "Bootstrap refresh failed due to network; using cached session"
+            );
             setState({ status: "authenticated", tokens, user: cachedUser });
             await persistSession(tokens, cachedUser);
             return;
           }
-          console.warn("Failed to refresh session during bootstrap", refreshError);
+          console.warn(
+            "Failed to refresh session during bootstrap",
+            refreshError
+          );
           await clearSession();
         }
       }
@@ -304,11 +327,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     if (stateRef.current.status !== "authenticated") return;
     try {
       const data = await authService.getProfile();
-      setState((prev) =>
-        prev.status === "authenticated"
-          ? { ...prev, user: data.admin }
-          : { status: "unauthenticated", user: null, tokens: null }
-      );
+      if (isMountedRef.current) {
+        setState((prev) =>
+          prev.status === "authenticated"
+            ? { ...prev, user: data.admin }
+            : { status: "unauthenticated", user: null, tokens: null }
+        );
+      }
     } catch (error) {
       console.warn("Failed to refresh profile", error);
     }
@@ -318,11 +343,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     if (stateRef.current.status !== "authenticated") return;
     try {
       const data = await authService.updateProfile(payload);
-      setState((prev) =>
-        prev.status === "authenticated"
-          ? { ...prev, user: data.admin }
-          : { status: "unauthenticated", user: null, tokens: null }
-      );
+      if (isMountedRef.current) {
+        setState((prev) =>
+          prev.status === "authenticated"
+            ? { ...prev, user: data.admin }
+            : { status: "unauthenticated", user: null, tokens: null }
+        );
+      }
       Toast.show({ type: "success", text1: "Profile updated successfully" });
     } catch (error) {
       const message = getApiErrorMessage(
@@ -345,6 +372,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }),
     [state, signIn, signUp, signOut, refreshProfile, updateProfile]
   );
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      stopRefreshTimer();
+    };
+  }, [stopRefreshTimer]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

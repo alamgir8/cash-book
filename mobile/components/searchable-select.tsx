@@ -8,6 +8,7 @@ import {
   FlatList,
   StyleSheet,
   Platform,
+  KeyboardAvoidingView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -119,7 +120,10 @@ export const SearchableSelect = ({
           activeOpacity={1}
           onPress={closeModal}
         />
-        <View style={styles.sheet}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.sheet}
+        >
           <View style={styles.sheetHeader}>
             <Text style={styles.sheetTitle}>{label ?? placeholder}</Text>
             <TouchableOpacity onPress={closeModal}>
@@ -170,9 +174,9 @@ export const SearchableSelect = ({
               );
             }}
             keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ paddingBottom: 200 }}
+            contentContainerStyle={{ paddingBottom: 100 }}
           />
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );

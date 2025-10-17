@@ -3,6 +3,7 @@ import {
   useContext,
   useState,
   useEffect,
+  useRef,
   ReactNode,
 } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -103,21 +104,24 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   const { state, updateProfile } = useAuth();
   const [preferences, setPreferences] =
     useState<UserPreferences>(defaultPreferences);
+  const isMountedRef = useRef(true);
 
   // Load preferences from auth user or storage on mount
   useEffect(() => {
     if (state.status === "authenticated" && state.user?.settings) {
       // Load from authenticated user
       const userSettings = state.user.settings;
-      setPreferences({
-        currency: userSettings.currency,
-        currency_symbol: currencyMap[userSettings.currency]?.symbol || "$",
-        locale: currencyMap[userSettings.currency]?.locale || "en-US",
-        date_format: "MMM D, YYYY", // Could be extended to userSettings.date_format
-        time_format: "12h", // Could be extended to userSettings.time_format
-        language: userSettings.language,
-        language_label: languageMap[userSettings.language] || "English",
-      });
+      if (isMountedRef.current) {
+        setPreferences({
+          currency: userSettings.currency,
+          currency_symbol: currencyMap[userSettings.currency]?.symbol || "$",
+          locale: currencyMap[userSettings.currency]?.locale || "en-US",
+          date_format: "MMM D, YYYY", // Could be extended to userSettings.date_format
+          time_format: "12h", // Could be extended to userSettings.time_format
+          language: userSettings.language,
+          language_label: languageMap[userSettings.language] || "English",
+        });
+      }
     } else {
       // Fallback to local storage
       loadPreferences();
@@ -127,7 +131,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   const loadPreferences = async () => {
     try {
       const stored = await AsyncStorage.getItem(PREFERENCES_STORAGE_KEY);
-      if (stored) {
+      if (stored && isMountedRef.current) {
         const parsed = JSON.parse(stored);
         setPreferences({
           ...parsed,
@@ -154,7 +158,9 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
           languageMap[newPrefs.language || preferences.language] || "English",
       };
 
-      setPreferences(updatedPrefs);
+      if (isMountedRef.current) {
+        setPreferences(updatedPrefs);
+      }
 
       // If user is authenticated, sync with backend
       if (state.status === "authenticated") {
@@ -193,6 +199,13 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   const getCurrencySymbol = (): string => {
     return preferences.currency_symbol;
   };
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   return (
     <PreferencesContext.Provider
