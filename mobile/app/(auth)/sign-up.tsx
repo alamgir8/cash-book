@@ -1,6 +1,12 @@
 import { Link, useRouter } from "expo-router";
 import { useState } from "react";
-import { View, Text, ScrollView } from "react-native";
+import {
+  View,
+  Text,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+} from "react-native";
 import { useForm, Controller } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -73,95 +79,107 @@ export default function SignUpScreen() {
   };
 
   return (
-    <ScrollView
-      className="flex-1 bg-slate-50 px-6"
-      contentContainerStyle={{ paddingVertical: 48 }}
-      showsVerticalScrollIndicator={false}
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      className="flex-1 bg-slate-50"
     >
-      <View className="gap-8">
-        <View className="items-center mb-4">
-          <Text className="text-4xl font-bold text-slate-900 mb-3">
-            Create Account
-          </Text>
-          <Text className="text-lg text-slate-600 text-center leading-6">
-            Sign up with your email or phone number to get started.
-          </Text>
-        </View>
-
-        <View className="gap-6">
-          {(["name", "email", "phone"] as const).map((field) => (
-            <Controller
-              key={field}
-              control={control}
-              name={field}
-              render={({ field: { onChange, value } }) => (
-                <CustomInput
-                  label={field.charAt(0).toUpperCase() + field.slice(1)}
-                  value={value ?? ""}
-                  onChangeText={onChange}
-                  placeholder={
-                    field === "phone" ? "Phone number" : `Your ${field}`
-                  }
-                  autoCapitalize={field === "email" ? "none" : "words"}
-                  keyboardType={
-                    field === "phone"
-                      ? "phone-pad"
-                      : field === "email"
-                      ? "email-address"
-                      : "default"
-                  }
-                  error={errors[field]?.message}
-                />
-              )}
-            />
-          ))}
-
-          {(["password", "confirmPassword"] as const).map((field) => (
-            <Controller
-              key={field}
-              control={control}
-              name={field}
-              render={({ field: { onChange, value } }) => (
-                <CustomInput
-                  label={
-                    field === "confirmPassword"
-                      ? "Confirm password"
-                      : "Password"
-                  }
-                  value={value}
-                  onChangeText={onChange}
-                  placeholder="••••••••"
-                  autoCapitalize="none"
-                  secureTextEntry
-                  error={errors[field]?.message}
-                />
-              )}
-            />
-          ))}
-
-          <CustomButton
-            title="Create Account"
-            onPress={handleSubmit(onSubmit)}
-            loading={loading}
-            containerClassName="mt-6"
-          />
-          {formError ? (
-            <Text className="text-rose-500 text-sm text-center mt-3">
-              {formError}
+      <ScrollView
+        className="flex-1"
+        contentContainerStyle={{
+          flexGrow: 1,
+          paddingHorizontal: 24,
+          paddingBottom: 240,
+        }}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View className="gap-8 py-12">
+          <View className="items-center mb-4">
+            <Text className="text-4xl font-bold text-slate-900 mb-3">
+              Create Account
             </Text>
-          ) : null}
-        </View>
+            <Text className="text-lg text-slate-600 text-center leading-6">
+              Sign up with your email or phone number to get started.
+            </Text>
+          </View>
 
-        <View className="flex-row justify-center items-center gap-2 mt-6">
-          <Text className="text-slate-600 text-base">Already registered?</Text>
-          <Link
-            href="/(auth)/sign-in"
-            className="text-blue-600 font-semibold text-base"
-          >
-            Sign in
-          </Link>
+          <View className="gap-6">
+            {(["name", "email", "phone"] as const).map((field) => (
+              <Controller
+                key={field}
+                control={control}
+                name={field}
+                render={({ field: { onChange, value } }) => (
+                  <CustomInput
+                    label={field.charAt(0).toUpperCase() + field.slice(1)}
+                    value={value ?? ""}
+                    onChangeText={onChange}
+                    placeholder={
+                      field === "phone" ? "Phone number" : `Your ${field}`
+                    }
+                    autoCapitalize={field === "email" ? "none" : "words"}
+                    keyboardType={
+                      field === "phone"
+                        ? "phone-pad"
+                        : field === "email"
+                        ? "email-address"
+                        : "default"
+                    }
+                    error={errors[field]?.message}
+                  />
+                )}
+              />
+            ))}
+
+            {(["password", "confirmPassword"] as const).map((field) => (
+              <Controller
+                key={field}
+                control={control}
+                name={field}
+                render={({ field: { onChange, value } }) => (
+                  <CustomInput
+                    label={
+                      field === "confirmPassword"
+                        ? "Confirm password"
+                        : "Password"
+                    }
+                    value={value}
+                    onChangeText={onChange}
+                    placeholder="••••••••"
+                    autoCapitalize="none"
+                    secureTextEntry
+                    error={errors[field]?.message}
+                  />
+                )}
+              />
+            ))}
+
+            <CustomButton
+              title="Create Account"
+              onPress={handleSubmit(onSubmit)}
+              loading={loading}
+              containerClassName="mt-6"
+            />
+            {formError ? (
+              <Text className="text-rose-500 text-sm text-center mt-3">
+                {formError}
+              </Text>
+            ) : null}
+          </View>
+
+          <View className="flex-row justify-center items-center gap-2 mt-6 pb-6">
+            <Text className="text-slate-600 text-base">
+              Already registered?
+            </Text>
+            <Link
+              href="/(auth)/sign-in"
+              className="text-blue-600 font-semibold text-base"
+            >
+              Sign in
+            </Link>
+          </View>
         </View>
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
