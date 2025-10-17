@@ -64,7 +64,11 @@ export const SearchableSelect = ({
 
     filtered.forEach((option) => {
       if (option.group && option.group !== previousGroup) {
-        items.push({ type: "GROUP", id: `group-${option.group}`, title: option.group });
+        items.push({
+          type: "GROUP",
+          id: `group-${option.group}`,
+          title: option.group,
+        });
         previousGroup = option.group;
       }
       const id =
@@ -89,9 +93,7 @@ export const SearchableSelect = ({
 
   return (
     <View style={styles.container}>
-      {label ? (
-        <Text style={styles.label}>{label}</Text>
-      ) : null}
+      {label ? <Text style={styles.label}>{label}</Text> : null}
       <TouchableOpacity
         style={[styles.trigger, disabled && styles.triggerDisabled]}
         onPress={() => !disabled && setVisible(true)}
@@ -147,13 +149,18 @@ export const SearchableSelect = ({
               const isSelected = item.option.value === value;
               return (
                 <TouchableOpacity
-                  style={[styles.optionRow, isSelected && styles.optionSelected]}
+                  style={[
+                    styles.optionRow,
+                    isSelected && styles.optionSelected,
+                  ]}
                   onPress={() => handleSelect(item.option)}
                 >
                   <View>
                     <Text style={styles.optionLabel}>{item.option.label}</Text>
                     {item.option.subtitle ? (
-                      <Text style={styles.optionSubtitle}>{item.option.subtitle}</Text>
+                      <Text style={styles.optionSubtitle}>
+                        {item.option.subtitle}
+                      </Text>
                     ) : null}
                   </View>
                   {isSelected ? (
@@ -163,7 +170,7 @@ export const SearchableSelect = ({
               );
             }}
             keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ paddingBottom: 24 }}
+            contentContainerStyle={{ paddingBottom: 200 }}
           />
         </View>
       </Modal>
