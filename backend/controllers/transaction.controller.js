@@ -749,3 +749,87 @@ export const restoreTransaction = async (req, res, next) => {
     next(error);
   }
 };
+
+export const recalculateBalances = async (req, res, next) => {
+  try {
+    const adminId = req.user.id;
+
+    // Get all accounts for this admin
+    const accounts = await Account.find({ admin: adminId })
+      .select("_id name opening_balance")
+      .lean();
+
+    if (accounts.length === 0) {
+      return res.status(200).json({
+        message: "No accounts found",
+        accountsProcessed: 0,
+        transactionsUpdated: 0,
+      });
+    }
+
+    let totalTransactionsUpdated = 0;
+
+    // Process each account separately
+    for (const account of accounts) {
+      // Get all non-deleted transactions for this account, sorted chronologically
+      const transactions = await Transaction.find({
+        admin: adminId,
+        account: account._id,
+        is_deleted: { $ne: true },
+      })
+        .sort({ date: 1, createdAt: 1, _id: 1 })
+        .select("_id type amount balance_after_transaction")
+        .lean();
+
+      if (transactions.length === 0) {
+        continue;
+      }
+
+      // Start with the account's opening balance (or current balance)
+      const accountDoc = await Account.findById(account._id);
+      let runningBalance = Number(
+        accountDoc.opening_balance ?? accountDoc.current_balance ?? 0
+      );
+
+      // Recalculate balance for each transaction
+      const bulkOps = [];
+      for (const txn of transactions) {
+        // Apply the transaction to the running balance
+        if (txn.type === "credit") {
+          runningBalance += Number(txn.amount ?? 0);
+        } else {
+          runningBalance -= Number(txn.amount ?? 0);
+        }
+
+        // Only update if the balance has changed
+        if (txn.balance_after_transaction !== runningBalance) {
+          bulkOps.push({
+            updateOne: {
+              filter: { _id: txn._id },
+              update: { $set: { balance_after_transaction: runningBalance } },
+            },
+          });
+          totalTransactionsUpdated++;
+        }
+      }
+
+      // Execute bulk updates if there are any
+      if (bulkOps.length > 0) {
+        await Transaction.bulkWrite(bulkOps);
+      }
+
+      // Update account's current balance
+      accountDoc.current_balance = runningBalance;
+      await accountDoc.save();
+    }
+
+    res.json({
+      message: "Balance recalculation completed successfully",
+      accountsProcessed: accounts.length,
+      transactionsUpdated: totalTransactionsUpdated,
+    });
+  } catch (error) {
+    console.error("Balance recalculation error:", error);
+    next(error);
+  }
+};

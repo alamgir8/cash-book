@@ -9,7 +9,8 @@
     "start": "node api/index.js",
     "production": "NODE_ENV=production nodemon api/index.js",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "lint": "eslint \"src/**/*.js\""
+    "lint": "eslint \"src/**/*.js\"",
+    "recalculate-balances": "node scripts/recalculate-balances-cli.js"
   },
   "engines": {
     "node": ">=20.0.0"

@@ -8,6 +8,7 @@ import {
   updateTransaction,
   deleteTransaction,
   restoreTransaction,
+  recalculateBalances,
 } from "../controllers/transaction.controller.js";
 import { authenticate } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
@@ -28,9 +29,7 @@ const dateValidator = z
   })
   .optional();
 
-const metaSchema = z
-  .record(z.any())
-  .optional();
+const metaSchema = z.record(z.any()).optional();
 
 const createSchema = z.object({
   body: z.object({
@@ -182,9 +181,14 @@ router.get("/", validate(listQuerySchema), listTransactions);
 router.get("/:transactionId", validate(transactionIdParams), getTransaction);
 router.post("/", validate(createSchema), createTransaction);
 router.post("/transfer", validate(transferSchema), createTransfer);
+router.post("/recalculate-balances", recalculateBalances);
 router.put("/:transactionId", validate(updateSchema), updateTransaction);
 router.patch("/:transactionId", validate(updateSchema), updateTransaction);
-router.delete("/:transactionId", validate(transactionIdParams), deleteTransaction);
+router.delete(
+  "/:transactionId",
+  validate(transactionIdParams),
+  deleteTransaction
+);
 router.post(
   "/:transactionId/restore",
   validate(transactionIdParams),

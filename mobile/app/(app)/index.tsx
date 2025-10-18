@@ -34,6 +34,8 @@ import {
   createTransaction,
   createTransfer,
   fetchTransactions,
+  updateTransaction,
+  type Transaction,
   type TransactionFilters,
 } from "../../services/transactions";
 import { fetchAccounts, type AccountOverview } from "../../services/accounts";
@@ -146,6 +148,8 @@ export default function DashboardScreen() {
   const [isTransferModalVisible, setTransferModalVisible] = useState(false);
   const [showTransferDatePicker, setShowTransferDatePicker] = useState(false);
   const [selectedTransferDate, setSelectedTransferDate] = useState(new Date());
+  const [editingTransaction, setEditingTransaction] =
+    useState<Transaction | null>(null);
 
   const accountsQuery = useQuery({
     queryKey: queryKeys.accounts,
@@ -181,6 +185,29 @@ export default function DashboardScreen() {
       Toast.show({
         type: "error",
         text1: "Error saving transaction",
+        text2: "Please try again.",
+      });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: updateTransaction,
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          predicate: (query) => query.queryKey[0] === "transactions",
+        }),
+        queryClient.invalidateQueries({
+          predicate: (query) => query.queryKey[0] === "accounts",
+        }),
+      ]);
+      Toast.show({ type: "success", text1: "Transaction updated" });
+    },
+    onError: (error) => {
+      console.error("Transaction update error:", error);
+      Toast.show({
+        type: "error",
+        text1: "Error updating transaction",
         text2: "Please try again.",
       });
     },
@@ -407,6 +434,31 @@ export default function DashboardScreen() {
     setShowTransferDatePicker(false);
   };
 
+  const handleEditTransaction = useCallback(
+    (transaction: Transaction) => {
+      setEditingTransaction(transaction);
+      reset({
+        accountId: transaction.account._id,
+        amount: transaction.amount,
+        type: transaction.type,
+        date: dayjs(transaction.date).format("YYYY-MM-DD"),
+        description: transaction.description || "",
+        comment: transaction.keyword || "",
+        categoryId: transaction.category?._id || "",
+        counterparty: transaction.counterparty || "",
+      });
+      setSelectedDate(new Date(transaction.date));
+      setModalVisible(true);
+    },
+    [reset]
+  );
+
+  const closeModal = useCallback(() => {
+    setModalVisible(false);
+    setEditingTransaction(null);
+    setShowDatePicker(false);
+  }, []);
+
   const totals = useMemo(() => {
     const data = transactionsQuery.data as any;
     if (!data?.transactions) return { debit: 0, credit: 0 };
@@ -434,8 +486,20 @@ export default function DashboardScreen() {
           ? values.counterparty.trim()
           : undefined,
       };
-      await createMutation.mutateAsync(payload as any);
+
+      if (editingTransaction) {
+        // Update existing transaction
+        await updateMutation.mutateAsync({
+          transactionId: editingTransaction._id,
+          ...payload,
+        } as any);
+      } else {
+        // Create new transaction
+        await createMutation.mutateAsync(payload as any);
+      }
+
       setModalVisible(false);
+      setEditingTransaction(null);
       reset({
         accountId: "",
         amount: 0,
@@ -448,14 +512,20 @@ export default function DashboardScreen() {
       });
       Toast.show({
         type: "success",
-        text1: "Transaction saved successfully!",
-        text2: "Your transaction has been recorded.",
+        text1: editingTransaction
+          ? "Transaction updated successfully!"
+          : "Transaction saved successfully!",
+        text2: editingTransaction
+          ? "Your transaction has been updated."
+          : "Your transaction has been recorded.",
       });
     } catch (error) {
       console.error(error);
       Toast.show({
         type: "error",
-        text1: "Error saving transaction",
+        text1: editingTransaction
+          ? "Error updating transaction"
+          : "Error saving transaction",
         text2: "Please try again.",
       });
     }
@@ -517,9 +587,10 @@ export default function DashboardScreen() {
         transaction={item}
         onCategoryPress={handleCategoryFilter}
         onCounterpartyPress={handleCounterpartyFilter}
+        onEdit={handleEditTransaction}
       />
     ),
-    [handleCategoryFilter, handleCounterpartyFilter]
+    [handleCategoryFilter, handleCounterpartyFilter, handleEditTransaction]
   );
 
   const getItemLayout = useCallback(
@@ -648,7 +719,21 @@ export default function DashboardScreen() {
       />
 
       <FloatingActionButton
-        onPress={() => setModalVisible(true)}
+        onPress={() => {
+          setEditingTransaction(null);
+          reset({
+            accountId: "",
+            amount: 0,
+            type: "debit",
+            date: dayjs().format("YYYY-MM-DD"),
+            description: "",
+            comment: "",
+            categoryId: "",
+            counterparty: "",
+          });
+          setSelectedDate(new Date());
+          setModalVisible(true);
+        }}
         icon="add"
         position="bottom-right"
       />
@@ -664,14 +749,18 @@ export default function DashboardScreen() {
               <View className="flex-row justify-between items-center p-6 pb-4 border-b border-gray-100">
                 <View>
                   <Text className="text-gray-900 text-xl font-bold">
-                    New Transaction
+                    {editingTransaction
+                      ? "Edit Transaction"
+                      : "New Transaction"}
                   </Text>
                   <Text className="text-gray-500 text-sm">
-                    Record your debit or credit
+                    {editingTransaction
+                      ? "Update transaction details"
+                      : "Record your debit or credit"}
                   </Text>
                 </View>
                 <TouchableOpacity
-                  onPress={() => setModalVisible(false)}
+                  onPress={closeModal}
                   className="w-8 h-8 bg-gray-100 rounded-full items-center justify-center"
                 >
                   <Ionicons name="close" size={20} color="#6b7280" />
@@ -942,7 +1031,9 @@ export default function DashboardScreen() {
               <View className="p-6 pt-4 mb-10 border-t border-gray-100">
                 <TouchableOpacity
                   onPress={handleSubmit(onSubmit)}
-                  disabled={createMutation.isPending}
+                  disabled={
+                    createMutation.isPending || updateMutation.isPending
+                  }
                   className="bg-blue-500 rounded-2xl py-4 items-center shadow-lg shadow-blue-500/25"
                   style={{
                     shadowColor: "#3b82f6",
@@ -952,7 +1043,7 @@ export default function DashboardScreen() {
                     elevation: 4,
                   }}
                 >
-                  {createMutation.isPending ? (
+                  {createMutation.isPending || updateMutation.isPending ? (
                     <ActivityIndicator color="white" />
                   ) : (
                     <View className="flex-row items-center gap-2">
@@ -962,7 +1053,9 @@ export default function DashboardScreen() {
                         color="white"
                       />
                       <Text className="text-white font-bold text-base">
-                        Save Transaction
+                        {editingTransaction
+                          ? "Update Transaction"
+                          : "Save Transaction"}
                       </Text>
                     </View>
                   )}
@@ -1004,6 +1097,7 @@ export default function DashboardScreen() {
               <View className="flex-1 px-6 py-4">
                 <ScrollView
                   showsVerticalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
                   contentContainerStyle={{ paddingBottom: 20 }}
                 >
                   <View className="gap-5">

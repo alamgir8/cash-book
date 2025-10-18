@@ -1,5 +1,6 @@
 import { memo } from "react";
 import { View, Text, TouchableOpacity } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import dayjs from "dayjs";
 import type { Transaction } from "../services/transactions";
 import { usePreferences } from "../hooks/usePreferences";
@@ -8,12 +9,14 @@ type Props = {
   transaction: Transaction;
   onCategoryPress?: (categoryId: string) => void;
   onCounterpartyPress?: (counterparty: string) => void;
+  onEdit?: (transaction: Transaction) => void;
 };
 
 const TransactionCardComponent = ({
   transaction,
   onCategoryPress,
   onCounterpartyPress,
+  onEdit,
 }: Props) => {
   const { formatAmount } = usePreferences();
   const isCredit = transaction.type === "credit";
@@ -23,7 +26,7 @@ const TransactionCardComponent = ({
     : "Account";
 
   return (
-    <View className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+    <View className="bg-white rounded-2xl p-3 border border-gray-100 shadow-sm">
       <View className="flex-row justify-between items-start">
         <View className="flex-1 mr-4">
           <View className="flex-row items-center gap-2">
@@ -101,6 +104,18 @@ const TransactionCardComponent = ({
           {transaction.category?.name ?? accountKindLabel}
         </Text>
       </View> */}
+
+      {onEdit && !transaction.is_deleted ? (
+        <View className="flex-row justify-end pt-2 border-t border-gray-100">
+          <TouchableOpacity
+            onPress={() => onEdit(transaction)}
+            className="flex-row items-center gap-1.5 bg-blue-50 px-3 py-2 rounded-lg active:scale-95"
+          >
+            <Ionicons name="create-outline" size={16} color="#2563eb" />
+            <Text className="text-xs font-semibold text-blue-600">Edit</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
     </View>
   );
 };
