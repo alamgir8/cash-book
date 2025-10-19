@@ -115,14 +115,13 @@ const decorateWithSummary = async ({ adminId, accounts }) => {
 
   return accounts.map((account) => ({
     ...account,
-    summary:
-      summaries.get(account._id.toString()) ?? {
-        total_transactions: 0,
-        total_debit: 0,
-        total_credit: 0,
-        net: 0,
-        last_transaction_date: null,
-      },
+    summary: summaries.get(account._id.toString()) ?? {
+      total_transactions: 0,
+      total_debit: 0,
+      total_credit: 0,
+      net: 0,
+      last_transaction_date: null,
+    },
   }));
 };
 
@@ -166,7 +165,8 @@ export const createAccount = async (req, res, next) => {
     if (!finalCurrencyCode || !finalCurrencySymbol) {
       const admin = await Admin.findById(req.user.id).lean();
       if (admin?.profile_settings) {
-        finalCurrencyCode = finalCurrencyCode ?? admin.profile_settings.currency_code;
+        finalCurrencyCode =
+          finalCurrencyCode ?? admin.profile_settings.currency_code;
         finalCurrencySymbol =
           finalCurrencySymbol ?? admin.profile_settings.currency_symbol;
       }

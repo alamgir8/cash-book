@@ -87,7 +87,7 @@ const defaultFilters: TransactionFilters = {
   range: "monthly",
   page: 1,
   limit: 20,
-  financialScope: "actual",
+  // financialScope: "actual",
 };
 
 const parseVoiceTranscript = (
@@ -181,7 +181,7 @@ export default function DashboardScreen() {
       Toast.show({ type: "success", text1: "Transaction added" });
     },
     onError: (error) => {
-      console.error("Transaction creation error:", error);
+      // console.error("Transaction creation error:", error);
       Toast.show({
         type: "error",
         text1: "Error saving transaction",
@@ -204,7 +204,7 @@ export default function DashboardScreen() {
       Toast.show({ type: "success", text1: "Transaction updated" });
     },
     onError: (error) => {
-      console.error("Transaction update error:", error);
+      // console.error("Transaction update error:", error);
       Toast.show({
         type: "error",
         text1: "Error updating transaction",

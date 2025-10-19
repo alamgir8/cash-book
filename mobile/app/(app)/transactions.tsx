@@ -1,6 +1,13 @@
-import { useCallback, useMemo, useState } from "react";
-import { View, FlatList } from "react-native";
+import { useCallback, useMemo, useState, useEffect } from "react";
+import {
+  View,
+  FlatList,
+  ActivityIndicator,
+  Text,
+  TouchableOpacity,
+} from "react-native";
 import { useQuery } from "@tanstack/react-query";
+import { Ionicons } from "@expo/vector-icons";
 import { ScreenHeader } from "../../components/screen-header";
 import { EmptyState } from "../../components/empty-state";
 import { FilterBar } from "../../components/filter-bar";
@@ -18,7 +25,7 @@ import Toast from "react-native-toast-message";
 const defaultFilters: TransactionFilters = {
   page: 1,
   limit: 20,
-  financialScope: "actual",
+  // Removed financialScope to show ALL transactions regardless of category
 };
 
 export default function TransactionsScreen() {
@@ -30,6 +37,9 @@ export default function TransactionsScreen() {
     ...(accountId ? { accountId } : {}),
   });
   const [exporting, setExporting] = useState(false);
+  const [allTransactions, setAllTransactions] = useState<any[]>([]);
+  const [hasMorePages, setHasMorePages] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   const categoriesQuery = useQuery({
     queryKey: queryKeys.categories,
@@ -63,15 +73,58 @@ export default function TransactionsScreen() {
     placeholderData: (previousData) => previousData,
   });
 
-  const transactions = useMemo(() => {
-    // Return empty array if no data or if there's an error
-    if (!transactionsQuery.data) return [];
-    return (transactionsQuery.data as any)?.transactions ?? [];
-  }, [transactionsQuery.data]);
+  // Update accumulated transactions when new data arrives
+  useEffect(() => {
+    if (!transactionsQuery.data || transactionsQuery.isLoading) return;
+
+    const freshData = (transactionsQuery.data as any)?.transactions ?? [];
+    const pagination = (transactionsQuery.data as any)?.pagination;
+
+    // console.log("📊 Pagination Info:", {
+    //   currentPage: filters.page,
+    //   totalPages: pagination?.pages,
+    //   totalTransactions: pagination?.total,
+    //   fetchedCount: freshData.length,
+    //   hasMore: pagination ? pagination.page < pagination.pages : false,
+    // });
+
+    // If page is 1, replace all transactions (new search/filter)
+    if (filters.page === 1) {
+      setAllTransactions(freshData);
+      if (pagination) {
+        setHasMorePages(pagination.page < pagination.pages);
+      }
+      // console.log("✅ Page 1: Set", freshData.length, "transactions");
+    }
+    // If page > 1, append to existing transactions
+    else if (filters.page && filters.page > 1) {
+      setAllTransactions((prev) => {
+        const existingIds = new Set(prev.map((t) => t._id));
+        const newTransactions = freshData.filter(
+          (t: any) => !existingIds.has(t._id)
+        );
+        // console.log(
+        //   "✅ Page",
+        //   filters.page,
+        //   ": Added",
+        //   newTransactions.length,
+        //   "new transactions (total:",
+        //   prev.length + newTransactions.length,
+        //   ")"
+        // );
+        return [...prev, ...newTransactions];
+      });
+
+      if (pagination) {
+        setHasMorePages(pagination.page < pagination.pages);
+      }
+      setLoadingMore(false);
+    }
+  }, [transactionsQuery.data, filters.page, transactionsQuery.isLoading]);
 
   const counterpartyOptions = useMemo(() => {
     const seen = new Set<string>();
-    return transactions
+    return allTransactions
       .map((txn) => txn.counterparty?.trim())
       .filter((name): name is string => Boolean(name))
       .filter((name) => {
@@ -82,7 +135,7 @@ export default function TransactionsScreen() {
       })
       .map((name) => ({ value: name, label: name }))
       .sort((a, b) => a.label.localeCompare(b.label));
-  }, [transactions]);
+  }, [allTransactions]);
 
   const hasActiveFilters = useMemo(() => {
     if (filters.range && filters.range !== defaultFilters.range) {
@@ -122,11 +175,25 @@ export default function TransactionsScreen() {
       ...defaultFilters,
       ...(accountId ? { accountId } : {}),
     };
+    setAllTransactions([]);
+    setHasMorePages(true);
     setFilters(resetFilters);
     transactionsQuery.refetch();
   };
 
+  const handleLoadMore = () => {
+    if (loadingMore || !hasMorePages || transactionsQuery.isFetching) return;
+
+    setLoadingMore(true);
+    setFilters((prev) => ({
+      ...prev,
+      page: (prev.page || 1) + 1,
+    }));
+  };
+
   const handleCategoryPress = useCallback((categoryId?: string) => {
+    setAllTransactions([]);
+    setHasMorePages(true);
     setFilters((prev) => ({
       ...prev,
       categoryId: categoryId || undefined,
@@ -136,6 +203,8 @@ export default function TransactionsScreen() {
   }, []);
 
   const handleCounterpartyPress = useCallback((counterparty?: string) => {
+    setAllTransactions([]);
+    setHasMorePages(true);
     setFilters((prev) => ({
       ...prev,
       counterparty: counterparty || undefined,
@@ -151,7 +220,7 @@ export default function TransactionsScreen() {
       await exportTransactionsPdf(filters);
       Toast.show({ type: "success", text1: "PDF exported successfully" });
     } catch (error) {
-      console.error("Transactions export error", error);
+      // console.error("Transactions export error", error);
       Toast.show({ type: "error", text1: "Failed to export PDF" });
     } finally {
       setExporting(false);
@@ -178,9 +247,11 @@ export default function TransactionsScreen() {
         {/* Filter Section */}
         <FilterBar
           filters={filters}
-          onChange={(nextFilters) =>
-            setFilters((prev) => ({ ...prev, ...nextFilters }))
-          }
+          onChange={(nextFilters) => {
+            setAllTransactions([]);
+            setHasMorePages(true);
+            setFilters((prev) => ({ ...prev, ...nextFilters, page: 1 }));
+          }}
           hasActiveFilters={hasActiveFilters}
           showAccountField={!accountId}
           showTypeToggle={true}
@@ -190,8 +261,65 @@ export default function TransactionsScreen() {
           counterparties={counterpartyOptions}
           showFinancialScopeToggle
           onReset={handleResetFilters}
-          onApplyFilters={() => transactionsQuery.refetch()}
+          onApplyFilters={() => {
+            setAllTransactions([]);
+            setHasMorePages(true);
+            setFilters((prev) => ({ ...prev, page: 1 }));
+            transactionsQuery.refetch();
+          }}
         />
+      </View>
+    );
+  };
+
+  const renderFooter = () => {
+    if (!hasMorePages) {
+      if (allTransactions.length > 0) {
+        return (
+          <View className="items-center py-6">
+            <View className="bg-gray-100 rounded-full px-4 py-2">
+              <Text className="text-gray-600 text-sm font-medium">
+                ✓ All transactions loaded ({allTransactions.length} total)
+              </Text>
+            </View>
+          </View>
+        );
+      }
+      return null;
+    }
+
+    if (loadingMore || (transactionsQuery.isFetching && filters.page !== 1)) {
+      return (
+        <View className="items-center py-6">
+          <ActivityIndicator size="small" color="#3b82f6" />
+          <Text className="text-gray-500 text-sm mt-2">Loading more...</Text>
+        </View>
+      );
+    }
+
+    return (
+      <View className="items-center py-6">
+        <TouchableOpacity
+          onPress={handleLoadMore}
+          className="bg-blue-500 rounded-xl px-6 py-3 shadow-sm active:scale-95"
+          style={{
+            shadowColor: "#3b82f6",
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.1,
+            shadowRadius: 4,
+            elevation: 2,
+          }}
+        >
+          <View className="flex-row items-center gap-2">
+            <Ionicons name="arrow-down-circle" size={20} color="white" />
+            <Text className="text-white font-semibold text-base">
+              Load More Transactions
+            </Text>
+          </View>
+        </TouchableOpacity>
+        <Text className="text-gray-400 text-xs mt-2">
+          Showing {allTransactions.length} transactions
+        </Text>
       </View>
     );
   };
@@ -212,7 +340,7 @@ export default function TransactionsScreen() {
 
       {/* Transaction List */}
       <FlatList
-        data={transactions}
+        data={allTransactions}
         keyExtractor={(item) => item._id}
         contentContainerStyle={{
           paddingHorizontal: 16,
@@ -221,14 +349,29 @@ export default function TransactionsScreen() {
           paddingBottom: 120,
         }}
         ListHeaderComponent={renderHeader}
-        refreshing={transactionsQuery.isFetching}
-        onRefresh={() => transactionsQuery.refetch()}
+        ListFooterComponent={renderFooter}
+        ListEmptyComponent={
+          !transactionsQuery.isLoading && allTransactions.length === 0 ? (
+            <EmptyState
+              icon="receipt-outline"
+              title="No transactions found"
+              description="No transactions match your current filters"
+            />
+          ) : null
+        }
+        refreshing={transactionsQuery.isLoading && filters.page === 1}
+        onRefresh={() => {
+          setAllTransactions([]);
+          setHasMorePages(true);
+          setFilters((prev) => ({ ...prev, page: 1 }));
+          transactionsQuery.refetch();
+        }}
         showsVerticalScrollIndicator={false}
         renderItem={renderTransactionItem}
         removeClippedSubviews={true}
         maxToRenderPerBatch={10}
         updateCellsBatchingPeriod={50}
-        initialNumToRender={10}
+        initialNumToRender={20}
         windowSize={10}
       />
     </View>
