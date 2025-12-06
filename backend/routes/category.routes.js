@@ -5,6 +5,7 @@ import {
   createCategory,
   updateCategory,
   archiveCategory,
+  deleteCategory,
 } from "../controllers/category.controller.js";
 import { authenticate } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
@@ -76,11 +77,20 @@ const archiveSchema = z.object({
   query: z.object({}).optional(),
 });
 
+const deleteSchema = z.object({
+  body: z.object({}).optional(),
+  params: z.object({
+    categoryId: z.string(),
+  }),
+  query: z.object({}).optional(),
+});
+
 router.use(authenticate);
 
 router.get("/", validate(listSchema), listCategories);
 router.post("/", validate(createSchema), createCategory);
 router.put("/:categoryId", validate(updateSchema), updateCategory);
 router.patch("/:categoryId/archive", validate(archiveSchema), archiveCategory);
+router.delete("/:categoryId", validate(deleteSchema), deleteCategory);
 
 export default router;

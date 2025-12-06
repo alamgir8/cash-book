@@ -13,7 +13,8 @@ const resolveRefreshTtl = () => {
     }
   }
 
-  const days = Number(process.env.JWT_REFRESH_TTL_DAYS || 30);
+  // Default to 365 days for persistent "stay logged in" behavior
+  const days = Number(process.env.JWT_REFRESH_TTL_DAYS || 365);
   if (Number.isFinite(days) && days > 0) {
     return Math.max(days * 24 * 60 * 60 * 1000, MIN_REFRESH_TTL_MS);
   }

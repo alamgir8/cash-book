@@ -1,4 +1,5 @@
 import { Category, CATEGORY_FLOW_MAP } from "../models/Category.js";
+import { Transaction } from "../models/Transaction.js";
 import { DEFAULT_CATEGORIES } from "../constants/defaultCategories.js";
 
 const pickCategoryUpdate = (payload) => {
@@ -211,6 +212,44 @@ export const archiveCategory = async (req, res, next) => {
     await category.save();
 
     res.json({ category });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteCategory = async (req, res, next) => {
+  try {
+    const { categoryId } = req.params;
+
+    // Check if category exists and belongs to the user
+    const category = await Category.findOne({
+      _id: categoryId,
+      admin: req.user.id,
+    });
+
+    if (!category) {
+      return res.status(404).json({ message: "Category not found" });
+    }
+
+    // Check if any transactions are using this category
+    const transactionCount = await Transaction.countDocuments({
+      category_id: categoryId,
+      admin: req.user.id,
+    });
+
+    if (transactionCount > 0) {
+      return res.status(400).json({
+        message: `Cannot delete category. ${transactionCount} transaction${
+          transactionCount > 1 ? "s" : ""
+        } are using this category. Please reassign or delete those transactions first, or archive the category instead.`,
+        transactionCount,
+      });
+    }
+
+    // Delete the category
+    await Category.deleteOne({ _id: categoryId, admin: req.user.id });
+
+    res.json({ message: "Category deleted successfully" });
   } catch (error) {
     next(error);
   }
