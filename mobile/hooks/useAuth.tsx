@@ -17,6 +17,7 @@ import {
   setTokenRefreshHandler,
   setUnauthorizedHandler,
 } from "../lib/api";
+import { clearQueryCache } from "../lib/queryClient";
 import * as authService from "../services/auth";
 import type {
   AuthSessionResponse,
@@ -101,6 +102,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const clearSession = useCallback(async () => {
     setAuthToken();
     stopRefreshTimer();
+    // Clear React Query cache to prevent stale data from previous user
+    clearQueryCache();
     try {
       await SecureStore.deleteItemAsync(STORAGE_SESSION_KEY);
       await SecureStore.deleteItemAsync(LEGACY_TOKEN_KEY);

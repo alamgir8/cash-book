@@ -1,34 +1,27 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
   RefreshControl,
-  ScrollView,
   Text,
-  TextInput,
-  TouchableOpacity,
   View,
 } from "react-native";
-import DateTimePicker from "@react-native-community/datetimepicker";
-import { useForm, Controller } from "react-hook-form";
-import { z } from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
-import dayjs from "dayjs";
 import Toast from "react-native-toast-message";
 import { FilterBar } from "../../components/filter-bar";
 import { TransactionCard } from "../../components/transaction-card";
-// import { VoiceInputButton } from "../../components/voice-input-button";
 import { StatsCards } from "../../components/stats-cards";
 import { QuickActions } from "../../components/quick-actions";
 import { ScreenHeader } from "../../components/screen-header";
 import { EmptyState } from "../../components/empty-state";
 import { FloatingActionButton } from "../../components/floating-action-button";
+import { TransactionModal } from "../../components/modals/transaction-modal";
+import { TransferModal } from "../../components/modals/transfer-modal";
+import type {
+  TransactionFormValues,
+  TransferFormValues,
+} from "../../components/modals/types";
 import { exportTransactionsPdf } from "../../services/reports";
 import {
   createTransaction,
@@ -38,116 +31,23 @@ import {
   type Transaction,
   type TransactionFilters,
 } from "../../services/transactions";
-import { fetchAccounts, type AccountOverview } from "../../services/accounts";
+import { fetchAccounts } from "../../services/accounts";
 import { fetchCategories } from "../../services/categories";
 import { queryKeys } from "../../lib/queryKeys";
 import { usePreferences } from "../../hooks/usePreferences";
-import { SearchableSelect } from "@/components/searchable-select";
-
-const transactionSchema = z.object({
-  accountId: z.string().min(1, "Select an account"),
-  amount: z.number().positive("Amount must be greater than zero"),
-  type: z.enum(["debit", "credit"]),
-  date: z.string().optional(),
-  description: z.string().optional(),
-  comment: z.string().optional(),
-  categoryId: z.string().optional().or(z.literal("")),
-  counterparty: z.string().optional(),
-});
-
-type TransactionFormValues = z.infer<typeof transactionSchema>;
-
-const transferSchema = z
-  .object({
-    fromAccountId: z.string().min(1, "Select source account"),
-    toAccountId: z.string().min(1, "Select destination account"),
-    amount: z.number().positive("Amount must be greater than zero"),
-    date: z.string().optional(),
-    description: z.string().optional(),
-    comment: z.string().optional(),
-    counterparty: z.string().optional(),
-  })
-  .superRefine((value, ctx) => {
-    if (
-      value.fromAccountId &&
-      value.toAccountId &&
-      value.fromAccountId === value.toAccountId
-    ) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["toAccountId"],
-        message: "Destination account must be different from source account",
-      });
-    }
-  });
-
-type TransferFormValues = z.infer<typeof transferSchema>;
 
 const defaultFilters: TransactionFilters = {
   range: "monthly",
   page: 1,
   limit: 20,
-  // financialScope: "actual",
 };
-
-const parseVoiceTranscript = (
-  transcript: string,
-  accounts: AccountOverview[]
-): Partial<TransactionFormValues> => {
-  const lower = transcript.toLowerCase();
-  const parsed: Partial<TransactionFormValues> = {
-    comment: transcript,
-  };
-
-  const amountMatch = transcript.match(/(\d+(\.\d+)?)/);
-  if (amountMatch) {
-    parsed.amount = Number(amountMatch[1]);
-  }
-
-  if (lower.includes("credit") || lower.includes("deposit")) {
-    parsed.type = "credit";
-  } else if (lower.includes("debit") || lower.includes("withdraw")) {
-    parsed.type = "debit";
-  }
-
-  const accountMatch = accounts.find((account) =>
-    lower.includes(account.name.toLowerCase())
-  );
-
-  if (accountMatch) {
-    parsed.accountId = accountMatch._id;
-  }
-
-  const dateMatch = transcript.match(
-    /(20\d{2}[-/](0?[1-9]|1[0-2])[-/](0?[1-9]|[12][0-9]|3[01]))/
-  );
-  if (dateMatch) {
-    parsed.date = dayjs(dateMatch[0].replaceAll("/", "-")).format("YYYY-MM-DD");
-  }
-
-  return parsed;
-};
-
-const createTransferDefaults = (): TransferFormValues => ({
-  fromAccountId: "",
-  toAccountId: "",
-  amount: 0,
-  date: dayjs().format("YYYY-MM-DD"),
-  description: "",
-  comment: "",
-  counterparty: "",
-});
 
 export default function DashboardScreen() {
   const { formatAmount } = usePreferences();
   const queryClient = useQueryClient();
   const [filters, setFilters] = useState<TransactionFilters>(defaultFilters);
   const [isModalVisible, setModalVisible] = useState(false);
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(new Date());
   const [isTransferModalVisible, setTransferModalVisible] = useState(false);
-  const [showTransferDatePicker, setShowTransferDatePicker] = useState(false);
-  const [selectedTransferDate, setSelectedTransferDate] = useState(new Date());
   const [editingTransaction, setEditingTransaction] =
     useState<Transaction | null>(null);
 
@@ -178,10 +78,11 @@ export default function DashboardScreen() {
           predicate: (query) => query.queryKey[0] === "accounts",
         }),
       ]);
+      setModalVisible(false);
+      setEditingTransaction(null);
       Toast.show({ type: "success", text1: "Transaction added" });
     },
-    onError: (error) => {
-      // console.error("Transaction creation error:", error);
+    onError: () => {
       Toast.show({
         type: "error",
         text1: "Error saving transaction",
@@ -201,10 +102,11 @@ export default function DashboardScreen() {
           predicate: (query) => query.queryKey[0] === "accounts",
         }),
       ]);
+      setModalVisible(false);
+      setEditingTransaction(null);
       Toast.show({ type: "success", text1: "Transaction updated" });
     },
-    onError: (error) => {
-      // console.error("Transaction update error:", error);
+    onError: () => {
       Toast.show({
         type: "error",
         text1: "Error updating transaction",
@@ -224,9 +126,7 @@ export default function DashboardScreen() {
           predicate: (query) => query.queryKey[0] === "accounts",
         }),
       ]);
-      resetTransfer(createTransferDefaults());
       setTransferModalVisible(false);
-      setSelectedTransferDate(new Date());
       Toast.show({ type: "success", text1: "Transfer completed" });
     },
     onError: (error) => {
@@ -239,44 +139,6 @@ export default function DashboardScreen() {
     },
   });
 
-  const {
-    control,
-    handleSubmit,
-    reset,
-    setValue,
-    watch,
-    formState: { errors },
-  } = useForm<TransactionFormValues>({
-    resolver: zodResolver(transactionSchema),
-    defaultValues: {
-      accountId: "",
-      amount: 0,
-      type: "debit",
-      date: dayjs().format("YYYY-MM-DD"),
-      description: "",
-      comment: "",
-      categoryId: "",
-      counterparty: "",
-    },
-  });
-
-  const {
-    control: transferControl,
-    handleSubmit: handleTransferSubmit,
-    reset: resetTransfer,
-    setValue: setTransferValue,
-    watch: watchTransfer,
-  } = useForm<TransferFormValues>({
-    resolver: zodResolver(transferSchema),
-    defaultValues: createTransferDefaults(),
-  });
-
-  const currentAmount = watch("amount");
-  const selectedType = watch("type");
-  const selectedCategoryId = watch("categoryId");
-  const transferAmount = watchTransfer("amount");
-  const transferFromAccountId = watchTransfer("fromAccountId");
-
   const accountOptions = useMemo(
     () =>
       (accountsQuery.data ?? []).map((account) => ({
@@ -287,12 +149,6 @@ export default function DashboardScreen() {
         }`,
       })),
     [accountsQuery.data, formatAmount]
-  );
-
-  const destinationAccountOptions = useMemo(
-    () =>
-      accountOptions.filter((option) => option.value !== transferFromAccountId),
-    [accountOptions, transferFromAccountId]
   );
 
   const formatCategoryGroup = (type: string) =>
@@ -308,18 +164,17 @@ export default function DashboardScreen() {
       flow: string;
       type: string;
     }[];
-    const targetFlow = selectedType === "credit" ? "credit" : "debit";
-    const sorted = categories
-      .filter((category) => category.flow === targetFlow)
-      .map((category) => ({
+    // Return all categories - the modal will filter by type
+    return [
+      { value: "", label: "No category" },
+      ...categories.map((category) => ({
         value: category._id,
         label: category.name,
         group: formatCategoryGroup(category.type),
-      }))
-      .sort((a, b) => (a.group ?? "").localeCompare(b.group ?? ""));
-
-    return [{ value: "", label: "No category" }, ...sorted];
-  }, [categoriesQuery.data, selectedType]);
+        flow: category.flow,
+      })),
+    ];
+  }, [categoriesQuery.data]);
 
   const counterpartyOptions = useMemo(() => {
     const seen = new Set<string>();
@@ -369,45 +224,6 @@ export default function DashboardScreen() {
     });
   }, [filters]);
 
-  useEffect(() => {
-    if (!selectedCategoryId) return;
-    const match = (categoriesQuery.data as any[] | undefined)?.find(
-      (category) => category._id === selectedCategoryId
-    );
-    const currentFlow = selectedType === "credit" ? "credit" : "debit";
-    if (match && match.flow !== currentFlow) {
-      setValue("categoryId", "");
-    }
-  }, [categoriesQuery.data, selectedCategoryId, selectedType, setValue]);
-
-  const handleDateChange = (event: any, date?: Date) => {
-    setShowDatePicker(false);
-    if (date) {
-      setSelectedDate(date);
-      setValue("date", dayjs(date).format("YYYY-MM-DD"), {
-        shouldValidate: true,
-      });
-    }
-  };
-
-  const openDatePicker = () => {
-    setShowDatePicker(true);
-  };
-
-  const handleTransferDateChange = (event: any, date?: Date) => {
-    setShowTransferDatePicker(false);
-    if (date) {
-      setSelectedTransferDate(date);
-      setTransferValue("date", dayjs(date).format("YYYY-MM-DD"), {
-        shouldValidate: true,
-      });
-    }
-  };
-
-  const openTransferDatePicker = () => {
-    setShowTransferDatePicker(true);
-  };
-
   const openTransferModal = () => {
     if (accountsQuery.isLoading) {
       Toast.show({
@@ -424,39 +240,21 @@ export default function DashboardScreen() {
       });
       return;
     }
-    resetTransfer(createTransferDefaults());
-    setSelectedTransferDate(new Date());
     setTransferModalVisible(true);
   };
 
-  const closeTransferModal = () => {
-    setTransferModalVisible(false);
-    setShowTransferDatePicker(false);
-  };
-
-  const handleEditTransaction = useCallback(
-    (transaction: Transaction) => {
-      setEditingTransaction(transaction);
-      reset({
-        accountId: transaction.account._id,
-        amount: transaction.amount,
-        type: transaction.type,
-        date: dayjs(transaction.date).format("YYYY-MM-DD"),
-        description: transaction.description || "",
-        comment: transaction.keyword || "",
-        categoryId: transaction.category?._id || "",
-        counterparty: transaction.counterparty || "",
-      });
-      setSelectedDate(new Date(transaction.date));
-      setModalVisible(true);
-    },
-    [reset]
-  );
+  const handleEditTransaction = useCallback((transaction: Transaction) => {
+    setEditingTransaction(transaction);
+    setModalVisible(true);
+  }, []);
 
   const closeModal = useCallback(() => {
     setModalVisible(false);
     setEditingTransaction(null);
-    setShowDatePicker(false);
+  }, []);
+
+  const closeTransferModal = useCallback(() => {
+    setTransferModalVisible(false);
   }, []);
 
   const totals = useMemo(() => {
@@ -471,67 +269,32 @@ export default function DashboardScreen() {
     );
   }, [transactionsQuery.data]);
 
-  const onSubmit = async (values: TransactionFormValues) => {
-    try {
-      const payload = {
-        ...values,
-        amount: Number(values.amount),
-        date: values.date?.trim() ? values.date.trim() : undefined,
-        description: values.description?.trim()
-          ? values.description.trim()
-          : undefined,
-        comment: values.comment?.trim() ? values.comment.trim() : undefined,
-        categoryId: values.categoryId ? values.categoryId : undefined,
-        counterparty: values.counterparty?.trim()
-          ? values.counterparty.trim()
-          : undefined,
-      };
+  const handleTransactionSubmit = async (values: TransactionFormValues) => {
+    const payload = {
+      ...values,
+      amount: Number(values.amount),
+      date: values.date?.trim() ? values.date.trim() : undefined,
+      description: values.description?.trim()
+        ? values.description.trim()
+        : undefined,
+      comment: values.comment?.trim() ? values.comment.trim() : undefined,
+      categoryId: values.categoryId ? values.categoryId : undefined,
+      counterparty: values.counterparty?.trim()
+        ? values.counterparty.trim()
+        : undefined,
+    };
 
-      if (editingTransaction) {
-        // Update existing transaction
-        await updateMutation.mutateAsync({
-          transactionId: editingTransaction._id,
-          ...payload,
-        } as any);
-      } else {
-        // Create new transaction
-        await createMutation.mutateAsync(payload as any);
-      }
-
-      setModalVisible(false);
-      setEditingTransaction(null);
-      reset({
-        accountId: "",
-        amount: 0,
-        type: "debit",
-        date: dayjs().format("YYYY-MM-DD"),
-        description: "",
-        comment: "",
-        categoryId: "",
-        counterparty: "",
-      });
-      Toast.show({
-        type: "success",
-        text1: editingTransaction
-          ? "Transaction updated successfully!"
-          : "Transaction saved successfully!",
-        text2: editingTransaction
-          ? "Your transaction has been updated."
-          : "Your transaction has been recorded.",
-      });
-    } catch (error) {
-      console.error(error);
-      Toast.show({
-        type: "error",
-        text1: editingTransaction
-          ? "Error updating transaction"
-          : "Error saving transaction",
-        text2: "Please try again.",
-      });
+    if (editingTransaction) {
+      await updateMutation.mutateAsync({
+        transactionId: editingTransaction._id,
+        ...payload,
+      } as any);
+    } else {
+      await createMutation.mutateAsync(payload as any);
     }
   };
 
-  const onTransferSubmit = async (values: TransferFormValues) => {
+  const handleTransferSubmit = async (values: TransferFormValues) => {
     const payload = {
       fromAccountId: values.fromAccountId,
       toAccountId: values.toAccountId,
@@ -546,22 +309,8 @@ export default function DashboardScreen() {
         : undefined,
     };
 
-    try {
-      await createTransferMutation.mutateAsync(payload as any);
-    } catch (error) {
-      console.error("Transfer submission error:", error);
-    }
+    await createTransferMutation.mutateAsync(payload as any);
   };
-
-  // const handleVoiceResult = (transcript: string) => {
-  //   if (!accountsQuery.data) return;
-  //   const parsed = parseVoiceTranscript(transcript, accountsQuery.data);
-  //   Object.entries(parsed).forEach(([key, value]) => {
-  //     setValue(key as keyof TransactionFormValues, value as never, {
-  //       shouldDirty: true,
-  //     });
-  //   });
-  // };
 
   const handleCategoryFilter = useCallback((categoryId?: string) => {
     setFilters((prev) => ({
@@ -591,15 +340,6 @@ export default function DashboardScreen() {
       />
     ),
     [handleCategoryFilter, handleCounterpartyFilter, handleEditTransaction]
-  );
-
-  const getItemLayout = useCallback(
-    (_: any, index: number) => ({
-      length: 200, // Approximate height of each item
-      offset: 200 * index,
-      index,
-    }),
-    []
   );
 
   const renderHeader = () => {
@@ -722,625 +462,32 @@ export default function DashboardScreen() {
       <FloatingActionButton
         onPress={() => {
           setEditingTransaction(null);
-          reset({
-            accountId: "",
-            amount: 0,
-            type: "debit",
-            date: dayjs().format("YYYY-MM-DD"),
-            description: "",
-            comment: "",
-            categoryId: "",
-            counterparty: "",
-          });
-          setSelectedDate(new Date());
           setModalVisible(true);
         }}
         icon="add"
         position="bottom-right"
       />
 
-      <Modal visible={isModalVisible} transparent animationType="slide">
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={{ flex: 1 }}
-        >
-          <View className="flex-1 bg-black/40 justify-end">
-            <View
-              className="bg-white rounded-t-3xl flex-1"
-              style={{ maxHeight: "92%" }}
-            >
-              {/* Header */}
-              <View className="flex-row justify-between items-center p-6 pb-4 border-b border-gray-100">
-                <View>
-                  <Text className="text-gray-900 text-xl font-bold">
-                    {editingTransaction
-                      ? "Edit Transaction"
-                      : "New Transaction"}
-                  </Text>
-                  <Text className="text-gray-500 text-sm">
-                    {editingTransaction
-                      ? "Update transaction details"
-                      : "Record your debit or credit"}
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  onPress={closeModal}
-                  className="w-8 h-8 bg-gray-100 rounded-full items-center justify-center"
-                >
-                  <Ionicons name="close" size={20} color="#6b7280" />
-                </TouchableOpacity>
-              </View>
+      <TransactionModal
+        visible={isModalVisible}
+        onClose={closeModal}
+        onSubmit={handleTransactionSubmit}
+        editingTransaction={editingTransaction}
+        accountOptions={accountOptions}
+        categoryOptions={categoryOptions}
+        isAccountsLoading={accountsQuery.isLoading}
+        isCategoriesLoading={categoriesQuery.isLoading}
+        isSubmitting={createMutation.isPending || updateMutation.isPending}
+      />
 
-              {/* Form Content */}
-              <ScrollView
-                className="flex-1 px-6 py-4"
-                showsVerticalScrollIndicator={false}
-                keyboardShouldPersistTaps="handled"
-                contentContainerStyle={{ paddingBottom: 20 }}
-              >
-                <View className="gap-5">
-                  {/* Account Selection */}
-                  <Controller
-                    control={control}
-                    name="accountId"
-                    render={({ field: { value, onChange }, fieldState }) => (
-                      <View className="gap-2">
-                        <SearchableSelect
-                          label="Account"
-                          placeholder={
-                            accountsQuery.isLoading
-                              ? "Loading accounts..."
-                              : accountOptions.length > 0
-                              ? "Select source account"
-                              : "No accounts available"
-                          }
-                          value={value}
-                          options={accountOptions}
-                          onSelect={(val) => onChange(val || undefined)}
-                          disabled={
-                            accountsQuery.isLoading ||
-                            accountOptions.length === 0
-                          }
-                        />
-                        {fieldState.error ? (
-                          <Text className="text-red-500 text-sm">
-                            {fieldState.error.message}
-                          </Text>
-                        ) : null}
-                      </View>
-                    )}
-                  />
-
-                  {/* Category Selection */}
-                  <Controller
-                    control={control}
-                    name="categoryId"
-                    render={({ field: { value, onChange } }) => (
-                      <View className="gap-2">
-                        <SearchableSelect
-                          label="Category"
-                          placeholder={
-                            categoriesQuery.isLoading
-                              ? "Loading categories..."
-                              : categoryOptions.length > 0
-                              ? "Select category"
-                              : "No categories available"
-                          }
-                          value={value}
-                          options={categoryOptions}
-                          onSelect={(val) => onChange(val || undefined)}
-                          disabled={
-                            categoriesQuery.isLoading ||
-                            categoryOptions.length === 0
-                          }
-                        />
-                        {errors.categoryId ? (
-                          <Text className="text-red-500 text-sm">
-                            {errors.categoryId.message}
-                          </Text>
-                        ) : null}
-                      </View>
-                    )}
-                  />
-
-                  {/* Amount and Type Row */}
-                  <View className="flex-row gap-4">
-                    <View className="flex-1">
-                      <Text className="text-gray-700 text-sm font-semibold mb-2">
-                        Amount
-                      </Text>
-                      <Controller
-                        control={control}
-                        name="amount"
-                        render={({ field: { onChange, value } }) => (
-                          <TextInput
-                            value={String(value || "")}
-                            onChangeText={(text) =>
-                              onChange(
-                                Number(text.replace(/[^0-9.]/g, "")) || 0
-                              )
-                            }
-                            keyboardType="numeric"
-                            placeholder="0"
-                            placeholderTextColor="#9ca3af"
-                            className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200 text-lg font-semibold"
-                          />
-                        )}
-                      />
-                      {errors.amount ? (
-                        <Text className="text-red-500 text-sm mt-1">
-                          {errors.amount.message}
-                        </Text>
-                      ) : null}
-                    </View>
-                    <View className="flex-1">
-                      <Text className="text-gray-700 text-sm font-semibold mb-2">
-                        Type
-                      </Text>
-                      <Controller
-                        control={control}
-                        name="type"
-                        render={({ field: { value, onChange } }) => (
-                          <View className="flex-row gap-2">
-                            {(["debit", "credit"] as const).map((option) => (
-                              <TouchableOpacity
-                                key={option}
-                                onPress={() => onChange(option)}
-                                className={`flex-1 py-3 rounded-xl border-2 ${
-                                  value === option
-                                    ? option === "debit"
-                                      ? "border-red-500 bg-red-50"
-                                      : "border-green-500 bg-green-50"
-                                    : "border-gray-200 bg-gray-50"
-                                }`}
-                              >
-                                <Text
-                                  className={`text-center font-semibold text-sm ${
-                                    value === option
-                                      ? option === "debit"
-                                        ? "text-red-700"
-                                        : "text-green-700"
-                                      : "text-gray-600"
-                                  }`}
-                                >
-                                  {option.toUpperCase()}
-                                </Text>
-                              </TouchableOpacity>
-                            ))}
-                          </View>
-                        )}
-                      />
-                    </View>
-                  </View>
-
-                  {/* Date Field */}
-                  <View>
-                    <Text className="text-gray-700 text-sm font-semibold mb-2">
-                      Date
-                    </Text>
-                    <Controller
-                      control={control}
-                      name="date"
-                      render={({ field: { value } }) => (
-                        <View>
-                          <TouchableOpacity
-                            onPress={openDatePicker}
-                            className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200 flex-row items-center justify-between"
-                          >
-                            <Text className="text-gray-900 text-base">
-                              {value
-                                ? dayjs(value).format("MMM DD, YYYY")
-                                : "Select Date"}
-                            </Text>
-                            <Ionicons
-                              name="calendar-outline"
-                              size={20}
-                              color="#6b7280"
-                            />
-                          </TouchableOpacity>
-
-                          {showDatePicker && (
-                            <DateTimePicker
-                              value={selectedDate}
-                              mode="date"
-                              display={
-                                Platform.OS === "ios" ? "compact" : "default"
-                              }
-                              onChange={handleDateChange}
-                              maximumDate={new Date()}
-                            />
-                          )}
-                        </View>
-                      )}
-                    />
-                  </View>
-
-                  {/* Description Field */}
-                  <View>
-                    <Text className="text-gray-700 text-sm font-semibold mb-2">
-                      Description
-                    </Text>
-                    <Controller
-                      control={control}
-                      name="description"
-                      render={({ field: { value, onChange } }) => (
-                        <TextInput
-                          value={value || ""}
-                          onChangeText={onChange}
-                          placeholder="What is this transaction about?"
-                          placeholderTextColor="#9ca3af"
-                          className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200"
-                        />
-                      )}
-                    />
-                  </View>
-
-                  {/* Counterparty Field */}
-                  <View>
-                    <Text className="text-gray-700 text-sm font-semibold mb-2">
-                      Counterparty
-                    </Text>
-                    <Controller
-                      control={control}
-                      name="counterparty"
-                      render={({ field: { value, onChange } }) => (
-                        <TextInput
-                          value={value || ""}
-                          onChangeText={onChange}
-                          placeholder="Customer, supplier, or contact"
-                          placeholderTextColor="#9ca3af"
-                          className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200"
-                        />
-                      )}
-                    />
-                  </View>
-
-                  {/* Comment Field */}
-                  <View>
-                    <Text className="text-gray-700 text-sm font-semibold mb-2">
-                      Additional Notes
-                    </Text>
-                    <Controller
-                      control={control}
-                      name="comment"
-                      render={({ field: { value, onChange } }) => (
-                        <TextInput
-                          value={value || ""}
-                          onChangeText={onChange}
-                          placeholder="Any additional details..."
-                          placeholderTextColor="#9ca3af"
-                          className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200 min-h-[80px]"
-                          multiline
-                          textAlignVertical="top"
-                        />
-                      )}
-                    />
-                  </View>
-
-                  {/* Voice Input */}
-                  {/* <VoiceInputButton onResult={handleVoiceResult} /> */}
-
-                  {/* Amount Preview */}
-                  {currentAmount > 0 ? (
-                    <View className="bg-blue-50 rounded-xl p-3 border border-blue-100">
-                      <Text className="text-blue-700 text-sm font-medium text-center">
-                        💰 Amount Preview: {formatAmount(currentAmount)}
-                      </Text>
-                    </View>
-                  ) : null}
-                </View>
-              </ScrollView>
-
-              {/* Submit Button - Fixed at bottom */}
-              <View className="p-6 pt-4 pb-8 border-t border-gray-100">
-                <TouchableOpacity
-                  onPress={handleSubmit(onSubmit)}
-                  disabled={
-                    createMutation.isPending || updateMutation.isPending
-                  }
-                  className="bg-blue-500 rounded-2xl py-4 items-center shadow-lg shadow-blue-500/25"
-                  style={{
-                    shadowColor: "#3b82f6",
-                    shadowOffset: { width: 0, height: 4 },
-                    shadowOpacity: 0.2,
-                    shadowRadius: 8,
-                    elevation: 4,
-                  }}
-                >
-                  {createMutation.isPending || updateMutation.isPending ? (
-                    <ActivityIndicator color="white" />
-                  ) : (
-                    <View className="flex-row items-center gap-2">
-                      <Ionicons
-                        name="checkmark-circle"
-                        size={20}
-                        color="white"
-                      />
-                      <Text className="text-white font-bold text-base">
-                        {editingTransaction
-                          ? "Update Transaction"
-                          : "Save Transaction"}
-                      </Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
-      <Modal
+      <TransferModal
         visible={isTransferModalVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={closeTransferModal}
-      >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={{ flex: 1 }}
-        >
-          <View className="flex-1 bg-black/40 justify-end">
-            <View
-              className="bg-white rounded-t-3xl flex-1"
-              style={{ maxHeight: "90%" }}
-            >
-              <View className="flex-row justify-between items-center p-6 pb-4 border-b border-gray-100">
-                <View>
-                  <Text className="text-gray-900 text-xl font-bold">
-                    Transfer Funds
-                  </Text>
-                  <Text className="text-gray-500 text-sm">
-                    Move money between your accounts
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  onPress={closeTransferModal}
-                  className="w-8 h-8 bg-gray-100 rounded-full items-center justify-center"
-                >
-                  <Ionicons name="close" size={20} color="#6b7280" />
-                </TouchableOpacity>
-              </View>
-
-              <ScrollView
-                className="flex-1 px-6 py-4"
-                showsVerticalScrollIndicator={false}
-                keyboardShouldPersistTaps="handled"
-                contentContainerStyle={{ paddingBottom: 20 }}
-              >
-                <View className="gap-5">
-                  <Controller
-                    control={transferControl}
-                    name="fromAccountId"
-                    render={({ field: { value, onChange }, fieldState }) => (
-                      <View className="gap-2">
-                        <SearchableSelect
-                          label="From Account"
-                          placeholder={
-                            accountsQuery.isLoading
-                              ? "Loading accounts..."
-                              : accountOptions.length > 0
-                              ? "Select source account"
-                              : "No accounts available"
-                          }
-                          value={value}
-                          options={accountOptions}
-                          onSelect={(val) => onChange(val || undefined)}
-                          disabled={
-                            accountsQuery.isLoading ||
-                            accountOptions.length === 0
-                          }
-                        />
-                        {fieldState.error ? (
-                          <Text className="text-red-500 text-sm">
-                            {fieldState.error.message}
-                          </Text>
-                        ) : null}
-                      </View>
-                    )}
-                  />
-
-                  <Controller
-                    control={transferControl}
-                    name="toAccountId"
-                    render={({ field: { value, onChange }, fieldState }) => (
-                      <View className="gap-2">
-                        <SearchableSelect
-                          label="To Account"
-                          placeholder={
-                            accountsQuery.isLoading
-                              ? "Loading accounts..."
-                              : destinationAccountOptions.length > 0
-                              ? "Select destination account"
-                              : "No destination accounts available"
-                          }
-                          value={value}
-                          options={destinationAccountOptions}
-                          onSelect={(val) => onChange(val || undefined)}
-                          disabled={
-                            accountsQuery.isLoading ||
-                            destinationAccountOptions.length === 0
-                          }
-                        />
-                        {fieldState.error ? (
-                          <Text className="text-red-500 text-sm">
-                            {fieldState.error.message}
-                          </Text>
-                        ) : null}
-                      </View>
-                    )}
-                  />
-
-                  <Controller
-                    control={transferControl}
-                    name="amount"
-                    render={({ field: { value, onChange }, fieldState }) => (
-                      <View>
-                        <Text className="text-gray-700 text-sm font-semibold mb-2">
-                          Amount
-                        </Text>
-                        <TextInput
-                          value={
-                            value === undefined || value === null
-                              ? ""
-                              : String(value)
-                          }
-                          onChangeText={(text) =>
-                            onChange(Number(text.replace(/[^0-9.]/g, "")) || 0)
-                          }
-                          keyboardType="numeric"
-                          placeholder="0"
-                          placeholderTextColor="#9ca3af"
-                          className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200 text-lg font-semibold"
-                        />
-                        {fieldState.error ? (
-                          <Text className="text-red-500 text-sm mt-1">
-                            {fieldState.error.message}
-                          </Text>
-                        ) : null}
-                      </View>
-                    )}
-                  />
-
-                  <Controller
-                    control={transferControl}
-                    name="date"
-                    render={({ field: { value } }) => (
-                      <View>
-                        <Text className="text-gray-700 text-sm font-semibold mb-2">
-                          Date
-                        </Text>
-                        <TouchableOpacity
-                          onPress={openTransferDatePicker}
-                          className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200 flex-row items-center justify-between"
-                        >
-                          <Text className="text-gray-900 text-base">
-                            {value
-                              ? dayjs(value).format("MMM DD, YYYY")
-                              : "Select Date"}
-                          </Text>
-                          <Ionicons
-                            name="calendar-outline"
-                            size={20}
-                            color="#6b7280"
-                          />
-                        </TouchableOpacity>
-                        {showTransferDatePicker && (
-                          <DateTimePicker
-                            value={selectedTransferDate}
-                            mode="date"
-                            display={
-                              Platform.OS === "ios" ? "compact" : "default"
-                            }
-                            onChange={handleTransferDateChange}
-                            maximumDate={new Date()}
-                          />
-                        )}
-                      </View>
-                    )}
-                  />
-
-                  <View>
-                    <Text className="text-gray-700 text-sm font-semibold mb-2">
-                      Description
-                    </Text>
-                    <Controller
-                      control={transferControl}
-                      name="description"
-                      render={({ field: { value, onChange } }) => (
-                        <TextInput
-                          value={value || ""}
-                          onChangeText={onChange}
-                          placeholder="What is this transfer for?"
-                          placeholderTextColor="#9ca3af"
-                          className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200"
-                        />
-                      )}
-                    />
-                  </View>
-
-                  <View>
-                    <Text className="text-gray-700 text-sm font-semibold mb-2">
-                      Counterparty
-                    </Text>
-                    <Controller
-                      control={transferControl}
-                      name="counterparty"
-                      render={({ field: { value, onChange } }) => (
-                        <TextInput
-                          value={value || ""}
-                          onChangeText={onChange}
-                          placeholder="Optional reference"
-                          placeholderTextColor="#9ca3af"
-                          className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200"
-                        />
-                      )}
-                    />
-                  </View>
-
-                  <View>
-                    <Text className="text-gray-700 text-sm font-semibold mb-2">
-                      Additional Notes
-                    </Text>
-                    <Controller
-                      control={transferControl}
-                      name="comment"
-                      render={({ field: { value, onChange } }) => (
-                        <TextInput
-                          value={value || ""}
-                          onChangeText={onChange}
-                          placeholder="Any additional details..."
-                          placeholderTextColor="#9ca3af"
-                          className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200 min-h-[80px]"
-                          multiline
-                          textAlignVertical="top"
-                        />
-                      )}
-                    />
-                  </View>
-
-                  {transferAmount > 0 ? (
-                    <View className="bg-green-50 rounded-xl p-3 border border-green-100">
-                      <Text className="text-green-700 text-sm font-medium text-center">
-                        🔄 Transfer Preview: {formatAmount(transferAmount)}
-                      </Text>
-                    </View>
-                  ) : null}
-                </View>
-              </ScrollView>
-
-              <View className="p-6 pt-4 pb-8 border-t border-gray-100">
-                <TouchableOpacity
-                  onPress={handleTransferSubmit(onTransferSubmit)}
-                  disabled={createTransferMutation.isPending}
-                  className="bg-indigo-500 rounded-2xl py-4 items-center shadow-lg shadow-indigo-500/25"
-                  style={{
-                    shadowColor: "#6366f1",
-                    shadowOffset: { width: 0, height: 4 },
-                    shadowOpacity: 0.2,
-                    shadowRadius: 8,
-                    elevation: 4,
-                  }}
-                >
-                  {createTransferMutation.isPending ? (
-                    <ActivityIndicator color="white" />
-                  ) : (
-                    <View className="flex-row items-center gap-2">
-                      <Ionicons
-                        name="swap-horizontal"
-                        size={20}
-                        color="white"
-                      />
-                      <Text className="text-white font-bold text-base">
-                        Submit Transfer
-                      </Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
+        onClose={closeTransferModal}
+        onSubmit={handleTransferSubmit}
+        accountOptions={accountOptions}
+        isAccountsLoading={accountsQuery.isLoading}
+        isSubmitting={createTransferMutation.isPending}
+      />
     </View>
   );
 }

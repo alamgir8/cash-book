@@ -1,6 +1,7 @@
 import { View, Text } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { usePreferences } from "../hooks/usePreferences";
+import { useMemo } from "react";
 
 type StatCardProps = {
   title: string;
@@ -13,6 +14,41 @@ type StatCardProps = {
   trend?: {
     value: string;
     isPositive: boolean;
+  } | null;
+};
+
+/**
+ * Calculate percentage change between two values
+ * Returns null if previous value is 0 (can't calculate percentage)
+ */
+const calculateTrend = (
+  current: number,
+  previous: number
+): { value: string; isPositive: boolean } | null => {
+  if (previous === 0) {
+    // If previous is 0 but current has value, show as new
+    if (current > 0) {
+      return { value: "New", isPositive: true };
+    }
+    return null;
+  }
+
+  const percentChange = ((current - previous) / previous) * 100;
+  const absChange = Math.abs(percentChange);
+
+  // Format the percentage
+  let formattedValue: string;
+  if (absChange >= 100) {
+    formattedValue = `${Math.round(absChange)}%`;
+  } else if (absChange >= 10) {
+    formattedValue = `${absChange.toFixed(0)}%`;
+  } else {
+    formattedValue = `${absChange.toFixed(1)}%`;
+  }
+
+  return {
+    value: formattedValue,
+    isPositive: percentChange >= 0,
   };
 };
 
@@ -69,6 +105,10 @@ type StatsCardsProps = {
   transactionCount: number;
   accountCount: number;
   isLoading?: boolean;
+  // Previous period data for trend calculation
+  previousDebit?: number;
+  previousCredit?: number;
+  previousTransactionCount?: number;
 };
 
 export const StatsCards = ({
@@ -77,8 +117,32 @@ export const StatsCards = ({
   transactionCount,
   accountCount,
   isLoading = false,
+  previousDebit = 0,
+  previousCredit = 0,
+  previousTransactionCount = 0,
 }: StatsCardsProps) => {
   const { formatAmount } = usePreferences();
+
+  // Calculate trends
+  const incomeTrend = useMemo(
+    () => calculateTrend(totalCredit, previousCredit),
+    [totalCredit, previousCredit]
+  );
+
+  const expenseTrend = useMemo(() => {
+    const trend = calculateTrend(totalDebit, previousDebit);
+    if (!trend) return null;
+    // For expenses, lower is better, so flip the isPositive logic
+    return {
+      value: trend.value,
+      isPositive: !trend.isPositive, // Decreasing expenses is positive
+    };
+  }, [totalDebit, previousDebit]);
+
+  const transactionTrend = useMemo(
+    () => calculateTrend(transactionCount, previousTransactionCount),
+    [transactionCount, previousTransactionCount]
+  );
 
   if (isLoading) {
     return (
@@ -120,10 +184,7 @@ export const StatsCards = ({
           iconColor="#10b981"
           iconBgColor="bg-green-50"
           valueColor="text-green-600"
-          trend={{
-            value: "12%",
-            isPositive: true,
-          }}
+          trend={incomeTrend}
         />
         <StatCard
           title="Total Expenses"
@@ -133,10 +194,7 @@ export const StatsCards = ({
           iconColor="#ef4444"
           iconBgColor="bg-red-50"
           valueColor="text-red-600"
-          trend={{
-            value: "8%",
-            isPositive: false,
-          }}
+          trend={expenseTrend}
         />
       </View>
 
@@ -190,6 +248,7 @@ export const StatsCards = ({
           iconColor="#3b82f6"
           iconBgColor="bg-blue-50"
           valueColor="text-blue-600"
+          trend={transactionTrend}
         />
         <StatCard
           title="Active Accounts"
