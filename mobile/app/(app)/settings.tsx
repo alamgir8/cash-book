@@ -1,18 +1,34 @@
 import { useState } from "react";
-import { ScrollView, Text, TouchableOpacity, View } from "react-native";
+import {
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
+  Alert,
+  ActivityIndicator,
+} from "react-native";
 import Constants from "expo-constants";
 import { Ionicons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
 import { router } from "expo-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../hooks/useAuth";
 import { exportTransactionsPdf } from "../../services/reports";
+import {
+  exportBackupToFile,
+  importBackupFromFile,
+} from "../../services/backup";
 import { ScreenHeader } from "../../components/screen-header";
 import { ActionButton } from "../../components/action-button";
 import { ProfileEditModal } from "../../components/profile-edit-modal";
+import { queryKeys } from "../../lib/queryKeys";
 
 export default function SettingsScreen() {
   const { state, signOut } = useAuth();
+  const queryClient = useQueryClient();
   const [exporting, setExporting] = useState(false);
+  const [backingUp, setBackingUp] = useState(false);
+  const [restoring, setRestoring] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
 
   const handleExport = async () => {
@@ -26,6 +42,76 @@ export default function SettingsScreen() {
     } finally {
       setExporting(false);
     }
+  };
+
+  const handleBackup = async () => {
+    try {
+      setBackingUp(true);
+      const filename = await exportBackupToFile();
+      Toast.show({
+        type: "success",
+        text1: "Backup created successfully",
+        text2: `Saved as ${filename}`,
+      });
+    } catch (error: any) {
+      console.error(error);
+      Toast.show({
+        type: "error",
+        text1: "Failed to create backup",
+        text2: error?.message || "Please try again",
+      });
+    } finally {
+      setBackingUp(false);
+    }
+  };
+
+  const handleRestore = async () => {
+    Alert.alert(
+      "Restore Backup",
+      "This will import data from a backup file. Existing data will NOT be deleted, but duplicate categories will be skipped. Continue?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Select File",
+          onPress: async () => {
+            try {
+              setRestoring(true);
+              const result = await importBackupFromFile();
+              // Invalidate all queries to refresh data
+              queryClient.invalidateQueries({
+                queryKey: queryKeys.accounts,
+              });
+              queryClient.invalidateQueries({
+                queryKey: queryKeys.categories.all,
+              });
+              queryClient.invalidateQueries({
+                queryKey: ["transactions"],
+              });
+              Toast.show({
+                type: "success",
+                text1: "Backup restored successfully",
+                text2: `Imported ${result.summary.accountsImported} accounts, ${result.summary.transactionsImported} transactions`,
+                visibilityTime: 4000,
+              });
+            } catch (error: any) {
+              console.error(error);
+              const message =
+                error?.response?.data?.message ||
+                error?.message ||
+                "Please try again";
+              Toast.show({
+                type: "error",
+                text1: "Failed to restore backup",
+                text2: message,
+                visibilityTime: 4000,
+              });
+            } finally {
+              setRestoring(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleProfileModalClose = () => {
@@ -113,16 +199,16 @@ export default function SettingsScreen() {
             </View>
             <View className="flex-1">
               <Text className="text-gray-900 text-xl font-bold">
-                Data Export
+                PDF Reports
               </Text>
-              <Text className="text-gray-600 text-base mt-1">
-                Export complete PDF report of all transactions
+              <Text className="text-gray-600 text-sm mt-1">
+                Export transactions as PDF report
               </Text>
             </View>
           </View>
 
           <ActionButton
-            label={exporting ? "Exporting..." : "Export All as PDF"}
+            label={exporting ? "Exporting..." : "Export PDF Report"}
             onPress={handleExport}
             isLoading={exporting}
             variant="success"
@@ -130,6 +216,83 @@ export default function SettingsScreen() {
             icon={exporting ? "download" : "cloud-download"}
             fullWidth
           />
+        </View>
+
+        {/* Backup & Restore Section */}
+        <View className="bg-white rounded-3xl p-6 border border-gray-100 shadow-lg">
+          <View className="flex-row items-center gap-4 mb-4">
+            <View className="w-14 h-14 bg-gradient-to-br from-blue-100 to-blue-200 rounded-full items-center justify-center">
+              <Ionicons name="cloud" size={28} color="#3b82f6" />
+            </View>
+            <View className="flex-1">
+              <Text className="text-gray-900 text-xl font-bold">
+                Backup & Restore
+              </Text>
+              <Text className="text-gray-600 text-sm mt-1">
+                Save or restore your complete data
+              </Text>
+            </View>
+          </View>
+
+          <View className="bg-blue-50 rounded-2xl p-4 mb-4">
+            <View className="flex-row items-start gap-3">
+              <Ionicons name="information-circle" size={20} color="#3b82f6" />
+              <Text className="text-blue-800 text-sm flex-1">
+                Backup exports all your accounts, categories, transactions, and
+                transfers as a JSON file that you can save and restore later.
+              </Text>
+            </View>
+          </View>
+
+          <View className="gap-3">
+            <TouchableOpacity
+              onPress={handleBackup}
+              disabled={backingUp}
+              className="flex-row items-center gap-4 bg-blue-50 rounded-2xl p-4 active:scale-98"
+              style={{ opacity: backingUp ? 0.7 : 1 }}
+            >
+              <View className="w-12 h-12 bg-blue-100 rounded-full items-center justify-center">
+                {backingUp ? (
+                  <ActivityIndicator size="small" color="#3b82f6" />
+                ) : (
+                  <Ionicons name="cloud-upload" size={24} color="#3b82f6" />
+                )}
+              </View>
+              <View className="flex-1">
+                <Text className="text-gray-900 font-bold text-base">
+                  {backingUp ? "Creating Backup..." : "Create Backup"}
+                </Text>
+                <Text className="text-gray-600 text-sm">
+                  Export all data to JSON file
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#9ca3af" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={handleRestore}
+              disabled={restoring}
+              className="flex-row items-center gap-4 bg-amber-50 rounded-2xl p-4 active:scale-98"
+              style={{ opacity: restoring ? 0.7 : 1 }}
+            >
+              <View className="w-12 h-12 bg-amber-100 rounded-full items-center justify-center">
+                {restoring ? (
+                  <ActivityIndicator size="small" color="#f59e0b" />
+                ) : (
+                  <Ionicons name="cloud-download" size={24} color="#f59e0b" />
+                )}
+              </View>
+              <View className="flex-1">
+                <Text className="text-gray-900 font-bold text-base">
+                  {restoring ? "Restoring..." : "Restore Backup"}
+                </Text>
+                <Text className="text-gray-600 text-sm">
+                  Import data from JSON file
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#9ca3af" />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Enhanced App Info Section */}
@@ -166,6 +329,23 @@ export default function SettingsScreen() {
           </View>
         </View>
 
+        {/* App Settings */}
+        <View className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
+          <Text className="text-gray-900 font-bold text-lg mb-4">
+            Quick Actions
+          </Text>
+          <View className="gap-2">
+            <ActionButton
+              icon="list"
+              label="Manage Categories"
+              subLabel="Add or edit income & expense categories"
+              onPress={() => router.push("/categories")}
+              color="#8b5cf6"
+              bgColor="bg-purple-50"
+            />
+          </View>
+        </View>
+
         {/* Enhanced Sign Out Section */}
         <View className="bg-white rounded-3xl p-6 border border-red-100 shadow-lg">
           <ActionButton
@@ -177,55 +357,6 @@ export default function SettingsScreen() {
             fullWidth
           />
         </View>
-
-        {/* App Settings */}
-        <View className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
-          <Text className="text-gray-900 font-bold text-lg mb-4">
-            App Settings
-          </Text>
-          <View className="gap-2">
-            <ActionButton
-              icon="list"
-              label="Manage Categories"
-              subLabel="Add or edit income & expense categories"
-              onPress={() => router.push("/categories")}
-              color="#8b5cf6"
-              bgColor="bg-purple-50"
-            />
-            <ActionButton
-              icon="document-text"
-              label="Export Full Report"
-              subLabel="Download all transactions as PDF"
-              onPress={handleExport}
-              isLoading={exporting}
-              color="#10b981"
-              bgColor="bg-green-50"
-            />
-          </View>
-        </View>
-
-        {/* Security Section */}
-        {/* <View className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
-          <Text className="text-gray-900 font-bold text-lg mb-4">Security</Text>
-          <View className="gap-2">
-            <ActionButton
-              label="Change Password"
-              onPress={() => setShowProfileModal(true)}
-              variant="secondary"
-              size="medium"
-              icon="lock-closed"
-              fullWidth
-            />
-            <ActionButton
-              label="Two-Factor Authentication"
-              onPress={() => setShowProfileModal(true)}
-              variant="secondary"
-              size="medium"
-              icon="shield-checkmark"
-              fullWidth
-            />
-          </View>
-        </View> */}
 
         {/* Bottom spacing for safe area */}
         <View className="h-10" />
