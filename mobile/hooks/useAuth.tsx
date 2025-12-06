@@ -134,14 +134,27 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       await applySession(refreshed);
       return refreshed.tokens.accessToken;
     } catch (error) {
+      // On network error, don't log out - just keep the current session
       if (axios.isAxiosError(error) && !error.response) {
         console.warn(
           "Refresh token request failed (network issue)",
           error.message
         );
-        throw error;
+        return current.tokens.accessToken; // Return current token, let next request retry
       }
-      await clearSession();
+
+      // Only clear session on explicit auth errors (401, 403)
+      if (axios.isAxiosError(error) && error.response) {
+        const status = error.response.status;
+        if (status === 401 || status === 403) {
+          console.warn("Refresh token rejected by server, clearing session");
+          await clearSession();
+          throw error;
+        }
+      }
+
+      // For other errors (500, etc.), keep session and throw to let caller handle
+      console.warn("Refresh token request failed with server error", error);
       throw error;
     }
   }, [applySession, clearSession]);
@@ -221,29 +234,48 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           user: profile.admin,
         });
       } catch (profileError) {
+        // If profile fetch fails, try refreshing the token
         try {
           const refreshed = await authService.refreshSession(
             tokens.refreshToken
           );
           await applySession(refreshed);
         } catch (refreshError) {
-          if (
-            axios.isAxiosError(refreshError) &&
-            !refreshError.response &&
-            cachedUser
-          ) {
+          // On network error, keep session with cached data
+          if (axios.isAxiosError(refreshError) && !refreshError.response) {
             console.warn(
               "Bootstrap refresh failed due to network; using cached session"
             );
+            if (cachedUser) {
+              setState({ status: "authenticated", tokens, user: cachedUser });
+              await persistSession(tokens, cachedUser);
+              return;
+            }
+          }
+
+          // Only clear session if it's an explicit auth error (401/403)
+          const isAuthError =
+            axios.isAxiosError(refreshError) &&
+            refreshError.response &&
+            [401, 403].includes(refreshError.response.status);
+
+          if (isAuthError) {
+            console.warn(
+              "Session expired or revoked, clearing session",
+              refreshError
+            );
+            await clearSession();
+          } else if (cachedUser) {
+            // For other errors, keep using cached session
+            console.warn(
+              "Refresh failed but keeping cached session",
+              refreshError
+            );
             setState({ status: "authenticated", tokens, user: cachedUser });
             await persistSession(tokens, cachedUser);
-            return;
+          } else {
+            await clearSession();
           }
-          console.warn(
-            "Failed to refresh session during bootstrap",
-            refreshError
-          );
-          await clearSession();
         }
       }
     } catch (error) {
