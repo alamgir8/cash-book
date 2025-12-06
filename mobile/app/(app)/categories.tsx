@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  RefreshControl,
 } from "react-native";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
@@ -28,10 +29,19 @@ export default function CategoriesScreen() {
     null
   );
 
-  const { data: categories, isLoading } = useQuery({
+  const {
+    data: categories,
+    isLoading,
+    isRefetching,
+    refetch,
+  } = useQuery({
     queryKey: queryKeys.categories.all,
     queryFn: () => fetchCategories(),
   });
+
+  const onRefresh = useCallback(() => {
+    refetch();
+  }, [refetch]);
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteCategory(id),
@@ -180,6 +190,14 @@ export default function CategoriesScreen() {
           keyExtractor={(item) => item._id}
           renderItem={renderItem}
           contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefetching}
+              onRefresh={onRefresh}
+              colors={["#8b5cf6"]}
+              tintColor="#8b5cf6"
+            />
+          }
           ListEmptyComponent={
             <EmptyState
               icon="list"
