@@ -100,6 +100,12 @@ export default function AppLayout() {
           href: null, // This hides the dynamic route from tabs
         }}
       />
+      <Tabs.Screen
+        name="categories"
+        options={{
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }

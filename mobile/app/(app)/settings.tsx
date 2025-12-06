@@ -3,8 +3,8 @@ import { ScrollView, Text, TouchableOpacity, View } from "react-native";
 import Constants from "expo-constants";
 import { Ionicons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
+import { router } from "expo-router";
 import { useAuth } from "../../hooks/useAuth";
-import { baseURL } from "../../lib/api";
 import { exportTransactionsPdf } from "../../services/reports";
 import { ScreenHeader } from "../../components/screen-header";
 import { ActionButton } from "../../components/action-button";
@@ -159,7 +159,7 @@ export default function SettingsScreen() {
               <View className="flex-1">
                 <Text className="text-gray-600 text-sm">App Version</Text>
                 <Text className="text-gray-900 text-sm font-mono">
-                  {Constants.expoConfig?.version || "1.0.0"}
+                  {Constants.expoConfig?.version || "2.0.0"}
                 </Text>
               </View>
             </View>
@@ -177,6 +177,55 @@ export default function SettingsScreen() {
             fullWidth
           />
         </View>
+
+        {/* App Settings */}
+        <View className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
+          <Text className="text-gray-900 font-bold text-lg mb-4">
+            App Settings
+          </Text>
+          <View className="gap-2">
+            <ActionButton
+              icon="list"
+              label="Manage Categories"
+              subLabel="Add or edit income & expense categories"
+              onPress={() => router.push("/categories")}
+              color="#8b5cf6"
+              bgColor="bg-purple-50"
+            />
+            <ActionButton
+              icon="document-text"
+              label="Export Full Report"
+              subLabel="Download all transactions as PDF"
+              onPress={handleExport}
+              isLoading={exporting}
+              color="#10b981"
+              bgColor="bg-green-50"
+            />
+          </View>
+        </View>
+
+        {/* Security Section */}
+        {/* <View className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
+          <Text className="text-gray-900 font-bold text-lg mb-4">Security</Text>
+          <View className="gap-2">
+            <ActionButton
+              label="Change Password"
+              onPress={() => setShowProfileModal(true)}
+              variant="secondary"
+              size="medium"
+              icon="lock-closed"
+              fullWidth
+            />
+            <ActionButton
+              label="Two-Factor Authentication"
+              onPress={() => setShowProfileModal(true)}
+              variant="secondary"
+              size="medium"
+              icon="shield-checkmark"
+              fullWidth
+            />
+          </View>
+        </View> */}
 
         {/* Bottom spacing for safe area */}
         <View className="h-10" />

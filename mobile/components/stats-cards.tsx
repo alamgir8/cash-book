@@ -68,6 +68,7 @@ type StatsCardsProps = {
   totalCredit: number;
   transactionCount: number;
   accountCount: number;
+  isLoading?: boolean;
 };
 
 export const StatsCards = ({
@@ -75,8 +76,35 @@ export const StatsCards = ({
   totalCredit,
   transactionCount,
   accountCount,
+  isLoading = false,
 }: StatsCardsProps) => {
   const { formatAmount } = usePreferences();
+
+  if (isLoading) {
+    return (
+      <View className="gap-4">
+        {/* Top Row Skeleton */}
+        <View className="flex-row gap-4">
+          {/* Income Skeleton - Green Theme */}
+          <View className="flex-1 h-32 bg-green-50 rounded-2xl border border-green-100" />
+          {/* Expense Skeleton - Red Theme */}
+          <View className="flex-1 h-32 bg-red-50 rounded-2xl border border-red-100" />
+        </View>
+
+        {/* Net Balance Skeleton - Neutral Theme */}
+        <View className="h-32 bg-gray-50 rounded-2xl border border-gray-100" />
+
+        {/* Bottom Row Skeleton */}
+        <View className="flex-row gap-4">
+          {/* Transactions Skeleton - Blue Theme */}
+          <View className="flex-1 h-32 bg-blue-50 rounded-2xl border border-blue-100" />
+          {/* Accounts Skeleton - Purple Theme */}
+          <View className="flex-1 h-32 bg-purple-50 rounded-2xl border border-purple-100" />
+        </View>
+      </View>
+    );
+  }
+
   const netBalance = totalCredit - totalDebit;
   const isPositiveBalance = netBalance >= 0;
 

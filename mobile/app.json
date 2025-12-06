@@ -2,7 +2,7 @@
   "expo": {
     "name": "Hisab Boi",
     "slug": "hisab-boi",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "scheme": "hisab-boi",
@@ -52,7 +52,8 @@
             "deploymentTarget": "15.1"
           }
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true

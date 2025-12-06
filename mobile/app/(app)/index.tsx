@@ -157,7 +157,7 @@ export default function DashboardScreen() {
   });
 
   const categoriesQuery = useQuery({
-    queryKey: queryKeys.categories,
+    queryKey: queryKeys.categories.all,
     queryFn: () => fetchCategories(),
   });
 
@@ -615,6 +615,7 @@ export default function DashboardScreen() {
           totalCredit={totals.credit}
           transactionCount={transactionCount}
           accountCount={accountCount}
+          isLoading={accountsQuery.isLoading || transactionsQuery.isLoading}
         />
 
         {/* Quick Actions */}

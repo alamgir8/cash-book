@@ -42,7 +42,7 @@ export default function TransactionsScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
 
   const categoriesQuery = useQuery({
-    queryKey: queryKeys.categories,
+    queryKey: queryKeys.categories.all,
     queryFn: () => fetchCategories(),
   });
 

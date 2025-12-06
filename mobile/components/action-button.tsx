@@ -10,6 +10,9 @@ interface ActionButtonProps {
   isLoading?: boolean;
   disabled?: boolean;
   fullWidth?: boolean;
+  subLabel?: string;
+  color?: string;
+  bgColor?: string;
 }
 
 export function ActionButton({
@@ -21,6 +24,9 @@ export function ActionButton({
   isLoading = false,
   disabled = false,
   fullWidth = false,
+  subLabel,
+  color,
+  bgColor,
 }: ActionButtonProps) {
   const getVariantStyles = () => {
     switch (variant) {
@@ -70,6 +76,30 @@ export function ActionButton({
         return 20;
     }
   };
+
+  // Handle custom color/bgColor styling
+  if (color || bgColor) {
+    return (
+      <TouchableOpacity
+        onPress={onPress}
+        disabled={disabled || isLoading}
+        className={`${bgColor || "bg-gray-50"} ${getSizeStyles()} ${
+          fullWidth ? "w-full" : ""
+        } flex-row items-center gap-3 p-4 rounded-2xl active:scale-95 ${
+          disabled ? "opacity-50" : ""
+        }`}
+      >
+        {icon && <Ionicons name={icon} size={24} color={color || "#6b7280"} />}
+        <View className="flex-1">
+          <Text className="font-semibold text-gray-900">{label}</Text>
+          {subLabel && (
+            <Text className="text-sm text-gray-500 mt-0.5">{subLabel}</Text>
+          )}
+        </View>
+        {isLoading && <ActivityIndicator color={color || "#6b7280"} />}
+      </TouchableOpacity>
+    );
+  }
 
   return (
     <TouchableOpacity
