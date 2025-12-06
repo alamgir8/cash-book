@@ -324,7 +324,7 @@ export default function AccountsScreen() {
               Transactions
             </Text>
             <Text className="text-2xl font-bold text-indigo-700 mt-2">
-              {totals.totalTransactions}
+              {formatAmount(totals.totalTransactions)}
             </Text>
             <Text className="text-xs text-indigo-600 mt-1">
               Last activity: {lastActivityLabel}
@@ -468,7 +468,7 @@ export default function AccountsScreen() {
                     Transactions
                   </Text>
                   <Text className="text-lg font-bold text-gray-700 mt-1">
-                    {item.summary.totalTransactions}
+                    {formatAmount(item.summary.totalTransactions ?? 0)}
                   </Text>
                 </View>
                 <View

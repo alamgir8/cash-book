@@ -184,7 +184,7 @@ export const StatsCards = ({
       <View className="flex-row gap-4">
         <StatCard
           title="Transactions"
-          value={transactionCount.toString()}
+          value={formatAmount(transactionCount, { showCurrency: false })}
           subtitle="This period"
           icon="receipt"
           iconColor="#3b82f6"
@@ -193,7 +193,7 @@ export const StatsCards = ({
         />
         <StatCard
           title="Active Accounts"
-          value={accountCount.toString()}
+          value={formatAmount(accountCount, { showCurrency: false })}
           subtitle="Total accounts"
           icon="wallet"
           iconColor="#8b5cf6"

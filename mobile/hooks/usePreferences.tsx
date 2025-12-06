@@ -18,11 +18,18 @@ interface UserPreferences {
   language: string;
   language_label: string;
 }
+interface FormatAmountOptions extends Intl.NumberFormatOptions {
+  /**
+   * If false, show only the number (no currency).
+   * Default: true
+   */
+  showCurrency?: boolean;
+}
 
 interface PreferencesContextType {
   preferences: UserPreferences;
   updatePreferences: (newPrefs: Partial<UserPreferences>) => Promise<void>;
-  formatAmount: (amount: number) => string;
+  formatAmount: (amount: number, options?: FormatAmountOptions) => string;
   getCurrencySymbol: () => string;
 }
 
@@ -183,17 +190,29 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const formatAmount = (amount: number): string => {
-    // console.log("Formatting amount:", amount, "with preferences:", preferences);
-
+  const formatAmount = (
+    amount: number,
+    options: FormatAmountOptions = {}
+  ): string => {
     const currency = preferences.currency || "USD";
     const locale = preferences.locale || "en-US";
-    return new Intl.NumberFormat(locale, {
-      style: "currency",
-      currency,
+
+    const { showCurrency = true, ...numberOptions } = options;
+
+    const baseOptions: Intl.NumberFormatOptions = {
       maximumFractionDigits: 0,
       minimumFractionDigits: 0,
-    }).format(amount);
+      ...numberOptions,
+    };
+
+    if (showCurrency) {
+      baseOptions.style = "currency";
+      baseOptions.currency = currency;
+    } else {
+      baseOptions.style = "decimal";
+    }
+
+    return new Intl.NumberFormat(locale, baseOptions).format(amount);
   };
 
   const getCurrencySymbol = (): string => {
