@@ -742,10 +742,13 @@ export default function DashboardScreen() {
       <Modal visible={isModalVisible} transparent animationType="slide">
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
-          className="flex-1"
+          style={{ flex: 1 }}
         >
           <View className="flex-1 bg-black/40 justify-end">
-            <View className="bg-white rounded-t-3xl" style={{ height: "90%" }}>
+            <View
+              className="bg-white rounded-t-3xl flex-1"
+              style={{ maxHeight: "92%" }}
+            >
               {/* Header */}
               <View className="flex-row justify-between items-center p-6 pb-4 border-b border-gray-100">
                 <View>
@@ -769,267 +772,267 @@ export default function DashboardScreen() {
               </View>
 
               {/* Form Content */}
-              <View className="flex-1 px-6 py-4">
-                <ScrollView
-                  showsVerticalScrollIndicator={false}
-                  contentContainerStyle={{ paddingBottom: 20 }}
-                >
-                  <View className="gap-5">
-                    {/* Account Selection */}
-                    <Controller
-                      control={control}
-                      name="accountId"
-                      render={({ field: { value, onChange }, fieldState }) => (
-                        <View className="gap-2">
-                          <SearchableSelect
-                            label="Account"
-                            placeholder={
-                              accountsQuery.isLoading
-                                ? "Loading accounts..."
-                                : accountOptions.length > 0
-                                ? "Select source account"
-                                : "No accounts available"
-                            }
-                            value={value}
-                            options={accountOptions}
-                            onSelect={(val) => onChange(val || undefined)}
-                            disabled={
-                              accountsQuery.isLoading ||
-                              accountOptions.length === 0
-                            }
-                          />
-                          {fieldState.error ? (
-                            <Text className="text-red-500 text-sm">
-                              {fieldState.error.message}
-                            </Text>
-                          ) : null}
-                        </View>
-                      )}
-                    />
-
-                    {/* Category Selection */}
-                    <Controller
-                      control={control}
-                      name="categoryId"
-                      render={({ field: { value, onChange } }) => (
-                        <View className="gap-2">
-                          <SearchableSelect
-                            label="Category"
-                            placeholder={
-                              categoriesQuery.isLoading
-                                ? "Loading categories..."
-                                : categoryOptions.length > 0
-                                ? "Select category"
-                                : "No categories available"
-                            }
-                            value={value}
-                            options={categoryOptions}
-                            onSelect={(val) => onChange(val || undefined)}
-                            disabled={
-                              categoriesQuery.isLoading ||
-                              categoryOptions.length === 0
-                            }
-                          />
-                          {errors.categoryId ? (
-                            <Text className="text-red-500 text-sm">
-                              {errors.categoryId.message}
-                            </Text>
-                          ) : null}
-                        </View>
-                      )}
-                    />
-
-                    {/* Amount and Type Row */}
-                    <View className="flex-row gap-4">
-                      <View className="flex-1">
-                        <Text className="text-gray-700 text-sm font-semibold mb-2">
-                          Amount
-                        </Text>
-                        <Controller
-                          control={control}
-                          name="amount"
-                          render={({ field: { onChange, value } }) => (
-                            <TextInput
-                              value={String(value || "")}
-                              onChangeText={(text) =>
-                                onChange(
-                                  Number(text.replace(/[^0-9.]/g, "")) || 0
-                                )
-                              }
-                              keyboardType="numeric"
-                              placeholder="0"
-                              placeholderTextColor="#9ca3af"
-                              className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200 text-lg font-semibold"
-                            />
-                          )}
+              <ScrollView
+                className="flex-1 px-6 py-4"
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={{ paddingBottom: 20 }}
+              >
+                <View className="gap-5">
+                  {/* Account Selection */}
+                  <Controller
+                    control={control}
+                    name="accountId"
+                    render={({ field: { value, onChange }, fieldState }) => (
+                      <View className="gap-2">
+                        <SearchableSelect
+                          label="Account"
+                          placeholder={
+                            accountsQuery.isLoading
+                              ? "Loading accounts..."
+                              : accountOptions.length > 0
+                              ? "Select source account"
+                              : "No accounts available"
+                          }
+                          value={value}
+                          options={accountOptions}
+                          onSelect={(val) => onChange(val || undefined)}
+                          disabled={
+                            accountsQuery.isLoading ||
+                            accountOptions.length === 0
+                          }
                         />
-                        {errors.amount ? (
-                          <Text className="text-red-500 text-sm mt-1">
-                            {errors.amount.message}
+                        {fieldState.error ? (
+                          <Text className="text-red-500 text-sm">
+                            {fieldState.error.message}
                           </Text>
                         ) : null}
                       </View>
-                      <View className="flex-1">
-                        <Text className="text-gray-700 text-sm font-semibold mb-2">
-                          Type
-                        </Text>
-                        <Controller
-                          control={control}
-                          name="type"
-                          render={({ field: { value, onChange } }) => (
-                            <View className="flex-row gap-2">
-                              {(["debit", "credit"] as const).map((option) => (
-                                <TouchableOpacity
-                                  key={option}
-                                  onPress={() => onChange(option)}
-                                  className={`flex-1 py-3 rounded-xl border-2 ${
-                                    value === option
-                                      ? option === "debit"
-                                        ? "border-red-500 bg-red-50"
-                                        : "border-green-500 bg-green-50"
-                                      : "border-gray-200 bg-gray-50"
-                                  }`}
-                                >
-                                  <Text
-                                    className={`text-center font-semibold text-sm ${
-                                      value === option
-                                        ? option === "debit"
-                                          ? "text-red-700"
-                                          : "text-green-700"
-                                        : "text-gray-600"
-                                    }`}
-                                  >
-                                    {option.toUpperCase()}
-                                  </Text>
-                                </TouchableOpacity>
-                              ))}
-                            </View>
-                          )}
-                        />
-                      </View>
-                    </View>
+                    )}
+                  />
 
-                    {/* Date Field */}
-                    <View>
+                  {/* Category Selection */}
+                  <Controller
+                    control={control}
+                    name="categoryId"
+                    render={({ field: { value, onChange } }) => (
+                      <View className="gap-2">
+                        <SearchableSelect
+                          label="Category"
+                          placeholder={
+                            categoriesQuery.isLoading
+                              ? "Loading categories..."
+                              : categoryOptions.length > 0
+                              ? "Select category"
+                              : "No categories available"
+                          }
+                          value={value}
+                          options={categoryOptions}
+                          onSelect={(val) => onChange(val || undefined)}
+                          disabled={
+                            categoriesQuery.isLoading ||
+                            categoryOptions.length === 0
+                          }
+                        />
+                        {errors.categoryId ? (
+                          <Text className="text-red-500 text-sm">
+                            {errors.categoryId.message}
+                          </Text>
+                        ) : null}
+                      </View>
+                    )}
+                  />
+
+                  {/* Amount and Type Row */}
+                  <View className="flex-row gap-4">
+                    <View className="flex-1">
                       <Text className="text-gray-700 text-sm font-semibold mb-2">
-                        Date
+                        Amount
                       </Text>
                       <Controller
                         control={control}
-                        name="date"
-                        render={({ field: { value } }) => (
-                          <View>
-                            <TouchableOpacity
-                              onPress={openDatePicker}
-                              className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200 flex-row items-center justify-between"
-                            >
-                              <Text className="text-gray-900 text-base">
-                                {value
-                                  ? dayjs(value).format("MMM DD, YYYY")
-                                  : "Select Date"}
-                              </Text>
-                              <Ionicons
-                                name="calendar-outline"
-                                size={20}
-                                color="#6b7280"
-                              />
-                            </TouchableOpacity>
-
-                            {showDatePicker && (
-                              <DateTimePicker
-                                value={selectedDate}
-                                mode="date"
-                                display={
-                                  Platform.OS === "ios" ? "compact" : "default"
-                                }
-                                onChange={handleDateChange}
-                                maximumDate={new Date()}
-                              />
-                            )}
+                        name="amount"
+                        render={({ field: { onChange, value } }) => (
+                          <TextInput
+                            value={String(value || "")}
+                            onChangeText={(text) =>
+                              onChange(
+                                Number(text.replace(/[^0-9.]/g, "")) || 0
+                              )
+                            }
+                            keyboardType="numeric"
+                            placeholder="0"
+                            placeholderTextColor="#9ca3af"
+                            className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200 text-lg font-semibold"
+                          />
+                        )}
+                      />
+                      {errors.amount ? (
+                        <Text className="text-red-500 text-sm mt-1">
+                          {errors.amount.message}
+                        </Text>
+                      ) : null}
+                    </View>
+                    <View className="flex-1">
+                      <Text className="text-gray-700 text-sm font-semibold mb-2">
+                        Type
+                      </Text>
+                      <Controller
+                        control={control}
+                        name="type"
+                        render={({ field: { value, onChange } }) => (
+                          <View className="flex-row gap-2">
+                            {(["debit", "credit"] as const).map((option) => (
+                              <TouchableOpacity
+                                key={option}
+                                onPress={() => onChange(option)}
+                                className={`flex-1 py-3 rounded-xl border-2 ${
+                                  value === option
+                                    ? option === "debit"
+                                      ? "border-red-500 bg-red-50"
+                                      : "border-green-500 bg-green-50"
+                                    : "border-gray-200 bg-gray-50"
+                                }`}
+                              >
+                                <Text
+                                  className={`text-center font-semibold text-sm ${
+                                    value === option
+                                      ? option === "debit"
+                                        ? "text-red-700"
+                                        : "text-green-700"
+                                      : "text-gray-600"
+                                  }`}
+                                >
+                                  {option.toUpperCase()}
+                                </Text>
+                              </TouchableOpacity>
+                            ))}
                           </View>
                         )}
                       />
                     </View>
-
-                    {/* Description Field */}
-                    <View>
-                      <Text className="text-gray-700 text-sm font-semibold mb-2">
-                        Description
-                      </Text>
-                      <Controller
-                        control={control}
-                        name="description"
-                        render={({ field: { value, onChange } }) => (
-                          <TextInput
-                            value={value || ""}
-                            onChangeText={onChange}
-                            placeholder="What is this transaction about?"
-                            placeholderTextColor="#9ca3af"
-                            className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200"
-                          />
-                        )}
-                      />
-                    </View>
-
-                    {/* Counterparty Field */}
-                    <View>
-                      <Text className="text-gray-700 text-sm font-semibold mb-2">
-                        Counterparty
-                      </Text>
-                      <Controller
-                        control={control}
-                        name="counterparty"
-                        render={({ field: { value, onChange } }) => (
-                          <TextInput
-                            value={value || ""}
-                            onChangeText={onChange}
-                            placeholder="Customer, supplier, or contact"
-                            placeholderTextColor="#9ca3af"
-                            className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200"
-                          />
-                        )}
-                      />
-                    </View>
-
-                    {/* Comment Field */}
-                    <View>
-                      <Text className="text-gray-700 text-sm font-semibold mb-2">
-                        Additional Notes
-                      </Text>
-                      <Controller
-                        control={control}
-                        name="comment"
-                        render={({ field: { value, onChange } }) => (
-                          <TextInput
-                            value={value || ""}
-                            onChangeText={onChange}
-                            placeholder="Any additional details..."
-                            placeholderTextColor="#9ca3af"
-                            className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200 min-h-[80px]"
-                            multiline
-                            textAlignVertical="top"
-                          />
-                        )}
-                      />
-                    </View>
-
-                    {/* Voice Input */}
-                    {/* <VoiceInputButton onResult={handleVoiceResult} /> */}
-
-                    {/* Amount Preview */}
-                    {currentAmount > 0 ? (
-                      <View className="bg-blue-50 rounded-xl p-3 border border-blue-100">
-                        <Text className="text-blue-700 text-sm font-medium text-center">
-                          💰 Amount Preview: {formatAmount(currentAmount)}
-                        </Text>
-                      </View>
-                    ) : null}
                   </View>
-                </ScrollView>
-              </View>
+
+                  {/* Date Field */}
+                  <View>
+                    <Text className="text-gray-700 text-sm font-semibold mb-2">
+                      Date
+                    </Text>
+                    <Controller
+                      control={control}
+                      name="date"
+                      render={({ field: { value } }) => (
+                        <View>
+                          <TouchableOpacity
+                            onPress={openDatePicker}
+                            className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200 flex-row items-center justify-between"
+                          >
+                            <Text className="text-gray-900 text-base">
+                              {value
+                                ? dayjs(value).format("MMM DD, YYYY")
+                                : "Select Date"}
+                            </Text>
+                            <Ionicons
+                              name="calendar-outline"
+                              size={20}
+                              color="#6b7280"
+                            />
+                          </TouchableOpacity>
+
+                          {showDatePicker && (
+                            <DateTimePicker
+                              value={selectedDate}
+                              mode="date"
+                              display={
+                                Platform.OS === "ios" ? "compact" : "default"
+                              }
+                              onChange={handleDateChange}
+                              maximumDate={new Date()}
+                            />
+                          )}
+                        </View>
+                      )}
+                    />
+                  </View>
+
+                  {/* Description Field */}
+                  <View>
+                    <Text className="text-gray-700 text-sm font-semibold mb-2">
+                      Description
+                    </Text>
+                    <Controller
+                      control={control}
+                      name="description"
+                      render={({ field: { value, onChange } }) => (
+                        <TextInput
+                          value={value || ""}
+                          onChangeText={onChange}
+                          placeholder="What is this transaction about?"
+                          placeholderTextColor="#9ca3af"
+                          className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200"
+                        />
+                      )}
+                    />
+                  </View>
+
+                  {/* Counterparty Field */}
+                  <View>
+                    <Text className="text-gray-700 text-sm font-semibold mb-2">
+                      Counterparty
+                    </Text>
+                    <Controller
+                      control={control}
+                      name="counterparty"
+                      render={({ field: { value, onChange } }) => (
+                        <TextInput
+                          value={value || ""}
+                          onChangeText={onChange}
+                          placeholder="Customer, supplier, or contact"
+                          placeholderTextColor="#9ca3af"
+                          className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200"
+                        />
+                      )}
+                    />
+                  </View>
+
+                  {/* Comment Field */}
+                  <View>
+                    <Text className="text-gray-700 text-sm font-semibold mb-2">
+                      Additional Notes
+                    </Text>
+                    <Controller
+                      control={control}
+                      name="comment"
+                      render={({ field: { value, onChange } }) => (
+                        <TextInput
+                          value={value || ""}
+                          onChangeText={onChange}
+                          placeholder="Any additional details..."
+                          placeholderTextColor="#9ca3af"
+                          className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200 min-h-[80px]"
+                          multiline
+                          textAlignVertical="top"
+                        />
+                      )}
+                    />
+                  </View>
+
+                  {/* Voice Input */}
+                  {/* <VoiceInputButton onResult={handleVoiceResult} /> */}
+
+                  {/* Amount Preview */}
+                  {currentAmount > 0 ? (
+                    <View className="bg-blue-50 rounded-xl p-3 border border-blue-100">
+                      <Text className="text-blue-700 text-sm font-medium text-center">
+                        💰 Amount Preview: {formatAmount(currentAmount)}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+              </ScrollView>
 
               {/* Submit Button - Fixed at bottom */}
-              <View className="p-6 pt-4 mb-10 border-t border-gray-100">
+              <View className="p-6 pt-4 pb-8 border-t border-gray-100">
                 <TouchableOpacity
                   onPress={handleSubmit(onSubmit)}
                   disabled={
@@ -1074,10 +1077,13 @@ export default function DashboardScreen() {
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
-          className="flex-1"
+          style={{ flex: 1 }}
         >
           <View className="flex-1 bg-black/40 justify-end">
-            <View className="bg-white rounded-t-3xl" style={{ height: "85%" }}>
+            <View
+              className="bg-white rounded-t-3xl flex-1"
+              style={{ maxHeight: "90%" }}
+            >
               <View className="flex-row justify-between items-center p-6 pb-4 border-b border-gray-100">
                 <View>
                   <Text className="text-gray-900 text-xl font-bold">
@@ -1095,217 +1101,214 @@ export default function DashboardScreen() {
                 </TouchableOpacity>
               </View>
 
-              <View className="flex-1 px-6 py-4">
-                <ScrollView
-                  showsVerticalScrollIndicator={false}
-                  keyboardShouldPersistTaps="handled"
-                  contentContainerStyle={{ paddingBottom: 20 }}
-                >
-                  <View className="gap-5">
-                    <Controller
-                      control={transferControl}
-                      name="fromAccountId"
-                      render={({ field: { value, onChange }, fieldState }) => (
-                        <View className="gap-2">
-                          <SearchableSelect
-                            label="From Account"
-                            placeholder={
-                              accountsQuery.isLoading
-                                ? "Loading accounts..."
-                                : accountOptions.length > 0
-                                ? "Select source account"
-                                : "No accounts available"
-                            }
-                            value={value}
-                            options={accountOptions}
-                            onSelect={(val) => onChange(val || undefined)}
-                            disabled={
-                              accountsQuery.isLoading ||
-                              accountOptions.length === 0
-                            }
-                          />
-                          {fieldState.error ? (
-                            <Text className="text-red-500 text-sm">
-                              {fieldState.error.message}
-                            </Text>
-                          ) : null}
-                        </View>
-                      )}
-                    />
-
-                    <Controller
-                      control={transferControl}
-                      name="toAccountId"
-                      render={({ field: { value, onChange }, fieldState }) => (
-                        <View className="gap-2">
-                          <SearchableSelect
-                            label="To Account"
-                            placeholder={
-                              accountsQuery.isLoading
-                                ? "Loading accounts..."
-                                : destinationAccountOptions.length > 0
-                                ? "Select destination account"
-                                : "No destination accounts available"
-                            }
-                            value={value}
-                            options={destinationAccountOptions}
-                            onSelect={(val) => onChange(val || undefined)}
-                            disabled={
-                              accountsQuery.isLoading ||
-                              destinationAccountOptions.length === 0
-                            }
-                          />
-                          {fieldState.error ? (
-                            <Text className="text-red-500 text-sm">
-                              {fieldState.error.message}
-                            </Text>
-                          ) : null}
-                        </View>
-                      )}
-                    />
-
-                    <Controller
-                      control={transferControl}
-                      name="amount"
-                      render={({ field: { value, onChange }, fieldState }) => (
-                        <View>
-                          <Text className="text-gray-700 text-sm font-semibold mb-2">
-                            Amount
+              <ScrollView
+                className="flex-1 px-6 py-4"
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={{ paddingBottom: 20 }}
+              >
+                <View className="gap-5">
+                  <Controller
+                    control={transferControl}
+                    name="fromAccountId"
+                    render={({ field: { value, onChange }, fieldState }) => (
+                      <View className="gap-2">
+                        <SearchableSelect
+                          label="From Account"
+                          placeholder={
+                            accountsQuery.isLoading
+                              ? "Loading accounts..."
+                              : accountOptions.length > 0
+                              ? "Select source account"
+                              : "No accounts available"
+                          }
+                          value={value}
+                          options={accountOptions}
+                          onSelect={(val) => onChange(val || undefined)}
+                          disabled={
+                            accountsQuery.isLoading ||
+                            accountOptions.length === 0
+                          }
+                        />
+                        {fieldState.error ? (
+                          <Text className="text-red-500 text-sm">
+                            {fieldState.error.message}
                           </Text>
-                          <TextInput
-                            value={
-                              value === undefined || value === null
-                                ? ""
-                                : String(value)
-                            }
-                            onChangeText={(text) =>
-                              onChange(
-                                Number(text.replace(/[^0-9.]/g, "")) || 0
-                              )
-                            }
-                            keyboardType="numeric"
-                            placeholder="0"
-                            placeholderTextColor="#9ca3af"
-                            className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200 text-lg font-semibold"
-                          />
-                          {fieldState.error ? (
-                            <Text className="text-red-500 text-sm mt-1">
-                              {fieldState.error.message}
-                            </Text>
-                          ) : null}
-                        </View>
-                      )}
-                    />
-
-                    <Controller
-                      control={transferControl}
-                      name="date"
-                      render={({ field: { value } }) => (
-                        <View>
-                          <Text className="text-gray-700 text-sm font-semibold mb-2">
-                            Date
-                          </Text>
-                          <TouchableOpacity
-                            onPress={openTransferDatePicker}
-                            className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200 flex-row items-center justify-between"
-                          >
-                            <Text className="text-gray-900 text-base">
-                              {value
-                                ? dayjs(value).format("MMM DD, YYYY")
-                                : "Select Date"}
-                            </Text>
-                            <Ionicons
-                              name="calendar-outline"
-                              size={20}
-                              color="#6b7280"
-                            />
-                          </TouchableOpacity>
-                          {showTransferDatePicker && (
-                            <DateTimePicker
-                              value={selectedTransferDate}
-                              mode="date"
-                              display={
-                                Platform.OS === "ios" ? "compact" : "default"
-                              }
-                              onChange={handleTransferDateChange}
-                              maximumDate={new Date()}
-                            />
-                          )}
-                        </View>
-                      )}
-                    />
-
-                    <View>
-                      <Text className="text-gray-700 text-sm font-semibold mb-2">
-                        Description
-                      </Text>
-                      <Controller
-                        control={transferControl}
-                        name="description"
-                        render={({ field: { value, onChange } }) => (
-                          <TextInput
-                            value={value || ""}
-                            onChangeText={onChange}
-                            placeholder="What is this transfer for?"
-                            placeholderTextColor="#9ca3af"
-                            className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200"
-                          />
-                        )}
-                      />
-                    </View>
-
-                    <View>
-                      <Text className="text-gray-700 text-sm font-semibold mb-2">
-                        Counterparty
-                      </Text>
-                      <Controller
-                        control={transferControl}
-                        name="counterparty"
-                        render={({ field: { value, onChange } }) => (
-                          <TextInput
-                            value={value || ""}
-                            onChangeText={onChange}
-                            placeholder="Optional reference"
-                            placeholderTextColor="#9ca3af"
-                            className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200"
-                          />
-                        )}
-                      />
-                    </View>
-
-                    <View>
-                      <Text className="text-gray-700 text-sm font-semibold mb-2">
-                        Additional Notes
-                      </Text>
-                      <Controller
-                        control={transferControl}
-                        name="comment"
-                        render={({ field: { value, onChange } }) => (
-                          <TextInput
-                            value={value || ""}
-                            onChangeText={onChange}
-                            placeholder="Any additional details..."
-                            placeholderTextColor="#9ca3af"
-                            className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200 min-h-[80px]"
-                            multiline
-                            textAlignVertical="top"
-                          />
-                        )}
-                      />
-                    </View>
-
-                    {transferAmount > 0 ? (
-                      <View className="bg-green-50 rounded-xl p-3 border border-green-100">
-                        <Text className="text-green-700 text-sm font-medium text-center">
-                          🔄 Transfer Preview: {formatAmount(transferAmount)}
-                        </Text>
+                        ) : null}
                       </View>
-                    ) : null}
-                  </View>
-                </ScrollView>
-              </View>
+                    )}
+                  />
 
-              <View className="p-6 pt-4 border-t border-gray-100">
+                  <Controller
+                    control={transferControl}
+                    name="toAccountId"
+                    render={({ field: { value, onChange }, fieldState }) => (
+                      <View className="gap-2">
+                        <SearchableSelect
+                          label="To Account"
+                          placeholder={
+                            accountsQuery.isLoading
+                              ? "Loading accounts..."
+                              : destinationAccountOptions.length > 0
+                              ? "Select destination account"
+                              : "No destination accounts available"
+                          }
+                          value={value}
+                          options={destinationAccountOptions}
+                          onSelect={(val) => onChange(val || undefined)}
+                          disabled={
+                            accountsQuery.isLoading ||
+                            destinationAccountOptions.length === 0
+                          }
+                        />
+                        {fieldState.error ? (
+                          <Text className="text-red-500 text-sm">
+                            {fieldState.error.message}
+                          </Text>
+                        ) : null}
+                      </View>
+                    )}
+                  />
+
+                  <Controller
+                    control={transferControl}
+                    name="amount"
+                    render={({ field: { value, onChange }, fieldState }) => (
+                      <View>
+                        <Text className="text-gray-700 text-sm font-semibold mb-2">
+                          Amount
+                        </Text>
+                        <TextInput
+                          value={
+                            value === undefined || value === null
+                              ? ""
+                              : String(value)
+                          }
+                          onChangeText={(text) =>
+                            onChange(Number(text.replace(/[^0-9.]/g, "")) || 0)
+                          }
+                          keyboardType="numeric"
+                          placeholder="0"
+                          placeholderTextColor="#9ca3af"
+                          className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200 text-lg font-semibold"
+                        />
+                        {fieldState.error ? (
+                          <Text className="text-red-500 text-sm mt-1">
+                            {fieldState.error.message}
+                          </Text>
+                        ) : null}
+                      </View>
+                    )}
+                  />
+
+                  <Controller
+                    control={transferControl}
+                    name="date"
+                    render={({ field: { value } }) => (
+                      <View>
+                        <Text className="text-gray-700 text-sm font-semibold mb-2">
+                          Date
+                        </Text>
+                        <TouchableOpacity
+                          onPress={openTransferDatePicker}
+                          className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200 flex-row items-center justify-between"
+                        >
+                          <Text className="text-gray-900 text-base">
+                            {value
+                              ? dayjs(value).format("MMM DD, YYYY")
+                              : "Select Date"}
+                          </Text>
+                          <Ionicons
+                            name="calendar-outline"
+                            size={20}
+                            color="#6b7280"
+                          />
+                        </TouchableOpacity>
+                        {showTransferDatePicker && (
+                          <DateTimePicker
+                            value={selectedTransferDate}
+                            mode="date"
+                            display={
+                              Platform.OS === "ios" ? "compact" : "default"
+                            }
+                            onChange={handleTransferDateChange}
+                            maximumDate={new Date()}
+                          />
+                        )}
+                      </View>
+                    )}
+                  />
+
+                  <View>
+                    <Text className="text-gray-700 text-sm font-semibold mb-2">
+                      Description
+                    </Text>
+                    <Controller
+                      control={transferControl}
+                      name="description"
+                      render={({ field: { value, onChange } }) => (
+                        <TextInput
+                          value={value || ""}
+                          onChangeText={onChange}
+                          placeholder="What is this transfer for?"
+                          placeholderTextColor="#9ca3af"
+                          className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200"
+                        />
+                      )}
+                    />
+                  </View>
+
+                  <View>
+                    <Text className="text-gray-700 text-sm font-semibold mb-2">
+                      Counterparty
+                    </Text>
+                    <Controller
+                      control={transferControl}
+                      name="counterparty"
+                      render={({ field: { value, onChange } }) => (
+                        <TextInput
+                          value={value || ""}
+                          onChangeText={onChange}
+                          placeholder="Optional reference"
+                          placeholderTextColor="#9ca3af"
+                          className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200"
+                        />
+                      )}
+                    />
+                  </View>
+
+                  <View>
+                    <Text className="text-gray-700 text-sm font-semibold mb-2">
+                      Additional Notes
+                    </Text>
+                    <Controller
+                      control={transferControl}
+                      name="comment"
+                      render={({ field: { value, onChange } }) => (
+                        <TextInput
+                          value={value || ""}
+                          onChangeText={onChange}
+                          placeholder="Any additional details..."
+                          placeholderTextColor="#9ca3af"
+                          className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200 min-h-[80px]"
+                          multiline
+                          textAlignVertical="top"
+                        />
+                      )}
+                    />
+                  </View>
+
+                  {transferAmount > 0 ? (
+                    <View className="bg-green-50 rounded-xl p-3 border border-green-100">
+                      <Text className="text-green-700 text-sm font-medium text-center">
+                        🔄 Transfer Preview: {formatAmount(transferAmount)}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+              </ScrollView>
+
+              <View className="p-6 pt-4 pb-8 border-t border-gray-100">
                 <TouchableOpacity
                   onPress={handleTransferSubmit(onTransferSubmit)}
                   disabled={createTransferMutation.isPending}

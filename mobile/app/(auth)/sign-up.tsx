@@ -80,15 +80,17 @@ export default function SignUpScreen() {
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      className="flex-1 bg-slate-50"
+      behavior={Platform.OS === "ios" ? "padding" : "padding"}
+      style={{ flex: 1 }}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+      className="bg-slate-50"
     >
       <ScrollView
         className="flex-1"
         contentContainerStyle={{
           flexGrow: 1,
           paddingHorizontal: 24,
-          paddingBottom: 240,
+          paddingBottom: 40,
         }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"

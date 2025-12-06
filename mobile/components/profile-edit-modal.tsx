@@ -229,10 +229,13 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
     <Modal visible={visible} animationType="slide" transparent>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        className="flex-1"
+        style={{ flex: 1 }}
       >
         <View className="flex-1 bg-black/40 justify-end">
-          <View className="bg-white rounded-t-3xl" style={{ height: "90%" }}>
+          <View
+            className="bg-white rounded-t-3xl flex-1"
+            style={{ maxHeight: "92%" }}
+          >
             {/* Header */}
             <View className="flex-row justify-between items-center p-6 pb-4 border-b border-gray-100">
               <View>
@@ -252,236 +255,235 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
             </View>
 
             {/* Form Content */}
-            <View className="flex-1">
-              <ScrollView
-                className="px-6"
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={{ paddingBottom: 20 }}
-              >
-                <View className="gap-5 py-4">
-                  {/* Personal Information Section */}
-                  <View className="bg-gray-50 rounded-2xl p-4 border border-gray-200">
-                    <Text className="text-base font-semibold text-gray-900 mb-3">
-                      Personal Information
-                    </Text>
+            <ScrollView
+              className="flex-1 px-6"
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{ paddingBottom: 20 }}
+            >
+              <View className="gap-5 py-4">
+                {/* Personal Information Section */}
+                <View className="bg-gray-50 rounded-2xl p-4 border border-gray-200">
+                  <Text className="text-base font-semibold text-gray-900 mb-3">
+                    Personal Information
+                  </Text>
 
+                  <View className="gap-4">
+                    <View>
+                      <Text className="text-sm font-semibold text-gray-700 mb-2">
+                        Full name
+                      </Text>
+                      <Controller
+                        control={control}
+                        name="name"
+                        render={({ field: { value, onChange } }) => (
+                          <TextInput
+                            value={value}
+                            onChangeText={onChange}
+                            placeholder="Your name"
+                            placeholderTextColor="#9ca3af"
+                            className="bg-white text-gray-900 px-4 py-3 rounded-xl border border-gray-200"
+                          />
+                        )}
+                      />
+                      {errors.name ? (
+                        <Text className="text-sm text-red-500 mt-1">
+                          {errors.name.message}
+                        </Text>
+                      ) : null}
+                    </View>
+
+                    <View>
+                      <Text className="text-sm font-semibold text-gray-700 mb-2">
+                        Email
+                      </Text>
+                      <Controller
+                        control={control}
+                        name="email"
+                        render={({ field: { value, onChange } }) => (
+                          <TextInput
+                            value={value}
+                            onChangeText={onChange}
+                            placeholder="you@example.com"
+                            placeholderTextColor="#9ca3af"
+                            keyboardType="email-address"
+                            autoCapitalize="none"
+                            className="bg-white text-gray-900 px-4 py-3 rounded-xl border border-gray-200"
+                          />
+                        )}
+                      />
+                      {errors.email ? (
+                        <Text className="text-sm text-red-500 mt-1">
+                          {errors.email.message}
+                        </Text>
+                      ) : null}
+                    </View>
+
+                    <View>
+                      <Text className="text-sm font-semibold text-gray-700 mb-2">
+                        Phone (optional)
+                      </Text>
+                      <Controller
+                        control={control}
+                        name="phone"
+                        render={({ field: { value, onChange } }) => (
+                          <TextInput
+                            value={value ?? ""}
+                            onChangeText={onChange}
+                            placeholder="Phone number"
+                            placeholderTextColor="#9ca3af"
+                            keyboardType="phone-pad"
+                            className="bg-white text-gray-900 px-4 py-3 rounded-xl border border-gray-200"
+                          />
+                        )}
+                      />
+                    </View>
+                  </View>
+                </View>
+
+                {/* Security Section */}
+                <View className="bg-gray-50 rounded-2xl p-4 border border-gray-200">
+                  <View className="flex-row items-center justify-between mb-2">
+                    <Text className="text-base font-semibold text-gray-900">
+                      Security
+                    </Text>
+                    <Controller
+                      control={control}
+                      name="enablePin"
+                      render={({ field: { value, onChange } }) => (
+                        <Switch
+                          value={value}
+                          onValueChange={(next) => {
+                            onChange(next);
+                            if (!next) {
+                              setValue("loginPin", "");
+                              setValue("confirmPin", "");
+                            }
+                          }}
+                          trackColor={{ false: "#d1d5db", true: "#2563eb" }}
+                          thumbColor="#ffffff"
+                        />
+                      )}
+                    />
+                  </View>
+                  <Text className="text-xs text-gray-500 mb-4">
+                    {enablePin
+                      ? "Enter a new 5-digit PIN to enable quick logins."
+                      : hasExistingPin
+                      ? "Your login PIN will be removed when you save changes."
+                      : "Enable a 5-digit PIN to sign in without your password."}
+                  </Text>
+                  {enablePin ? (
                     <View className="gap-4">
                       <View>
                         <Text className="text-sm font-semibold text-gray-700 mb-2">
-                          Full name
+                          New PIN
                         </Text>
                         <Controller
                           control={control}
-                          name="name"
+                          name="loginPin"
                           render={({ field: { value, onChange } }) => (
                             <TextInput
-                              value={value}
+                              value={value ?? ""}
                               onChangeText={onChange}
-                              placeholder="Your name"
+                              placeholder="12345"
                               placeholderTextColor="#9ca3af"
-                              className="bg-white text-gray-900 px-4 py-3 rounded-xl border border-gray-200"
-                            />
-                          )}
-                        />
-                        {errors.name ? (
-                          <Text className="text-sm text-red-500 mt-1">
-                            {errors.name.message}
-                          </Text>
-                        ) : null}
-                      </View>
-
-                      <View>
-                        <Text className="text-sm font-semibold text-gray-700 mb-2">
-                          Email
-                        </Text>
-                        <Controller
-                          control={control}
-                          name="email"
-                          render={({ field: { value, onChange } }) => (
-                            <TextInput
-                              value={value}
-                              onChangeText={onChange}
-                              placeholder="you@example.com"
-                              placeholderTextColor="#9ca3af"
-                              keyboardType="email-address"
+                              keyboardType="number-pad"
+                              secureTextEntry
+                              maxLength={5}
                               autoCapitalize="none"
                               className="bg-white text-gray-900 px-4 py-3 rounded-xl border border-gray-200"
                             />
                           )}
                         />
-                        {errors.email ? (
+                        {errors.loginPin ? (
                           <Text className="text-sm text-red-500 mt-1">
-                            {errors.email.message}
+                            {errors.loginPin.message}
                           </Text>
                         ) : null}
                       </View>
-
                       <View>
                         <Text className="text-sm font-semibold text-gray-700 mb-2">
-                          Phone (optional)
+                          Confirm PIN
                         </Text>
                         <Controller
                           control={control}
-                          name="phone"
+                          name="confirmPin"
                           render={({ field: { value, onChange } }) => (
                             <TextInput
                               value={value ?? ""}
                               onChangeText={onChange}
-                              placeholder="Phone number"
+                              placeholder="12345"
                               placeholderTextColor="#9ca3af"
-                              keyboardType="phone-pad"
+                              keyboardType="number-pad"
+                              secureTextEntry
+                              maxLength={5}
+                              autoCapitalize="none"
                               className="bg-white text-gray-900 px-4 py-3 rounded-xl border border-gray-200"
                             />
                           )}
                         />
+                        {errors.confirmPin ? (
+                          <Text className="text-sm text-red-500 mt-1">
+                            {errors.confirmPin.message}
+                          </Text>
+                        ) : null}
                       </View>
                     </View>
-                  </View>
+                  ) : null}
+                </View>
 
-                  {/* Security Section */}
-                  <View className="bg-gray-50 rounded-2xl p-4 border border-gray-200">
-                    <View className="flex-row items-center justify-between mb-2">
-                      <Text className="text-base font-semibold text-gray-900">
-                        Security
+                {/* Preferences Section */}
+                <View className="bg-gray-50 rounded-2xl p-4 border border-gray-200">
+                  <Text className="text-base font-semibold text-gray-900 mb-3">
+                    Preferences
+                  </Text>
+
+                  <View className="gap-4">
+                    <Controller
+                      control={control}
+                      name="currency"
+                      render={({ field: { value, onChange } }) => (
+                        <SearchableSelect
+                          label="Currency"
+                          placeholder="Select currency"
+                          value={value}
+                          options={currencyOptions}
+                          onSelect={(val) => onChange(val)}
+                        />
+                      )}
+                    />
+                    {errors.currency ? (
+                      <Text className="text-sm text-red-500">
+                        {errors.currency.message}
                       </Text>
-                      <Controller
-                        control={control}
-                        name="enablePin"
-                        render={({ field: { value, onChange } }) => (
-                          <Switch
-                            value={value}
-                            onValueChange={(next) => {
-                              onChange(next);
-                              if (!next) {
-                                setValue("loginPin", "");
-                                setValue("confirmPin", "");
-                              }
-                            }}
-                            trackColor={{ false: "#d1d5db", true: "#2563eb" }}
-                            thumbColor="#ffffff"
-                          />
-                        )}
-                      />
-                    </View>
-                    <Text className="text-xs text-gray-500 mb-4">
-                      {enablePin
-                        ? "Enter a new 5-digit PIN to enable quick logins."
-                        : hasExistingPin
-                        ? "Your login PIN will be removed when you save changes."
-                        : "Enable a 5-digit PIN to sign in without your password."}
-                    </Text>
-                    {enablePin ? (
-                      <View className="gap-4">
-                        <View>
-                          <Text className="text-sm font-semibold text-gray-700 mb-2">
-                            New PIN
-                          </Text>
-                          <Controller
-                            control={control}
-                            name="loginPin"
-                            render={({ field: { value, onChange } }) => (
-                              <TextInput
-                                value={value ?? ""}
-                                onChangeText={onChange}
-                                placeholder="12345"
-                                placeholderTextColor="#9ca3af"
-                                keyboardType="number-pad"
-                                secureTextEntry
-                                maxLength={5}
-                                autoCapitalize="none"
-                                className="bg-white text-gray-900 px-4 py-3 rounded-xl border border-gray-200"
-                              />
-                            )}
-                          />
-                          {errors.loginPin ? (
-                            <Text className="text-sm text-red-500 mt-1">
-                              {errors.loginPin.message}
-                            </Text>
-                          ) : null}
-                        </View>
-                        <View>
-                          <Text className="text-sm font-semibold text-gray-700 mb-2">
-                            Confirm PIN
-                          </Text>
-                          <Controller
-                            control={control}
-                            name="confirmPin"
-                            render={({ field: { value, onChange } }) => (
-                              <TextInput
-                                value={value ?? ""}
-                                onChangeText={onChange}
-                                placeholder="12345"
-                                placeholderTextColor="#9ca3af"
-                                keyboardType="number-pad"
-                                secureTextEntry
-                                maxLength={5}
-                                autoCapitalize="none"
-                                className="bg-white text-gray-900 px-4 py-3 rounded-xl border border-gray-200"
-                              />
-                            )}
-                          />
-                          {errors.confirmPin ? (
-                            <Text className="text-sm text-red-500 mt-1">
-                              {errors.confirmPin.message}
-                            </Text>
-                          ) : null}
-                        </View>
-                      </View>
+                    ) : null}
+
+                    <Controller
+                      control={control}
+                      name="language"
+                      render={({ field: { value, onChange } }) => (
+                        <SearchableSelect
+                          label="Language"
+                          placeholder="Select language"
+                          value={value}
+                          options={languageOptions}
+                          onSelect={(val) => onChange(val)}
+                        />
+                      )}
+                    />
+                    {errors.language ? (
+                      <Text className="text-sm text-red-500">
+                        {errors.language.message}
+                      </Text>
                     ) : null}
                   </View>
-
-                  {/* Preferences Section */}
-                  <View className="bg-gray-50 rounded-2xl p-4 border border-gray-200">
-                    <Text className="text-base font-semibold text-gray-900 mb-3">
-                      Preferences
-                    </Text>
-
-                    <View className="gap-4">
-                      <Controller
-                        control={control}
-                        name="currency"
-                        render={({ field: { value, onChange } }) => (
-                          <SearchableSelect
-                            label="Currency"
-                            placeholder="Select currency"
-                            value={value}
-                            options={currencyOptions}
-                            onSelect={(val) => onChange(val)}
-                          />
-                        )}
-                      />
-                      {errors.currency ? (
-                        <Text className="text-sm text-red-500">
-                          {errors.currency.message}
-                        </Text>
-                      ) : null}
-
-                      <Controller
-                        control={control}
-                        name="language"
-                        render={({ field: { value, onChange } }) => (
-                          <SearchableSelect
-                            label="Language"
-                            placeholder="Select language"
-                            value={value}
-                            options={languageOptions}
-                            onSelect={(val) => onChange(val)}
-                          />
-                        )}
-                      />
-                      {errors.language ? (
-                        <Text className="text-sm text-red-500">
-                          {errors.language.message}
-                        </Text>
-                      ) : null}
-                    </View>
-                  </View>
                 </View>
-              </ScrollView>
-            </View>
+              </View>
+            </ScrollView>
 
             {/* Submit Button - Fixed at bottom */}
-            <View className="p-6 bg-white border-t border-gray-100">
+            <View className="p-6 pb-8 bg-white border-t border-gray-100">
               <ActionButton
                 label="Save changes"
                 onPress={handleSubmit(handleSave)}
@@ -489,7 +491,7 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
                 disabled={!isDirty && !submitting}
                 icon="checkmark"
                 variant="primary"
-                size="large"
+                size="medium"
                 fullWidth
               />
             </View>

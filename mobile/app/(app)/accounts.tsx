@@ -524,10 +524,13 @@ export default function AccountsScreen() {
       <Modal visible={modalVisible} transparent animationType="slide">
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
-          className="flex-1"
+          style={{ flex: 1 }}
         >
           <View className="flex-1 bg-black/40 justify-end">
-            <View className="bg-white rounded-t-3xl" style={{ height: "90%" }}>
+            <View
+              className="bg-white rounded-t-3xl flex-1"
+              style={{ maxHeight: "90%" }}
+            >
               {/* Header */}
               <View className="flex-row justify-between items-center p-6 pb-4 border-b border-gray-100">
                 <View>
@@ -549,68 +552,67 @@ export default function AccountsScreen() {
               </View>
 
               {/* Form Content */}
-              <View className="flex-1">
-                <ScrollView
-                  className="px-6"
-                  showsVerticalScrollIndicator={false}
-                  contentContainerStyle={{ paddingBottom: 20 }}
-                >
-                  <View className="gap-5 py-4">
-                    {/* Account Name */}
-                    <View>
-                      <Text className="text-gray-700 text-sm font-semibold mb-2">
-                        Account Name
+              <ScrollView
+                className="flex-1 px-6"
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={{ paddingBottom: 20 }}
+              >
+                <View className="gap-5 py-4">
+                  {/* Account Name */}
+                  <View>
+                    <Text className="text-gray-700 text-sm font-semibold mb-2">
+                      Account Name
+                    </Text>
+                    <Controller
+                      control={control}
+                      name="name"
+                      render={({ field: { onChange, value } }) => (
+                        <TextInput
+                          value={value}
+                          onChangeText={onChange}
+                          placeholder="e.g. Business Checking, Savings Account"
+                          placeholderTextColor="#9ca3af"
+                          className="bg-gray-50 text-gray-900 px-4 py-2.5 rounded-xl border border-gray-200 text-base"
+                        />
+                      )}
+                    />
+                    {errors.name ? (
+                      <Text className="text-red-500 text-sm mt-2">
+                        {errors.name.message}
                       </Text>
-                      <Controller
-                        control={control}
-                        name="name"
-                        render={({ field: { onChange, value } }) => (
-                          <TextInput
-                            value={value}
-                            onChangeText={onChange}
-                            placeholder="e.g. Business Checking, Savings Account"
-                            placeholderTextColor="#9ca3af"
-                            className="bg-gray-50 text-gray-900 px-4 py-2.5 rounded-xl border border-gray-200 text-base"
-                          />
-                        )}
-                      />
-                      {errors.name ? (
-                        <Text className="text-red-500 text-sm mt-2">
-                          {errors.name.message}
-                        </Text>
-                      ) : null}
-                    </View>
-
-                    {/* Description */}
-                    <View>
-                      <Text className="text-gray-700 text-sm font-semibold mb-2">
-                        Description
-                      </Text>
-                      <Controller
-                        control={control}
-                        name="description"
-                        render={({ field: { value, onChange } }) => (
-                          <TextInput
-                            value={value || ""}
-                            onChangeText={onChange}
-                            placeholder="Optional details about this account..."
-                            placeholderTextColor="#9ca3af"
-                            className="bg-gray-50 text-gray-900 px-4 py-2.5 rounded-xl border border-gray-200 min-h-[80px]"
-                            multiline
-                            textAlignVertical="top"
-                          />
-                        )}
-                      />
-                    </View>
-
-                    {/* Voice Input */}
-                    <VoiceInputButton onResult={handleVoiceResult} />
+                    ) : null}
                   </View>
-                </ScrollView>
-              </View>
+
+                  {/* Description */}
+                  <View>
+                    <Text className="text-gray-700 text-sm font-semibold mb-2">
+                      Description
+                    </Text>
+                    <Controller
+                      control={control}
+                      name="description"
+                      render={({ field: { value, onChange } }) => (
+                        <TextInput
+                          value={value || ""}
+                          onChangeText={onChange}
+                          placeholder="Optional details about this account..."
+                          placeholderTextColor="#9ca3af"
+                          className="bg-gray-50 text-gray-900 px-4 py-2.5 rounded-xl border border-gray-200 min-h-[80px]"
+                          multiline
+                          textAlignVertical="top"
+                        />
+                      )}
+                    />
+                  </View>
+
+                  {/* Voice Input */}
+                  <VoiceInputButton onResult={handleVoiceResult} />
+                </View>
+              </ScrollView>
 
               {/* Submit Button - Fixed at bottom */}
-              <View className="p-6 pt-4 border-t border-gray-100">
+              <View className="p-6 pt-4 pb-8 border-t border-gray-100">
                 <ActionButton
                   label={selectedAccount ? "Update Account" : "Create Account"}
                   onPress={handleSubmit(onSubmit)}
