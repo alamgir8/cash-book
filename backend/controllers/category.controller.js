@@ -45,6 +45,35 @@ export const listCategories = async (req, res, next) => {
           console.warn("Failed to seed default categories", seedError);
         }
       }
+    } else {
+      // Ensure "Adjustment" categories exist for existing users
+      const adjustmentCategories = DEFAULT_CATEGORIES.filter((c) =>
+        ["adjustment_in", "adjustment_out"].includes(c.type)
+      );
+
+      const missingAdjustments = [];
+      for (const adj of adjustmentCategories) {
+        const exists = categories.some((c) => c.type === adj.type);
+        if (!exists) {
+          missingAdjustments.push({
+            admin: req.user.id,
+            ...adj,
+          });
+        }
+      }
+
+      if (missingAdjustments.length > 0) {
+        try {
+          await Category.insertMany(missingAdjustments, { ordered: false });
+          // Re-fetch categories to include the new ones
+          categories = await Category.find(filter).sort({
+            type: 1,
+            name: 1,
+          });
+        } catch (err) {
+          console.warn("Failed to seed adjustment categories", err);
+        }
+      }
     }
 
     const legacyUpdates = [];
@@ -54,9 +83,7 @@ export const listCategories = async (req, res, next) => {
         let nextType = category.type;
         if (category.type === "donation") {
           const lowerName = category.name?.toLowerCase() ?? "";
-          nextType = lowerName.includes("out")
-            ? "donation_out"
-            : "donation_in";
+          nextType = lowerName.includes("out") ? "donation_out" : "donation_in";
         } else if (category.type === "other") {
           const lowerName = category.name?.toLowerCase() ?? "";
           nextType = lowerName.includes("credit")

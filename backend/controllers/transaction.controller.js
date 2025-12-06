@@ -611,6 +611,104 @@ export const updateTransaction = async (req, res, next) => {
       transaction.account = targetAccount._id;
     }
 
+    // Handle Transfer updates if this transaction is part of a transfer
+    if (transaction.transfer_id) {
+      const transfer = await Transfer.findOne({
+        _id: transaction.transfer_id,
+        admin: req.user.id,
+      });
+
+      if (transfer) {
+        let transferUpdated = false;
+
+        // 1. Handle Amount Change
+        if (
+          amount !== undefined &&
+          Number(amount) !== Number(transfer.amount)
+        ) {
+          transfer.amount = amount;
+          transferUpdated = true;
+
+          // Update the OTHER transaction in the pair
+          const otherTxnId =
+            transaction.transfer_direction === "outgoing"
+              ? transfer.credit_transaction
+              : transfer.debit_transaction;
+
+          const otherTxn = await Transaction.findById(otherTxnId);
+          if (otherTxn) {
+            const otherAccount = await loadAccount({
+              adminId: req.user.id,
+              accountId: otherTxn.account,
+            });
+
+            if (otherAccount) {
+              // Revert old amount on other account
+              await adjustAccountBalance({
+                account: otherAccount,
+                amount: otherTxn.amount,
+                type: otherTxn.type,
+                direction: "revert",
+              });
+
+              // Update other transaction amount
+              otherTxn.amount = amount;
+
+              // Apply new amount on other account
+              const otherBalance = await adjustAccountBalance({
+                account: otherAccount,
+                amount: otherTxn.amount,
+                type: otherTxn.type,
+                direction: "apply",
+              });
+
+              otherTxn.balance_after_transaction = otherBalance;
+              await otherTxn.save();
+            }
+          }
+        }
+
+        // 2. Handle Date Change
+        if (date !== undefined) {
+          let newDate;
+          try {
+            newDate = parseTransactionDate(date);
+          } catch (e) {
+            // Ignore error here, will be caught later
+          }
+
+          if (
+            newDate &&
+            newDate.getTime() !== new Date(transfer.date).getTime()
+          ) {
+            transfer.date = newDate;
+            transferUpdated = true;
+
+            const otherTxnId =
+              transaction.transfer_direction === "outgoing"
+                ? transfer.credit_transaction
+                : transfer.debit_transaction;
+
+            await Transaction.updateOne({ _id: otherTxnId }, { date: newDate });
+          }
+        }
+
+        // 3. Handle Account Change
+        if (targetAccount._id.toString() !== originalAccount._id.toString()) {
+          if (transaction.transfer_direction === "outgoing") {
+            transfer.from_account = targetAccount._id;
+          } else {
+            transfer.to_account = targetAccount._id;
+          }
+          transferUpdated = true;
+        }
+
+        if (transferUpdated) {
+          await transfer.save();
+        }
+      }
+    }
+
     if (type) {
       transaction.type = type;
     }
@@ -693,6 +791,48 @@ export const deleteTransaction = async (req, res, next) => {
         type: transaction.type,
         direction: "revert",
       });
+    }
+
+    // Handle Transfer deletion if this transaction is part of a transfer
+    if (transaction.transfer_id) {
+      const transfer = await Transfer.findOne({
+        _id: transaction.transfer_id,
+        admin: req.user.id,
+      });
+
+      if (transfer) {
+        const otherTxnId =
+          transaction.transfer_direction === "outgoing"
+            ? transfer.credit_transaction
+            : transfer.debit_transaction;
+
+        const otherTxn = await Transaction.findOne({
+          _id: otherTxnId,
+          admin: req.user.id,
+        });
+
+        if (otherTxn && !otherTxn.is_deleted) {
+          const otherAccount = await loadAccount({
+            adminId: req.user.id,
+            accountId: otherTxn.account,
+          });
+
+          if (otherAccount) {
+            await adjustAccountBalance({
+              account: otherAccount,
+              amount: otherTxn.amount,
+              type: otherTxn.type,
+              direction: "revert",
+            });
+          }
+
+          otherTxn.softDelete();
+          await otherTxn.save();
+        }
+
+        // Delete the transfer record as the transactions are deleted
+        await Transfer.deleteOne({ _id: transfer._id });
+      }
     }
 
     transaction.softDelete();
@@ -785,11 +925,9 @@ export const recalculateBalances = async (req, res, next) => {
         continue;
       }
 
-      // Start with the account's opening balance (or current balance)
+      // Start with the account's opening balance
       const accountDoc = await Account.findById(account._id);
-      let runningBalance = Number(
-        accountDoc.opening_balance ?? accountDoc.current_balance ?? 0
-      );
+      let runningBalance = Number(accountDoc.opening_balance ?? 0);
 
       // Recalculate balance for each transaction
       const bulkOps = [];

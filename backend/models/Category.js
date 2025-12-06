@@ -8,12 +8,14 @@ const CATEGORY_DEFINITIONS = {
   loan_in: "credit",
   donation_in: "credit",
   other_income: "credit",
+  adjustment_in: "credit",
   expense: "debit",
   purchase: "debit",
   loan_out: "debit",
   donation_out: "debit",
   salary: "debit",
   other_expense: "debit",
+  adjustment_out: "debit",
 };
 
 const CATEGORY_TYPES = Object.keys(CATEGORY_DEFINITIONS);
