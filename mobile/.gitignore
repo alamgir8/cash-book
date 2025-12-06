@@ -6,6 +6,10 @@ node_modules/
 dist/
 web-build/
 expo-env.d.ts
+.expo/local/
+.expo/web/
+.expo/settings.json
+.expo
 
 # native
 *.orig.*
