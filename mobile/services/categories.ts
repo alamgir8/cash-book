@@ -48,7 +48,7 @@ export const updateCategory = async (
     color?: string;
   }
 ) => {
-  const { data } = await api.patch<{ category: Category }>(
+  const { data } = await api.put<{ category: Category }>(
     `/categories/${categoryId}`,
     payload
   );
@@ -64,4 +64,11 @@ export const archiveCategory = async (
     { archived }
   );
   return data.category;
+};
+
+export const deleteCategory = async (categoryId: string) => {
+  const { data } = await api.delete<{ message: string }>(
+    `/categories/${categoryId}`
+  );
+  return data;
 };

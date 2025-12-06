@@ -15,7 +15,7 @@ import { EmptyState } from "../../components/empty-state";
 import { CategoryFormModal } from "../../components/category-form-modal";
 import {
   fetchCategories,
-  archiveCategory,
+  deleteCategory,
   type Category,
 } from "../../services/categories";
 import { queryKeys } from "../../lib/queryKeys";
@@ -33,9 +33,8 @@ export default function CategoriesScreen() {
     queryFn: () => fetchCategories(),
   });
 
-  const archiveMutation = useMutation({
-    mutationFn: ({ id, archived }: { id: string; archived: boolean }) =>
-      archiveCategory(id, archived),
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteCategory(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.categories.all });
       Toast.show({
@@ -43,10 +42,14 @@ export default function CategoriesScreen() {
         text1: "Category deleted successfully",
       });
     },
-    onError: () => {
+    onError: (error: any) => {
+      const message =
+        error?.response?.data?.message || "Failed to delete category";
       Toast.show({
         type: "error",
-        text1: "Failed to delete category",
+        text1: "Cannot delete category",
+        text2: message,
+        visibilityTime: 4000,
       });
     },
   });
@@ -54,14 +57,13 @@ export default function CategoriesScreen() {
   const handleDelete = (category: Category) => {
     Alert.alert(
       "Delete Category",
-      `Are you sure you want to delete "${category.name}"?`,
+      `Are you sure you want to delete "${category.name}"? This cannot be undone.`,
       [
         { text: "Cancel", style: "cancel" },
         {
           text: "Delete",
           style: "destructive",
-          onPress: () =>
-            archiveMutation.mutate({ id: category._id, archived: true }),
+          onPress: () => deleteMutation.mutate(category._id),
         },
       ]
     );
