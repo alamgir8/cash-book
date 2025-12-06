@@ -65,7 +65,7 @@ export default function SettingsScreen() {
     }
   };
 
-  const handleRestore = async () => {
+  const handleRestore = () => {
     Alert.alert(
       "Restore Backup",
       "This will import data from a backup file. Existing data will NOT be deleted, but duplicate categories will be skipped. Continue?",
@@ -73,45 +73,90 @@ export default function SettingsScreen() {
         { text: "Cancel", style: "cancel" },
         {
           text: "Select File",
-          onPress: async () => {
-            try {
-              setRestoring(true);
-              const result = await importBackupFromFile();
-              // Invalidate all queries to refresh data
-              queryClient.invalidateQueries({
-                queryKey: queryKeys.accounts,
-              });
-              queryClient.invalidateQueries({
-                queryKey: queryKeys.categories.all,
-              });
-              queryClient.invalidateQueries({
-                queryKey: ["transactions"],
-              });
-              Toast.show({
-                type: "success",
-                text1: "Backup restored successfully",
-                text2: `Imported ${result.summary.accountsImported} accounts, ${result.summary.transactionsImported} transactions`,
-                visibilityTime: 4000,
-              });
-            } catch (error: any) {
-              console.error(error);
-              const message =
-                error?.response?.data?.message ||
-                error?.message ||
-                "Please try again";
-              Toast.show({
-                type: "error",
-                text1: "Failed to restore backup",
-                text2: message,
-                visibilityTime: 4000,
-              });
-            } finally {
-              setRestoring(false);
-            }
+          onPress: () => {
+            performRestore();
           },
         },
       ]
     );
+  };
+
+  const performRestore = async () => {
+    try {
+      setRestoring(true);
+      const result = await importBackupFromFile();
+
+      console.log("Import result:", JSON.stringify(result, null, 2));
+
+      // Check if result exists and has summary
+      if (!result || !result.summary) {
+        throw new Error("Invalid response from server");
+      }
+
+      // Invalidate all queries to refresh data
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.accounts,
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.categories.all,
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["transactions"],
+      });
+
+      const { summary } = result;
+
+      // Build a detailed message
+      const details: string[] = [];
+      if (summary.accountsImported)
+        details.push(`${summary.accountsImported} accounts`);
+      if (summary.categoriesImported)
+        details.push(`${summary.categoriesImported} categories`);
+      if (summary.transactionsImported)
+        details.push(`${summary.transactionsImported} transactions`);
+      if (summary.transfersImported)
+        details.push(`${summary.transfersImported} transfers`);
+
+      // Show balance if available
+      const balanceText = summary.totalBalance
+        ? ` (Balance: ${summary.totalBalance.toLocaleString()})`
+        : "";
+
+      Toast.show({
+        type: "success",
+        text1: "Backup restored successfully",
+        text2: details.join(", ") + balanceText || "No data imported",
+        visibilityTime: 5000,
+      });
+    } catch (error: any) {
+      console.error("Restore error:", error);
+
+      // Handle user cancellation (not an error)
+      if (error?.message === "No file selected") {
+        // User cancelled file picker, don't show error
+        return;
+      }
+
+      // Extract error message safely
+      let message = "Please try again";
+      if (error?.response?.data?.message) {
+        message = error.response.data.message;
+      } else if (error?.response?.data?.errors) {
+        // Zod validation errors
+        message = "Invalid backup file format";
+      } else if (error?.message) {
+        message = error.message;
+      }
+
+      Toast.show({
+        type: "error",
+        text1: "Failed to restore backup",
+        text2: message,
+        visibilityTime: 4000,
+      });
+    } finally {
+      setRestoring(false);
+    }
   };
 
   const handleProfileModalClose = () => {

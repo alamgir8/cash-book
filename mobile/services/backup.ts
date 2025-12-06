@@ -27,9 +27,11 @@ export type ImportResult = {
   summary: {
     accountsImported: number;
     categoriesImported: number;
+    categoriesSkipped?: number;
     transactionsImported: number;
     transfersImported: number;
     balanceSnapshotsImported: number;
+    totalBalance?: number;
   };
 };
 
@@ -55,27 +57,35 @@ export const importBackupData = async (
  * Export backup and save as JSON file
  */
 export const exportBackupToFile = async (): Promise<string> => {
-  // Fetch backup data from API
-  const backupData = await fetchBackupData();
+  try {
+    // Fetch backup data from API
+    const backupData = await fetchBackupData();
 
-  // Create filename with timestamp
-  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const filename = `cashbook-backup-${timestamp}.json`;
+    // Create filename with timestamp
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const filename = `cashbook-backup-${timestamp}.json`;
 
-  // Create file in document directory using new API
-  const file = new File(Paths.document, filename);
-  await file.write(JSON.stringify(backupData, null, 2));
+    // Create file in document directory using new API
+    const file = new File(Paths.document, filename);
+    await file.write(JSON.stringify(backupData, null, 2));
 
-  // Share the file
-  if (await Sharing.isAvailableAsync()) {
-    await Sharing.shareAsync(file.uri, {
-      mimeType: "application/json",
-      dialogTitle: "Save Backup File",
-      UTI: "public.json",
-    });
+    // Share the file
+    if (await Sharing.isAvailableAsync()) {
+      await Sharing.shareAsync(file.uri, {
+        mimeType: "application/json",
+        dialogTitle: "Save Backup File",
+        UTI: "public.json",
+      });
+    }
+
+    return filename;
+  } catch (error: any) {
+    // Re-throw with a more user-friendly message
+    if (error?.response?.data?.message) {
+      throw new Error(error.response.data.message);
+    }
+    throw error;
   }
-
-  return filename;
 };
 
 /**
@@ -83,10 +93,15 @@ export const exportBackupToFile = async (): Promise<string> => {
  */
 export const importBackupFromFile = async (): Promise<ImportResult> => {
   // Pick a JSON file
-  const result = await DocumentPicker.getDocumentAsync({
-    type: "application/json",
-    copyToCacheDirectory: true,
-  });
+  let result;
+  try {
+    result = await DocumentPicker.getDocumentAsync({
+      type: "application/json",
+      copyToCacheDirectory: true,
+    });
+  } catch {
+    throw new Error("Failed to open file picker");
+  }
 
   if (result.canceled || !result.assets || result.assets.length === 0) {
     throw new Error("No file selected");
@@ -95,8 +110,13 @@ export const importBackupFromFile = async (): Promise<ImportResult> => {
   const pickedFile = result.assets[0];
 
   // Read file contents using new File API
-  const file = new File(pickedFile.uri);
-  const fileContent = await file.text();
+  let fileContent: string;
+  try {
+    const file = new File(pickedFile.uri);
+    fileContent = await file.text();
+  } catch {
+    throw new Error("Failed to read file. Please try again.");
+  }
 
   // Parse JSON
   let backupData: BackupData;
@@ -127,8 +147,35 @@ export const importBackupFromFile = async (): Promise<ImportResult> => {
     throw new Error("Invalid backup file: missing transactions data");
   }
 
-  // Send to API
-  const importResult = await importBackupData(backupData);
+  // Ensure optional arrays exist
+  if (!backupData.data.transfers) {
+    backupData.data.transfers = [];
+  }
+  if (!backupData.data.balanceSnapshots) {
+    backupData.data.balanceSnapshots = [];
+  }
 
-  return importResult;
+  // Send to API
+  try {
+    console.log("Sending backup data to API:", {
+      version: backupData.version,
+      accounts: backupData.data.accounts.length,
+      categories: backupData.data.categories.length,
+      transactions: backupData.data.transactions.length,
+      transfers: backupData.data.transfers.length,
+      balanceSnapshots: backupData.data.balanceSnapshots.length,
+    });
+    const importResult = await importBackupData(backupData);
+    console.log("Import API response:", importResult);
+    return importResult;
+  } catch (error: any) {
+    // Re-throw with a more user-friendly message
+    if (error?.response?.data?.message) {
+      throw new Error(error.response.data.message);
+    }
+    if (error?.response?.data?.errors) {
+      throw new Error("Backup file format is not compatible");
+    }
+    throw new Error("Failed to import backup. Please try again.");
+  }
 };
