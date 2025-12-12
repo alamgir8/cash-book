@@ -1,5 +1,6 @@
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
+import { Paths, File } from "expo-file-system";
 import dayjs from "dayjs";
 import {
   fetchTransactions,
@@ -196,6 +197,36 @@ const parseFilters = (raw: RawFilters): ParsedFilters => {
   }
 
   return { filters, display };
+};
+
+const generatePdfFilename = (prefix: string): string => {
+  const dateStr = dayjs().format("YYYY-MM-DD_HH-mm");
+  return `${prefix}_${dateStr}.pdf`;
+};
+
+const saveAndSharePdf = async (
+  html: string,
+  filename: string
+): Promise<string> => {
+  const { uri } = await Print.printToFileAsync({ html });
+
+  // Create a new file in the cache directory with custom filename
+  const newFile = new File(Paths.cache, filename);
+
+  // Move/rename the file from the generated location
+  const sourceFile = new File(uri);
+  await sourceFile.move(newFile);
+
+  const newUri = newFile.uri;
+
+  if (await Sharing.isAvailableAsync()) {
+    await Sharing.shareAsync(newUri, {
+      mimeType: "application/pdf",
+      dialogTitle: filename,
+    });
+  }
+
+  return newUri;
 };
 
 const escapeHtml = (value: string | number): string => {
@@ -924,13 +955,8 @@ export const exportTransactionsPdf = async (
       !filters.financialScope || filters.financialScope === "actual",
   });
 
-  const { uri } = await Print.printToFileAsync({ html });
-
-  if (await Sharing.isAvailableAsync()) {
-    await Sharing.shareAsync(uri);
-  }
-
-  return uri;
+  const filename = generatePdfFilename("CashBook_All_Transactions");
+  return saveAndSharePdf(html, filename);
 };
 
 // ============ GROUPED EXPORTS ============
@@ -1260,11 +1286,8 @@ export const exportTransactionsByCategoryPdf = async (): Promise<string> => {
     totalTransactions: transactions.length,
   });
 
-  const { uri } = await Print.printToFileAsync({ html });
-  if (await Sharing.isAvailableAsync()) {
-    await Sharing.shareAsync(uri);
-  }
-  return uri;
+  const filename = generatePdfFilename("CashBook_By_Category");
+  return saveAndSharePdf(html, filename);
 };
 
 export const exportTransactionsByCounterpartyPdf =
@@ -1300,11 +1323,8 @@ export const exportTransactionsByCounterpartyPdf =
       totalTransactions: transactions.length,
     });
 
-    const { uri } = await Print.printToFileAsync({ html });
-    if (await Sharing.isAvailableAsync()) {
-      await Sharing.shareAsync(uri);
-    }
-    return uri;
+    const filename = generatePdfFilename("CashBook_By_Counterparty");
+    return saveAndSharePdf(html, filename);
   };
 
 export const exportTransactionsByAccountPdf = async (): Promise<string> => {
@@ -1339,9 +1359,6 @@ export const exportTransactionsByAccountPdf = async (): Promise<string> => {
     totalTransactions: transactions.length,
   });
 
-  const { uri } = await Print.printToFileAsync({ html });
-  if (await Sharing.isAvailableAsync()) {
-    await Sharing.shareAsync(uri);
-  }
-  return uri;
+  const filename = generatePdfFilename("CashBook_By_Account");
+  return saveAndSharePdf(html, filename);
 };
