@@ -76,8 +76,7 @@ const mapFilters = (filters: TransactionFilters) => {
   if (filters.counterparty) params.counterparty = filters.counterparty;
   if (filters.financialScope) params.financialScope = filters.financialScope;
   if (filters.type) params.type = filters.type;
-  if (filters.q || filters.search)
-    params.q = filters.q ?? filters.search;
+  if (filters.q || filters.search) params.q = filters.q ?? filters.search;
   if (filters.accountName) params.accountName = filters.accountName;
   if (filters.minAmount !== undefined && filters.minAmount !== null) {
     const value = Number(filters.minAmount);
@@ -161,6 +160,14 @@ export const fetchTransactions = async (filters: TransactionFilters) => {
   };
 };
 
+/**
+ * Fetch all unique counterparties from the database
+ */
+export const fetchCounterparties = async (): Promise<string[]> => {
+  const { data } = await api.get<string[]>("/transactions/counterparties");
+  return data;
+};
+
 type CreateTransactionPayload = {
   accountId: string;
   amount: number;
@@ -172,9 +179,7 @@ type CreateTransactionPayload = {
   counterparty?: string;
 };
 
-export const createTransaction = async (
-  payload: CreateTransactionPayload
-) => {
+export const createTransaction = async (payload: CreateTransactionPayload) => {
   const requestBody: Record<string, unknown> = {
     accountId: payload.accountId,
     amount: payload.amount,
@@ -204,9 +209,7 @@ type CreateTransferPayload = {
   counterparty?: string;
 };
 
-export const normalizeTransfer = (
-  transfer: Record<string, any>
-): Transfer => {
+export const normalizeTransfer = (transfer: Record<string, any>): Transfer => {
   const debitTransaction = transfer.debit_transaction
     ? normalizeTransaction(transfer.debit_transaction)
     : undefined;

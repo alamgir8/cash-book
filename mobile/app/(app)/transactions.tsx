@@ -16,6 +16,7 @@ import { TransactionModal } from "../../components/modals/transaction-modal";
 import type { TransactionFormValues } from "../../components/modals/types";
 import {
   fetchTransactions,
+  fetchCounterparties,
   updateTransaction,
   type Transaction,
   type TransactionFilters,
@@ -65,15 +66,32 @@ export default function TransactionsScreen() {
     queryFn: () => fetchCategories(),
   });
 
+  const counterpartiesQuery = useQuery({
+    queryKey: queryKeys.counterparties,
+    queryFn: fetchCounterparties,
+  });
+
   const updateMutation = useMutation({
     mutationFn: updateTransaction,
-    onSuccess: async () => {
+    onSuccess: async (updatedTransaction) => {
+      // Update local transactions list immediately
+      setAllTransactions((prev) =>
+        prev.map((t) =>
+          t._id === editingTransaction?._id
+            ? { ...t, ...updatedTransaction }
+            : t
+        )
+      );
+
       await Promise.all([
         queryClient.invalidateQueries({
           predicate: (query) => query.queryKey[0] === "transactions",
         }),
         queryClient.invalidateQueries({
           predicate: (query) => query.queryKey[0] === "accounts",
+        }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.counterparties,
         }),
       ]);
       setModalVisible(false);
@@ -196,20 +214,10 @@ export default function TransactionsScreen() {
     }
   }, [transactionsQuery.data, filters.page, transactionsQuery.isLoading]);
 
-  const counterpartyOptions = useMemo(() => {
-    const seen = new Set<string>();
-    return allTransactions
-      .map((txn) => txn.counterparty?.trim())
-      .filter((name): name is string => Boolean(name))
-      .filter((name) => {
-        const key = name.toLowerCase();
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      })
-      .map((name) => ({ value: name, label: name }))
-      .sort((a, b) => a.label.localeCompare(b.label));
-  }, [allTransactions]);
+  const counterpartyOptions: SelectOption[] = useMemo(() => {
+    const apiCounterparties = counterpartiesQuery.data ?? [];
+    return apiCounterparties.map((name) => ({ value: name, label: name }));
+  }, [counterpartiesQuery.data]);
 
   const hasActiveFilters = useMemo(() => {
     if (filters.range && filters.range !== defaultFilters.range) {

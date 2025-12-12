@@ -21,11 +21,13 @@ import { TransferModal } from "../../components/modals/transfer-modal";
 import type {
   TransactionFormValues,
   TransferFormValues,
-} from "../../components/modals/types";
+  SelectOption,
+} from \"../../components/modals/types\";
 import { exportTransactionsPdf } from "../../services/reports";
 import {
   createTransaction,
   createTransfer,
+  fetchCounterparties,
   fetchTransactions,
   updateTransaction,
   type Transaction,
@@ -176,20 +178,15 @@ export default function DashboardScreen() {
     ];
   }, [categoriesQuery.data]);
 
-  const counterpartyOptions = useMemo(() => {
-    const seen = new Set<string>();
-    return (transactionsQuery.data?.transactions ?? [])
-      .map((txn) => txn.counterparty?.trim())
-      .filter((name): name is string => Boolean(name))
-      .filter((name) => {
-        const key = name.toLowerCase();
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      })
-      .map((name) => ({ value: name, label: name }))
-      .sort((a, b) => a.label.localeCompare(b.label));
-  }, [transactionsQuery.data]);
+  const counterpartiesQuery = useQuery({
+    queryKey: queryKeys.counterparties,
+    queryFn: fetchCounterparties,
+  });
+
+  const counterpartyOptions: SelectOption[] = useMemo(() => {
+    const apiCounterparties = counterpartiesQuery.data ?? [];
+    return apiCounterparties.map((name) => ({ value: name, label: name }));
+  }, [counterpartiesQuery.data]);
 
   const hasActiveFilters = useMemo(() => {
     if (filters.range && filters.range !== defaultFilters.range) {
