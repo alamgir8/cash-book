@@ -31,6 +31,7 @@ type TransactionModalProps = {
   editingTransaction?: Transaction | null;
   accountOptions: SelectOption[];
   categoryOptions: SelectOption[];
+  counterpartyOptions?: SelectOption[];
   isAccountsLoading?: boolean;
   isCategoriesLoading?: boolean;
   isSubmitting?: boolean;
@@ -43,6 +44,7 @@ export const TransactionModal = ({
   editingTransaction,
   accountOptions,
   categoryOptions,
+  counterpartyOptions = [],
   isAccountsLoading = false,
   isCategoriesLoading = false,
   isSubmitting = false,
@@ -387,12 +389,13 @@ export const TransactionModal = ({
                     control={control}
                     name="counterparty"
                     render={({ field: { value, onChange } }) => (
-                      <TextInput
+                      <SearchableSelect
                         value={value || ""}
-                        onChangeText={onChange}
-                        placeholder="Customer, supplier, or contact"
-                        placeholderTextColor="#9ca3af"
-                        className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200"
+                        placeholder="Select or add counterparty"
+                        options={counterpartyOptions}
+                        onSelect={(selectedValue) => onChange(selectedValue)}
+                        allowCustomValue={true}
+                        customDisplayValue={value || ""}
                       />
                     )}
                   />

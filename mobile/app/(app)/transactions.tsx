@@ -490,6 +490,7 @@ export default function TransactionsScreen() {
         editingTransaction={editingTransaction}
         accountOptions={accountOptions}
         categoryOptions={modalCategoryOptions}
+        counterpartyOptions={counterpartyOptions}
         isAccountsLoading={accountsQuery.isLoading}
         isCategoriesLoading={categoriesQuery.isLoading}
         isSubmitting={updateMutation.isPending}

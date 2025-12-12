@@ -26,6 +26,8 @@ type SearchableSelectProps = {
   onSelect: (value: string, option: SelectOption) => void;
   disabled?: boolean;
   label?: string;
+  allowCustomValue?: boolean;
+  customDisplayValue?: string;
 };
 
 type RenderItem =
@@ -39,6 +41,8 @@ export const SearchableSelect = ({
   onSelect,
   disabled,
   label,
+  allowCustomValue = false,
+  customDisplayValue,
 }: SearchableSelectProps) => {
   const [visible, setVisible] = useState(false);
   const [search, setSearch] = useState("");
@@ -92,6 +96,33 @@ export const SearchableSelect = ({
     setSearch("");
   };
 
+  // For custom values, show the customDisplayValue if provided and no option matches
+  const displayText = useMemo(() => {
+    if (selectedOption) return selectedOption.label;
+    if (allowCustomValue && customDisplayValue) return customDisplayValue;
+    return null;
+  }, [selectedOption, allowCustomValue, customDisplayValue]);
+
+  // Check if search text matches any existing option
+  const searchMatchesExisting = useMemo(() => {
+    const normalizedSearch = search.trim().toLowerCase();
+    if (!normalizedSearch) return true;
+    return options.some(
+      (option) => option.label.toLowerCase() === normalizedSearch
+    );
+  }, [options, search]);
+
+  const handleAddCustom = () => {
+    const trimmedSearch = search.trim();
+    if (!trimmedSearch) return;
+    const customOption: SelectOption = {
+      value: trimmedSearch,
+      label: trimmedSearch,
+    };
+    onSelect(trimmedSearch, customOption);
+    closeModal();
+  };
+
   return (
     <View style={styles.container}>
       {label ? <Text style={styles.label}>{label}</Text> : null}
@@ -101,10 +132,10 @@ export const SearchableSelect = ({
         activeOpacity={0.85}
       >
         <Text
-          style={selectedOption ? styles.valueText : styles.placeholderText}
+          style={displayText ? styles.valueText : styles.placeholderText}
           numberOfLines={1}
         >
-          {selectedOption?.label ?? placeholder}
+          {displayText ?? placeholder}
         </Text>
         <Ionicons name="chevron-down" size={18} color="#6b7280" />
       </TouchableOpacity>
@@ -146,6 +177,17 @@ export const SearchableSelect = ({
           <FlatList
             data={filteredItems}
             keyExtractor={(item) => item.id}
+            ListHeaderComponent={
+              allowCustomValue && search.trim() && !searchMatchesExisting ? (
+                <TouchableOpacity
+                  style={styles.addNewRow}
+                  onPress={handleAddCustom}
+                >
+                  <Ionicons name="add-circle" size={20} color="#2563eb" />
+                  <Text style={styles.addNewText}>Add "{search.trim()}"</Text>
+                </TouchableOpacity>
+              ) : null
+            }
             renderItem={({ item }) => {
               if (item.type === "GROUP") {
                 return <Text style={styles.groupLabel}>{item.title}</Text>;
@@ -296,6 +338,23 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#6b7280",
     marginTop: 2,
+  },
+  addNewRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#e5e7eb",
+    backgroundColor: "#eff6ff",
+    borderRadius: 12,
+    marginBottom: 8,
+    gap: 8,
+  },
+  addNewText: {
+    fontSize: 15,
+    color: "#2563eb",
+    fontWeight: "600",
   },
 });
 

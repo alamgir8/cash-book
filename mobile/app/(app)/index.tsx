@@ -475,6 +475,7 @@ export default function DashboardScreen() {
         editingTransaction={editingTransaction}
         accountOptions={accountOptions}
         categoryOptions={categoryOptions}
+        counterpartyOptions={counterpartyOptions}
         isAccountsLoading={accountsQuery.isLoading}
         isCategoriesLoading={categoriesQuery.isLoading}
         isSubmitting={createMutation.isPending || updateMutation.isPending}
