@@ -13,7 +13,12 @@ import Toast from "react-native-toast-message";
 import { router } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../hooks/useAuth";
-import { exportTransactionsPdf } from "../../services/reports";
+import {
+  exportTransactionsPdf,
+  exportTransactionsByCategoryPdf,
+  exportTransactionsByCounterpartyPdf,
+  exportTransactionsByAccountPdf,
+} from "../../services/reports";
 import {
   exportBackupToFile,
   importBackupFromFile,
@@ -23,24 +28,52 @@ import { ActionButton } from "../../components/action-button";
 import { ProfileEditModal } from "../../components/profile-edit-modal";
 import { queryKeys } from "../../lib/queryKeys";
 
+type ExportType = "all" | "category" | "counterparty" | "account" | null;
+
 export default function SettingsScreen() {
   const { state, signOut } = useAuth();
   const queryClient = useQueryClient();
-  const [exporting, setExporting] = useState(false);
+  const [exportingType, setExportingType] = useState<ExportType>(null);
   const [backingUp, setBackingUp] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
 
-  const handleExport = async () => {
+  const handleExport = async (type: ExportType) => {
+    if (!type) return;
     try {
-      setExporting(true);
-      await exportTransactionsPdf({});
-      Toast.show({ type: "success", text1: "Full report exported" });
+      setExportingType(type);
+      switch (type) {
+        case "all":
+          await exportTransactionsPdf({});
+          Toast.show({ type: "success", text1: "Full report exported" });
+          break;
+        case "category":
+          await exportTransactionsByCategoryPdf();
+          Toast.show({
+            type: "success",
+            text1: "Category-wise report exported",
+          });
+          break;
+        case "counterparty":
+          await exportTransactionsByCounterpartyPdf();
+          Toast.show({
+            type: "success",
+            text1: "Counterparty-wise report exported",
+          });
+          break;
+        case "account":
+          await exportTransactionsByAccountPdf();
+          Toast.show({
+            type: "success",
+            text1: "Account-wise report exported",
+          });
+          break;
+      }
     } catch (error) {
       console.error(error);
-      Toast.show({ type: "error", text1: "Failed to export full report" });
+      Toast.show({ type: "error", text1: "Failed to export report" });
     } finally {
-      setExporting(false);
+      setExportingType(null);
     }
   };
 
@@ -247,20 +280,118 @@ export default function SettingsScreen() {
                 PDF Reports
               </Text>
               <Text className="text-gray-600 text-sm mt-1">
-                Export transactions as PDF report
+                Export transactions as PDF reports
               </Text>
             </View>
           </View>
 
-          <ActionButton
-            label={exporting ? "Exporting..." : "Export PDF Report"}
-            onPress={handleExport}
-            isLoading={exporting}
-            variant="success"
-            size="medium"
-            icon={exporting ? "download" : "cloud-download"}
-            fullWidth
-          />
+          <View className="gap-3">
+            {/* All Transactions */}
+            <TouchableOpacity
+              onPress={() => handleExport("all")}
+              disabled={exportingType !== null}
+              className="flex-row items-center gap-4 bg-green-50 rounded-2xl p-4 active:scale-98"
+              style={{ opacity: exportingType !== null ? 0.7 : 1 }}
+            >
+              <View className="w-12 h-12 bg-green-100 rounded-full items-center justify-center">
+                {exportingType === "all" ? (
+                  <ActivityIndicator size="small" color="#16a34a" />
+                ) : (
+                  <Ionicons name="list" size={24} color="#16a34a" />
+                )}
+              </View>
+              <View className="flex-1">
+                <Text className="text-gray-900 font-bold text-base">
+                  {exportingType === "all"
+                    ? "Exporting..."
+                    : "All Transactions"}
+                </Text>
+                <Text className="text-gray-600 text-sm">
+                  Complete transaction list
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#9ca3af" />
+            </TouchableOpacity>
+
+            {/* By Category */}
+            <TouchableOpacity
+              onPress={() => handleExport("category")}
+              disabled={exportingType !== null}
+              className="flex-row items-center gap-4 bg-purple-50 rounded-2xl p-4 active:scale-98"
+              style={{ opacity: exportingType !== null ? 0.7 : 1 }}
+            >
+              <View className="w-12 h-12 bg-purple-100 rounded-full items-center justify-center">
+                {exportingType === "category" ? (
+                  <ActivityIndicator size="small" color="#8b5cf6" />
+                ) : (
+                  <Ionicons name="pricetags" size={24} color="#8b5cf6" />
+                )}
+              </View>
+              <View className="flex-1">
+                <Text className="text-gray-900 font-bold text-base">
+                  {exportingType === "category"
+                    ? "Exporting..."
+                    : "By Category"}
+                </Text>
+                <Text className="text-gray-600 text-sm">
+                  Grouped by transaction category
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#9ca3af" />
+            </TouchableOpacity>
+
+            {/* By Counterparty */}
+            <TouchableOpacity
+              onPress={() => handleExport("counterparty")}
+              disabled={exportingType !== null}
+              className="flex-row items-center gap-4 bg-orange-50 rounded-2xl p-4 active:scale-98"
+              style={{ opacity: exportingType !== null ? 0.7 : 1 }}
+            >
+              <View className="w-12 h-12 bg-orange-100 rounded-full items-center justify-center">
+                {exportingType === "counterparty" ? (
+                  <ActivityIndicator size="small" color="#ea580c" />
+                ) : (
+                  <Ionicons name="people" size={24} color="#ea580c" />
+                )}
+              </View>
+              <View className="flex-1">
+                <Text className="text-gray-900 font-bold text-base">
+                  {exportingType === "counterparty"
+                    ? "Exporting..."
+                    : "By Counterparty"}
+                </Text>
+                <Text className="text-gray-600 text-sm">
+                  Grouped by customer/supplier
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#9ca3af" />
+            </TouchableOpacity>
+
+            {/* By Account */}
+            <TouchableOpacity
+              onPress={() => handleExport("account")}
+              disabled={exportingType !== null}
+              className="flex-row items-center gap-4 bg-blue-50 rounded-2xl p-4 active:scale-98"
+              style={{ opacity: exportingType !== null ? 0.7 : 1 }}
+            >
+              <View className="w-12 h-12 bg-blue-100 rounded-full items-center justify-center">
+                {exportingType === "account" ? (
+                  <ActivityIndicator size="small" color="#3b82f6" />
+                ) : (
+                  <Ionicons name="wallet" size={24} color="#3b82f6" />
+                )}
+              </View>
+              <View className="flex-1">
+                <Text className="text-gray-900 font-bold text-base">
+                  {exportingType === "account" ? "Exporting..." : "By Account"}
+                </Text>
+                <Text className="text-gray-600 text-sm">
+                  Grouped by payment account
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#9ca3af" />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Backup & Restore Section */}

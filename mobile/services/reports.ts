@@ -932,3 +932,416 @@ export const exportTransactionsPdf = async (
 
   return uri;
 };
+
+// ============ GROUPED EXPORTS ============
+
+type GroupedData = {
+  name: string;
+  transactions: Transaction[];
+  totals: Totals;
+};
+
+const buildGroupedReportHtml = ({
+  groups,
+  grandTotals,
+  generatedAt,
+  currencySymbol,
+  groupByLabel,
+  totalTransactions,
+}: {
+  groups: GroupedData[];
+  grandTotals: Totals;
+  generatedAt: string;
+  currencySymbol?: string;
+  groupByLabel: string;
+  totalTransactions: number;
+}): string => {
+  const title = `Transactions by ${groupByLabel}`;
+
+  const groupSections = groups
+    .map((group) => {
+      const rows = group.transactions
+        .map((txn, index) => {
+          const dateLabel = txn.date
+            ? dayjs(txn.date).format("MMM D, YYYY")
+            : "—";
+          const accountLabel = txn.account?.name ?? "—";
+          const categoryLabel = txn.category?.name ?? "Uncategorized";
+          const counterpartyLabel = txn.counterparty?.trim() || "—";
+          const typeBadgeClass =
+            txn.type === "credit" ? "badge positive" : "badge negative";
+          const amountClass =
+            txn.type === "credit" ? "amount positive" : "amount negative";
+          const description = txn.description?.trim() || "";
+          const keyword = txn.keyword?.trim() || "";
+          const descriptionCell = [description, keyword]
+            .filter(Boolean)
+            .join(" · ");
+
+          return `
+            <tr>
+              <td class="col-idx">${index + 1}</td>
+              <td class="col-date">${escapeHtml(dateLabel)}</td>
+              <td class="col-account">${escapeHtml(accountLabel)}</td>
+              <td class="col-category">${escapeHtml(categoryLabel)}</td>
+              <td class="col-counterparty">${escapeHtml(counterpartyLabel)}</td>
+              <td class="col-type"><span class="${typeBadgeClass}">${escapeHtml(
+            capitalize(txn.type) ?? txn.type
+          )}</span></td>
+              <td class="col-desc">${escapeHtml(descriptionCell)}</td>
+              <td class="${amountClass} col-amt">${escapeHtml(
+            formatAmount(txn.amount, currencySymbol)
+          )}</td>
+            </tr>
+          `;
+        })
+        .join("");
+
+      const groupBannerClass =
+        group.totals.net >= 0
+          ? "group-banner positive"
+          : "group-banner negative";
+
+      return `
+        <div class="group-section">
+          <div class="group-header">
+            <h3>${escapeHtml(group.name)}</h3>
+            <div class="group-stats">
+              <span class="stat credit">Credit: ${escapeHtml(
+                formatAmount(group.totals.credit, currencySymbol)
+              )}</span>
+              <span class="stat debit">Debit: ${escapeHtml(
+                formatAmount(group.totals.debit, currencySymbol)
+              )}</span>
+              <span class="${groupBannerClass}">Net: ${escapeHtml(
+        formatAmount(group.totals.net, currencySymbol)
+      )}</span>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Date</th>
+                  <th>Account</th>
+                  <th>Category</th>
+                  <th>Counterparty</th>
+                  <th>Type</th>
+                  <th>Description</th>
+                  <th>Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rows}
+              </tbody>
+            </table>
+          </div>
+          <div class="group-count">${group.transactions.length} transaction${
+        group.transactions.length === 1 ? "" : "s"
+      }</div>
+        </div>
+      `;
+    })
+    .join("");
+
+  const bannerClass =
+    grandTotals.net >= 0 ? "banner positive" : "banner negative";
+
+  return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>${escapeHtml(title)}</title>
+  <style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans";
+      color: #0f172a;
+      background: #f6f7fb;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .page { padding: 8px; min-height: 100%; }
+
+    .hero {
+      background: #34a4eb;
+      color: #ecfdf5;
+      border-radius: 6px;
+      padding: 18px;
+      box-shadow: 0 10px 28px rgba(4, 120, 87, 0.22);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 18px;
+    }
+    .hero-title { margin: 0; font-weight: 800; font-size: 20px; }
+    .hero-sub { margin-top: 4px; color: #d1fae5; font-size: 12px; }
+    .hero-meta { text-align: right; font-size: 12px; color: #bbf7d0; }
+
+    .kpis { margin: 16px 2px 14px; }
+    .kpi-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 12px; }
+    .kpi {
+      grid-column: span 4;
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 14px;
+      padding: 14px 16px;
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+    }
+    .kpi-label { font-size: 16px; text-transform: uppercase; letter-spacing: .08em; color: #1f2937; font-weight: 800; }
+    .kpi-value { margin-top: 8px; font-size: 22px; font-weight: 800; color: #0f172a; }
+    .kpi-value.positive { color: #0f766e; }
+    .kpi-value.negative { color: #b91c1c; }
+
+    .banner {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-radius: 12px;
+      padding: 12px 14px;
+      margin-top: 12px;
+      border: 1px solid;
+    }
+    .banner.positive { background: #ecfdf5; border-color: #a7f3d0; color: #065f46; }
+    .banner.negative { background: #fef2f2; border-color: #fecaca; color: #7f1d1d; }
+    .banner-icon { font-size: 16px; }
+    .banner-title { font-size: 14px; text-transform: uppercase; letter-spacing: .08em; font-weight: 800; }
+    .banner-value { font-size: 18px; font-weight: 800; margin-top: 2px; }
+
+    .group-section {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      margin-bottom: 16px;
+      overflow: hidden;
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+    }
+    .group-header {
+      background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+      padding: 14px 16px;
+      border-bottom: 1px solid #e5e7eb;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .group-header h3 { margin: 0; font-size: 16px; font-weight: 700; color: #1e293b; }
+    .group-stats { display: flex; gap: 12px; flex-wrap: wrap; }
+    .group-stats .stat { font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 6px; }
+    .group-stats .stat.credit { background: #ecfdf5; color: #065f46; }
+    .group-stats .stat.debit { background: #fef2f2; color: #991b1b; }
+    .group-banner { font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 6px; }
+    .group-banner.positive { background: #d1fae5; color: #065f46; }
+    .group-banner.negative { background: #fecaca; color: #991b1b; }
+    .group-count { padding: 10px 16px; background: #f8fafc; font-size: 12px; color: #64748b; text-align: right; border-top: 1px solid #e5e7eb; }
+
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 11px; }
+    thead { background: #f1f5f9; }
+    th { padding: 10px 8px; text-align: left; font-weight: 700; color: #475569; border-bottom: 1px solid #e2e8f0; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+    td { padding: 10px 8px; border-bottom: 1px solid #f1f5f9; vertical-align: top; color: #334155; }
+    tr:hover td { background: #f8fafc; }
+
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; }
+    .badge.positive { background: #d1fae5; color: #065f46; }
+    .badge.negative { background: #fee2e2; color: #991b1b; }
+    .amount { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .amount.positive { color: #047857; }
+    .amount.negative { color: #dc2626; }
+
+    footer { text-align: center; font-size: 11px; color: #94a3b8; margin-top: 24px; padding-bottom: 16px; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="hero">
+      <div>
+        <h1 class="hero-title">${escapeHtml(title)}</h1>
+        <div class="hero-sub">${escapeHtml(
+          String(totalTransactions)
+        )} transactions in ${escapeHtml(
+    String(groups.length)
+  )} ${groupByLabel.toLowerCase()}${groups.length === 1 ? "" : "s"}</div>
+      </div>
+      <div class="hero-meta">
+        <div>Generated</div>
+        <div>${escapeHtml(generatedAt)}</div>
+      </div>
+    </header>
+
+    <section class="kpis">
+      <div class="kpi-grid">
+        <div class="kpi">
+          <div class="kpi-label">Total Transactions</div>
+          <div class="kpi-value">${escapeHtml(String(totalTransactions))}</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Total Credit</div>
+          <div class="kpi-value positive">${escapeHtml(
+            formatAmount(grandTotals.credit, currencySymbol)
+          )}</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Total Debit</div>
+          <div class="kpi-value negative">${escapeHtml(
+            formatAmount(grandTotals.debit, currencySymbol)
+          )}</div>
+        </div>
+      </div>
+      <div class="${bannerClass}">
+        <div class="banner-icon">🏷️</div>
+        <div class="banner-text">
+          <div class="banner-title">Net Position</div>
+          <div class="banner-value">${escapeHtml(
+            formatAmount(grandTotals.net, currencySymbol)
+          )}</div>
+        </div>
+      </div>
+    </section>
+
+    ${groupSections}
+
+    <footer>Generated by Cash Book — ${escapeHtml(generatedAt)}</footer>
+    <p style="margin: 20px 0 0; text-align: center; color: #666; font-size: 12px;">
+      Developed By • 
+      <a href="https://www.linkedin.com/in/alamgir8" target="_blank" style="color: #0a66c2; text-decoration: none;">
+        🔗 Alamgir Hossain
+      </a>
+      &nbsp;|&nbsp;
+      <a href="https://github.com/alamgir8" target="_blank" style="color: #333; text-decoration: none;">
+        🐱 GitHub
+      </a>
+      &nbsp;|&nbsp;
+      <a href="https://themeforest.net/user/themereaact" target="_blank" style="color: #10b981; text-decoration: none;">
+        🌿 ThemeForest
+      </a>
+    </p>
+  </div>
+</body>
+</html>
+  `;
+};
+
+export const exportTransactionsByCategoryPdf = async (): Promise<string> => {
+  const { transactions } = await collectTransactions({});
+  const generatedAt = dayjs().format("MMM D, YYYY h:mm A");
+
+  // Group by category
+  const groupMap = new Map<string, Transaction[]>();
+  transactions.forEach((txn) => {
+    const categoryName = txn.category?.name?.trim() || "Uncategorized";
+    if (!groupMap.has(categoryName)) {
+      groupMap.set(categoryName, []);
+    }
+    groupMap.get(categoryName)!.push(txn);
+  });
+
+  const groups: GroupedData[] = Array.from(groupMap.entries())
+    .map(([name, txns]) => ({
+      name,
+      transactions: txns,
+      totals: computeTotals(txns),
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  const grandTotals = computeTotals(transactions);
+
+  const html = buildGroupedReportHtml({
+    groups,
+    grandTotals,
+    generatedAt,
+    groupByLabel: "Category",
+    totalTransactions: transactions.length,
+  });
+
+  const { uri } = await Print.printToFileAsync({ html });
+  if (await Sharing.isAvailableAsync()) {
+    await Sharing.shareAsync(uri);
+  }
+  return uri;
+};
+
+export const exportTransactionsByCounterpartyPdf =
+  async (): Promise<string> => {
+    const { transactions } = await collectTransactions({});
+    const generatedAt = dayjs().format("MMM D, YYYY h:mm A");
+
+    // Group by counterparty
+    const groupMap = new Map<string, Transaction[]>();
+    transactions.forEach((txn) => {
+      const counterparty = txn.counterparty?.trim() || "No Counterparty";
+      if (!groupMap.has(counterparty)) {
+        groupMap.set(counterparty, []);
+      }
+      groupMap.get(counterparty)!.push(txn);
+    });
+
+    const groups: GroupedData[] = Array.from(groupMap.entries())
+      .map(([name, txns]) => ({
+        name,
+        transactions: txns,
+        totals: computeTotals(txns),
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    const grandTotals = computeTotals(transactions);
+
+    const html = buildGroupedReportHtml({
+      groups,
+      grandTotals,
+      generatedAt,
+      groupByLabel: "Counterparty",
+      totalTransactions: transactions.length,
+    });
+
+    const { uri } = await Print.printToFileAsync({ html });
+    if (await Sharing.isAvailableAsync()) {
+      await Sharing.shareAsync(uri);
+    }
+    return uri;
+  };
+
+export const exportTransactionsByAccountPdf = async (): Promise<string> => {
+  const { transactions } = await collectTransactions({});
+  const generatedAt = dayjs().format("MMM D, YYYY h:mm A");
+
+  // Group by account
+  const groupMap = new Map<string, Transaction[]>();
+  transactions.forEach((txn) => {
+    const accountName = txn.account?.name?.trim() || "Unknown Account";
+    if (!groupMap.has(accountName)) {
+      groupMap.set(accountName, []);
+    }
+    groupMap.get(accountName)!.push(txn);
+  });
+
+  const groups: GroupedData[] = Array.from(groupMap.entries())
+    .map(([name, txns]) => ({
+      name,
+      transactions: txns,
+      totals: computeTotals(txns),
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  const grandTotals = computeTotals(transactions);
+
+  const html = buildGroupedReportHtml({
+    groups,
+    grandTotals,
+    generatedAt,
+    groupByLabel: "Account",
+    totalTransactions: transactions.length,
+  });
+
+  const { uri } = await Print.printToFileAsync({ html });
+  if (await Sharing.isAvailableAsync()) {
+    await Sharing.shareAsync(uri);
+  }
+  return uri;
+};
