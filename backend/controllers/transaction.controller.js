@@ -971,3 +971,29 @@ export const recalculateBalances = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * Get all unique counterparties for the authenticated admin
+ */
+export const listCounterparties = async (req, res, next) => {
+  try {
+    const adminId = req.adminId;
+
+    const counterparties = await Transaction.distinct("counterparty", {
+      admin: adminId,
+      is_deleted: { $ne: true },
+      counterparty: { $exists: true, $ne: null, $ne: "" },
+    });
+
+    // Filter out empty strings and sort alphabetically
+    const sortedCounterparties = counterparties
+      .filter((cp) => cp && cp.trim())
+      .map((cp) => cp.trim())
+      .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+
+    res.json(sortedCounterparties);
+  } catch (error) {
+    console.error("List counterparties error:", error);
+    next(error);
+  }
+};

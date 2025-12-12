@@ -9,6 +9,7 @@ import {
   deleteTransaction,
   restoreTransaction,
   recalculateBalances,
+  listCounterparties,
 } from "../controllers/transaction.controller.js";
 import { authenticate } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
@@ -178,6 +179,7 @@ const transactionIdParams = z.object({
 router.use(authenticate);
 
 router.get("/", validate(listQuerySchema), listTransactions);
+router.get("/counterparties", listCounterparties);
 router.get("/:transactionId", validate(transactionIdParams), getTransaction);
 router.post("/", validate(createSchema), createTransaction);
 router.post("/transfer", validate(transferSchema), createTransfer);
