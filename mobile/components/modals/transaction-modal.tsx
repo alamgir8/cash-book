@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -76,6 +76,14 @@ export const TransactionModal = ({
   const selectedType = watch("type");
   const selectedCategoryId = watch("categoryId");
 
+  // Filter categories based on selected transaction type (debit/credit)
+  const filteredCategoryOptions = useMemo(() => {
+    const targetFlow = selectedType === "credit" ? "credit" : "debit";
+    return categoryOptions.filter(
+      (option) => option.value === "" || option.flow === targetFlow
+    );
+  }, [categoryOptions, selectedType]);
+
   // Reset form when opening/closing or when editing transaction changes
   useEffect(() => {
     if (visible) {
@@ -111,10 +119,11 @@ export const TransactionModal = ({
   useEffect(() => {
     if (!selectedCategoryId) return;
     const match = categoryOptions.find((c) => c.value === selectedCategoryId);
-    if (match) {
-      // Check if category flow matches selected type
-      // This assumes categoryOptions have a group that indicates the flow
-      // If needed, adjust based on actual data structure
+    if (match && match.flow) {
+      const targetFlow = selectedType === "credit" ? "credit" : "debit";
+      if (match.flow !== targetFlow) {
+        setValue("categoryId", "");
+      }
     }
   }, [categoryOptions, selectedCategoryId, selectedType, setValue]);
 
@@ -218,15 +227,16 @@ export const TransactionModal = ({
                         placeholder={
                           isCategoriesLoading
                             ? "Loading categories..."
-                            : categoryOptions.length > 0
+                            : filteredCategoryOptions.length > 0
                             ? "Select category"
                             : "No categories available"
                         }
                         value={value}
-                        options={categoryOptions}
+                        options={filteredCategoryOptions}
                         onSelect={(val) => onChange(val || undefined)}
                         disabled={
-                          isCategoriesLoading || categoryOptions.length === 0
+                          isCategoriesLoading ||
+                          filteredCategoryOptions.length === 0
                         }
                       />
                       {errors.categoryId ? (

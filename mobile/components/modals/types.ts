@@ -44,4 +44,5 @@ export type SelectOption = {
   label: string;
   subtitle?: string;
   group?: string;
+  flow?: string;
 };
