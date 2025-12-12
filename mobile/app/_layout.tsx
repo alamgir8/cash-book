@@ -9,6 +9,7 @@ import * as SplashScreen from "expo-splash-screen";
 import { AuthProvider, useAuth } from "../hooks/useAuth";
 import { PreferencesProvider } from "../hooks/usePreferences";
 import { ErrorBoundary } from "../components/error-boundary";
+import { AuthLoading } from "../components/auth-loading";
 import { queryClient } from "../lib/queryClient";
 import "../global.css";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -23,6 +24,7 @@ const RootContent = () => {
   const segments = useSegments();
   const router = useRouter();
   const [isReady, setReady] = useState(false);
+  const [isNavigationReady, setNavigationReady] = useState(false);
 
   useEffect(() => {
     async function prepare() {
@@ -43,6 +45,7 @@ const RootContent = () => {
 
   useEffect(() => {
     const maybeHideSplash = async () => {
+      // Only hide splash when both resources are ready AND auth check is complete
       if (isReady && state.status !== "loading") {
         await SplashScreen.hideAsync();
       }
@@ -51,19 +54,31 @@ const RootContent = () => {
   }, [isReady, state.status]);
 
   useEffect(() => {
+    // Don't navigate until auth state is determined
     if (state.status === "loading") return;
 
     const inAuthGroup = segments[0] === "(auth)";
 
     if (state.status === "authenticated" && inAuthGroup) {
       router.replace("/(app)" as any);
+      setNavigationReady(true);
     } else if (state.status === "unauthenticated" && !inAuthGroup) {
       router.replace("/(auth)/sign-in" as any);
+      setNavigationReady(true);
+    } else {
+      // Already on the correct route
+      setNavigationReady(true);
     }
   }, [segments, state.status, router]);
 
+  // Show loading screen while checking auth or resources not ready
   if (!isReady || state.status === "loading") {
-    return null;
+    return <AuthLoading />;
+  }
+
+  // Show loading screen until navigation is complete to prevent flash
+  if (!isNavigationReady) {
+    return <AuthLoading />;
   }
 
   return (

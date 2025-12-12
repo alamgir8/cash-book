@@ -32,7 +32,7 @@ const defaultFilters: TransactionFilters = {
 };
 
 export default function AccountDetailScreen() {
-  const { formatAmount: prefFormatAmount } = usePreferences();
+  const { formatAmount } = usePreferences();
   const router = useRouter();
   const params = useLocalSearchParams<{ accountId?: string }>();
   const accountId = Array.isArray(params.accountId)
@@ -319,7 +319,7 @@ export default function AccountDetailScreen() {
                   : "text-rose-600"
               }`}
             >
-              {prefFormatAmount(Math.abs(account?.balance ?? 0))}
+              {formatAmount(Math.abs(account?.balance ?? 0))}
             </Text>
           </View>
         </View>
@@ -364,7 +364,7 @@ export default function AccountDetailScreen() {
               Total Credit
             </Text>
             <Text className="text-xl font-bold text-blue-700 mt-1">
-              {prefFormatAmount(summary?.totalCredit ?? 0)}
+              {formatAmount(summary?.totalCredit ?? 0)}
             </Text>
           </View>
           <View className="flex-1 bg-amber-50 rounded-xl p-3 border border-amber-100">
@@ -372,7 +372,7 @@ export default function AccountDetailScreen() {
               Total Debit
             </Text>
             <Text className="text-xl font-bold text-amber-700 mt-1">
-              {prefFormatAmount(summary?.totalDebit ?? 0)}
+              {formatAmount(summary?.totalDebit ?? 0)}
             </Text>
           </View>
         </View>
@@ -396,9 +396,7 @@ export default function AccountDetailScreen() {
                 netPositive ? "text-emerald-600" : "text-rose-600"
               }`}
             >
-              {`${netPositive ? "+" : "-"}${prefFormatAmount(
-                Math.abs(netFlow)
-              )}`}
+              {`${netPositive ? "+" : "-"}${formatAmount(Math.abs(netFlow))}`}
             </Text>
           </View>
           <View className="flex-1 bg-gray-50 rounded-xl p-3 border border-gray-200">
@@ -406,7 +404,9 @@ export default function AccountDetailScreen() {
               Transactions
             </Text>
             <Text className="text-xl font-bold text-gray-700 mt-1">
-              {summary?.totalTransactions ?? 0}
+              {formatAmount(summary?.totalTransactions ?? 0, {
+                showCurrency: false,
+              })}
             </Text>
           </View>
         </View>

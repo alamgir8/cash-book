@@ -73,7 +73,7 @@ const parseVoiceForAccount = (transcript: string): Partial<FormValues> => {
 };
 
 export default function AccountsScreen() {
-  const { formatAmount: prefFormatAmount } = usePreferences();
+  const { formatAmount } = usePreferences();
   const queryClient = useQueryClient();
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
@@ -245,9 +245,9 @@ export default function AccountsScreen() {
     return aggregate;
   }, [accounts]);
 
-  const formatAmount = (value: number) => prefFormatAmount(value);
+  // const formatAmount = (value: number) => prefFormatAmount(value);
   const formatSignedAmount = (value: number) => {
-    const base = prefFormatAmount(Math.abs(value));
+    const base = formatAmount(Math.abs(value));
     return `${value >= 0 ? "+" : "-"}${base}`;
   };
 
@@ -324,7 +324,7 @@ export default function AccountsScreen() {
               Transactions
             </Text>
             <Text className="text-2xl font-bold text-indigo-700 mt-2">
-              {formatAmount(totals.totalTransactions)}
+              {formatAmount(totals.totalTransactions, { showCurrency: false })}
             </Text>
             <Text className="text-xs text-indigo-600 mt-1">
               Last activity: {lastActivityLabel}
@@ -468,7 +468,9 @@ export default function AccountsScreen() {
                     Transactions
                   </Text>
                   <Text className="text-lg font-bold text-gray-700 mt-1">
-                    {formatAmount(item.summary.totalTransactions ?? 0)}
+                    {formatAmount(item.summary.totalTransactions ?? 0, {
+                      showCurrency: false,
+                    })}
                   </Text>
                 </View>
                 <View

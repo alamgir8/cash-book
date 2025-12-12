@@ -85,7 +85,7 @@ const AccountCardComponent = ({ account, onEdit, onDelete }: Props) => {
           <View className="flex-1 items-end">
             <Text className="text-xs text-gray-500 mb-1">Transactions</Text>
             <Text className="text-base font-bold text-gray-900">
-              {account.summary.totalTransactions ?? 0}
+              {formatAmount(account.summary.totalTransactions ?? 0)}
             </Text>
           </View>
         </View>
