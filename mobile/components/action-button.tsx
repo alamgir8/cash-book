@@ -35,7 +35,7 @@ export function ActionButton({
       case "success":
         return "bg-green-600";
       case "danger":
-        return "bg-red-600";
+        return "bg-rose-500";
       case "secondary":
         return "bg-gray-600";
       case "outline":
@@ -118,7 +118,7 @@ export function ActionButton({
           variant === "success"
             ? "#16a34a"
             : variant === "danger"
-            ? "#dc2626"
+            ? "#dc265a"
             : "#1d4ed8",
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.2,
