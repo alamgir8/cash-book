@@ -6,19 +6,24 @@ import {
   Text,
   TouchableOpacity,
 } from "react-native";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import { ScreenHeader } from "../../components/screen-header";
 import { EmptyState } from "../../components/empty-state";
 import { FilterBar } from "../../components/filter-bar";
 import { TransactionCard } from "../../components/transaction-card";
+import { TransactionModal } from "../../components/modals/transaction-modal";
+import type { TransactionFormValues } from "../../components/modals/types";
 import {
   fetchTransactions,
+  updateTransaction,
+  type Transaction,
   type TransactionFilters,
 } from "../../services/transactions";
 import { exportTransactionsPdf } from "../../services/reports";
 import { useLocalSearchParams } from "expo-router";
 import { fetchCategories } from "../../services/categories";
+import { fetchAccounts } from "../../services/accounts";
 import { queryKeys } from "../../lib/queryKeys";
 import type { SelectOption } from "../../components/searchable-select";
 import Toast from "react-native-toast-message";
@@ -28,10 +33,16 @@ const defaultFilters: TransactionFilters = {
   // Removed financialScope to show ALL transactions regardless of category
 };
 
+const formatCategoryGroup = (type?: string) => {
+  if (!type) return "Other";
+  return type.charAt(0).toUpperCase() + type.slice(1).replace(/_/g, " ");
+};
+
 export default function TransactionsScreen() {
   // Get accountId from search params - will be undefined if accessed directly from tab
   const searchParams = useLocalSearchParams<{ accountId?: string }>();
   const accountId = searchParams?.accountId;
+  const queryClient = useQueryClient();
   const [filters, setFilters] = useState<TransactionFilters>({
     ...defaultFilters,
     ...(accountId ? { accountId } : {}),
@@ -40,11 +51,74 @@ export default function TransactionsScreen() {
   const [allTransactions, setAllTransactions] = useState<any[]>([]);
   const [hasMorePages, setHasMorePages] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [isModalVisible, setModalVisible] = useState(false);
+  const [editingTransaction, setEditingTransaction] =
+    useState<Transaction | null>(null);
+
+  const accountsQuery = useQuery({
+    queryKey: queryKeys.accounts,
+    queryFn: fetchAccounts,
+  });
 
   const categoriesQuery = useQuery({
     queryKey: queryKeys.categories.all,
     queryFn: () => fetchCategories(),
   });
+
+  const updateMutation = useMutation({
+    mutationFn: updateTransaction,
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          predicate: (query) => query.queryKey[0] === "transactions",
+        }),
+        queryClient.invalidateQueries({
+          predicate: (query) => query.queryKey[0] === "accounts",
+        }),
+      ]);
+      setModalVisible(false);
+      setEditingTransaction(null);
+      Toast.show({ type: "success", text1: "Transaction updated" });
+    },
+    onError: () => {
+      Toast.show({
+        type: "error",
+        text1: "Error updating transaction",
+        text2: "Please try again.",
+      });
+    },
+  });
+
+  const accountOptions: SelectOption[] = useMemo(() => {
+    const accounts = (accountsQuery.data ?? []) as {
+      _id: string;
+      name: string;
+      kind: string;
+    }[];
+    return accounts.map((account) => ({
+      value: account._id,
+      label: account.name,
+      subtitle: account.kind?.replace(/_/g, " "),
+    }));
+  }, [accountsQuery.data]);
+
+  const modalCategoryOptions: SelectOption[] = useMemo(() => {
+    const categories = (categoriesQuery.data ?? []) as {
+      _id: string;
+      name: string;
+      flow: string;
+      type: string;
+    }[];
+    return [
+      { value: "", label: "No category" },
+      ...categories.map((category) => ({
+        value: category._id,
+        label: category.name,
+        group: formatCategoryGroup(category.type),
+        flow: category.flow,
+      })),
+    ];
+  }, [categoriesQuery.data]);
 
   const categoryOptions: SelectOption[] = useMemo(() => {
     const categories = (categoriesQuery.data ?? []) as {
@@ -227,15 +301,49 @@ export default function TransactionsScreen() {
     }
   }, [exporting, filters]);
 
+  const handleEditTransaction = useCallback((transaction: Transaction) => {
+    setEditingTransaction(transaction);
+    setModalVisible(true);
+  }, []);
+
+  const closeModal = useCallback(() => {
+    setModalVisible(false);
+    setEditingTransaction(null);
+  }, []);
+
+  const handleTransactionSubmit = async (values: TransactionFormValues) => {
+    if (!editingTransaction) return;
+
+    const payload = {
+      ...values,
+      amount: Number(values.amount),
+      date: values.date?.trim() ? values.date.trim() : undefined,
+      description: values.description?.trim()
+        ? values.description.trim()
+        : undefined,
+      comment: values.comment?.trim() ? values.comment.trim() : undefined,
+      categoryId: values.categoryId ? values.categoryId : undefined,
+      counterparty: values.counterparty?.trim()
+        ? values.counterparty.trim()
+        : undefined,
+    };
+
+    await updateMutation.mutateAsync({
+      transactionId: editingTransaction._id,
+      ...payload,
+    } as any);
+  };
+
   const renderTransactionItem = useCallback(
     ({ item }: { item: any }) => (
       <TransactionCard
         transaction={item}
         onCategoryPress={handleCategoryPress}
         onCounterpartyPress={handleCounterpartyPress}
+        onEdit={handleEditTransaction}
       />
     ),
-    [handleCategoryPress, handleCounterpartyPress]
+    [handleCategoryPress, handleCounterpartyPress, handleEditTransaction]
   );
 
   // console.log("transactions", transactions, "query", transactionsQuery.data);
@@ -373,6 +481,18 @@ export default function TransactionsScreen() {
         updateCellsBatchingPeriod={50}
         initialNumToRender={20}
         windowSize={10}
+      />
+
+      <TransactionModal
+        visible={isModalVisible}
+        onClose={closeModal}
+        onSubmit={handleTransactionSubmit}
+        editingTransaction={editingTransaction}
+        accountOptions={accountOptions}
+        categoryOptions={modalCategoryOptions}
+        isAccountsLoading={accountsQuery.isLoading}
+        isCategoriesLoading={categoriesQuery.isLoading}
+        isSubmitting={updateMutation.isPending}
       />
     </View>
   );
