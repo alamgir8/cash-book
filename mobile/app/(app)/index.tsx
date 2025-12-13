@@ -423,7 +423,6 @@ export default function DashboardScreen() {
           categories={categoryOptions}
           showCounterpartyField
           counterparties={counterpartyOptions}
-          showFinancialScopeToggle
         />
       </View>
     );
@@ -513,6 +512,7 @@ export default function DashboardScreen() {
         onClose={closeTransferModal}
         onSubmit={handleTransferSubmit}
         accountOptions={accountOptions}
+        counterpartyOptions={counterpartyOptions}
         isAccountsLoading={accountsQuery.isLoading}
         isSubmitting={createTransferMutation.isPending}
       />

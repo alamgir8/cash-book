@@ -395,7 +395,6 @@ export default function TransactionsScreen() {
           categories={categoryOptions}
           showCounterpartyField
           counterparties={counterpartyOptions}
-          showFinancialScopeToggle
           onReset={handleResetFilters}
           onApplyFilters={() => {
             setAllTransactions([]);

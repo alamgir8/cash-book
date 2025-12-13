@@ -69,8 +69,7 @@ export default function SettingsScreen() {
           });
           break;
       }
-    } catch (error) {
-      // console.error(error);
+    } catch {
       Toast.show({ type: "error", text1: "Failed to export report" });
     } finally {
       setExportingType(null);

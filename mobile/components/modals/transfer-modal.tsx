@@ -28,6 +28,7 @@ type TransferModalProps = {
   onClose: () => void;
   onSubmit: (values: TransferFormValues) => Promise<void>;
   accountOptions: SelectOption[];
+  counterpartyOptions?: SelectOption[];
   isAccountsLoading?: boolean;
   isSubmitting?: boolean;
 };
@@ -47,6 +48,7 @@ export const TransferModal = ({
   onClose,
   onSubmit,
   accountOptions,
+  counterpartyOptions = [],
   isAccountsLoading = false,
   isSubmitting = false,
 }: TransferModalProps) => {
@@ -293,24 +295,21 @@ export const TransferModal = ({
                 </View>
 
                 {/* Counterparty */}
-                <View>
-                  <Text className="text-gray-700 text-sm font-semibold mb-2">
-                    Counterparty
-                  </Text>
-                  <Controller
-                    control={control}
-                    name="counterparty"
-                    render={({ field: { value, onChange } }) => (
-                      <TextInput
-                        value={value || ""}
-                        onChangeText={onChange}
-                        placeholder="Optional reference"
-                        placeholderTextColor="#9ca3af"
-                        className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200"
-                      />
-                    )}
-                  />
-                </View>
+                <Controller
+                  control={control}
+                  name="counterparty"
+                  render={({ field: { value, onChange } }) => (
+                    <SearchableSelect
+                      label="Counterparty"
+                      placeholder="Select or add counterparty"
+                      value={value || ""}
+                      options={counterpartyOptions}
+                      onSelect={(val) => onChange(val || "")}
+                      allowCustomValue={true}
+                      customDisplayValue={value || ""}
+                    />
+                  )}
+                />
 
                 {/* Comment */}
                 <View>

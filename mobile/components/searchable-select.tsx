@@ -78,20 +78,21 @@ export const SearchableSelect = ({
     const items: RenderItem[] = [];
     let previousGroup: string | undefined;
     let fallbackCounter = 0;
+    let groupCounter = 0;
 
-    filtered.forEach((option) => {
+    filtered.forEach((option, index) => {
       if (option.group && option.group !== previousGroup) {
         items.push({
           type: "GROUP",
-          id: `group-${option.group}`,
+          id: `__group__${groupCounter++}__${option.group}`,
           title: option.group,
         });
         previousGroup = option.group;
       }
       const id =
         option.value && option.value.length > 0
-          ? option.value
-          : `option-empty-${fallbackCounter++}`;
+          ? `__opt__${index}__${option.value}`
+          : `__opt__empty__${fallbackCounter++}`;
       items.push({ type: "OPTION", id, option });
     });
 

@@ -11,7 +11,7 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
 import { ActionButton } from "./action-button";
 import type { TransactionFilters } from "../services/transactions";
-import SearchableSelect, { type SelectOption } from "./searchable-select";
+import { SearchableSelect, type SelectOption } from "./searchable-select";
 
 const ranges = [
   { label: "Daily", value: "daily" },
@@ -29,7 +29,6 @@ type Props = {
   categories?: SelectOption[];
   showCounterpartyField?: boolean;
   counterparties?: SelectOption[];
-  showFinancialScopeToggle?: boolean;
   hasActiveFilters?: boolean;
   onReset?: () => void;
   onApplyFilters?: () => void;
@@ -50,7 +49,6 @@ export const FilterBar = ({
   categories,
   showCounterpartyField = false,
   counterparties,
-  showFinancialScopeToggle = false,
   hasActiveFilters,
   onReset,
   onApplyFilters,
@@ -62,7 +60,6 @@ export const FilterBar = ({
     ...filters,
     searchInput: filters.search || "",
     accountNameInput: filters.accountName || "",
-    financialScope: filters.financialScope ?? "actual",
   });
 
   useEffect(() => {
@@ -70,7 +67,6 @@ export const FilterBar = ({
       ...filters,
       searchInput: filters.search ?? "",
       accountNameInput: filters.accountName ?? "",
-      financialScope: filters.financialScope ?? "actual",
     });
   }, [filters]);
 
@@ -115,7 +111,6 @@ export const FilterBar = ({
             filters.accountId ||
             filters.categoryId ||
             filters.counterparty ||
-            (filters.financialScope && filters.financialScope !== "actual") ||
             filters.type ||
             filters.search ||
             filters.q ||
@@ -124,16 +119,6 @@ export const FilterBar = ({
             filters.maxAmount !== undefined ||
             filters.includeDeleted
         );
-
-  const financialScopeOptions: {
-    label: string;
-    value: "actual" | "income" | "expense" | "both";
-  }[] = [
-    { label: "Actual", value: "actual" },
-    { label: "Income", value: "income" },
-    { label: "Expense", value: "expense" },
-    { label: "Both", value: "both" },
-  ];
 
   return (
     <View className="bg-white rounded-2xl p-3 border border-gray-200 shadow-sm">
@@ -246,45 +231,6 @@ export const FilterBar = ({
 
       {expanded ? (
         <View className="mt-3 gap-3">
-          {showFinancialScopeToggle ? (
-            <View>
-              <Text className="text-gray-700 text-sm font-semibold mb-1.5">
-                Financial Scope
-              </Text>
-              <View className="flex-row gap-2 flex-wrap">
-                {financialScopeOptions.map((option) => {
-                  const isActive =
-                    formFilters.financialScope === option.value ||
-                    (!formFilters.financialScope && option.value === "actual");
-                  return (
-                    <TouchableOpacity
-                      key={option.label}
-                      onPress={() =>
-                        setFormFilters((prev) => ({
-                          ...prev,
-                          financialScope: option.value,
-                        }))
-                      }
-                      className={`px-3 py-1.5 rounded-full border ${
-                        isActive
-                          ? "border-emerald-500 bg-emerald-50"
-                          : "border-gray-200 bg-gray-50"
-                      }`}
-                    >
-                      <Text
-                        className={`text-sm font-semibold ${
-                          isActive ? "text-emerald-600" : "text-gray-600"
-                        }`}
-                      >
-                        {option.label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-          ) : null}
-
           <View className="flex-row gap-3">
             <View className="flex-1">
               <Text className="text-gray-700 text-sm font-semibold mb-1.5">
@@ -480,7 +426,6 @@ export const FilterBar = ({
                 const {
                   categoryId,
                   counterparty,
-                  financialScope,
                   search: _ignoredSearch,
                   accountName: _ignoredAccountName,
                   ...other
@@ -497,8 +442,6 @@ export const FilterBar = ({
                 if (counterparty) {
                   updatedFilters.counterparty = counterparty;
                 }
-
-                updatedFilters.financialScope = financialScope ?? "actual";
 
                 if (searchInput && searchInput.trim().length > 0) {
                   updatedFilters.search = searchInput.trim();

@@ -20,8 +20,11 @@ import {
   fetchAccountTransactions,
 } from "../../../services/accounts";
 import { fetchCategories } from "../../../services/categories";
+import {
+  fetchCounterparties,
+  type TransactionFilters,
+} from "../../../services/transactions";
 import { queryKeys } from "../../../lib/queryKeys";
-import type { TransactionFilters } from "../../../services/transactions";
 import { usePreferences } from "@/hooks/usePreferences";
 import type { SelectOption } from "../../../components/searchable-select";
 
@@ -53,6 +56,11 @@ export default function AccountDetailScreen() {
     queryFn: () => fetchCategories(),
   });
 
+  const counterpartiesQuery = useQuery({
+    queryKey: queryKeys.counterparties,
+    queryFn: () => fetchCounterparties(),
+  });
+
   const categoryOptions: SelectOption[] = useMemo(() => {
     const categories = categoriesQuery.data ?? [];
     return categories.map((category) => ({
@@ -62,6 +70,19 @@ export default function AccountDetailScreen() {
       group: category.flow === "credit" ? "Credit" : "Debit",
     }));
   }, [categoriesQuery.data]);
+
+  const counterpartyOptions: SelectOption[] = useMemo(() => {
+    const apiCounterparties = counterpartiesQuery.data ?? [];
+    const txnCounterparties = allTransactions
+      .map((txn) => txn.counterparty?.trim())
+      .filter((name): name is string => Boolean(name));
+    const allCounterparties = [
+      ...new Set([...apiCounterparties, ...txnCounterparties]),
+    ];
+    return allCounterparties
+      .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
+      .map((name) => ({ value: name, label: name }));
+  }, [counterpartiesQuery.data, allTransactions]);
 
   const detailQuery = useQuery({
     queryKey: accountId
@@ -135,21 +156,6 @@ export default function AccountDetailScreen() {
   const summary = detailQuery.data?.summary;
 
   const netFlow = useMemo(() => summary?.net ?? 0, [summary]);
-
-  const counterpartyOptions = useMemo(() => {
-    const seen = new Set<string>();
-    return allTransactions
-      .map((txn) => txn.counterparty?.trim())
-      .filter((name): name is string => Boolean(name))
-      .filter((name) => {
-        const key = name.toLowerCase();
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      })
-      .map((name) => ({ value: name, label: name }))
-      .sort((a, b) => a.label.localeCompare(b.label));
-  }, [allTransactions]);
 
   const hasActiveFilters = useMemo(() => {
     if (filters.range && filters.range !== defaultFilters.range) {
@@ -415,7 +421,6 @@ export default function AccountDetailScreen() {
       <FilterBar
         filters={filters}
         onChange={handleFilterChange}
-        showFinancialScopeToggle
         hasActiveFilters={hasActiveFilters}
         showAccountField={false}
         showTypeToggle
