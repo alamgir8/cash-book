@@ -178,8 +178,9 @@ const transactionIdParams = z.object({
 
 router.use(authenticate);
 
-router.get("/", validate(listQuerySchema), listTransactions);
+// Static routes MUST come before dynamic :transactionId route
 router.get("/counterparties", listCounterparties);
+router.get("/", validate(listQuerySchema), listTransactions);
 router.get("/:transactionId", validate(transactionIdParams), getTransaction);
 router.post("/", validate(createSchema), createTransaction);
 router.post("/transfer", validate(transferSchema), createTransfer);

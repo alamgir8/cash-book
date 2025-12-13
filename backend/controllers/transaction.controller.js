@@ -975,21 +975,37 @@ export const recalculateBalances = async (req, res, next) => {
 /**
  * Get all unique counterparties for the authenticated admin
  */
+/**
+ * Get all unique counterparties for the authenticated admin
+ * Supports optional search query parameter
+ */
 export const listCounterparties = async (req, res, next) => {
   try {
-    const adminId = req.adminId;
+    const adminId = req.user.id;
+    const searchQuery = req.query.search?.trim().toLowerCase() || "";
 
+    // Get all distinct counterparties
     const counterparties = await Transaction.distinct("counterparty", {
       admin: adminId,
       is_deleted: { $ne: true },
-      counterparty: { $exists: true, $ne: null, $ne: "" },
     });
 
-    // Filter out empty strings and sort alphabetically
-    const sortedCounterparties = counterparties
-      .filter((cp) => cp && cp.trim())
-      .map((cp) => cp.trim())
-      .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+    // Filter out empty/null values
+    let filteredCounterparties = counterparties
+      .filter((cp) => cp && typeof cp === "string" && cp.trim())
+      .map((cp) => cp.trim());
+
+    // Apply search filter if provided
+    if (searchQuery) {
+      filteredCounterparties = filteredCounterparties.filter((cp) =>
+        cp.toLowerCase().includes(searchQuery)
+      );
+    }
+
+    // Sort alphabetically
+    const sortedCounterparties = filteredCounterparties.sort((a, b) =>
+      a.toLowerCase().localeCompare(b.toLowerCase())
+    );
 
     res.json(sortedCounterparties);
   } catch (error) {
