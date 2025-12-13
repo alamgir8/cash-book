@@ -68,7 +68,7 @@ export default function TransactionsScreen() {
 
   const counterpartiesQuery = useQuery({
     queryKey: queryKeys.counterparties,
-    queryFn: fetchCounterparties,
+    queryFn: () => fetchCounterparties(),
   });
 
   const updateMutation = useMutation({
@@ -214,10 +214,31 @@ export default function TransactionsScreen() {
     }
   }, [transactionsQuery.data, filters.page, transactionsQuery.isLoading]);
 
+  // Combine API counterparties with counterparties from loaded transactions
   const counterpartyOptions: SelectOption[] = useMemo(() => {
     const apiCounterparties = counterpartiesQuery.data ?? [];
-    return apiCounterparties.map((name) => ({ value: name, label: name }));
-  }, [counterpartiesQuery.data]);
+
+    // Also extract from current transactions as fallback
+    const txnCounterparties = allTransactions
+      .map((txn) => txn.counterparty?.trim())
+      .filter((name): name is string => Boolean(name));
+
+    // Also include the editing transaction's counterparty if it exists
+    const editingCounterparty = editingTransaction?.counterparty?.trim();
+
+    // Merge and deduplicate
+    const allCounterparties = [
+      ...new Set([
+        ...apiCounterparties,
+        ...txnCounterparties,
+        ...(editingCounterparty ? [editingCounterparty] : []),
+      ]),
+    ];
+
+    return allCounterparties
+      .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
+      .map((name) => ({ value: name, label: name }));
+  }, [counterpartiesQuery.data, allTransactions, editingTransaction]);
 
   const hasActiveFilters = useMemo(() => {
     if (filters.range && filters.range !== defaultFilters.range) {
@@ -301,8 +322,7 @@ export default function TransactionsScreen() {
       setExporting(true);
       await exportTransactionsPdf(filters);
       Toast.show({ type: "success", text1: "PDF exported successfully" });
-    } catch (error) {
-      // console.error("Transactions export error", error);
+    } catch {
       Toast.show({ type: "error", text1: "Failed to export PDF" });
     } finally {
       setExporting(false);

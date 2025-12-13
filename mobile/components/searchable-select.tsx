@@ -52,16 +52,28 @@ export const SearchableSelect = ({
     [options, value]
   );
 
-  const filteredItems = useMemo<RenderItem[]>(() => {
+  const { filteredItems, hasMore, totalCount } = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
-    const filtered = options.filter((option) => {
-      if (normalizedSearch.length === 0) return true;
+    const isSearching = normalizedSearch.length > 0;
+
+    // Filter options based on search
+    let filtered = options.filter((option) => {
+      if (!isSearching) return true;
       return (
         option.label.toLowerCase().includes(normalizedSearch) ||
         option.subtitle?.toLowerCase().includes(normalizedSearch) ||
         option.group?.toLowerCase().includes(normalizedSearch)
       );
     });
+
+    const totalCount = filtered.length;
+    let hasMore = false;
+
+    // Limit to 50 when not searching, show all when searching
+    if (!isSearching && filtered.length > 50) {
+      hasMore = true;
+      filtered = filtered.slice(0, 50);
+    }
 
     const items: RenderItem[] = [];
     let previousGroup: string | undefined;
@@ -83,7 +95,7 @@ export const SearchableSelect = ({
       items.push({ type: "OPTION", id, option });
     });
 
-    return items;
+    return { filteredItems: items, hasMore, totalCount };
   }, [options, search]);
 
   const handleSelect = (option: SelectOption) => {
@@ -184,8 +196,45 @@ export const SearchableSelect = ({
                   onPress={handleAddCustom}
                 >
                   <Ionicons name="add-circle" size={20} color="#2563eb" />
-                  <Text style={styles.addNewText}>Add "{search.trim()}"</Text>
+                  <Text style={styles.addNewText}>
+                    Add &quot;{search.trim()}&quot;
+                  </Text>
                 </TouchableOpacity>
+              ) : null
+            }
+            ListFooterComponent={
+              hasMore ? (
+                <View style={styles.moreHint}>
+                  <Ionicons
+                    name="information-circle-outline"
+                    size={16}
+                    color="#6b7280"
+                  />
+                  <Text style={styles.moreHintText}>
+                    Showing 50 of {totalCount}. Type to search for more.
+                  </Text>
+                </View>
+              ) : null
+            }
+            ListEmptyComponent={
+              allowCustomValue && !search.trim() ? (
+                <View style={styles.emptyState}>
+                  <Ionicons name="search-outline" size={32} color="#9ca3af" />
+                  <Text style={styles.emptyStateText}>
+                    Type to search or add new
+                  </Text>
+                </View>
+              ) : !allowCustomValue && filteredItems.length === 0 ? (
+                <View style={styles.emptyState}>
+                  <Ionicons
+                    name="folder-open-outline"
+                    size={32}
+                    color="#9ca3af"
+                  />
+                  <Text style={styles.emptyStateText}>
+                    No options available
+                  </Text>
+                </View>
               ) : null
             }
             renderItem={({ item }) => {
@@ -355,6 +404,33 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: "#2563eb",
     fontWeight: "600",
+  },
+  emptyState: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 32,
+    gap: 8,
+  },
+  emptyStateText: {
+    fontSize: 14,
+    color: "#9ca3af",
+    textAlign: "center",
+  },
+  moreHint: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: "#f3f4f6",
+    borderRadius: 8,
+    marginTop: 8,
+    gap: 6,
+  },
+  moreHintText: {
+    fontSize: 13,
+    color: "#6b7280",
+    textAlign: "center",
   },
 });
 

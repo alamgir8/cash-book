@@ -162,9 +162,18 @@ export const fetchTransactions = async (filters: TransactionFilters) => {
 
 /**
  * Fetch all unique counterparties from the database
+ * @param search - Optional search query to filter counterparties
  */
-export const fetchCounterparties = async (): Promise<string[]> => {
-  const { data } = await api.get<string[]>("/transactions/counterparties");
+export const fetchCounterparties = async (
+  search?: string
+): Promise<string[]> => {
+  const params: Record<string, string> = {};
+  if (search?.trim()) {
+    params.search = search.trim();
+  }
+  const { data } = await api.get<string[]>("/transactions/counterparties", {
+    params,
+  });
   return data;
 };
 

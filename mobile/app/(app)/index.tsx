@@ -22,7 +22,7 @@ import type {
   TransactionFormValues,
   TransferFormValues,
   SelectOption,
-} from \"../../components/modals/types\";
+} from "../../components/modals/types";
 import { exportTransactionsPdf } from "../../services/reports";
 import {
   createTransaction,
@@ -79,6 +79,9 @@ export default function DashboardScreen() {
         queryClient.invalidateQueries({
           predicate: (query) => query.queryKey[0] === "accounts",
         }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.counterparties,
+        }),
       ]);
       setModalVisible(false);
       setEditingTransaction(null);
@@ -103,6 +106,9 @@ export default function DashboardScreen() {
         queryClient.invalidateQueries({
           predicate: (query) => query.queryKey[0] === "accounts",
         }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.counterparties,
+        }),
       ]);
       setModalVisible(false);
       setEditingTransaction(null);
@@ -126,6 +132,9 @@ export default function DashboardScreen() {
         }),
         queryClient.invalidateQueries({
           predicate: (query) => query.queryKey[0] === "accounts",
+        }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.counterparties,
         }),
       ]);
       setTransferModalVisible(false);
@@ -180,13 +189,34 @@ export default function DashboardScreen() {
 
   const counterpartiesQuery = useQuery({
     queryKey: queryKeys.counterparties,
-    queryFn: fetchCounterparties,
+    queryFn: () => fetchCounterparties(),
   });
 
+  // Combine API counterparties with counterparties from loaded transactions
   const counterpartyOptions: SelectOption[] = useMemo(() => {
     const apiCounterparties = counterpartiesQuery.data ?? [];
-    return apiCounterparties.map((name) => ({ value: name, label: name }));
-  }, [counterpartiesQuery.data]);
+
+    // Also extract from current transactions as fallback
+    const txnCounterparties = (transactionsQuery.data?.transactions ?? [])
+      .map((txn) => txn.counterparty?.trim())
+      .filter((name): name is string => Boolean(name));
+
+    // Also include the editing transaction's counterparty if it exists
+    const editingCounterparty = editingTransaction?.counterparty?.trim();
+
+    // Merge and deduplicate
+    const allCounterparties = [
+      ...new Set([
+        ...apiCounterparties,
+        ...txnCounterparties,
+        ...(editingCounterparty ? [editingCounterparty] : []),
+      ]),
+    ];
+
+    return allCounterparties
+      .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
+      .map((name) => ({ value: name, label: name }));
+  }, [counterpartiesQuery.data, transactionsQuery.data, editingTransaction]);
 
   const hasActiveFilters = useMemo(() => {
     if (filters.range && filters.range !== defaultFilters.range) {
