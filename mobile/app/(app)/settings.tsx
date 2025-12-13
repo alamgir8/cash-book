@@ -70,7 +70,7 @@ export default function SettingsScreen() {
           break;
       }
     } catch (error) {
-      console.error(error);
+      // console.error(error);
       Toast.show({ type: "error", text1: "Failed to export report" });
     } finally {
       setExportingType(null);
@@ -87,7 +87,7 @@ export default function SettingsScreen() {
         text2: `Saved as ${filename}`,
       });
     } catch (error: any) {
-      console.error(error);
+      // console.error(error);
       Toast.show({
         type: "error",
         text1: "Failed to create backup",
@@ -119,7 +119,7 @@ export default function SettingsScreen() {
       setRestoring(true);
       const result = await importBackupFromFile();
 
-      console.log("Import result:", JSON.stringify(result, null, 2));
+      // console.log("Import result:", JSON.stringify(result, null, 2));
 
       // Check if result exists and has summary
       if (!result || !result.summary) {

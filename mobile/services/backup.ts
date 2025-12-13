@@ -157,16 +157,16 @@ export const importBackupFromFile = async (): Promise<ImportResult> => {
 
   // Send to API
   try {
-    console.log("Sending backup data to API:", {
-      version: backupData.version,
-      accounts: backupData.data.accounts.length,
-      categories: backupData.data.categories.length,
-      transactions: backupData.data.transactions.length,
-      transfers: backupData.data.transfers.length,
-      balanceSnapshots: backupData.data.balanceSnapshots.length,
-    });
+    // console.log("Sending backup data to API:", {
+    //   version: backupData.version,
+    //   accounts: backupData.data.accounts.length,
+    //   categories: backupData.data.categories.length,
+    //   transactions: backupData.data.transactions.length,
+    //   transfers: backupData.data.transfers.length,
+    //   balanceSnapshots: backupData.data.balanceSnapshots.length,
+    // });
     const importResult = await importBackupData(backupData);
-    console.log("Import API response:", importResult);
+    // console.log("Import API response:", importResult);
     return importResult;
   } catch (error: any) {
     // Re-throw with a more user-friendly message
