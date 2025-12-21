@@ -22,7 +22,7 @@ import {
 
 const TYPE_TABS: { value: InvoiceType | "all"; label: string }[] = [
   { value: "all", label: "All" },
-  { value: "sales", label: "Sales" },
+  { value: "sale", label: "Sales" },
   { value: "purchase", label: "Purchase" },
 ];
 
@@ -39,11 +39,11 @@ const STATUS_OPTIONS: {
     color: "bg-yellow-100 text-yellow-700",
   },
   {
-    value: "confirmed",
-    label: "Confirmed",
+    value: "partial",
+    label: "Partial",
     color: "bg-blue-100 text-blue-700",
   },
-  { value: "completed", label: "Paid", color: "bg-green-100 text-green-700" },
+  { value: "paid", label: "Paid", color: "bg-green-100 text-green-700" },
   { value: "cancelled", label: "Cancelled", color: "bg-red-100 text-red-700" },
 ];
 
@@ -53,14 +53,14 @@ const getStatusColor = (status: InvoiceStatus) => {
       return "bg-gray-100 text-gray-600";
     case "pending":
       return "bg-yellow-100 text-yellow-700";
-    case "confirmed":
+    case "partial":
       return "bg-blue-100 text-blue-700";
-    case "completed":
+    case "paid":
       return "bg-green-100 text-green-700";
     case "cancelled":
       return "bg-red-100 text-red-700";
-    case "refunded":
-      return "bg-purple-100 text-purple-700";
+    case "overdue":
+      return "bg-orange-100 text-orange-700";
     default:
       return "bg-gray-100 text-gray-600";
   }
@@ -140,7 +140,7 @@ export default function InvoicesScreen() {
           <View className="flex-row">
             <TouchableOpacity
               className="p-2 mr-1"
-              onPress={() => handleCreateInvoice("sales")}
+              onPress={() => handleCreateInvoice("sale")}
             >
               <Ionicons name="add-circle" size={28} color="#10B981" />
             </TouchableOpacity>
@@ -237,7 +237,7 @@ export default function InvoicesScreen() {
             <View className="flex-row mt-6 gap-3">
               <TouchableOpacity
                 className="bg-green-500 px-5 py-3 rounded-lg"
-                onPress={() => handleCreateInvoice("sales")}
+                onPress={() => handleCreateInvoice("sale")}
               >
                 <Text className="text-white font-medium">Sales Invoice</Text>
               </TouchableOpacity>
@@ -260,17 +260,13 @@ export default function InvoicesScreen() {
                 <View className="flex-row items-start">
                   <View
                     className={`w-12 h-12 rounded-xl items-center justify-center ${
-                      invoice.type === "sales"
-                        ? "bg-green-100"
-                        : "bg-orange-100"
+                      invoice.type === "sale" ? "bg-green-100" : "bg-orange-100"
                     }`}
                   >
                     <Ionicons
-                      name={
-                        invoice.type === "sales" ? "arrow-up" : "arrow-down"
-                      }
+                      name={invoice.type === "sale" ? "arrow-up" : "arrow-down"}
                       size={24}
-                      color={invoice.type === "sales" ? "#10B981" : "#F97316"}
+                      color={invoice.type === "sale" ? "#10B981" : "#F97316"}
                     />
                   </View>
                   <View className="flex-1 ml-3">
@@ -296,7 +292,7 @@ export default function InvoicesScreen() {
                       {invoice.party?.name || "No party"}
                     </Text>
                     <Text className="text-xs text-gray-400 mt-1">
-                      {formatDate(invoice.invoice_date)}
+                      {formatDate(invoice.date)}
                       {invoice.due_date &&
                         ` • Due: ${formatDate(invoice.due_date)}`}
                     </Text>
@@ -307,13 +303,13 @@ export default function InvoicesScreen() {
                   <View className="flex-1">
                     <Text className="text-xs text-gray-500">Total</Text>
                     <Text className="text-base font-bold text-gray-900">
-                      {formatAmount(invoice.total_amount)}
+                      {formatAmount(invoice.grand_total)}
                     </Text>
                   </View>
                   <View className="flex-1">
                     <Text className="text-xs text-gray-500">Paid</Text>
                     <Text className="text-base font-medium text-green-600">
-                      {formatAmount(invoice.paid_amount)}
+                      {formatAmount(invoice.amount_paid)}
                     </Text>
                   </View>
                   <View className="flex-1">

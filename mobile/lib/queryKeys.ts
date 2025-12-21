@@ -13,4 +13,16 @@ export const queryKeys = {
   ) => ["account", accountId, "transactions", filters],
   transactions: (filters: Record<string, unknown>) => ["transactions", filters],
   summary: ["summary"],
+  // Organization, Parties, Invoices
+  organizations: ["organizations"],
+  parties: ["parties"],
+  invoices: ["invoices"],
+};
+
+// Alias for QUERY_KEYS (uppercase naming convention)
+export const QUERY_KEYS = {
+  PARTIES: ["parties"],
+  INVOICES: ["invoices"],
+  ORGANIZATIONS: ["organizations"],
+  ...queryKeys,
 };

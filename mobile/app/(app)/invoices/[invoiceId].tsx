@@ -20,19 +20,19 @@ import { getApiErrorMessage } from "../../../lib/api";
 const STATUS_COLORS: Record<InvoiceStatus, { bg: string; text: string }> = {
   draft: { bg: "bg-gray-100", text: "text-gray-600" },
   pending: { bg: "bg-yellow-100", text: "text-yellow-700" },
-  confirmed: { bg: "bg-blue-100", text: "text-blue-700" },
-  completed: { bg: "bg-green-100", text: "text-green-700" },
+  partial: { bg: "bg-blue-100", text: "text-blue-700" },
+  paid: { bg: "bg-green-100", text: "text-green-700" },
   cancelled: { bg: "bg-red-100", text: "text-red-700" },
-  refunded: { bg: "bg-purple-100", text: "text-purple-700" },
+  overdue: { bg: "bg-orange-100", text: "text-orange-700" },
 };
 
 const STATUS_TRANSITIONS: Record<InvoiceStatus, InvoiceStatus[]> = {
-  draft: ["pending", "confirmed", "cancelled"],
-  pending: ["confirmed", "cancelled"],
-  confirmed: ["completed", "cancelled"],
-  completed: ["refunded"],
+  draft: ["pending", "cancelled"],
+  pending: ["partial", "paid", "cancelled"],
+  partial: ["paid", "cancelled"],
+  paid: [],
+  overdue: ["partial", "paid", "cancelled"],
   cancelled: [],
-  refunded: [],
 };
 
 export default function InvoiceDetailScreen() {
@@ -116,7 +116,7 @@ export default function InvoiceDetailScreen() {
     paymentMutation.mutate({
       invoiceId: invoiceId!,
       amount,
-      payment_method: paymentMethod,
+      method: paymentMethod as any,
       reference: paymentReference.trim() || undefined,
     });
   };
@@ -177,13 +177,13 @@ export default function InvoiceDetailScreen() {
             <View className="flex-row items-center">
               <View
                 className={`w-14 h-14 rounded-2xl items-center justify-center ${
-                  invoice.type === "sales" ? "bg-green-100" : "bg-orange-100"
+                  invoice.type === "sale" ? "bg-green-100" : "bg-orange-100"
                 }`}
               >
                 <Ionicons
-                  name={invoice.type === "sales" ? "arrow-up" : "arrow-down"}
+                  name={invoice.type === "sale" ? "arrow-up" : "arrow-down"}
                   size={28}
-                  color={invoice.type === "sales" ? "#10B981" : "#F97316"}
+                  color={invoice.type === "sale" ? "#10B981" : "#F97316"}
                 />
               </View>
               <View className="ml-3">
@@ -247,13 +247,13 @@ export default function InvoiceDetailScreen() {
               <View className="flex-1">
                 <Text className="text-sm text-gray-500">Total Amount</Text>
                 <Text className="text-2xl font-bold text-gray-900 mt-1">
-                  {formatAmount(invoice.total_amount)}
+                  {formatAmount(invoice.grand_total)}
                 </Text>
               </View>
               <View className="flex-1">
                 <Text className="text-sm text-gray-500">Paid</Text>
                 <Text className="text-xl font-semibold text-green-600 mt-1">
-                  {formatAmount(invoice.paid_amount)}
+                  {formatAmount(invoice.amount_paid)}
                 </Text>
               </View>
               <View className="flex-1">
@@ -292,7 +292,7 @@ export default function InvoiceDetailScreen() {
             <View className="flex-1">
               <Text className="text-sm text-gray-500">Invoice Date</Text>
               <Text className="text-base text-gray-900 mt-1">
-                {formatDate(invoice.invoice_date)}
+                {formatDate(invoice.date)}
               </Text>
             </View>
             {invoice.due_date && (
@@ -304,14 +304,6 @@ export default function InvoiceDetailScreen() {
               </View>
             )}
           </View>
-          {invoice.reference && (
-            <View className="mt-3">
-              <Text className="text-sm text-gray-500">Reference</Text>
-              <Text className="text-base text-gray-900 mt-1">
-                {invoice.reference}
-              </Text>
-            </View>
-          )}
         </View>
 
         {/* Line Items */}
@@ -334,7 +326,7 @@ export default function InvoiceDetailScreen() {
                   {item.description}
                 </Text>
                 <Text className="text-base font-medium text-gray-900">
-                  {formatAmount(item.amount)}
+                  {formatAmount(item.total || item.quantity * item.unit_price)}
                 </Text>
               </View>
               <Text className="text-sm text-gray-500 mt-1">
@@ -352,19 +344,19 @@ export default function InvoiceDetailScreen() {
                 {formatAmount(invoice.subtotal)}
               </Text>
             </View>
-            {invoice.tax_amount > 0 && (
+            {invoice.total_tax > 0 && (
               <View className="flex-row justify-between py-1">
                 <Text className="text-sm text-gray-500">Tax</Text>
                 <Text className="text-sm text-gray-900">
-                  {formatAmount(invoice.tax_amount)}
+                  {formatAmount(invoice.total_tax)}
                 </Text>
               </View>
             )}
-            {invoice.discount_amount > 0 && (
+            {invoice.total_discount > 0 && (
               <View className="flex-row justify-between py-1">
                 <Text className="text-sm text-gray-500">Discount</Text>
                 <Text className="text-sm text-red-600">
-                  -{formatAmount(invoice.discount_amount)}
+                  -{formatAmount(invoice.total_discount)}
                 </Text>
               </View>
             )}
@@ -373,7 +365,7 @@ export default function InvoiceDetailScreen() {
                 Total
               </Text>
               <Text className="text-lg font-bold text-gray-900">
-                {formatAmount(invoice.total_amount)}
+                {formatAmount(invoice.grand_total)}
               </Text>
             </View>
           </View>
@@ -402,7 +394,7 @@ export default function InvoiceDetailScreen() {
                     {formatAmount(payment.amount)}
                   </Text>
                   <Text className="text-sm text-gray-500">
-                    {formatDate(payment.date)} • {payment.payment_method}
+                    {formatDate(payment.date)} • {payment.method}
                     {payment.reference && ` • ${payment.reference}`}
                   </Text>
                 </View>
@@ -443,7 +435,7 @@ export default function InvoiceDetailScreen() {
                       status === "cancelled" ? "text-red-600" : "text-blue-600"
                     }`}
                   >
-                    {status === "completed" ? "Mark as Paid" : status}
+                    {status === "paid" ? "Mark as Paid" : status}
                   </Text>
                 </TouchableOpacity>
               ))}

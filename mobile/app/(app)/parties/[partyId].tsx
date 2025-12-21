@@ -227,7 +227,17 @@ export default function PartyDetailScreen() {
                 <View className="flex-1 ml-3">
                   <Text className="text-sm text-gray-500">Address</Text>
                   <Text className="text-base text-gray-900">
-                    {party.address}
+                    {typeof party.address === "string"
+                      ? party.address
+                      : [
+                          party.address.street,
+                          party.address.city,
+                          party.address.state,
+                          party.address.postal_code,
+                          party.address.country,
+                        ]
+                          .filter(Boolean)
+                          .join(", ") || "Not specified"}
                   </Text>
                 </View>
               </View>
@@ -243,9 +253,9 @@ export default function PartyDetailScreen() {
 
           <View className="flex-row">
             <View className="flex-1 pr-2">
-              <Text className="text-sm text-gray-500">Tax Number</Text>
+              <Text className="text-sm text-gray-500">Tax ID</Text>
               <Text className="text-base text-gray-900 mt-1">
-                {party.tax_number || "Not specified"}
+                {party.tax_id || "Not specified"}
               </Text>
             </View>
             <View className="flex-1 pl-2">
@@ -260,9 +270,9 @@ export default function PartyDetailScreen() {
 
           <View className="flex-row mt-4">
             <View className="flex-1 pr-2">
-              <Text className="text-sm text-gray-500">Credit Days</Text>
+              <Text className="text-sm text-gray-500">Payment Terms</Text>
               <Text className="text-base text-gray-900 mt-1">
-                {party.credit_days || "0"} days
+                {party.payment_terms_days || "0"} days
               </Text>
             </View>
             <View className="flex-1 pl-2">
@@ -292,13 +302,13 @@ export default function PartyDetailScreen() {
             <View className="flex-1">
               <Text className="text-sm text-gray-500">Created</Text>
               <Text className="text-sm text-gray-700 mt-1">
-                {new Date(party.created_at).toLocaleDateString()}
+                {new Date(party.createdAt).toLocaleDateString()}
               </Text>
             </View>
             <View className="flex-1">
               <Text className="text-sm text-gray-500">Last Updated</Text>
               <Text className="text-sm text-gray-700 mt-1">
-                {new Date(party.updated_at).toLocaleDateString()}
+                {new Date(party.updatedAt).toLocaleDateString()}
               </Text>
             </View>
           </View>

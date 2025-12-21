@@ -1,36 +1,41 @@
 import { api } from "../lib/api";
 
-export type InvoiceType = "sales" | "purchase";
+export type InvoiceType = "sale" | "purchase";
 export type InvoiceStatus =
   | "draft"
   | "pending"
-  | "confirmed"
-  | "completed"
-  | "cancelled"
-  | "refunded";
+  | "partial"
+  | "paid"
+  | "overdue"
+  | "cancelled";
 export type PaymentMethod =
   | "cash"
   | "bank"
-  | "card"
-  | "upi"
+  | "mobile_wallet"
   | "cheque"
   | "other";
 
 export interface InvoiceLineItem {
+  _id?: string;
   description: string;
   quantity: number;
+  unit?: string;
   unit_price: number;
+  discount?: number;
+  discount_type?: "fixed" | "percent";
   tax_rate: number;
-  tax_amount?: number;
+  subtotal?: number;
   discount_amount?: number;
-  amount: number;
+  tax_amount?: number;
+  total?: number;
+  notes?: string;
 }
 
 export interface InvoicePayment {
   _id?: string;
   date: string;
   amount: number;
-  payment_method: string;
+  method: PaymentMethod;
   account?: string;
   transaction?: string;
   reference?: string;
@@ -53,65 +58,85 @@ export interface Invoice {
     phone?: string;
     email?: string;
   };
-  invoice_date: string;
+  party_name?: string;
+  party_phone?: string;
+  party_address?: string;
+  date: string;
   due_date?: string;
-  reference?: string;
   items: InvoiceLineItem[];
   subtotal: number;
-  tax_amount: number;
-  discount_type?: "percentage" | "fixed";
-  discount_value?: number;
-  discount_amount: number;
-  total_amount: number;
-  paid_amount: number;
+  total_discount: number;
+  total_tax: number;
+  shipping_charge?: number;
+  adjustment?: number;
+  adjustment_description?: string;
+  grand_total: number;
+  amount_paid: number;
   balance_due: number;
   notes?: string;
   terms?: string;
+  internal_notes?: string;
   payments?: InvoicePayment[];
-  created_at: string;
-  updated_at: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface CreateInvoiceParams {
   organization?: string;
   type: InvoiceType;
-  party: string;
-  invoice_date?: string;
+  party?: string;
+  party_name?: string;
+  party_phone?: string;
+  party_address?: string;
+  date?: string;
   due_date?: string;
-  reference?: string;
   items: {
     description: string;
     quantity: number;
+    unit?: string;
     unit_price: number;
+    discount?: number;
+    discount_type?: "fixed" | "percent";
     tax_rate?: number;
+    notes?: string;
   }[];
-  discount_type?: "percentage" | "fixed";
-  discount_value?: number;
+  shipping_charge?: number;
+  adjustment?: number;
+  adjustment_description?: string;
   notes?: string;
   terms?: string;
+  internal_notes?: string;
 }
 
 export interface UpdateInvoiceParams {
   party?: string;
-  invoice_date?: string;
+  party_name?: string;
+  party_phone?: string;
+  party_address?: string;
+  date?: string;
   due_date?: string;
-  reference?: string;
   items?: {
     description: string;
     quantity: number;
+    unit?: string;
     unit_price: number;
+    discount?: number;
+    discount_type?: "fixed" | "percent";
     tax_rate?: number;
+    notes?: string;
   }[];
-  discount_type?: "percentage" | "fixed";
-  discount_value?: number;
+  shipping_charge?: number;
+  adjustment?: number;
+  adjustment_description?: string;
   notes?: string;
   terms?: string;
+  internal_notes?: string;
 }
 
 export interface RecordPaymentParams {
   invoiceId: string;
   amount: number;
-  payment_method?: string;
+  method?: PaymentMethod;
   account?: string;
   reference?: string;
   notes?: string;

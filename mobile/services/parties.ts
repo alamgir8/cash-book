@@ -1,6 +1,14 @@
 import { api } from "../lib/api";
 
-export type PartyType = "customer" | "supplier";
+export type PartyType = "customer" | "supplier" | "both";
+
+export interface PartyAddress {
+  street?: string;
+  city?: string;
+  state?: string;
+  postal_code?: string;
+  country?: string;
+}
 
 export interface Party {
   _id: string;
@@ -11,19 +19,20 @@ export interface Party {
   type: PartyType;
   phone?: string;
   email?: string;
-  address?: string;
+  address?: PartyAddress;
   opening_balance: number;
   current_balance: number;
   credit_limit?: number;
-  credit_days?: number;
-  tax_number?: string;
+  payment_terms_days?: number;
+  tax_id?: string;
   notes?: string;
   tags?: string[];
-  is_active: boolean;
+  archived?: boolean;
   total_transactions: number;
+  total_invoices?: number;
   last_transaction_at?: string;
-  created_at: string;
-  updated_at: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface CreatePartyParams {
@@ -33,11 +42,11 @@ export interface CreatePartyParams {
   code?: string;
   phone?: string;
   email?: string;
-  address?: string;
+  address?: PartyAddress | string;
   opening_balance?: number;
   credit_limit?: number;
-  credit_days?: number;
-  tax_number?: string;
+  payment_terms_days?: number;
+  tax_id?: string;
   notes?: string;
   tags?: string[];
 }
@@ -48,20 +57,20 @@ export interface UpdatePartyParams {
   code?: string;
   phone?: string;
   email?: string;
-  address?: string;
+  address?: PartyAddress | string;
   credit_limit?: number;
-  credit_days?: number;
-  tax_number?: string;
+  payment_terms_days?: number;
+  tax_id?: string;
   notes?: string;
   tags?: string[];
-  is_active?: boolean;
+  archived?: boolean;
 }
 
 export interface ListPartiesParams {
   organization?: string;
   type?: PartyType;
   search?: string;
-  is_active?: boolean;
+  archived?: boolean | "all";
   page?: number;
   limit?: number;
 }

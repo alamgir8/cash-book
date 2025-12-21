@@ -1,356 +1,623 @@
-import React, { useState, useEffect } from "react";
+import { useEffect } from "react";
 import {
   View,
   Text,
   ScrollView,
-  TextInput,
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  TextInput,
 } from "react-native";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, router } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ScreenHeader } from "../../../../components/screen-header";
-import { partiesApi, type PartyType } from "../../../../services/parties";
-import { getApiErrorMessage } from "../../../../lib/api";
+import { partiesApi, PartyType } from "@/services/parties";
+import { getApiErrorMessage } from "@/lib/api";
 import { Ionicons } from "@expo/vector-icons";
+import { QUERY_KEYS } from "@/lib/queryKeys";
+import { z } from "zod";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 
-type FormData = {
-  name: string;
-  type: PartyType;
-  code: string;
-  phone: string;
-  email: string;
-  address: string;
-  tax_number: string;
-  credit_limit: string;
-  credit_days: string;
-  notes: string;
-};
+// Zod validation schema
+const partySchema = z.object({
+  name: z.string().min(2, "Name must be at least 2 characters"),
+  type: z.enum(["customer", "supplier", "both"]),
+  code: z.string().optional(),
+  phone: z.string().optional(),
+  email: z.string().email("Invalid email address").optional().or(z.literal("")),
+  address: z
+    .object({
+      street: z.string().optional(),
+      city: z.string().optional(),
+      state: z.string().optional(),
+      country: z.string().optional(),
+      postal_code: z.string().optional(),
+    })
+    .optional(),
+  tax_id: z.string().optional(),
+  credit_limit: z.string().optional(),
+  payment_terms_days: z.string().optional(),
+  notes: z.string().optional(),
+});
+
+type PartyFormData = z.infer<typeof partySchema>;
 
 export default function EditPartyScreen() {
   const { partyId } = useLocalSearchParams<{ partyId: string }>();
-  const router = useRouter();
   const queryClient = useQueryClient();
 
-  const [formData, setFormData] = useState<FormData>({
-    name: "",
-    type: "customer",
-    code: "",
-    phone: "",
-    email: "",
-    address: "",
-    tax_number: "",
-    credit_limit: "",
-    credit_days: "",
-    notes: "",
+  const {
+    control,
+    handleSubmit,
+    watch,
+    setValue,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm<PartyFormData>({
+    resolver: zodResolver(partySchema),
+    defaultValues: {
+      name: "",
+      type: "customer",
+      code: "",
+      phone: "",
+      email: "",
+      address: {
+        street: "",
+        city: "",
+        state: "",
+        country: "",
+        postal_code: "",
+      },
+      tax_id: "",
+      credit_limit: "",
+      payment_terms_days: "",
+      notes: "",
+    },
   });
 
-  const { data: party, isLoading: isLoadingParty } = useQuery({
+  const selectedType = watch("type");
+
+  // Fetch party data
+  const { data: party, isLoading } = useQuery({
     queryKey: ["party", partyId],
     queryFn: () => partiesApi.get(partyId!),
     enabled: !!partyId,
   });
 
+  // Populate form when party data loads
   useEffect(() => {
     if (party) {
-      setFormData({
+      reset({
         name: party.name,
         type: party.type,
-        code: party.code,
+        code: party.code || "",
         phone: party.phone || "",
         email: party.email || "",
-        address: party.address || "",
-        tax_number: party.tax_number || "",
+        address: {
+          street:
+            typeof party.address === "object"
+              ? party.address?.street || ""
+              : "",
+          city:
+            typeof party.address === "object" ? party.address?.city || "" : "",
+          state:
+            typeof party.address === "object" ? party.address?.state || "" : "",
+          country:
+            typeof party.address === "object"
+              ? party.address?.country || ""
+              : "",
+          postal_code:
+            typeof party.address === "object"
+              ? party.address?.postal_code || ""
+              : "",
+        },
+        tax_id: party.tax_id || "",
         credit_limit: party.credit_limit?.toString() || "",
-        credit_days: party.credit_days?.toString() || "",
+        payment_terms_days: party.payment_terms_days?.toString() || "",
         notes: party.notes || "",
       });
     }
-  }, [party]);
+  }, [party, reset]);
 
-  const mutation = useMutation({
+  const updateMutation = useMutation({
     mutationFn: (data: Parameters<typeof partiesApi.update>[1]) =>
       partiesApi.update(partyId!, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["parties"] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PARTIES });
       queryClient.invalidateQueries({ queryKey: ["party", partyId] });
       Alert.alert("Success", "Party updated successfully", [
         { text: "OK", onPress: () => router.back() },
       ]);
     },
-    onError: (error) => {
+    onError: (error: any) => {
       Alert.alert("Error", getApiErrorMessage(error));
     },
   });
 
-  const handleSubmit = () => {
-    if (!formData.name.trim()) {
-      Alert.alert("Error", "Please enter a party name");
-      return;
-    }
-
-    mutation.mutate({
-      name: formData.name.trim(),
-      type: formData.type,
-      code: formData.code.trim() || undefined,
-      phone: formData.phone.trim() || undefined,
-      email: formData.email.trim() || undefined,
-      address: formData.address.trim() || undefined,
-      tax_number: formData.tax_number.trim() || undefined,
-      credit_limit: formData.credit_limit
-        ? parseFloat(formData.credit_limit)
+  const onSubmit = (data: PartyFormData) => {
+    updateMutation.mutate({
+      name: data.name,
+      type: data.type,
+      code: data.code || undefined,
+      phone: data.phone || undefined,
+      email: data.email || undefined,
+      address: data.address,
+      tax_id: data.tax_id || undefined,
+      credit_limit: data.credit_limit
+        ? parseFloat(data.credit_limit)
         : undefined,
-      credit_days: formData.credit_days
-        ? parseInt(formData.credit_days, 10)
+      payment_terms_days: data.payment_terms_days
+        ? parseInt(data.payment_terms_days)
         : undefined,
-      notes: formData.notes.trim() || undefined,
+      notes: data.notes || undefined,
     });
   };
 
-  const updateField = <K extends keyof FormData>(
-    field: K,
-    value: FormData[K]
-  ) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-  };
+  const partyTypes: {
+    value: PartyType;
+    label: string;
+    icon: string;
+    color: string;
+  }[] = [
+    {
+      value: "customer",
+      label: "Customer",
+      icon: "person-outline",
+      color: "#10B981",
+    },
+    {
+      value: "supplier",
+      label: "Supplier",
+      icon: "business-outline",
+      color: "#6366F1",
+    },
+    { value: "both", label: "Both", icon: "people-outline", color: "#F59E0B" },
+  ];
 
-  if (isLoadingParty) {
+  if (isLoading) {
     return (
-      <SafeAreaView className="flex-1 bg-white">
-        <ScreenHeader title="Edit Party" showBack />
+      <SafeAreaView className="flex-1 bg-slate-50" edges={["top"]}>
+        <View className="flex-row items-center justify-between px-5 py-4 bg-white border-b border-slate-100">
+          <TouchableOpacity
+            onPress={() => router.back()}
+            className="w-10 h-10 items-center justify-center rounded-full bg-slate-100"
+          >
+            <Ionicons name="arrow-back" size={22} color="#334155" />
+          </TouchableOpacity>
+          <Text className="text-lg font-semibold text-slate-800">
+            Edit Party
+          </Text>
+          <View className="w-10" />
+        </View>
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#3B82F6" />
+          <ActivityIndicator size="large" color="#6366F1" />
+          <Text className="text-slate-500 mt-4">Loading party...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-gray-50">
-      <ScreenHeader title="Edit Party" showBack />
-
-      <ScrollView className="flex-1 p-4">
-        {/* Party Type */}
-        <View className="bg-white rounded-xl p-4 mb-4 border border-gray-100">
-          <Text className="text-sm font-medium text-gray-700 mb-3">
-            Party Type
+    <SafeAreaView className="flex-1 bg-slate-50" edges={["top"]}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        className="flex-1"
+      >
+        {/* Header */}
+        <View className="flex-row items-center justify-between px-5 py-4 bg-white border-b border-slate-100">
+          <TouchableOpacity
+            onPress={() => router.back()}
+            className="w-10 h-10 items-center justify-center rounded-full bg-slate-100"
+          >
+            <Ionicons name="arrow-back" size={22} color="#334155" />
+          </TouchableOpacity>
+          <Text className="text-lg font-semibold text-slate-800">
+            Edit Party
           </Text>
-          <View className="flex-row gap-3">
-            <TouchableOpacity
-              className={`flex-1 flex-row items-center justify-center py-3 rounded-lg border-2 ${
-                formData.type === "customer"
-                  ? "border-green-500 bg-green-50"
-                  : "border-gray-200 bg-white"
-              }`}
-              onPress={() => updateField("type", "customer")}
-            >
-              <Ionicons
-                name="person"
-                size={20}
-                color={formData.type === "customer" ? "#10B981" : "#9CA3AF"}
-              />
-              <Text
-                className={`ml-2 font-medium ${
-                  formData.type === "customer"
-                    ? "text-green-700"
-                    : "text-gray-500"
-                }`}
-              >
-                Customer
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              className={`flex-1 flex-row items-center justify-center py-3 rounded-lg border-2 ${
-                formData.type === "supplier"
-                  ? "border-orange-500 bg-orange-50"
-                  : "border-gray-200 bg-white"
-              }`}
-              onPress={() => updateField("type", "supplier")}
-            >
-              <Ionicons
-                name="storefront"
-                size={20}
-                color={formData.type === "supplier" ? "#F97316" : "#9CA3AF"}
-              />
-              <Text
-                className={`ml-2 font-medium ${
-                  formData.type === "supplier"
-                    ? "text-orange-700"
-                    : "text-gray-500"
-                }`}
-              >
-                Supplier
-              </Text>
-            </TouchableOpacity>
-          </View>
+          <View className="w-10" />
         </View>
 
-        {/* Basic Info */}
-        <View className="bg-white rounded-xl p-4 mb-4 border border-gray-100">
-          <Text className="text-sm font-semibold text-gray-900 mb-4">
-            Basic Information
-          </Text>
-
-          <View className="mb-4">
-            <Text className="text-sm font-medium text-gray-700 mb-1">
-              Name *
+        <ScrollView
+          className="flex-1"
+          contentContainerStyle={{ paddingBottom: 100 }}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Party Type Selection */}
+          <View className="bg-white mx-4 mt-4 rounded-2xl p-5 shadow-sm">
+            <Text className="text-base font-semibold text-slate-800 mb-4">
+              Party Type <Text className="text-red-500">*</Text>
             </Text>
-            <TextInput
-              className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-base text-gray-900"
-              placeholder="Enter party name"
-              value={formData.name}
-              onChangeText={(v) => updateField("name", v)}
-              placeholderTextColor="#9CA3AF"
-            />
+            <View className="flex-row gap-3">
+              {partyTypes.map((type) => (
+                <TouchableOpacity
+                  key={type.value}
+                  onPress={() => setValue("type", type.value)}
+                  className={`flex-1 p-4 rounded-xl border-2 items-center ${
+                    selectedType === type.value
+                      ? "border-indigo-500 bg-indigo-50"
+                      : "border-slate-200 bg-slate-50"
+                  }`}
+                >
+                  <View
+                    className="w-12 h-12 rounded-full items-center justify-center mb-2"
+                    style={{
+                      backgroundColor:
+                        selectedType === type.value
+                          ? type.color + "20"
+                          : "#F1F5F9",
+                    }}
+                  >
+                    <Ionicons
+                      name={type.icon as any}
+                      size={24}
+                      color={
+                        selectedType === type.value ? type.color : "#94A3B8"
+                      }
+                    />
+                  </View>
+                  <Text
+                    className={`text-sm font-medium ${
+                      selectedType === type.value
+                        ? "text-indigo-600"
+                        : "text-slate-500"
+                    }`}
+                  >
+                    {type.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
 
-          <View className="mb-4">
-            <Text className="text-sm font-medium text-gray-700 mb-1">Code</Text>
-            <TextInput
-              className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-base text-gray-900"
-              placeholder="Party code"
-              value={formData.code}
-              onChangeText={(v) => updateField("code", v)}
-              placeholderTextColor="#9CA3AF"
-              autoCapitalize="characters"
-            />
-          </View>
+          {/* Basic Information */}
+          <View className="bg-white mx-4 mt-4 rounded-2xl p-5 shadow-sm">
+            <Text className="text-base font-semibold text-slate-800 mb-4">
+              Basic Information
+            </Text>
 
-          <View className="flex-row gap-3">
-            <View className="flex-1">
-              <Text className="text-sm font-medium text-gray-700 mb-1">
+            {/* Name */}
+            <View className="mb-4">
+              <Text className="text-sm font-medium text-slate-600 mb-2">
+                Name <Text className="text-red-500">*</Text>
+              </Text>
+              <Controller
+                control={control}
+                name="name"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <TextInput
+                    value={value}
+                    onChangeText={onChange}
+                    onBlur={onBlur}
+                    placeholder="Enter party name"
+                    placeholderTextColor="#94A3B8"
+                    className={`bg-slate-50 border rounded-xl px-4 py-3.5 text-slate-800 text-base ${
+                      errors.name ? "border-red-400" : "border-slate-200"
+                    }`}
+                  />
+                )}
+              />
+              {errors.name && (
+                <Text className="text-red-500 text-sm mt-1">
+                  {errors.name.message}
+                </Text>
+              )}
+            </View>
+
+            {/* Code */}
+            <View className="mb-4">
+              <Text className="text-sm font-medium text-slate-600 mb-2">
+                Code
+              </Text>
+              <Controller
+                control={control}
+                name="code"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <TextInput
+                    value={value}
+                    onChangeText={onChange}
+                    onBlur={onBlur}
+                    placeholder="Enter party code (optional)"
+                    placeholderTextColor="#94A3B8"
+                    className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3.5 text-slate-800 text-base"
+                  />
+                )}
+              />
+            </View>
+
+            {/* Phone */}
+            <View className="mb-4">
+              <Text className="text-sm font-medium text-slate-600 mb-2">
                 Phone
               </Text>
-              <TextInput
-                className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-base text-gray-900"
-                placeholder="Phone number"
-                value={formData.phone}
-                onChangeText={(v) => updateField("phone", v)}
-                placeholderTextColor="#9CA3AF"
-                keyboardType="phone-pad"
+              <Controller
+                control={control}
+                name="phone"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <TextInput
+                    value={value}
+                    onChangeText={onChange}
+                    onBlur={onBlur}
+                    placeholder="Enter phone number"
+                    placeholderTextColor="#94A3B8"
+                    keyboardType="phone-pad"
+                    className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3.5 text-slate-800 text-base"
+                  />
+                )}
               />
             </View>
-            <View className="flex-1">
-              <Text className="text-sm font-medium text-gray-700 mb-1">
+
+            {/* Email */}
+            <View className="mb-0">
+              <Text className="text-sm font-medium text-slate-600 mb-2">
                 Email
               </Text>
-              <TextInput
-                className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-base text-gray-900"
-                placeholder="Email address"
-                value={formData.email}
-                onChangeText={(v) => updateField("email", v)}
-                placeholderTextColor="#9CA3AF"
-                keyboardType="email-address"
-                autoCapitalize="none"
+              <Controller
+                control={control}
+                name="email"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <TextInput
+                    value={value}
+                    onChangeText={onChange}
+                    onBlur={onBlur}
+                    placeholder="Enter email address"
+                    placeholderTextColor="#94A3B8"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    className={`bg-slate-50 border rounded-xl px-4 py-3.5 text-slate-800 text-base ${
+                      errors.email ? "border-red-400" : "border-slate-200"
+                    }`}
+                  />
+                )}
+              />
+              {errors.email && (
+                <Text className="text-red-500 text-sm mt-1">
+                  {errors.email.message}
+                </Text>
+              )}
+            </View>
+          </View>
+
+          {/* Address & Tax */}
+          <View className="bg-white mx-4 mt-4 rounded-2xl p-5 shadow-sm">
+            <Text className="text-base font-semibold text-slate-800 mb-4">
+              Address & Tax
+            </Text>
+
+            {/* Street */}
+            <View className="mb-4">
+              <Text className="text-sm font-medium text-slate-600 mb-2">
+                Street Address
+              </Text>
+              <Controller
+                control={control}
+                name="address.street"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <TextInput
+                    value={value}
+                    onChangeText={onChange}
+                    onBlur={onBlur}
+                    placeholder="Enter street address"
+                    placeholderTextColor="#94A3B8"
+                    className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3.5 text-slate-800 text-base"
+                  />
+                )}
+              />
+            </View>
+
+            {/* City & State Row */}
+            <View className="flex-row gap-3 mb-4">
+              <View className="flex-1">
+                <Text className="text-sm font-medium text-slate-600 mb-2">
+                  City
+                </Text>
+                <Controller
+                  control={control}
+                  name="address.city"
+                  render={({ field: { onChange, onBlur, value } }) => (
+                    <TextInput
+                      value={value}
+                      onChangeText={onChange}
+                      onBlur={onBlur}
+                      placeholder="City"
+                      placeholderTextColor="#94A3B8"
+                      className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3.5 text-slate-800 text-base"
+                    />
+                  )}
+                />
+              </View>
+              <View className="flex-1">
+                <Text className="text-sm font-medium text-slate-600 mb-2">
+                  State
+                </Text>
+                <Controller
+                  control={control}
+                  name="address.state"
+                  render={({ field: { onChange, onBlur, value } }) => (
+                    <TextInput
+                      value={value}
+                      onChangeText={onChange}
+                      onBlur={onBlur}
+                      placeholder="State"
+                      placeholderTextColor="#94A3B8"
+                      className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3.5 text-slate-800 text-base"
+                    />
+                  )}
+                />
+              </View>
+            </View>
+
+            {/* Country & Postal Code Row */}
+            <View className="flex-row gap-3 mb-4">
+              <View className="flex-1">
+                <Text className="text-sm font-medium text-slate-600 mb-2">
+                  Country
+                </Text>
+                <Controller
+                  control={control}
+                  name="address.country"
+                  render={({ field: { onChange, onBlur, value } }) => (
+                    <TextInput
+                      value={value}
+                      onChangeText={onChange}
+                      onBlur={onBlur}
+                      placeholder="Country"
+                      placeholderTextColor="#94A3B8"
+                      className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3.5 text-slate-800 text-base"
+                    />
+                  )}
+                />
+              </View>
+              <View className="flex-1">
+                <Text className="text-sm font-medium text-slate-600 mb-2">
+                  Postal Code
+                </Text>
+                <Controller
+                  control={control}
+                  name="address.postal_code"
+                  render={({ field: { onChange, onBlur, value } }) => (
+                    <TextInput
+                      value={value}
+                      onChangeText={onChange}
+                      onBlur={onBlur}
+                      placeholder="Postal"
+                      placeholderTextColor="#94A3B8"
+                      className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3.5 text-slate-800 text-base"
+                    />
+                  )}
+                />
+              </View>
+            </View>
+
+            {/* Tax ID */}
+            <View className="mb-0">
+              <Text className="text-sm font-medium text-slate-600 mb-2">
+                Tax ID / GST Number
+              </Text>
+              <Controller
+                control={control}
+                name="tax_id"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <TextInput
+                    value={value}
+                    onChangeText={onChange}
+                    onBlur={onBlur}
+                    placeholder="Enter Tax ID or GST Number"
+                    placeholderTextColor="#94A3B8"
+                    className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3.5 text-slate-800 text-base"
+                  />
+                )}
               />
             </View>
           </View>
-        </View>
 
-        {/* Address & Tax */}
-        <View className="bg-white rounded-xl p-4 mb-4 border border-gray-100">
-          <Text className="text-sm font-semibold text-gray-900 mb-4">
-            Address & Tax
-          </Text>
-
-          <View className="mb-4">
-            <Text className="text-sm font-medium text-gray-700 mb-1">
-              Address
+          {/* Credit Settings */}
+          <View className="bg-white mx-4 mt-4 rounded-2xl p-5 shadow-sm">
+            <Text className="text-base font-semibold text-slate-800 mb-4">
+              Credit Settings
             </Text>
-            <TextInput
-              className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-base text-gray-900"
-              placeholder="Full address"
-              value={formData.address}
-              onChangeText={(v) => updateField("address", v)}
-              placeholderTextColor="#9CA3AF"
-              multiline
-              numberOfLines={2}
+
+            <View className="flex-row gap-3">
+              <View className="flex-1">
+                <Text className="text-sm font-medium text-slate-600 mb-2">
+                  Credit Limit
+                </Text>
+                <Controller
+                  control={control}
+                  name="credit_limit"
+                  render={({ field: { onChange, onBlur, value } }) => (
+                    <TextInput
+                      value={value}
+                      onChangeText={onChange}
+                      onBlur={onBlur}
+                      placeholder="0.00"
+                      placeholderTextColor="#94A3B8"
+                      keyboardType="decimal-pad"
+                      className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3.5 text-slate-800 text-base"
+                    />
+                  )}
+                />
+              </View>
+              <View className="flex-1">
+                <Text className="text-sm font-medium text-slate-600 mb-2">
+                  Payment Terms (Days)
+                </Text>
+                <Controller
+                  control={control}
+                  name="payment_terms_days"
+                  render={({ field: { onChange, onBlur, value } }) => (
+                    <TextInput
+                      value={value}
+                      onChangeText={onChange}
+                      onBlur={onBlur}
+                      placeholder="30"
+                      placeholderTextColor="#94A3B8"
+                      keyboardType="number-pad"
+                      className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3.5 text-slate-800 text-base"
+                    />
+                  )}
+                />
+              </View>
+            </View>
+          </View>
+
+          {/* Notes */}
+          <View className="bg-white mx-4 mt-4 rounded-2xl p-5 shadow-sm">
+            <Text className="text-base font-semibold text-slate-800 mb-4">
+              Notes
+            </Text>
+            <Controller
+              control={control}
+              name="notes"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  value={value}
+                  onChangeText={onChange}
+                  onBlur={onBlur}
+                  placeholder="Add any additional notes..."
+                  placeholderTextColor="#94A3B8"
+                  multiline
+                  numberOfLines={4}
+                  textAlignVertical="top"
+                  className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3.5 text-slate-800 text-base min-h-[100px]"
+                />
+              )}
             />
           </View>
-
-          <View>
-            <Text className="text-sm font-medium text-gray-700 mb-1">
-              Tax Number / GST / VAT
-            </Text>
-            <TextInput
-              className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-base text-gray-900"
-              placeholder="Tax identification number"
-              value={formData.tax_number}
-              onChangeText={(v) => updateField("tax_number", v)}
-              placeholderTextColor="#9CA3AF"
-            />
-          </View>
-        </View>
-
-        {/* Credit Settings */}
-        <View className="bg-white rounded-xl p-4 mb-4 border border-gray-100">
-          <Text className="text-sm font-semibold text-gray-900 mb-4">
-            Credit Settings
-          </Text>
-
-          <View className="flex-row gap-3">
-            <View className="flex-1">
-              <Text className="text-sm font-medium text-gray-700 mb-1">
-                Credit Limit
-              </Text>
-              <TextInput
-                className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-base text-gray-900"
-                placeholder="0"
-                value={formData.credit_limit}
-                onChangeText={(v) => updateField("credit_limit", v)}
-                placeholderTextColor="#9CA3AF"
-                keyboardType="decimal-pad"
-              />
-            </View>
-            <View className="flex-1">
-              <Text className="text-sm font-medium text-gray-700 mb-1">
-                Credit Days
-              </Text>
-              <TextInput
-                className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-base text-gray-900"
-                placeholder="30"
-                value={formData.credit_days}
-                onChangeText={(v) => updateField("credit_days", v)}
-                placeholderTextColor="#9CA3AF"
-                keyboardType="number-pad"
-              />
-            </View>
-          </View>
-        </View>
-
-        {/* Notes */}
-        <View className="bg-white rounded-xl p-4 mb-4 border border-gray-100">
-          <Text className="text-sm font-medium text-gray-700 mb-1">Notes</Text>
-          <TextInput
-            className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-base text-gray-900"
-            placeholder="Additional notes..."
-            value={formData.notes}
-            onChangeText={(v) => updateField("notes", v)}
-            placeholderTextColor="#9CA3AF"
-            multiline
-            numberOfLines={3}
-          />
-        </View>
+        </ScrollView>
 
         {/* Submit Button */}
-        <TouchableOpacity
-          className={`py-4 rounded-xl mb-8 ${
-            mutation.isPending ? "bg-blue-300" : "bg-blue-500"
-          }`}
-          onPress={handleSubmit}
-          disabled={mutation.isPending}
-        >
-          {mutation.isPending ? (
-            <ActivityIndicator color="white" />
-          ) : (
-            <Text className="text-center text-white font-semibold text-base">
-              Update Party
-            </Text>
-          )}
-        </TouchableOpacity>
-      </ScrollView>
+        <View className="absolute bottom-0 left-0 right-0 bg-white px-5 py-4 border-t border-slate-100">
+          <TouchableOpacity
+            onPress={handleSubmit(onSubmit)}
+            disabled={updateMutation.isPending || isSubmitting}
+            className={`rounded-xl py-4 items-center ${
+              updateMutation.isPending || isSubmitting
+                ? "bg-indigo-300"
+                : "bg-indigo-600"
+            }`}
+          >
+            {updateMutation.isPending ? (
+              <Text className="text-white font-semibold text-base">
+                Updating...
+              </Text>
+            ) : (
+              <View className="flex-row items-center">
+                <Ionicons
+                  name="checkmark-circle-outline"
+                  size={22}
+                  color="white"
+                />
+                <Text className="text-white font-semibold text-base ml-2">
+                  Update Party
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
