@@ -136,7 +136,7 @@ export default function OrganizationsScreen() {
       <ScreenHeader
         title="Organizations"
         showBack
-        goBack
+        onBack={() => router.push("/settings")}
         rightAction={
           <TouchableOpacity
             className="p-2"

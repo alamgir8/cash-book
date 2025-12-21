@@ -11,7 +11,7 @@ interface ScreenHeaderProps {
   gradientFrom?: string;
   gradientTo?: string;
   showBack?: boolean;
-  goBack?: boolean;
+  onBack?: () => void;
   rightAction?: React.ReactNode;
   actionButton?: {
     label: string;
@@ -25,22 +25,20 @@ export function ScreenHeader({
   title,
   subtitle,
   icon,
-  goBack = false,
   iconColor = "#1d4ed8",
   backgroundColor = "#ffffff",
   showBack,
+  onBack,
   rightAction,
   actionButton,
 }: ScreenHeaderProps) {
   const router = useRouter();
 
   const handleBack = () => {
-    console.log("handleBack", router, "goBack", goBack);
-
-    if (router.canGoBack() || goBack) {
-      router.back();
+    if (onBack) {
+      onBack();
     } else {
-      router.push("/(app)");
+      router.back();
     }
   };
 

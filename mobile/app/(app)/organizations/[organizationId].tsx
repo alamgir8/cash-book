@@ -5,7 +5,7 @@ import {
   RefreshControl,
   ActivityIndicator,
 } from "react-native";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ScreenHeader } from "../../../components/screen-header";
 import {
@@ -22,6 +22,7 @@ import { MemberList } from "../../../components/organization/member-list";
 export default function OrganizationDetailScreen() {
   const { organizationId } = useLocalSearchParams<{ organizationId: string }>();
   const queryClient = useQueryClient();
+  const router = useRouter();
 
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -128,7 +129,7 @@ export default function OrganizationDetailScreen() {
       <ScreenHeader
         title={organization?.name || "Organization"}
         showBack
-        goBack
+        onBack={() => router.push("/organizations")}
       />
 
       <ScrollView
