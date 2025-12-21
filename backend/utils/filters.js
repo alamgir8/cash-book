@@ -37,13 +37,21 @@ const asObjectIdArray = (ids = []) =>
 
 export const buildTransactionFilters = ({
   adminId,
+  organizationId,
   query,
   categoryScope,
 }) => {
-  const filter = {
-    admin: new mongoose.Types.ObjectId(adminId),
-    is_deleted: false,
-  };
+  // Build base filter based on organization or personal context
+  const filter = organizationId
+    ? {
+        organization: new mongoose.Types.ObjectId(organizationId),
+        is_deleted: false,
+      }
+    : {
+        admin: new mongoose.Types.ObjectId(adminId),
+        organization: { $exists: false },
+        is_deleted: false,
+      };
 
   if (query.accountId || query.account_id) {
     const accountId = query.accountId ?? query.account_id;
@@ -89,9 +97,8 @@ export const buildTransactionFilters = ({
       scopeClauses.push({ category_id: { $in: [] } });
     }
 
-    const scopeCondition = scopeClauses.length === 1
-      ? scopeClauses[0]
-      : { $or: scopeClauses };
+    const scopeCondition =
+      scopeClauses.length === 1 ? scopeClauses[0] : { $or: scopeClauses };
 
     const userCategoryCondition = filter.category_id;
     if (userCategoryCondition) {

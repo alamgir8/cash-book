@@ -23,6 +23,11 @@ const CATEGORY_FLOW = ["credit", "debit"];
 
 const categorySchema = new Schema(
   {
+    organization: {
+      type: Schema.Types.ObjectId,
+      ref: "Organization",
+      index: true,
+    },
     admin: {
       type: Schema.Types.ObjectId,
       ref: "Admin",
@@ -68,10 +73,25 @@ const categorySchema = new Schema(
   { timestamps: true }
 );
 
+// Personal categories (no organization)
 categorySchema.index(
   { admin: 1, type: 1, name: 1 },
-  { unique: true, collation: { locale: "en", strength: 2 } }
+  {
+    unique: true,
+    collation: { locale: "en", strength: 2 },
+    partialFilterExpression: { organization: { $exists: false } },
+  }
 );
+// Organization categories
+categorySchema.index(
+  { organization: 1, type: 1, name: 1 },
+  {
+    unique: true,
+    collation: { locale: "en", strength: 2 },
+    partialFilterExpression: { organization: { $exists: true } },
+  }
+);
+categorySchema.index({ organization: 1, admin: 1 });
 
 categorySchema.pre("validate", function (next) {
   if (this.type) {

@@ -4,6 +4,11 @@ const ACCOUNT_KINDS = ["cash", "bank", "wallet", "mobile_wallet", "other"];
 
 const accountSchema = new mongoose.Schema(
   {
+    organization: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Organization",
+      index: true,
+    },
     admin: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Admin",
@@ -54,11 +59,19 @@ const accountSchema = new mongoose.Schema(
   }
 );
 
-accountSchema.index({ admin: 1, name: 1 }, { unique: true });
-
-export const Account = mongoose.model(
-  "Account",
-  accountSchema,
-  "accounts"
+// Updated index to support both personal and organization accounts
+accountSchema.index(
+  { admin: 1, name: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { organization: { $exists: false } },
+  }
 );
+accountSchema.index(
+  { organization: 1, name: 1 },
+  { unique: true, partialFilterExpression: { organization: { $exists: true } } }
+);
+accountSchema.index({ organization: 1, admin: 1 });
+
+export const Account = mongoose.model("Account", accountSchema, "accounts");
 export const ACCOUNT_KIND_OPTIONS = ACCOUNT_KINDS;

@@ -5,6 +5,9 @@ import categoryRoutes from "./category.routes.js";
 import transactionRoutes from "./transaction.routes.js";
 import reportRoutes from "./report.routes.js";
 import backupRoutes from "./backup.routes.js";
+import organizationRoutes from "./organization.routes.js";
+import partyRoutes from "./party.routes.js";
+import invoiceRoutes from "./invoice.routes.js";
 
 const router = Router();
 
@@ -14,5 +17,8 @@ router.use("/categories", categoryRoutes);
 router.use("/transactions", transactionRoutes);
 router.use("/reports", reportRoutes);
 router.use("/backup", backupRoutes);
+router.use("/organizations", organizationRoutes);
+router.use("/parties", partyRoutes);
+router.use("/invoices", invoiceRoutes);
 
 export default router;

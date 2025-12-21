@@ -7,6 +7,7 @@ import { Transfer } from "../models/Transfer.js";
 import { buildTransactionFilters } from "../utils/filters.js";
 import { resolveFinancialCategoryScope } from "../utils/financialCategories.js";
 import { recomputeDescendingBalances } from "../utils/balance.js";
+import { checkOrgAccess, getOrgFromRequest } from "../utils/organization.js";
 
 const parseTransactionDate = (value) => {
   if (!value) {
@@ -38,15 +39,28 @@ const adjustAccountBalance = async ({
   return account.current_balance;
 };
 
-const loadAccount = async ({ adminId, accountId }) => {
+const loadAccount = async ({ adminId, accountId, organizationId }) => {
+  if (organizationId) {
+    return Account.findOne({
+      _id: accountId,
+      organization: organizationId,
+    });
+  }
   return Account.findOne({
     _id: accountId,
     admin: adminId,
   });
 };
 
-const loadCategory = async ({ adminId, categoryId }) => {
+const loadCategory = async ({ adminId, categoryId, organizationId }) => {
   if (!categoryId) return null;
+  if (organizationId) {
+    return Category.findOne({
+      _id: categoryId,
+      organization: organizationId,
+      archived: { $ne: true },
+    });
+  }
   return Category.findOne({
     _id: categoryId,
     admin: adminId,
@@ -105,7 +119,11 @@ const applyTransferIdempotency = async ({ adminId, clientRequestId }) => {
   });
 };
 
-const extractAccountBalanceMap = async ({ adminId, transactions }) => {
+const extractAccountBalanceMap = async ({
+  adminId,
+  organizationId,
+  transactions,
+}) => {
   const accountIds = Array.from(
     new Set(
       transactions
@@ -129,10 +147,11 @@ const extractAccountBalanceMap = async ({ adminId, transactions }) => {
     return new Map();
   }
 
-  const accounts = await Account.find({
-    admin: adminId,
-    _id: { $in: accountIds },
-  })
+  const filter = organizationId
+    ? { organization: organizationId, _id: { $in: accountIds } }
+    : { admin: adminId, _id: { $in: accountIds } };
+
+  const accounts = await Account.find(filter)
     .select("_id current_balance")
     .lean();
 
@@ -146,6 +165,20 @@ const extractAccountBalanceMap = async ({ adminId, transactions }) => {
 
 export const listTransactions = async (req, res, next) => {
   try {
+    const organizationId = getOrgFromRequest(req);
+
+    // Check organization access if provided
+    if (organizationId) {
+      const access = await checkOrgAccess(
+        req.user.id,
+        organizationId,
+        "view_transactions"
+      );
+      if (!access.hasAccess) {
+        return res.status(403).json({ message: access.error });
+      }
+    }
+
     const financialScope =
       req.query.financialScope ?? req.query.financial_scope ?? null;
 
@@ -159,6 +192,7 @@ export const listTransactions = async (req, res, next) => {
 
     const filter = buildTransactionFilters({
       adminId: req.user.id,
+      organizationId,
       query: req.query,
       categoryScope,
     });
@@ -183,6 +217,7 @@ export const listTransactions = async (req, res, next) => {
     if (baseTransactions.length > 0) {
       const accountBalances = await extractAccountBalanceMap({
         adminId: req.user.id,
+        organizationId,
         transactions: baseTransactions,
       });
       recomputeDescendingBalances({
@@ -197,6 +232,7 @@ export const listTransactions = async (req, res, next) => {
     const transactions = await Transaction.find(filter)
       .populate("account", "name kind")
       .populate("category_id", "name type")
+      .populate("party", "name code type")
       .sort({ date: -1, createdAt: -1, _id: -1 })
       .skip(skip)
       .limit(limit)
@@ -229,16 +265,28 @@ export const getTransaction = async (req, res, next) => {
   try {
     const { transactionId } = req.params;
 
-    const transaction = await Transaction.findOne({
-      _id: transactionId,
-      admin: req.user.id,
-    })
+    const transaction = await Transaction.findById(transactionId)
       .populate("account", "name kind")
       .populate("category_id", "name type")
+      .populate("party", "name code type")
       .lean();
 
     if (!transaction || transaction.is_deleted) {
       return res.status(404).json({ message: "Transaction not found" });
+    }
+
+    // Check access
+    if (transaction.organization) {
+      const access = await checkOrgAccess(
+        req.user.id,
+        transaction.organization,
+        "view_transactions"
+      );
+      if (!access.hasAccess) {
+        return res.status(403).json({ message: access.error });
+      }
+    } else if (transaction.admin.toString() !== req.user.id) {
+      return res.status(403).json({ message: "Access denied" });
     }
 
     res.json({ transaction });
@@ -261,7 +309,21 @@ export const createTransaction = async (req, res, next) => {
       category_id: categoryIdAlias,
       categoryId,
       meta_data: metaData,
+      organization,
+      party,
     } = req.body;
+
+    // Check organization access if provided
+    if (organization) {
+      const access = await checkOrgAccess(
+        req.user.id,
+        organization,
+        "create_transactions"
+      );
+      if (!access.hasAccess) {
+        return res.status(403).json({ message: access.error });
+      }
+    }
 
     const idempotencyKey = extractIdempotencyKey(req);
     const existing = await applyIdempotency({
@@ -282,6 +344,7 @@ export const createTransaction = async (req, res, next) => {
     const account = await loadAccount({
       adminId: req.user.id,
       accountId: accountIdentifier,
+      organizationId: organization,
     });
 
     if (!account) {
@@ -294,6 +357,7 @@ export const createTransaction = async (req, res, next) => {
       categoryDocument = await loadCategory({
         adminId: req.user.id,
         categoryId: categoryIdentifier,
+        organizationId: organization,
       });
       if (!categoryDocument) {
         return res.status(404).json({ message: "Category not found" });
@@ -309,8 +373,10 @@ export const createTransaction = async (req, res, next) => {
 
     const transactionPayload = {
       admin: req.user.id,
+      organization,
       account: account._id,
       category_id: categoryDocument?._id,
+      party,
       type,
       amount,
       date: txnDate,
@@ -360,7 +426,20 @@ export const createTransfer = async (req, res, next) => {
       keyword,
       counterparty,
       meta_data: metaData,
+      organization,
     } = req.body;
+
+    // Check organization access if provided
+    if (organization) {
+      const access = await checkOrgAccess(
+        req.user.id,
+        organization,
+        "create_transactions"
+      );
+      if (!access.hasAccess) {
+        return res.status(403).json({ message: access.error });
+      }
+    }
 
     const idempotencyKey = extractIdempotencyKey(req);
     const existingTransfer = await applyTransferIdempotency({
@@ -393,10 +472,12 @@ export const createTransfer = async (req, res, next) => {
       loadAccount({
         adminId: req.user.id,
         accountId: sourceAccountId,
+        organizationId: organization,
       }),
       loadAccount({
         adminId: req.user.id,
         accountId: destinationAccountId,
+        organizationId: organization,
       }),
     ]);
 
@@ -425,6 +506,7 @@ export const createTransfer = async (req, res, next) => {
 
     const debitTransaction = new Transaction({
       admin: req.user.id,
+      organization,
       account: sourceAccount._id,
       type: "debit",
       amount,
@@ -440,6 +522,7 @@ export const createTransfer = async (req, res, next) => {
 
     const creditTransaction = new Transaction({
       admin: req.user.id,
+      organization,
       account: destinationAccount._id,
       type: "credit",
       amount,
@@ -484,6 +567,7 @@ export const createTransfer = async (req, res, next) => {
       const transferDocument = new Transfer({
         _id: transferId,
         admin: req.user.id,
+        organization,
         from_account: sourceAccount._id,
         to_account: destinationAccount._id,
         amount,
@@ -554,19 +638,32 @@ export const updateTransaction = async (req, res, next) => {
       meta_data: metaData,
     } = req.body;
 
-    const transaction = await Transaction.findOne({
-      _id: transactionId,
-      admin: req.user.id,
-      is_deleted: { $ne: true },
-    });
+    const transaction = await Transaction.findById(transactionId);
 
-    if (!transaction) {
+    if (!transaction || transaction.is_deleted) {
       return res.status(404).json({ message: "Transaction not found" });
     }
+
+    // Check access
+    if (transaction.organization) {
+      const access = await checkOrgAccess(
+        req.user.id,
+        transaction.organization,
+        "edit_transactions"
+      );
+      if (!access.hasAccess) {
+        return res.status(403).json({ message: access.error });
+      }
+    } else if (transaction.admin.toString() !== req.user.id) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    const organizationId = transaction.organization;
 
     const originalAccount = await loadAccount({
       adminId: req.user.id,
       accountId: transaction.account,
+      organizationId,
     });
     if (!originalAccount) {
       return res.status(404).json({ message: "Account not found" });
@@ -578,6 +675,7 @@ export const updateTransaction = async (req, res, next) => {
       targetAccount = await loadAccount({
         adminId: req.user.id,
         accountId: nextAccountId,
+        organizationId,
       });
       if (!targetAccount) {
         return res.status(404).json({ message: "Target account not found" });
@@ -592,6 +690,7 @@ export const updateTransaction = async (req, res, next) => {
         const categoryDoc = await loadCategory({
           adminId: req.user.id,
           categoryId: nextCategoryId,
+          organizationId,
         });
         if (!categoryDoc) {
           return res.status(404).json({ message: "Category not found" });
@@ -613,10 +712,11 @@ export const updateTransaction = async (req, res, next) => {
 
     // Handle Transfer updates if this transaction is part of a transfer
     if (transaction.transfer_id) {
-      const transfer = await Transfer.findOne({
-        _id: transaction.transfer_id,
-        admin: req.user.id,
-      });
+      const transferFilter = organizationId
+        ? { _id: transaction.transfer_id, organization: organizationId }
+        : { _id: transaction.transfer_id, admin: req.user.id };
+
+      const transfer = await Transfer.findOne(transferFilter);
 
       if (transfer) {
         let transferUpdated = false;
@@ -640,6 +740,7 @@ export const updateTransaction = async (req, res, next) => {
             const otherAccount = await loadAccount({
               adminId: req.user.id,
               accountId: otherTxn.account,
+              organizationId,
             });
 
             if (otherAccount) {
@@ -769,19 +870,32 @@ export const deleteTransaction = async (req, res, next) => {
   try {
     const { transactionId } = req.params;
 
-    const transaction = await Transaction.findOne({
-      _id: transactionId,
-      admin: req.user.id,
-      is_deleted: { $ne: true },
-    });
+    const transaction = await Transaction.findById(transactionId);
 
-    if (!transaction) {
+    if (!transaction || transaction.is_deleted) {
       return res.status(404).json({ message: "Transaction not found" });
     }
+
+    // Check access
+    if (transaction.organization) {
+      const access = await checkOrgAccess(
+        req.user.id,
+        transaction.organization,
+        "delete_transactions"
+      );
+      if (!access.hasAccess) {
+        return res.status(403).json({ message: access.error });
+      }
+    } else if (transaction.admin.toString() !== req.user.id) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    const organizationId = transaction.organization;
 
     const account = await loadAccount({
       adminId: req.user.id,
       accountId: transaction.account,
+      organizationId,
     });
 
     if (account) {
@@ -795,10 +909,11 @@ export const deleteTransaction = async (req, res, next) => {
 
     // Handle Transfer deletion if this transaction is part of a transfer
     if (transaction.transfer_id) {
-      const transfer = await Transfer.findOne({
-        _id: transaction.transfer_id,
-        admin: req.user.id,
-      });
+      const transferFilter = organizationId
+        ? { _id: transaction.transfer_id, organization: organizationId }
+        : { _id: transaction.transfer_id, admin: req.user.id };
+
+      const transfer = await Transfer.findOne(transferFilter);
 
       if (transfer) {
         const otherTxnId =
@@ -806,15 +921,13 @@ export const deleteTransaction = async (req, res, next) => {
             ? transfer.credit_transaction
             : transfer.debit_transaction;
 
-        const otherTxn = await Transaction.findOne({
-          _id: otherTxnId,
-          admin: req.user.id,
-        });
+        const otherTxn = await Transaction.findById(otherTxnId);
 
         if (otherTxn && !otherTxn.is_deleted) {
           const otherAccount = await loadAccount({
             adminId: req.user.id,
             accountId: otherTxn.account,
+            organizationId,
           });
 
           if (otherAccount) {
@@ -850,7 +963,6 @@ export const restoreTransaction = async (req, res, next) => {
 
     const transaction = await Transaction.findOne({
       _id: transactionId,
-      admin: req.user.id,
       is_deleted: true,
     });
 
@@ -858,9 +970,26 @@ export const restoreTransaction = async (req, res, next) => {
       return res.status(404).json({ message: "Transaction not found" });
     }
 
+    // Check access
+    if (transaction.organization) {
+      const access = await checkOrgAccess(
+        req.user.id,
+        transaction.organization,
+        "edit_transactions"
+      );
+      if (!access.hasAccess) {
+        return res.status(403).json({ message: access.error });
+      }
+    } else if (transaction.admin.toString() !== req.user.id) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    const organizationId = transaction.organization;
+
     const account = await loadAccount({
       adminId: req.user.id,
       accountId: transaction.account,
+      organizationId,
     });
 
     if (!account) {

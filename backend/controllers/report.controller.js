@@ -5,8 +5,10 @@ import { Category } from "../models/Category.js";
 import { Transaction } from "../models/Transaction.js";
 import { buildTransactionFilters } from "../utils/filters.js";
 import { resolveFinancialCategoryScope } from "../utils/financialCategories.js";
+import { checkOrgAccess, getOrgFromRequest } from "../utils/organization.js";
 
 const buildScopedFilter = async ({ req, extraQuery = {} }) => {
+  const organizationId = getOrgFromRequest(req);
   const financialScope =
     req.query.financialScope ?? req.query.financial_scope ?? null;
 
@@ -20,6 +22,7 @@ const buildScopedFilter = async ({ req, extraQuery = {} }) => {
 
   return buildTransactionFilters({
     adminId: req.user.id,
+    organizationId,
     query: { ...req.query, ...extraQuery },
     categoryScope,
   });
@@ -33,6 +36,20 @@ const parseBoundaryDate = (value, fallback = new Date()) => {
 
 export const getSummaryReport = async (req, res, next) => {
   try {
+    const organizationId = getOrgFromRequest(req);
+
+    // Check organization access if provided
+    if (organizationId) {
+      const access = await checkOrgAccess(
+        req.user.id,
+        organizationId,
+        "view_reports"
+      );
+      if (!access.hasAccess) {
+        return res.status(403).json({ message: access.error });
+      }
+    }
+
     const filter = await buildScopedFilter({ req });
 
     const results = await Transaction.aggregate([
@@ -77,6 +94,20 @@ export const getSummaryReport = async (req, res, next) => {
 
 export const getSeriesReport = async (req, res, next) => {
   try {
+    const organizationId = getOrgFromRequest(req);
+
+    // Check organization access if provided
+    if (organizationId) {
+      const access = await checkOrgAccess(
+        req.user.id,
+        organizationId,
+        "view_reports"
+      );
+      if (!access.hasAccess) {
+        return res.status(403).json({ message: access.error });
+      }
+    }
+
     const granularity = req.query.granularity === "month" ? "month" : "day";
 
     const filter = await buildScopedFilter({ req });
@@ -130,29 +161,48 @@ export const getSeriesReport = async (req, res, next) => {
 
 export const getAccountBalancesReport = async (req, res, next) => {
   try {
+    const organizationId = getOrgFromRequest(req);
+
+    // Check organization access if provided
+    if (organizationId) {
+      const access = await checkOrgAccess(
+        req.user.id,
+        organizationId,
+        "view_reports"
+      );
+      if (!access.hasAccess) {
+        return res.status(403).json({ message: access.error });
+      }
+    }
+
     const onDate = parseBoundaryDate(req.query.on);
 
-    const accounts = await Account.find({
-      admin: req.user.id,
-    })
-      .lean()
-      .sort({ name: 1 });
+    const accountFilter = organizationId
+      ? { organization: organizationId }
+      : { admin: req.user.id };
+
+    const accounts = await Account.find(accountFilter).lean().sort({ name: 1 });
 
     if (accounts.length === 0) {
       return res.json({ accounts: [] });
     }
 
-    const aggregates = await Transaction.aggregate([
-      {
-        $match: {
-          admin: new mongoose.Types.ObjectId(req.user.id),
-          account: {
-            $in: accounts.map((account) => account._id),
-          },
+    const txnMatchFilter = organizationId
+      ? {
+          organization: new mongoose.Types.ObjectId(organizationId),
+          account: { $in: accounts.map((account) => account._id) },
           date: { $lte: onDate },
           is_deleted: { $ne: true },
-        },
-      },
+        }
+      : {
+          admin: new mongoose.Types.ObjectId(req.user.id),
+          account: { $in: accounts.map((account) => account._id) },
+          date: { $lte: onDate },
+          is_deleted: { $ne: true },
+        };
+
+    const aggregates = await Transaction.aggregate([
+      { $match: txnMatchFilter },
       {
         $group: {
           _id: "$account",
@@ -213,13 +263,30 @@ export const getAccountBalancesReport = async (req, res, next) => {
 
 export const getTopCategoriesReport = async (req, res, next) => {
   try {
+    const organizationId = getOrgFromRequest(req);
+
+    // Check organization access if provided
+    if (organizationId) {
+      const access = await checkOrgAccess(
+        req.user.id,
+        organizationId,
+        "view_reports"
+      );
+      if (!access.hasAccess) {
+        return res.status(403).json({ message: access.error });
+      }
+    }
+
     const filter = await buildScopedFilter({ req });
 
     if (req.query.type) {
-      const categoryFilter = await Category.find({
-        admin: req.user.id,
-        type: req.query.type,
-      }).select("_id");
+      const categoryQueryFilter = organizationId
+        ? { organization: organizationId, type: req.query.type }
+        : { admin: req.user.id, type: req.query.type };
+
+      const categoryFilter = await Category.find(categoryQueryFilter).select(
+        "_id"
+      );
 
       filter.category_id = {
         $in: categoryFilter.map((category) => category._id),

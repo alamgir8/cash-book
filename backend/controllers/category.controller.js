@@ -1,6 +1,11 @@
 import { Category, CATEGORY_FLOW_MAP } from "../models/Category.js";
 import { Transaction } from "../models/Transaction.js";
 import { DEFAULT_CATEGORIES } from "../constants/defaultCategories.js";
+import {
+  checkOrgAccess,
+  buildOrgFilter,
+  getOrgFromRequest,
+} from "../utils/organization.js";
 
 const pickCategoryUpdate = (payload) => {
   const allowed = ["name", "description", "color", "type"];
@@ -14,29 +19,42 @@ const pickCategoryUpdate = (payload) => {
 
 export const listCategories = async (req, res, next) => {
   try {
+    const organizationId = getOrgFromRequest(req);
+
+    // Check organization access if provided
+    if (organizationId) {
+      const access = await checkOrgAccess(
+        req.user.id,
+        organizationId,
+        "view_transactions"
+      );
+      if (!access.hasAccess) {
+        return res.status(403).json({ message: access.error });
+      }
+    }
+
     const includeArchived =
       req.query.include_archived === "true" ||
       req.query.includeArchived === "true";
 
-    const filter = {
-      admin: req.user.id,
+    const filter = buildOrgFilter(req.user.id, organizationId, {
       ...(includeArchived ? {} : { archived: false }),
-    };
+    });
 
     let categories = await Category.find(filter).sort({
       type: 1,
       name: 1,
     });
 
+    // Seed default categories for new users/orgs
     if (categories.length === 0 && DEFAULT_CATEGORIES.length > 0) {
       try {
-        await Category.insertMany(
-          DEFAULT_CATEGORIES.map((category) => ({
-            admin: req.user.id,
-            ...category,
-          })),
-          { ordered: false }
-        );
+        const seedData = DEFAULT_CATEGORIES.map((category) => ({
+          admin: req.user.id,
+          organization: organizationId,
+          ...category,
+        }));
+        await Category.insertMany(seedData, { ordered: false });
         categories = await Category.find(filter).sort({
           type: 1,
           name: 1,
@@ -133,10 +151,23 @@ export const listCategories = async (req, res, next) => {
 
 export const createCategory = async (req, res, next) => {
   try {
-    const { name, type, color, description, flow } = req.body;
+    const { name, type, color, description, flow, organization } = req.body;
+
+    // Check organization access if provided
+    if (organization) {
+      const access = await checkOrgAccess(
+        req.user.id,
+        organization,
+        "manage_categories"
+      );
+      if (!access.hasAccess) {
+        return res.status(403).json({ message: access.error });
+      }
+    }
 
     const categoryPayload = {
       admin: req.user.id,
+      organization,
       name,
       type,
       color,
@@ -163,6 +194,27 @@ export const createCategory = async (req, res, next) => {
 export const updateCategory = async (req, res, next) => {
   try {
     const { categoryId } = req.params;
+
+    // First find the category to check access
+    const existingCategory = await Category.findById(categoryId);
+    if (!existingCategory) {
+      return res.status(404).json({ message: "Category not found" });
+    }
+
+    // Check access
+    if (existingCategory.organization) {
+      const access = await checkOrgAccess(
+        req.user.id,
+        existingCategory.organization,
+        "manage_categories"
+      );
+      if (!access.hasAccess) {
+        return res.status(403).json({ message: access.error });
+      }
+    } else if (existingCategory.admin.toString() !== req.user.id) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
     const update = {
       ...pickCategoryUpdate(req.body),
     };
@@ -171,15 +223,10 @@ export const updateCategory = async (req, res, next) => {
       update.flow = req.body.flow;
     }
 
-    const category = await Category.findOneAndUpdate(
-      { _id: categoryId, admin: req.user.id },
-      update,
-      { new: true, runValidators: true }
-    );
-
-    if (!category) {
-      return res.status(404).json({ message: "Category not found" });
-    }
+    const category = await Category.findByIdAndUpdate(categoryId, update, {
+      new: true,
+      runValidators: true,
+    });
 
     res.json({ category });
   } catch (error) {
@@ -197,13 +244,24 @@ export const archiveCategory = async (req, res, next) => {
     const { categoryId } = req.params;
     const { archived } = req.body;
 
-    const category = await Category.findOne({
-      _id: categoryId,
-      admin: req.user.id,
-    });
+    const category = await Category.findById(categoryId);
 
     if (!category) {
       return res.status(404).json({ message: "Category not found" });
+    }
+
+    // Check access
+    if (category.organization) {
+      const access = await checkOrgAccess(
+        req.user.id,
+        category.organization,
+        "manage_categories"
+      );
+      if (!access.hasAccess) {
+        return res.status(403).json({ message: access.error });
+      }
+    } else if (category.admin.toString() !== req.user.id) {
+      return res.status(403).json({ message: "Access denied" });
     }
 
     const nextArchivedState = Boolean(archived);
@@ -221,21 +279,33 @@ export const deleteCategory = async (req, res, next) => {
   try {
     const { categoryId } = req.params;
 
-    // Check if category exists and belongs to the user
-    const category = await Category.findOne({
-      _id: categoryId,
-      admin: req.user.id,
-    });
+    // Check if category exists
+    const category = await Category.findById(categoryId);
 
     if (!category) {
       return res.status(404).json({ message: "Category not found" });
     }
 
+    // Check access
+    if (category.organization) {
+      const access = await checkOrgAccess(
+        req.user.id,
+        category.organization,
+        "manage_categories"
+      );
+      if (!access.hasAccess) {
+        return res.status(403).json({ message: access.error });
+      }
+    } else if (category.admin.toString() !== req.user.id) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
     // Check if any transactions are using this category
-    const transactionCount = await Transaction.countDocuments({
-      category_id: categoryId,
-      admin: req.user.id,
-    });
+    const txnFilter = category.organization
+      ? { category_id: categoryId, organization: category.organization }
+      : { category_id: categoryId, admin: req.user.id };
+
+    const transactionCount = await Transaction.countDocuments(txnFilter);
 
     if (transactionCount > 0) {
       return res.status(400).json({
@@ -247,7 +317,7 @@ export const deleteCategory = async (req, res, next) => {
     }
 
     // Delete the category
-    await Category.deleteOne({ _id: categoryId, admin: req.user.id });
+    await Category.deleteOne({ _id: categoryId });
 
     res.json({ message: "Category deleted successfully" });
   } catch (error) {

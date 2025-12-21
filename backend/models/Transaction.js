@@ -7,6 +7,11 @@ const TRANSFER_DIRECTIONS = ["outgoing", "incoming"];
 
 const transactionSchema = new Schema(
   {
+    organization: {
+      type: Schema.Types.ObjectId,
+      ref: "Organization",
+      index: true,
+    },
     admin: {
       type: Schema.Types.ObjectId,
       ref: "Admin",
@@ -22,6 +27,18 @@ const transactionSchema = new Schema(
     category_id: {
       type: Schema.Types.ObjectId,
       ref: "Category",
+      index: true,
+    },
+    // Link to party (customer/supplier) ledger
+    party: {
+      type: Schema.Types.ObjectId,
+      ref: "Party",
+      index: true,
+    },
+    // Link to invoice if this transaction is a payment
+    invoice: {
+      type: Schema.Types.ObjectId,
+      ref: "Invoice",
       index: true,
     },
     type: {
@@ -59,6 +76,10 @@ const transactionSchema = new Schema(
     balance_after_transaction: {
       type: Number,
     },
+    // Party balance after this transaction (for ledger)
+    party_balance_after: {
+      type: Number,
+    },
     client_request_id: {
       type: String,
       trim: true,
@@ -72,6 +93,11 @@ const transactionSchema = new Schema(
       type: String,
       enum: TRANSFER_DIRECTIONS,
       index: true,
+    },
+    // Who created this transaction
+    created_by: {
+      type: Schema.Types.ObjectId,
+      ref: "Admin",
     },
     is_deleted: {
       type: Boolean,
@@ -94,6 +120,10 @@ transactionSchema.index({ admin: 1, date: -1 });
 transactionSchema.index({ admin: 1, account: 1, date: -1 });
 transactionSchema.index({ admin: 1, type: 1, date: -1 });
 transactionSchema.index({ admin: 1, category_id: 1, date: -1 });
+transactionSchema.index({ organization: 1, date: -1 });
+transactionSchema.index({ organization: 1, account: 1, date: -1 });
+transactionSchema.index({ organization: 1, party: 1, date: -1 });
+transactionSchema.index({ organization: 1, invoice: 1 });
 transactionSchema.index(
   { admin: 1, client_request_id: 1, is_deleted: 1 },
   {

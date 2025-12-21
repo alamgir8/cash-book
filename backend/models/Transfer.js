@@ -4,6 +4,11 @@ const { Schema } = mongoose;
 
 const transferSchema = new Schema(
   {
+    organization: {
+      type: Schema.Types.ObjectId,
+      ref: "Organization",
+      index: true,
+    },
     admin: {
       type: Schema.Types.ObjectId,
       ref: "Admin",
@@ -62,12 +67,17 @@ const transferSchema = new Schema(
       type: String,
       trim: true,
     },
+    created_by: {
+      type: Schema.Types.ObjectId,
+      ref: "Admin",
+    },
   },
   {
     timestamps: true,
   }
 );
 
+transferSchema.index({ organization: 1, date: -1 });
 transferSchema.index(
   { admin: 1, client_request_id: 1 },
   {

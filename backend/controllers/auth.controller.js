@@ -2,6 +2,7 @@ import * as argon2 from "argon2";
 import { Admin } from "../models/Admin.js";
 import { RefreshToken } from "../models/RefreshToken.js";
 import { Category } from "../models/Category.js";
+import { OrganizationMember } from "../models/OrganizationMember.js";
 import { DEFAULT_CATEGORIES } from "../constants/defaultCategories.js";
 import {
   createAccessToken,
@@ -13,6 +14,28 @@ const buildAccessPayload = (admin) => ({
   id: admin._id.toString(),
   email: admin.email,
 });
+
+/**
+ * Get user's organization memberships
+ */
+const getUserOrganizations = async (userId) => {
+  const memberships = await OrganizationMember.find({
+    user: userId,
+    status: "active",
+  })
+    .populate("organization", "name business_type settings")
+    .sort({ "organization.name": 1 })
+    .lean();
+
+  return memberships.map((m) => ({
+    id: m.organization._id,
+    name: m.organization.name,
+    business_type: m.organization.business_type,
+    role: m.role,
+    permissions: m.permissions,
+    settings: m.organization.settings,
+  }));
+};
 
 const findReusableRefreshToken = async ({ adminId, userAgent }) => {
   const query = {
@@ -29,8 +52,11 @@ const findReusableRefreshToken = async ({ adminId, userAgent }) => {
 
 const issueSessionTokens = async ({ admin, req, refreshTokenDoc }) => {
   const access_token = createAccessToken(buildAccessPayload(admin));
-  const { token: refresh_token, token_hash, expires_at } =
-    generateRefreshToken();
+  const {
+    token: refresh_token,
+    token_hash,
+    expires_at,
+  } = generateRefreshToken();
 
   let refreshDoc = refreshTokenDoc;
 
@@ -130,8 +156,10 @@ export const register = async (req, res, next) => {
 
     const tokens = await issueSessionTokens({ admin, req });
 
+    // New users have no organizations yet
     res.status(201).json({
       admin: admin.toJSON(),
+      organizations: [],
       ...tokens,
     });
   } catch (error) {
@@ -202,8 +230,12 @@ export const login = async (req, res, next) => {
 
     const tokens = await issueSessionTokens({ admin, req });
 
+    // Get user's organizations
+    const organizations = await getUserOrganizations(admin._id);
+
     res.json({
       admin: admin.toJSON(),
+      organizations,
       ...tokens,
     });
   } catch (error) {
@@ -243,8 +275,12 @@ export const refreshSession = async (req, res, next) => {
       refreshTokenDoc: refreshDoc,
     });
 
+    // Get user's organizations
+    const organizations = await getUserOrganizations(admin._id);
+
     res.json({
       admin: admin.toJSON(),
+      organizations,
       ...tokens,
     });
   } catch (error) {
@@ -283,7 +319,14 @@ export const getProfile = async (req, res, next) => {
     if (!admin) {
       return res.status(404).json({ message: "Admin not found" });
     }
-    res.json({ admin: admin.toJSON() });
+
+    // Get user's organizations
+    const organizations = await getUserOrganizations(admin._id);
+
+    res.json({
+      admin: admin.toJSON(),
+      organizations,
+    });
   } catch (error) {
     next(error);
   }
