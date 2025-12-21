@@ -7,7 +7,7 @@ import {
   Platform,
   TextInput,
 } from "react-native";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { toast } from "../../../lib/toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { partiesApi, PartyType } from "@/services/parties";
@@ -16,7 +16,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { z } from "zod";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useActiveOrgId } from "@/hooks/useOrganization";
+import { useActiveOrgId, useOrganization } from "@/hooks/useOrganization";
 import { getApiErrorMessage } from "@/lib/api";
 
 // Zod validation schema
@@ -48,6 +48,16 @@ type PartyFormData = z.infer<typeof partySchema>;
 export default function PartyScreen() {
   const queryClient = useQueryClient();
   const organizationId = useActiveOrgId();
+  const { canManageCustomers, canManageSuppliers } = useOrganization();
+  const params = useLocalSearchParams<{ type?: PartyType }>();
+
+  // Determine default type based on permissions and query param
+  const getDefaultType = (): PartyType => {
+    if (params.type) return params.type;
+    if (canManageCustomers && !canManageSuppliers) return "customer";
+    if (!canManageCustomers && canManageSuppliers) return "supplier";
+    return "customer"; // Default to customer if both permissions available
+  };
 
   const {
     control,
@@ -59,7 +69,7 @@ export default function PartyScreen() {
     resolver: zodResolver(partySchema),
     defaultValues: {
       name: "",
-      type: "customer",
+      type: getDefaultType(),
       code: "",
       phone: "",
       email: "",
@@ -122,7 +132,8 @@ export default function PartyScreen() {
     createMutation.mutate(payload);
   };
 
-  const partyTypes: {
+  // Filter party types based on permissions
+  const allPartyTypes: {
     value: PartyType;
     label: string;
     icon: string;
@@ -142,6 +153,13 @@ export default function PartyScreen() {
     },
     { value: "both", label: "Both", icon: "people-outline", color: "#F59E0B" },
   ];
+
+  const partyTypes = allPartyTypes.filter((type) => {
+    if (type.value === "customer") return canManageCustomers;
+    if (type.value === "supplier") return canManageSuppliers;
+    if (type.value === "both") return canManageCustomers && canManageSuppliers;
+    return false;
+  });
 
   return (
     <View className="flex-1 bg-slate-50">

@@ -15,6 +15,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import { ScreenHeader } from "../../../components/screen-header";
 import { invoicesApi, type InvoiceStatus } from "../../../services/invoices";
+import { exportInvoicePdf } from "../../../services/reports";
 import { getApiErrorMessage } from "../../../lib/api";
 
 const STATUS_COLORS: Record<InvoiceStatus, { bg: string; text: string }> = {
@@ -44,6 +45,7 @@ export default function InvoiceDetailScreen() {
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [paymentReference, setPaymentReference] = useState("");
+  const [exportingPdf, setExportingPdf] = useState(false);
 
   const {
     data: invoice,
@@ -140,6 +142,19 @@ export default function InvoiceDetailScreen() {
     );
   };
 
+  const handleExportPdf = async () => {
+    setExportingPdf(true);
+    try {
+      await exportInvoicePdf(invoiceId!);
+      toast.success("Invoice PDF exported successfully");
+    } catch (error) {
+      console.error("PDF export error:", error);
+      toast.error("Failed to export PDF");
+    } finally {
+      setExportingPdf(false);
+    }
+  };
+
   const formatAmount = (amount: number) => {
     return amount.toLocaleString(undefined, {
       minimumFractionDigits: 2,
@@ -195,7 +210,23 @@ export default function InvoiceDetailScreen() {
 
   return (
     <View className="flex-1 bg-gray-50">
-      <ScreenHeader title={invoice.invoice_number} showBack />
+      <ScreenHeader
+        title={invoice.invoice_number}
+        showBack
+        rightAction={
+          <TouchableOpacity
+            className="p-2"
+            onPress={handleExportPdf}
+            disabled={exportingPdf}
+          >
+            {exportingPdf ? (
+              <ActivityIndicator size="small" color="#3B82F6" />
+            ) : (
+              <Ionicons name="download-outline" size={24} color="#3B82F6" />
+            )}
+          </TouchableOpacity>
+        }
+      />
 
       <ScrollView className="flex-1">
         {/* Header Card */}

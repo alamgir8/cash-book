@@ -132,7 +132,7 @@ export const HomeQuickFeatures = ({
       label: "Add Customer",
       color: "#14b8a6",
       bgColor: "bg-teal-50",
-      onPress: () => router.push("/(app)/parties/new"),
+      onPress: () => router.push("/(app)/parties/new?type=customer"),
       permission: canManageCustomers, // Only if can manage customers
     },
     {

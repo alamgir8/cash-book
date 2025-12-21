@@ -1362,3 +1362,709 @@ export const exportTransactionsByAccountPdf = async (): Promise<string> => {
   const filename = generatePdfFilename("CashBook_By_Account");
   return saveAndSharePdf(html, filename);
 };
+
+// ============ PARTY LEDGER PDF EXPORT ============
+
+export const exportPartyLedgerPdf = async (
+  partyId: string,
+  partyName: string
+): Promise<string> => {
+  try {
+    const { partiesApi } = await import("./parties");
+
+    // Fetch all ledger entries (no pagination for PDF)
+    const ledgerData = await partiesApi.getLedger(partyId, {
+      page: 1,
+      limit: 1000,
+    });
+
+    const entries = ledgerData.entries || [];
+    const summary = ledgerData.summary || {
+      opening_balance: 0,
+      total_debit: 0,
+      total_credit: 0,
+      closing_balance: 0,
+    };
+
+    const generatedAt = dayjs().format("MMM D, YYYY h:mm A");
+
+    const formatAmount = (amount: number | undefined | null): string => {
+      if (amount === undefined || amount === null || isNaN(amount)) {
+        return "0.00";
+      }
+      return Math.abs(amount).toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+    };
+
+    const formatBalance = (balance: number | undefined | null): string => {
+      if (balance === undefined || balance === null || isNaN(balance)) {
+        return "0.00";
+      }
+      const absBalance = Math.abs(balance);
+      const formatted = absBalance.toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+      if (balance > 0) return `${formatted} Dr`;
+      if (balance < 0) return `${formatted} Cr`;
+      return "0.00";
+    };
+
+    const entriesHtml = entries
+      .map((entry, index) => {
+        const dateLabel = dayjs(entry.date).format("MMM D, YYYY");
+        const description = escapeHtml(entry.description || entry.type || "");
+        const reference = entry.reference ? escapeHtml(entry.reference) : "";
+        const debitAmount = entry.debit > 0 ? formatAmount(entry.debit) : "—";
+        const creditAmount =
+          entry.credit > 0 ? formatAmount(entry.credit) : "—";
+        const balance = formatBalance(entry.running_balance);
+        const bgColor = index % 2 === 0 ? "#ffffff" : "#f9fafb";
+
+        return `
+          <tr style="background-color: ${bgColor};">
+            <td style="padding: 12px 8px; font-size: 11px; color: #4b5563; border-bottom: 1px solid #e5e7eb;">
+              ${dateLabel}
+            </td>
+            <td style="padding: 12px 8px; font-size: 11px; color: #111827; border-bottom: 1px solid #e5e7eb;">
+              <div style="font-weight: 500;">${description}</div>
+              ${
+                reference
+                  ? `<div style="font-size: 10px; color: #9ca3af; margin-top: 2px;">${reference}</div>`
+                  : ""
+              }
+            </td>
+            <td style="padding: 12px 8px; font-size: 11px; font-weight: 600; color: #059669; text-align: right; border-bottom: 1px solid #e5e7eb;">
+              ${debitAmount}
+            </td>
+            <td style="padding: 12px 8px; font-size: 11px; font-weight: 600; color: #dc2626; text-align: right; border-bottom: 1px solid #e5e7eb;">
+              ${creditAmount}
+            </td>
+            <td style="padding: 12px 8px; font-size: 11px; font-weight: 700; color: ${
+              entry.running_balance > 0
+                ? "#059669"
+                : entry.running_balance < 0
+                ? "#dc2626"
+                : "#4b5563"
+            }; text-align: right; border-bottom: 1px solid #e5e7eb;">
+              ${balance}
+            </td>
+          </tr>
+        `;
+      })
+      .join("");
+
+    const openingBalanceRow =
+      summary.opening_balance !== 0
+        ? `
+        <tr style="background-color: #eff6ff;">
+          <td style="padding: 12px 8px; font-size: 11px; color: #6b7280; border-bottom: 1px solid #e5e7eb;">—</td>
+          <td style="padding: 12px 8px; font-size: 11px; color: #374151; font-style: italic; font-weight: 500; border-bottom: 1px solid #e5e7eb;">
+            Opening Balance
+          </td>
+          <td style="padding: 12px 8px; font-size: 11px; color: #6b7280; text-align: right; border-bottom: 1px solid #e5e7eb;">—</td>
+          <td style="padding: 12px 8px; font-size: 11px; color: #6b7280; text-align: right; border-bottom: 1px solid #e5e7eb;">—</td>
+          <td style="padding: 12px 8px; font-size: 11px; font-weight: 700; color: ${
+            summary.opening_balance > 0 ? "#059669" : "#dc2626"
+          }; text-align: right; border-bottom: 1px solid #e5e7eb;">
+            ${formatBalance(summary.opening_balance)}
+          </td>
+        </tr>
+      `
+        : "";
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+          <title>Party Ledger - ${escapeHtml(partyName)}</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body {
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+              font-size: 12px;
+              color: #1f2937;
+              padding: 20px;
+              background: #ffffff;
+            }
+            .header {
+              text-align: center;
+              margin-bottom: 24px;
+              padding-bottom: 16px;
+              border-bottom: 3px solid #3b82f6;
+            }
+            .header h1 {
+              font-size: 24px;
+              font-weight: 700;
+              color: #111827;
+              margin-bottom: 4px;
+            }
+            .header h2 {
+              font-size: 16px;
+              font-weight: 600;
+              color: #3b82f6;
+              margin-bottom: 8px;
+            }
+            .header .meta {
+              font-size: 11px;
+              color: #6b7280;
+            }
+            .summary-grid {
+              display: grid;
+              grid-template-columns: repeat(3, 1fr);
+              gap: 16px;
+              margin-bottom: 24px;
+            }
+            .summary-card {
+              background: #f9fafb;
+              border: 1px solid #e5e7eb;
+              border-radius: 8px;
+              padding: 16px;
+            }
+            .summary-card .label {
+              font-size: 11px;
+              color: #6b7280;
+              margin-bottom: 8px;
+              text-transform: uppercase;
+              font-weight: 600;
+              letter-spacing: 0.5px;
+            }
+            .summary-card .value {
+              font-size: 18px;
+              font-weight: 700;
+            }
+            .summary-card.opening .value { color: #374151; }
+            .summary-card.debit .value { color: #059669; }
+            .summary-card.credit .value { color: #dc2626; }
+            .closing-balance {
+              background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+              border: 2px solid #3b82f6;
+              border-radius: 8px;
+              padding: 16px;
+              margin-bottom: 24px;
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+            }
+            .closing-balance .label {
+              font-size: 14px;
+              font-weight: 600;
+              color: #1e40af;
+            }
+            .closing-balance .value {
+              font-size: 22px;
+              font-weight: 800;
+              color: ${
+                summary.closing_balance > 0
+                  ? "#059669"
+                  : summary.closing_balance < 0
+                  ? "#dc2626"
+                  : "#374151"
+              };
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              background: white;
+              border: 1px solid #e5e7eb;
+              border-radius: 8px;
+              overflow: hidden;
+            }
+            thead {
+              background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+            }
+            th {
+              padding: 12px 8px;
+              font-size: 11px;
+              font-weight: 700;
+              color: #374151;
+              text-align: left;
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+              border-bottom: 2px solid #d1d5db;
+            }
+            th.right { text-align: right; }
+            .footer {
+              margin-top: 32px;
+              padding-top: 16px;
+              border-top: 1px solid #e5e7eb;
+              text-align: center;
+              font-size: 10px;
+              color: #9ca3af;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>Party Ledger</h1>
+            <h2>${escapeHtml(partyName)}</h2>
+            <div class="meta">Generated on ${generatedAt}</div>
+          </div>
+
+          <div class="summary-grid">
+            <div class="summary-card opening">
+              <div class="label">Opening Balance</div>
+              <div class="value">${formatBalance(summary.opening_balance)}</div>
+            </div>
+            <div class="summary-card debit">
+              <div class="label">Total Debit</div>
+              <div class="value">${formatAmount(summary.total_debit)}</div>
+            </div>
+            <div class="summary-card credit">
+              <div class="label">Total Credit</div>
+              <div class="value">${formatAmount(summary.total_credit)}</div>
+            </div>
+          </div>
+
+          <div class="closing-balance">
+            <div class="label">Closing Balance</div>
+            <div class="value">${formatBalance(summary.closing_balance)}</div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 100px;">Date</th>
+                <th>Particulars</th>
+                <th class="right" style="width: 100px;">Debit</th>
+                <th class="right" style="width: 100px;">Credit</th>
+                <th class="right" style="width: 120px;">Balance</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${openingBalanceRow}
+              ${entriesHtml}
+            </tbody>
+          </table>
+
+          <div class="footer">
+            <div>Total Entries: ${entries.length}</div>
+            <div style="margin-top: 4px;">CashBook - Party Ledger Report</div>
+          </div>
+        </body>
+      </html>
+    `;
+
+    const filename = generatePdfFilename(
+      `Ledger_${partyName.replace(/[^a-zA-Z0-9]/g, "_")}`
+    );
+    return saveAndSharePdf(html, filename);
+  } catch (error) {
+    console.error("Error exporting party ledger PDF:", error);
+    throw error;
+  }
+};
+
+// ============ INVOICE PDF EXPORT ============
+
+export const exportInvoicePdf = async (invoiceId: string): Promise<string> => {
+  try {
+    const { invoicesApi } = await import("./invoices");
+
+    const invoice = await invoicesApi.get(invoiceId);
+
+    const generatedAt = dayjs().format("MMM D, YYYY h:mm A");
+
+    const formatAmount = (amount: number | undefined | null): string => {
+      if (amount === undefined || amount === null || isNaN(amount)) {
+        return "0.00";
+      }
+      return amount.toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+    };
+
+    const statusColors: Record<string, string> = {
+      draft: "#6b7280",
+      pending: "#f59e0b",
+      partial: "#3b82f6",
+      paid: "#10b981",
+      cancelled: "#ef4444",
+      overdue: "#f97316",
+    };
+
+    const statusColor = statusColors[invoice.status] || "#6b7280";
+
+    const itemsHtml = invoice.items
+      .map((item, index) => {
+        const itemTotal = item.quantity * item.unit_price;
+        const bgColor = index % 2 === 0 ? "#ffffff" : "#f9fafb";
+
+        return `
+          <tr style="background-color: ${bgColor};">
+            <td style="padding: 12px 8px; font-size: 11px; color: #111827; border-bottom: 1px solid #e5e7eb;">
+              ${index + 1}
+            </td>
+            <td style="padding: 12px 8px; font-size: 11px; color: #111827; border-bottom: 1px solid #e5e7eb;">
+              <div style="font-weight: 600;">${escapeHtml(
+                item.description
+              )}</div>
+              ${
+                item.notes
+                  ? `<div style="font-size: 10px; color: #6b7280; margin-top: 2px;">${escapeHtml(
+                      item.notes
+                    )}</div>`
+                  : ""
+              }
+            </td>
+            <td style="padding: 12px 8px; font-size: 11px; color: #4b5563; text-align: center; border-bottom: 1px solid #e5e7eb;">
+              ${item.quantity}
+            </td>
+            <td style="padding: 12px 8px; font-size: 11px; color: #4b5563; text-align: right; border-bottom: 1px solid #e5e7eb;">
+              ${formatAmount(item.unit_price)}
+            </td>
+            <td style="padding: 12px 8px; font-size: 11px; font-weight: 600; color: #111827; text-align: right; border-bottom: 1px solid #e5e7eb;">
+              ${formatAmount(itemTotal)}
+            </td>
+          </tr>
+        `;
+      })
+      .join("");
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+          <title>Invoice ${escapeHtml(invoice.invoice_number || "")}</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body {
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+              font-size: 12px;
+              color: #1f2937;
+              padding: 20px;
+              background: #ffffff;
+            }
+            .header {
+              display: flex;
+              justify-content: space-between;
+              align-items: flex-start;
+              margin-bottom: 32px;
+              padding-bottom: 16px;
+              border-bottom: 3px solid #3b82f6;
+            }
+            .header-left h1 {
+              font-size: 32px;
+              font-weight: 800;
+              color: #111827;
+              margin-bottom: 4px;
+            }
+            .header-left .invoice-number {
+              font-size: 14px;
+              color: #6b7280;
+              font-weight: 500;
+            }
+            .header-right {
+              text-align: right;
+            }
+            .status-badge {
+              display: inline-block;
+              padding: 6px 16px;
+              border-radius: 20px;
+              font-size: 12px;
+              font-weight: 700;
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+              color: white;
+              background-color: ${statusColor};
+              margin-bottom: 8px;
+            }
+            .invoice-type {
+              font-size: 11px;
+              color: #6b7280;
+              text-transform: uppercase;
+              font-weight: 600;
+            }
+            .info-section {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 24px;
+              margin-bottom: 32px;
+            }
+            .info-card {
+              background: #f9fafb;
+              border: 1px solid #e5e7eb;
+              border-radius: 8px;
+              padding: 16px;
+            }
+            .info-card h3 {
+              font-size: 12px;
+              font-weight: 700;
+              color: #374151;
+              margin-bottom: 12px;
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+            }
+            .info-row {
+              display: flex;
+              justify-content: space-between;
+              margin-bottom: 8px;
+              font-size: 11px;
+            }
+            .info-row .label {
+              color: #6b7280;
+              font-weight: 500;
+            }
+            .info-row .value {
+              color: #111827;
+              font-weight: 600;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              background: white;
+              border: 1px solid #e5e7eb;
+              border-radius: 8px;
+              overflow: hidden;
+              margin-bottom: 24px;
+            }
+            thead {
+              background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+            }
+            th {
+              padding: 12px 8px;
+              font-size: 11px;
+              font-weight: 700;
+              color: #374151;
+              text-align: left;
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+              border-bottom: 2px solid #d1d5db;
+            }
+            th.center { text-align: center; }
+            th.right { text-align: right; }
+            .totals-section {
+              max-width: 400px;
+              margin-left: auto;
+              background: #f9fafb;
+              border: 1px solid #e5e7eb;
+              border-radius: 8px;
+              padding: 16px;
+            }
+            .total-row {
+              display: flex;
+              justify-content: space-between;
+              padding: 8px 0;
+              font-size: 12px;
+            }
+            .total-row.subtotal {
+              border-bottom: 1px solid #e5e7eb;
+            }
+            .total-row.grand {
+              border-top: 2px solid #3b82f6;
+              padding-top: 12px;
+              margin-top: 8px;
+              font-size: 16px;
+              font-weight: 800;
+              color: #111827;
+            }
+            .total-row .label {
+              color: #6b7280;
+              font-weight: 500;
+            }
+            .total-row .value {
+              color: #111827;
+              font-weight: 700;
+            }
+            .total-row.grand .value {
+              color: #3b82f6;
+            }
+            .notes {
+              margin-top: 24px;
+              padding: 16px;
+              background: #fef3c7;
+              border-left: 4px solid #f59e0b;
+              border-radius: 4px;
+            }
+            .notes h4 {
+              font-size: 12px;
+              font-weight: 700;
+              color: #92400e;
+              margin-bottom: 8px;
+            }
+            .notes p {
+              font-size: 11px;
+              color: #78350f;
+              line-height: 1.6;
+            }
+            .footer {
+              margin-top: 32px;
+              padding-top: 16px;
+              border-top: 1px solid #e5e7eb;
+              text-align: center;
+              font-size: 10px;
+              color: #9ca3af;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="header-left">
+              <h1>${invoice.type === "sale" ? "INVOICE" : "BILL"}</h1>
+              <div class="invoice-number">#${escapeHtml(
+                invoice.invoice_number || ""
+              )}</div>
+            </div>
+            <div class="header-right">
+              <div class="status-badge">${escapeHtml(invoice.status)}</div>
+              <div class="invoice-type">${
+                invoice.type === "sale" ? "Sales Invoice" : "Purchase Bill"
+              }</div>
+            </div>
+          </div>
+
+          <div class="info-section">
+            <div class="info-card">
+              <h3>${invoice.type === "sale" ? "Bill To" : "Bill From"}</h3>
+              <div class="info-row">
+                <span class="label">Party:</span>
+                <span class="value">${escapeHtml(
+                  invoice.party?.name || "N/A"
+                )}</span>
+              </div>
+              ${
+                invoice.party?.phone
+                  ? `<div class="info-row">
+                <span class="label">Phone:</span>
+                <span class="value">${escapeHtml(invoice.party.phone)}</span>
+              </div>`
+                  : ""
+              }
+              ${
+                invoice.party?.email
+                  ? `<div class="info-row">
+                <span class="label">Email:</span>
+                <span class="value">${escapeHtml(invoice.party.email)}</span>
+              </div>`
+                  : ""
+              }
+            </div>
+
+            <div class="info-card">
+              <h3>Invoice Details</h3>
+              <div class="info-row">
+                <span class="label">Invoice Date:</span>
+                <span class="value">${dayjs(invoice.invoice_date).format(
+                  "MMM D, YYYY"
+                )}</span>
+              </div>
+              <div class="info-row">
+                <span class="label">Due Date:</span>
+                <span class="value">${dayjs(invoice.due_date).format(
+                  "MMM D, YYYY"
+                )}</span>
+              </div>
+              ${
+                invoice.reference
+                  ? `<div class="info-row">
+                <span class="label">Reference:</span>
+                <span class="value">${escapeHtml(invoice.reference)}</span>
+              </div>`
+                  : ""
+              }
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 40px;">#</th>
+                <th>Description</th>
+                <th class="center" style="width: 80px;">Qty</th>
+                <th class="right" style="width: 100px;">Unit Price</th>
+                <th class="right" style="width: 120px;">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsHtml}
+            </tbody>
+          </table>
+
+          <div class="totals-section">
+            <div class="total-row subtotal">
+              <span class="label">Subtotal:</span>
+              <span class="value">${formatAmount(invoice.subtotal)}</span>
+            </div>
+            ${
+              invoice.tax_amount && invoice.tax_amount > 0
+                ? `<div class="total-row">
+              <span class="label">Tax (${invoice.tax_rate || 0}%):</span>
+              <span class="value">${formatAmount(invoice.tax_amount)}</span>
+            </div>`
+                : ""
+            }
+            ${
+              invoice.discount_amount && invoice.discount_amount > 0
+                ? `<div class="total-row">
+              <span class="label">Discount:</span>
+              <span class="value">-${formatAmount(
+                invoice.discount_amount
+              )}</span>
+            </div>`
+                : ""
+            }
+            <div class="total-row grand">
+              <span class="label">Total Amount:</span>
+              <span class="value">${formatAmount(invoice.total_amount)}</span>
+            </div>
+            ${
+              invoice.paid_amount && invoice.paid_amount > 0
+                ? `
+              <div class="total-row" style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #e5e7eb;">
+                <span class="label">Paid:</span>
+                <span class="value" style="color: #10b981;">${formatAmount(
+                  invoice.paid_amount
+                )}</span>
+              </div>
+              <div class="total-row">
+                <span class="label">Balance Due:</span>
+                <span class="value" style="color: ${
+                  invoice.due_amount > 0 ? "#ef4444" : "#10b981"
+                };">
+                  ${formatAmount(invoice.due_amount)}
+                </span>
+              </div>
+            `
+                : ""
+            }
+          </div>
+
+          ${
+            invoice.notes
+              ? `
+          <div class="notes">
+            <h4>Notes</h4>
+            <p>${escapeHtml(invoice.notes)}</p>
+          </div>
+          `
+              : ""
+          }
+
+          <div class="footer">
+            <div>Generated on ${generatedAt}</div>
+            <div style="margin-top: 4px;">CashBook - Invoice #${escapeHtml(
+              invoice.invoice_number || ""
+            )}</div>
+          </div>
+        </body>
+      </html>
+    `;
+
+    const filename = generatePdfFilename(
+      `Invoice_${
+        invoice.invoice_number?.replace(/[^a-zA-Z0-9]/g, "_") || invoiceId
+      }`
+    );
+    return saveAndSharePdf(html, filename);
+  } catch (error) {
+    console.error("Error exporting invoice PDF:", error);
+    throw error;
+  }
+};
