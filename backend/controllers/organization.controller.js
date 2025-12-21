@@ -236,8 +236,17 @@ export const updateOrganization = async (req, res, next) => {
     }
 
     // Handle settings update for currency
-    if (updates.settings && updates.settings.currency) {
-      updateData["settings.currency_code"] = updates.settings.currency;
+    if (updates.settings) {
+      if (updates.settings.currency) {
+        updateData["settings.currency_code"] = updates.settings.currency;
+        updateData["settings.currency"] = updates.settings.currency;
+      }
+      // Handle other settings fields if needed
+      Object.keys(updates.settings).forEach((key) => {
+        if (key !== "currency") {
+          updateData[`settings.${key}`] = updates.settings[key];
+        }
+      });
       delete updateData.settings;
     }
 

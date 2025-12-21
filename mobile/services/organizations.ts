@@ -2,6 +2,7 @@ import { api } from "../lib/api";
 
 export interface OrganizationSettings {
   currency: string;
+  currency_code?: string;
   locale: string;
   fiscal_year_start: string;
   date_format: string;
@@ -16,6 +17,7 @@ export interface Organization {
   logo?: string;
   owner: string;
   settings: OrganizationSettings;
+  status?: "active" | "suspended" | "archived";
   address?: {
     street?: string;
     city?: string;
@@ -73,7 +75,8 @@ export interface UpdateOrganizationParams {
   logo?: string;
   address?: Organization["address"];
   contact?: Organization["contact"];
-  settings?: Partial<OrganizationSettings>;
+  settings?: Partial<OrganizationSettings> | { currency?: string };
+  status?: "active" | "suspended" | "archived";
 }
 
 export interface AddMemberParams {

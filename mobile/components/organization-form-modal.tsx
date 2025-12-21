@@ -31,7 +31,19 @@ const BUSINESS_TYPES = [
   { value: "general", label: "General/Other", icon: "business" },
 ] as const;
 
-const CURRENCIES = ["USD", "EUR", "GBP", "BDT", "INR"] as const;
+const CURRENCIES = [
+  { code: "USD", symbol: "$", name: "US Dollar" },
+  { code: "EUR", symbol: "€", name: "Euro" },
+  { code: "GBP", symbol: "£", name: "British Pound" },
+  { code: "BDT", symbol: "৳", name: "Bangladeshi Taka" },
+  { code: "INR", symbol: "₹", name: "Indian Rupee" },
+] as const;
+
+const STATUS_OPTIONS = [
+  { value: "active", label: "Active", color: "#10b981" },
+  { value: "suspended", label: "Suspended", color: "#f59e0b" },
+  { value: "archived", label: "Archived", color: "#ef4444" },
+] as const;
 
 // Zod validation schema
 const organizationSchema = z.object({
@@ -42,6 +54,7 @@ const organizationSchema = z.object({
   email: z.string().email("Invalid email address").optional().or(z.literal("")),
   address: z.string().optional(),
   currency: z.string(),
+  status: z.enum(["active", "suspended", "archived"]),
 });
 
 type OrganizationFormData = z.infer<typeof organizationSchema>;
@@ -79,11 +92,13 @@ export function OrganizationFormModal({
       email: "",
       address: "",
       currency: "USD",
+      status: "active",
     },
   });
 
   const selectedBusinessType = watch("business_type");
   const selectedCurrency = watch("currency");
+  const selectedStatus = watch("status");
 
   useEffect(() => {
     if (visible) {
@@ -95,7 +110,11 @@ export function OrganizationFormModal({
           phone: organization.contact?.phone || "",
           email: organization.contact?.email || "",
           address: organization.address?.street || "",
-          currency: organization.settings?.currency || "USD",
+          currency:
+            organization.settings?.currency_code ||
+            organization.settings?.currency ||
+            "USD",
+          status: organization.status || "active",
         });
       } else {
         reset({
@@ -106,6 +125,7 @@ export function OrganizationFormModal({
           email: "",
           address: "",
           currency: "USD",
+          status: "active",
         });
       }
     }
@@ -114,7 +134,7 @@ export function OrganizationFormModal({
   const onSubmit = async (data: OrganizationFormData) => {
     setIsLoading(true);
     try {
-      const params: CreateOrganizationParams = {
+      const params: any = {
         name: data.name.trim(),
         description: data.description?.trim() || undefined,
         business_type: data.business_type,
@@ -128,6 +148,7 @@ export function OrganizationFormModal({
         settings: {
           currency: data.currency,
         },
+        status: data.status,
       };
 
       let result: Organization;
@@ -329,34 +350,96 @@ export function OrganizationFormModal({
                 </Text>
 
                 {/* Currency */}
-                <View>
+                <View className="mb-4">
                   <Text className="text-slate-700 mb-3 text-base font-medium">
                     Currency
                   </Text>
-                  <View className="flex-row gap-2">
+                  <View className="gap-2">
                     {CURRENCIES.map((curr) => (
                       <TouchableOpacity
-                        key={curr}
-                        className={`px-5 py-3 rounded-xl border-2 ${
-                          selectedCurrency === curr
+                        key={curr.code}
+                        className={`flex-row items-center p-4 rounded-xl border-2 ${
+                          selectedCurrency === curr.code
                             ? "bg-blue-50 border-blue-500"
                             : "bg-slate-50 border-slate-200"
                         }`}
-                        onPress={() => setValue("currency", curr)}
+                        onPress={() => setValue("currency", curr.code)}
                       >
                         <Text
-                          className={`text-sm font-semibold ${
-                            selectedCurrency === curr
+                          className={`text-2xl font-bold w-10 ${
+                            selectedCurrency === curr.code
                               ? "text-blue-600"
-                              : "text-slate-600"
+                              : "text-slate-500"
                           }`}
                         >
-                          {curr}
+                          {curr.symbol}
+                        </Text>
+                        <Text
+                          className={`text-base font-semibold w-16 ${
+                            selectedCurrency === curr.code
+                              ? "text-blue-700"
+                              : "text-slate-700"
+                          }`}
+                        >
+                          {curr.code}
+                        </Text>
+                        <Text
+                          className={`flex-1 text-sm ${
+                            selectedCurrency === curr.code
+                              ? "text-blue-600"
+                              : "text-slate-500"
+                          }`}
+                        >
+                          {curr.name}
                         </Text>
                       </TouchableOpacity>
                     ))}
                   </View>
                 </View>
+
+                {/* Status */}
+                {isEditing && (
+                  <View>
+                    <Text className="text-slate-700 mb-3 text-base font-medium">
+                      Status
+                    </Text>
+                    <View className="gap-2">
+                      {STATUS_OPTIONS.map((status) => (
+                        <TouchableOpacity
+                          key={status.value}
+                          className={`flex-row items-center justify-between p-4 rounded-xl border-2 ${
+                            selectedStatus === status.value
+                              ? "bg-blue-50 border-blue-500"
+                              : "bg-slate-50 border-slate-200"
+                          }`}
+                          onPress={() => setValue("status", status.value)}
+                        >
+                          <Text
+                            className={`text-base font-semibold ${
+                              selectedStatus === status.value
+                                ? "text-blue-700"
+                                : "text-slate-700"
+                            }`}
+                          >
+                            {status.label}
+                          </Text>
+                          {selectedStatus === status.value && (
+                            <View
+                              className="w-6 h-6 rounded-full items-center justify-center"
+                              style={{ backgroundColor: status.color }}
+                            >
+                              <Ionicons
+                                name="checkmark"
+                                size={16}
+                                color="white"
+                              />
+                            </View>
+                          )}
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                )}
               </View>
             </ScrollView>
 

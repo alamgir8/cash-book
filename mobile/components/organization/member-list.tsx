@@ -28,7 +28,7 @@ const ROLES = [
 
 interface MemberCardProps {
   member: OrganizationMember;
-  onChangeRole: (member: OrganizationMember, role: string) => void;
+  onChangeRole: (member: OrganizationMember) => void;
   onRemove: (member: OrganizationMember) => void;
 }
 

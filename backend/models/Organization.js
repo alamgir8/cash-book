@@ -40,6 +40,11 @@ const settingsSchema = new Schema(
       default: "BDT",
       trim: true,
     },
+    currency: {
+      type: String,
+      default: "BDT",
+      trim: true,
+    },
     currency_symbol: {
       type: String,
       default: "৳",

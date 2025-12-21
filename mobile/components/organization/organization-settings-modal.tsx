@@ -64,13 +64,7 @@ export function OrganizationSettingsModal({
   onSubmit,
   isLoading = false,
 }: OrganizationSettingsModalProps) {
-  const {
-    control,
-    handleSubmit,
-    reset,
-    watch,
-    formState: { errors },
-  } = useForm<SettingsFormData>({
+  const { control, handleSubmit, reset, watch } = useForm<SettingsFormData>({
     resolver: zodResolver(settingsSchema),
     defaultValues: {
       currency: "USD",
@@ -78,13 +72,15 @@ export function OrganizationSettingsModal({
     },
   });
 
-  const selectedCurrency = watch("currency");
   const selectedStatus = watch("status");
 
   useEffect(() => {
     if (visible && organization) {
       reset({
-        currency: organization.settings?.currency_code || "USD",
+        currency:
+          organization.settings?.currency_code ||
+          organization.settings?.currency ||
+          "USD",
         status: organization.status || "active",
       });
     }
@@ -123,6 +119,7 @@ export function OrganizationSettingsModal({
       animationType="slide"
       transparent={true}
       onRequestClose={onClose}
+      presentationStyle="pageSheet"
     >
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}

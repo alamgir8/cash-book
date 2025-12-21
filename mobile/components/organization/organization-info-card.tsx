@@ -67,7 +67,9 @@ export function OrganizationInfoCard({
         <View style={styles.tag}>
           <Ionicons name="cash" size={14} color="#6b7280" />
           <Text style={styles.tagText}>
-            {organization.settings?.currency_code || "USD"}
+            {organization.settings?.currency_code ||
+              organization.settings?.currency ||
+              "USD"}
           </Text>
         </View>
         <View style={[styles.statusTag, { backgroundColor: statusColors.bg }]}>
