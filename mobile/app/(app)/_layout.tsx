@@ -2,6 +2,7 @@ import { Tabs } from "expo-router";
 import { View, Text } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useOrganization } from "../../hooks/useOrganization";
 
 const TabIcon = ({
   icon,
@@ -30,6 +31,17 @@ const TabIcon = ({
 
 export default function AppLayout() {
   const insets = useSafeAreaInsets();
+  const {
+    activeOrganization,
+    canManageAccounts,
+    canCreateTransactions,
+    canViewReports,
+  } = useOrganization();
+
+  // If user is in an organization with viewer role (no permissions), show limited tabs
+  const showLimitedTabs =
+    activeOrganization && !canCreateTransactions && !canManageAccounts;
+
   return (
     <Tabs
       screenOptions={{
@@ -75,6 +87,8 @@ export default function AppLayout() {
           tabBarIcon: ({ focused }) => (
             <TabIcon icon="wallet" label="Accounts" focused={focused} />
           ),
+          // Hide if user doesn't have account management permissions and is in an organization
+          href: showLimitedTabs ? null : undefined,
         }}
       />
       <Tabs.Screen
@@ -84,6 +98,7 @@ export default function AppLayout() {
           tabBarIcon: ({ focused }) => (
             <TabIcon icon="receipt" label="History" focused={focused} />
           ),
+          // Always show transactions (viewers can see, just not create)
         }}
       />
       <Tabs.Screen

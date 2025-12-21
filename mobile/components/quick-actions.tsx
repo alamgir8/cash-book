@@ -1,5 +1,6 @@
 import { View, Text, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useOrganization } from "../hooks/useOrganization";
 
 type QuickActionProps = {
   icon: keyof typeof Ionicons.glyphMap;
@@ -56,7 +57,10 @@ export const QuickActions = ({
   onExportPDF,
   onVoiceInput,
 }: QuickActionsProps) => {
-  const actions = [
+  const { canCreateTransactions, canManageAccounts, canViewReports } =
+    useOrganization();
+
+  const allActions = [
     {
       id: "add-transaction",
       icon: "add-circle" as const,
@@ -65,6 +69,7 @@ export const QuickActions = ({
       color: "#3b82f6",
       bgColor: "bg-blue-50",
       onPress: onAddTransaction,
+      permission: canCreateTransactions,
     },
     {
       id: "transfer",
@@ -74,6 +79,7 @@ export const QuickActions = ({
       color: "#ec4899",
       bgColor: "bg-pink-50",
       onPress: onAddTransfer,
+      permission: canCreateTransactions,
     },
     {
       id: "add-account",
@@ -83,6 +89,7 @@ export const QuickActions = ({
       color: "#10b981",
       bgColor: "bg-green-50",
       onPress: onAddAccount,
+      permission: canManageAccounts,
     },
     {
       id: "export",
@@ -92,6 +99,7 @@ export const QuickActions = ({
       color: "#f59e0b",
       bgColor: "bg-yellow-50",
       onPress: onExportPDF,
+      permission: canViewReports,
     },
     // {
     //   id: "voice",
@@ -101,8 +109,17 @@ export const QuickActions = ({
     //   color: "#8b5cf6",
     //   bgColor: "bg-purple-50",
     //   onPress: onVoiceInput,
+    //   permission: canCreateTransactions,
     // },
   ];
+
+  // Filter actions based on permissions
+  const actions = allActions.filter((action) => action.permission);
+
+  // Don't show the component if no actions are available
+  if (actions.length === 0) {
+    return null;
+  }
 
   return (
     <View className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">

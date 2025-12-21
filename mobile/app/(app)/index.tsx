@@ -37,6 +37,7 @@ import { fetchAccounts } from "../../services/accounts";
 import { fetchCategories } from "../../services/categories";
 import { queryKeys } from "../../lib/queryKeys";
 import { usePreferences } from "../../hooks/usePreferences";
+import { useOrganization } from "../../hooks/useOrganization";
 
 const defaultFilters: TransactionFilters = {
   range: "monthly",
@@ -46,6 +47,7 @@ const defaultFilters: TransactionFilters = {
 
 export default function DashboardScreen() {
   const { formatAmount } = usePreferences();
+  const { canCreateTransactions, activeOrganization } = useOrganization();
   const queryClient = useQueryClient();
   const [filters, setFilters] = useState<TransactionFilters>(defaultFilters);
   const [isModalVisible, setModalVisible] = useState(false);
@@ -270,10 +272,21 @@ export default function DashboardScreen() {
     setTransferModalVisible(true);
   };
 
-  const handleEditTransaction = useCallback((transaction: Transaction) => {
-    setEditingTransaction(transaction);
-    setModalVisible(true);
-  }, []);
+  const handleEditTransaction = useCallback(
+    (transaction: Transaction) => {
+      if (!canCreateTransactions) {
+        Toast.show({
+          type: "error",
+          text1: "Permission Denied",
+          text2: "You don't have permission to edit transactions",
+        });
+        return;
+      }
+      setEditingTransaction(transaction);
+      setModalVisible(true);
+    },
+    [canCreateTransactions]
+  );
 
   const closeModal = useCallback(() => {
     setModalVisible(false);
@@ -434,7 +447,14 @@ export default function DashboardScreen() {
     <View className="flex-1 bg-gradient-to-b from-blue-50 to-gray-50">
       <ScreenHeader
         title="Dashboard"
-        subtitle="Track your finances easily"
+        subtitle={
+          activeOrganization
+            ? `${activeOrganization.name} · ${
+                activeOrganization.role.charAt(0).toUpperCase() +
+                activeOrganization.role.slice(1)
+              }`
+            : "Track your finances easily"
+        }
         icon="analytics"
       />
 
@@ -485,14 +505,16 @@ export default function DashboardScreen() {
         windowSize={10}
       />
 
-      <FloatingActionButton
-        onPress={() => {
-          setEditingTransaction(null);
-          setModalVisible(true);
-        }}
-        icon="add"
-        position="bottom-right"
-      />
+      {canCreateTransactions && (
+        <FloatingActionButton
+          onPress={() => {
+            setEditingTransaction(null);
+            setModalVisible(true);
+          }}
+          icon="add"
+          position="bottom-right"
+        />
+      )}
 
       <TransactionModal
         visible={isModalVisible}
