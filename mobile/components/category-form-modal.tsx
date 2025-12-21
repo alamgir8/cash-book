@@ -3,12 +3,12 @@ import {
   Modal,
   Text,
   TextInput,
-  Pressable,
   View,
   ScrollView,
   KeyboardAvoidingView,
   Platform,
   TouchableOpacity,
+  StyleSheet,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -168,157 +168,154 @@ export const CategoryFormModal = ({
     >
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={{ flex: 1 }}
+        style={styles.keyboardView}
       >
-        <View className="flex-1 bg-black/40 justify-end">
-          <View
-            className="bg-white rounded-t-3xl flex-1"
-            style={{ maxHeight: "90%" }}
-          >
+        <View style={styles.overlay}>
+          <View style={styles.modalContainer}>
             {/* Header */}
-            <View className="flex-row justify-between items-center p-6 pb-4 border-b border-gray-100">
+            <View style={styles.header}>
               <View>
-                <Text className="text-gray-900 text-xl font-bold">
+                <Text style={styles.headerTitle}>
                   {isEditing ? "Edit Category" : "New Category"}
                 </Text>
-                <Text className="text-gray-500 text-sm">
+                <Text style={styles.headerSubtitle}>
                   {isEditing
                     ? "Update category details"
                     : "Create a new category"}
                 </Text>
               </View>
-              <TouchableOpacity
-                onPress={onClose}
-                className="w-8 h-8 bg-gray-100 rounded-full items-center justify-center"
-              >
+              <TouchableOpacity onPress={onClose} style={styles.closeButton}>
                 <Ionicons name="close" size={20} color="#6b7280" />
               </TouchableOpacity>
             </View>
 
             <ScrollView
-              className="flex-1 px-6 py-4"
+              style={styles.scrollView}
               showsVerticalScrollIndicator={false}
-              contentContainerStyle={{ paddingBottom: 20 }}
+              contentContainerStyle={styles.scrollContent}
             >
-              <View className="gap-5">
+              <View style={styles.formContainer}>
                 {/* Error Message */}
                 {error && (
-                  <View className="bg-red-50 p-3 rounded-xl border border-red-200 flex-row items-center gap-2">
+                  <View style={styles.errorContainer}>
                     <Ionicons name="alert-circle" size={20} color="#dc2626" />
-                    <Text className="text-red-600 text-sm flex-1">{error}</Text>
-                    <Pressable onPress={() => setError(null)}>
+                    <Text style={styles.errorText}>{error}</Text>
+                    <TouchableOpacity onPress={() => setError(null)}>
                       <Ionicons name="close" size={18} color="#dc2626" />
-                    </Pressable>
+                    </TouchableOpacity>
                   </View>
                 )}
 
                 {/* Flow Selection */}
                 <View>
-                  <Text className="text-gray-700 text-sm font-semibold mb-2">
-                    Category Flow
-                  </Text>
-                  <View className="flex-row bg-gray-100 p-1 rounded-xl">
-                    <Pressable
+                  <Text style={styles.label}>Category Flow</Text>
+                  <View style={styles.flowContainer}>
+                    <TouchableOpacity
                       onPress={() => handleFlowChange("credit")}
-                      className={`flex-1 py-3 rounded-lg items-center ${
-                        flow === "credit" ? "bg-white shadow-sm" : ""
-                      }`}
+                      style={[
+                        styles.flowButton,
+                        flow === "credit" && styles.flowButtonActive,
+                      ]}
                     >
                       <Text
-                        className={`font-semibold ${
-                          flow === "credit" ? "text-green-600" : "text-gray-500"
-                        }`}
+                        style={[
+                          styles.flowButtonText,
+                          flow === "credit"
+                            ? styles.flowButtonTextCredit
+                            : styles.flowButtonTextInactive,
+                        ]}
                       >
                         Income (Credit)
                       </Text>
-                    </Pressable>
-                    <Pressable
+                    </TouchableOpacity>
+                    <TouchableOpacity
                       onPress={() => handleFlowChange("debit")}
-                      className={`flex-1 py-3 rounded-lg items-center ${
-                        flow === "debit" ? "bg-white shadow-sm" : ""
-                      }`}
+                      style={[
+                        styles.flowButton,
+                        flow === "debit" && styles.flowButtonActive,
+                      ]}
                     >
                       <Text
-                        className={`font-semibold ${
-                          flow === "debit" ? "text-red-600" : "text-gray-500"
-                        }`}
+                        style={[
+                          styles.flowButtonText,
+                          flow === "debit"
+                            ? styles.flowButtonTextDebit
+                            : styles.flowButtonTextInactive,
+                        ]}
                       >
                         Expense (Debit)
                       </Text>
-                    </Pressable>
+                    </TouchableOpacity>
                   </View>
                 </View>
 
                 {/* Name Input */}
                 <View>
-                  <Text className="text-gray-700 text-sm font-semibold mb-2">
-                    Category Name
-                  </Text>
+                  <Text style={styles.label}>Category Name</Text>
                   <TextInput
                     value={name}
                     onChangeText={setName}
                     placeholder="e.g., Groceries"
                     placeholderTextColor="#9ca3af"
-                    className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200 text-base"
+                    style={styles.input}
                   />
                 </View>
 
                 {/* Type Selection */}
                 <View>
-                  <Text className="text-gray-700 text-sm font-semibold mb-2">
-                    Category Type
-                  </Text>
-                  <View className="flex-row flex-wrap gap-2">
+                  <Text style={styles.label}>Category Type</Text>
+                  <View style={styles.typeContainer}>
                     {currentTypes.map((t) => (
-                      <Pressable
+                      <TouchableOpacity
                         key={t.value}
                         onPress={() => setType(t.value)}
-                        className={`px-3 py-2 rounded-lg border ${
+                        style={[
+                          styles.typeButton,
                           type === t.value
-                            ? "bg-blue-50 border-blue-200"
-                            : "bg-white border-gray-200"
-                        }`}
+                            ? styles.typeButtonActive
+                            : styles.typeButtonInactive,
+                        ]}
                       >
                         <Text
-                          className={`text-sm ${
-                            type === t.value ? "text-blue-700" : "text-gray-600"
-                          }`}
+                          style={[
+                            styles.typeButtonText,
+                            type === t.value
+                              ? styles.typeButtonTextActive
+                              : styles.typeButtonTextInactive,
+                          ]}
                         >
                           {t.label}
                         </Text>
-                      </Pressable>
+                      </TouchableOpacity>
                     ))}
                   </View>
                 </View>
 
                 {/* Color Selection */}
                 <View>
-                  <Text className="text-gray-700 text-sm font-semibold mb-2">
-                    Color Tag
-                  </Text>
-                  <View className="flex-row flex-wrap gap-3">
+                  <Text style={styles.label}>Color Tag</Text>
+                  <View style={styles.colorContainer}>
                     {COLORS.map((c) => (
-                      <Pressable
+                      <TouchableOpacity
                         key={c}
                         onPress={() => setColor(c)}
-                        style={{ backgroundColor: c }}
-                        className={`w-10 h-10 rounded-full items-center justify-center ${
-                          color === c ? "border-2 border-gray-400" : ""
-                        }`}
+                        style={[
+                          styles.colorButton,
+                          { backgroundColor: c },
+                          color === c && styles.colorButtonActive,
+                        ]}
                       >
                         {color === c && (
                           <Ionicons name="checkmark" size={20} color="white" />
                         )}
-                      </Pressable>
+                      </TouchableOpacity>
                     ))}
                   </View>
                 </View>
 
                 {/* Description Input */}
                 <View>
-                  <Text className="text-gray-700 text-sm font-semibold mb-2">
-                    Description (Optional)
-                  </Text>
+                  <Text style={styles.label}>Description (Optional)</Text>
                   <TextInput
                     value={description}
                     onChangeText={setDescription}
@@ -327,14 +324,14 @@ export const CategoryFormModal = ({
                     multiline
                     numberOfLines={3}
                     textAlignVertical="top"
-                    className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200 min-h-[96px]"
+                    style={styles.textArea}
                   />
                 </View>
               </View>
             </ScrollView>
 
             {/* Footer */}
-            <View className="p-6 pt-4 pb-8 border-t border-gray-100">
+            <View style={styles.footer}>
               <ActionButton
                 label={isEditing ? "Update Category" : "Create Category"}
                 onPress={handleSubmit}
@@ -352,3 +349,182 @@ export const CategoryFormModal = ({
     </Modal>
   );
 };
+
+const styles = StyleSheet.create({
+  keyboardView: {
+    flex: 1,
+  },
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
+    justifyContent: "flex-end",
+  },
+  modalContainer: {
+    backgroundColor: "white",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    flex: 1,
+    maxHeight: "90%",
+  },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 24,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f3f4f6",
+  },
+  headerTitle: {
+    color: "#111827",
+    fontSize: 20,
+    fontWeight: "bold",
+  },
+  headerSubtitle: {
+    color: "#6b7280",
+    fontSize: 14,
+  },
+  closeButton: {
+    width: 32,
+    height: 32,
+    backgroundColor: "#f3f4f6",
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  scrollView: {
+    flex: 1,
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+  },
+  scrollContent: {
+    paddingBottom: 20,
+  },
+  formContainer: {
+    gap: 20,
+  },
+  errorContainer: {
+    backgroundColor: "#fef2f2",
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#fecaca",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  errorText: {
+    color: "#dc2626",
+    fontSize: 14,
+    flex: 1,
+  },
+  label: {
+    color: "#374151",
+    fontSize: 14,
+    fontWeight: "600",
+    marginBottom: 8,
+  },
+  flowContainer: {
+    flexDirection: "row",
+    backgroundColor: "#f3f4f6",
+    padding: 4,
+    borderRadius: 12,
+  },
+  flowButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  flowButtonActive: {
+    backgroundColor: "white",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  flowButtonText: {
+    fontWeight: "600",
+  },
+  flowButtonTextCredit: {
+    color: "#16a34a",
+  },
+  flowButtonTextDebit: {
+    color: "#dc2626",
+  },
+  flowButtonTextInactive: {
+    color: "#6b7280",
+  },
+  input: {
+    backgroundColor: "#f9fafb",
+    color: "#111827",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    fontSize: 16,
+  },
+  typeContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  typeButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  typeButtonActive: {
+    backgroundColor: "#eff6ff",
+    borderColor: "#bfdbfe",
+  },
+  typeButtonInactive: {
+    backgroundColor: "white",
+    borderColor: "#e5e7eb",
+  },
+  typeButtonText: {
+    fontSize: 14,
+  },
+  typeButtonTextActive: {
+    color: "#1d4ed8",
+  },
+  typeButtonTextInactive: {
+    color: "#4b5563",
+  },
+  colorContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  colorButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  colorButtonActive: {
+    borderWidth: 2,
+    borderColor: "#9ca3af",
+  },
+  textArea: {
+    backgroundColor: "#f9fafb",
+    color: "#111827",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    minHeight: 96,
+  },
+  footer: {
+    padding: 24,
+    paddingTop: 16,
+    paddingBottom: 32,
+    borderTopWidth: 1,
+    borderTopColor: "#f3f4f6",
+  },
+});
