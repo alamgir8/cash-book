@@ -221,20 +221,20 @@ export default function NewInvoiceScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50" edges={["top"]}>
+    <SafeAreaView className="flex-1 bg-slate-50" edges={[]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         className="flex-1"
       >
         {/* Header */}
-        <View className="flex-row items-center justify-between px-5 py-4 bg-white border-b border-slate-100">
+        <View className="flex-row items-center justify-between px-5 py-3 bg-white border-b border-slate-100">
           <TouchableOpacity
             onPress={() => router.back()}
-            className="w-10 h-10 items-center justify-center rounded-full bg-slate-100"
+            className="w-10 h-10 items-center justify-center"
           >
-            <Ionicons name="arrow-back" size={22} color="#334155" />
+            <Ionicons name="arrow-back" size={24} color="#374151" />
           </TouchableOpacity>
-          <Text className="text-lg font-semibold text-slate-800">
+          <Text className="text-lg font-bold text-slate-900">
             {invoiceType === "sale"
               ? "New Sales Invoice"
               : "New Purchase Invoice"}

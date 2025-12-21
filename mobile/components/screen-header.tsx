@@ -34,7 +34,7 @@ export function ScreenHeader({
 
   return (
     <View
-      className="pt-6 pb-6 px-6 shadow-sm border-b border-gray-100"
+      className="pt-3 pb-3 px-5 shadow-sm border-b border-gray-100"
       style={{ backgroundColor }}
     >
       <View className="flex-row items-center justify-between">
@@ -45,7 +45,7 @@ export function ScreenHeader({
         )}
 
         <View className="flex-1">
-          <Text className="text-2xl font-bold text-gray-900">{title}</Text>
+          <Text className="text-xl font-bold text-gray-900">{title}</Text>
           {subtitle && (
             <Text className="text-sm text-gray-600 mt-1">{subtitle}</Text>
           )}
