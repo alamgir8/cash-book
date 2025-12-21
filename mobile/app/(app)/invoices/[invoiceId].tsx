@@ -215,20 +215,28 @@ export default function InvoiceDetailScreen() {
         showBack
         rightAction={
           <TouchableOpacity
-            className="p-2"
+            className="flex-row items-center bg-blue-500 px-3 py-1.5 rounded-lg"
             onPress={handleExportPdf}
             disabled={exportingPdf}
           >
             {exportingPdf ? (
-              <ActivityIndicator size="small" color="#3B82F6" />
+              <ActivityIndicator size="small" color="#ffffff" />
             ) : (
-              <Ionicons name="download-outline" size={24} color="#3B82F6" />
+              <>
+                <Ionicons name="download-outline" size={18} color="#ffffff" />
+                <Text className="ml-1.5 text-sm font-semibold text-white">
+                  Export
+                </Text>
+              </>
             )}
           </TouchableOpacity>
         }
       />
 
-      <ScrollView className="flex-1">
+      <ScrollView
+        className="flex-1"
+        contentContainerStyle={{ paddingBottom: 100 }}
+      >
         {/* Header Card */}
         <View className="bg-white p-6 border-b border-gray-100">
           <View className="flex-row items-center justify-between">

@@ -100,18 +100,29 @@ export default function PartyLedgerScreen() {
         showBack
         rightAction={
           <TouchableOpacity
-            className="p-2"
+            className={`flex-row items-center px-3 py-1.5 rounded-lg ${
+              ledgerEntries.length === 0 ? "bg-gray-100" : "bg-blue-500"
+            }`}
             onPress={handleExportPdf}
             disabled={exportingPdf || ledgerEntries.length === 0}
           >
             {exportingPdf ? (
-              <ActivityIndicator size="small" color="#3B82F6" />
+              <ActivityIndicator size="small" color="#ffffff" />
             ) : (
-              <Ionicons
-                name="download-outline"
-                size={24}
-                color={ledgerEntries.length === 0 ? "#9CA3AF" : "#3B82F6"}
-              />
+              <>
+                <Ionicons
+                  name="download-outline"
+                  size={18}
+                  color={ledgerEntries.length === 0 ? "#9CA3AF" : "#ffffff"}
+                />
+                <Text
+                  className={`ml-1.5 text-sm font-semibold ${
+                    ledgerEntries.length === 0 ? "text-gray-400" : "text-white"
+                  }`}
+                >
+                  Export
+                </Text>
+              </>
             )}
           </TouchableOpacity>
         }
@@ -189,6 +200,7 @@ export default function PartyLedgerScreen() {
       {/* Ledger Entries */}
       <ScrollView
         className="flex-1 px-4 mt-4"
+        contentContainerStyle={{ paddingBottom: 100 }}
         refreshControl={
           <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
         }
