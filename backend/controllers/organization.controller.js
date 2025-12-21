@@ -214,6 +214,7 @@ export const updateOrganization = async (req, res, next) => {
       "address",
       "settings",
       "contact",
+      "status",
     ];
 
     const updateData = {};
@@ -232,6 +233,12 @@ export const updateOrganization = async (req, res, next) => {
       if (updates.contact.website !== undefined)
         updateData.website = updates.contact.website;
       delete updateData.contact;
+    }
+
+    // Handle settings update for currency
+    if (updates.settings && updates.settings.currency) {
+      updateData["settings.currency_code"] = updates.settings.currency;
+      delete updateData.settings;
     }
 
     const organization = await Organization.findByIdAndUpdate(
