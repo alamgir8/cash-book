@@ -37,6 +37,7 @@ export default function OrganizationDetailScreen() {
     mutationFn: (params: {
       email?: string;
       phone?: string;
+      password: string;
       role: string;
       display_name: string;
     }) => organizationsApi.addMember(organizationId!, params),
@@ -45,7 +46,7 @@ export default function OrganizationDetailScreen() {
         queryKey: ["organization", organizationId],
       });
       setShowAddMemberModal(false);
-      toast.success("Member added successfully");
+      toast.success("User account created and added successfully");
     },
     onError: (error) => {
       toast.error(getApiErrorMessage(error));

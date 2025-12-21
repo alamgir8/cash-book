@@ -44,6 +44,7 @@ const memberSchema = z
       .optional()
       .or(z.literal("")),
     phone: z.string().optional().or(z.literal("")),
+    password: z.string().min(6, "Password must be at least 6 characters"),
     role: z.enum(["manager", "cashier", "viewer"]),
   })
   .refine((data) => data.email || data.phone, {
@@ -59,6 +60,7 @@ interface AddMemberModalProps {
   onSubmit: (data: {
     email?: string;
     phone?: string;
+    password: string;
     role: string;
     display_name: string;
   }) => void;
@@ -82,6 +84,7 @@ export function AddMemberModal({
       display_name: "",
       email: "",
       phone: "",
+      password: "",
       role: "cashier",
     },
   });
@@ -96,6 +99,7 @@ export function AddMemberModal({
       display_name: data.display_name.trim(),
       email: data.email?.trim() || undefined,
       phone: data.phone?.trim() || undefined,
+      password: data.password,
       role: data.role,
     });
     reset();
@@ -212,6 +216,35 @@ export function AddMemberModal({
                   />
                 </View>
 
+                {/* Password */}
+                <View>
+                  <Text style={styles.label}>Password *</Text>
+                  <Controller
+                    control={control}
+                    name="password"
+                    render={({ field: { onChange, onBlur, value } }) => (
+                      <TextInput
+                        style={[
+                          styles.input,
+                          errors.password && styles.inputError,
+                        ]}
+                        placeholder="Minimum 6 characters"
+                        placeholderTextColor="#9ca3af"
+                        value={value}
+                        onChangeText={onChange}
+                        onBlur={onBlur}
+                        secureTextEntry
+                        autoCapitalize="none"
+                      />
+                    )}
+                  />
+                  {errors.password && (
+                    <Text style={styles.errorText}>
+                      {errors.password.message}
+                    </Text>
+                  )}
+                </View>
+
                 {/* Role Selection */}
                 <View>
                   <Text style={styles.label}>Role *</Text>
@@ -265,8 +298,8 @@ export function AddMemberModal({
                     color="#3b82f6"
                   />
                   <Text style={styles.infoText}>
-                    The user must already have an account. They will receive an
-                    invitation to join this organization.
+                    A new user account will be created. The member can log in
+                    immediately with the provided email/phone and password.
                   </Text>
                 </View>
               </View>

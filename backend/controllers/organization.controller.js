@@ -7,6 +7,7 @@ import {
 import { Admin } from "../models/Admin.js";
 import { Category } from "../models/Category.js";
 import { DEFAULT_CATEGORIES } from "../constants/defaultCategories.js";
+import argon2 from "argon2";
 
 /**
  * Create a new organization
@@ -303,16 +304,20 @@ export const getMembers = async (req, res, next) => {
 };
 
 /**
- * Invite a member to organization
+ * Invite a member to organization (now creates user account directly)
  */
 export const inviteMember = async (req, res, next) => {
   try {
     const { organizationId } = req.params;
     const userId = req.user.id;
-    const { email, phone, role = "cashier", display_name } = req.body;
+    const { email, phone, role = "cashier", display_name, password } = req.body;
 
     if (!email && !phone) {
       return res.status(400).json({ message: "Email or phone is required" });
+    }
+
+    if (!password) {
+      return res.status(400).json({ message: "Password is required" });
     }
 
     // Check permission
@@ -341,59 +346,22 @@ export const inviteMember = async (req, res, next) => {
     if (email) query.push({ email: email.toLowerCase() });
     if (phone) query.push({ phone });
 
-    const invitedUser = await Admin.findOne({ $or: query });
+    let invitedUser = await Admin.findOne({ $or: query });
 
-    // If user doesn't exist, create a pending invitation
+    // If user doesn't exist, create a new user account
     if (!invitedUser) {
-      // Check if there's already a pending invitation for this email/phone
-      const existingPendingQuery = [];
-      if (email) {
-        existingPendingQuery.push({
-          organization: organizationId,
-          pending_email: email.toLowerCase(),
-          user: null,
-        });
-      }
-      if (phone) {
-        existingPendingQuery.push({
-          organization: organizationId,
-          pending_phone: phone,
-          user: null,
-        });
-      }
+      // Hash the password
+      const hashedPassword = await argon2.hash(password);
 
-      const existingPending = await OrganizationMember.findOne({
-        $or: existingPendingQuery,
+      // Create new user
+      invitedUser = new Admin({
+        name: display_name,
+        email: email?.toLowerCase(),
+        phone: phone,
+        password_hash: hashedPassword,
       });
 
-      if (existingPending) {
-        return res.status(400).json({
-          message:
-            "An invitation has already been sent to this email/phone for this organization",
-        });
-      }
-
-      const pendingInvitation = new OrganizationMember({
-        organization: organizationId,
-        user: null, // No user yet
-        role,
-        permissions: ROLE_PERMISSION_DEFAULTS[role],
-        status: "invited",
-        invited_by: userId,
-        invited_at: new Date(),
-        display_name: display_name || email || phone,
-        pending_email: email?.toLowerCase(),
-        pending_phone: phone,
-      });
-
-      await pendingInvitation.save();
-
-      return res.status(201).json({
-        message:
-          "Invitation created. User will be added when they create an account with this email/phone.",
-        member: pendingInvitation,
-        isPending: true,
-      });
+      await invitedUser.save();
     }
 
     // Check if already a member
@@ -444,7 +412,7 @@ export const inviteMember = async (req, res, next) => {
     await newMember.populate("user", "name email phone");
 
     res.status(201).json({
-      message: "Member invited successfully",
+      message: "User account created and added as member successfully",
       member: newMember,
     });
   } catch (error) {
