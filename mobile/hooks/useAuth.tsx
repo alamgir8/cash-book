@@ -127,6 +127,23 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     [persistSession]
   );
 
+  // Store callbacks in refs to avoid dependency changes causing re-runs
+  const persistSessionRef = useRef(persistSession);
+  const clearSessionRef = useRef(clearSession);
+  const applySessionRef = useRef(applySession);
+  const refreshAccessTokenRef = useRef<
+    (() => Promise<string | null>) | undefined
+  >(undefined);
+  const handleUnauthorizedRef = useRef<(() => Promise<void>) | undefined>(
+    undefined
+  );
+
+  useEffect(() => {
+    persistSessionRef.current = persistSession;
+    clearSessionRef.current = clearSession;
+    applySessionRef.current = applySession;
+  }, [persistSession, clearSession, applySession]);
+
   const refreshAccessToken = useCallback(async () => {
     const current = stateRef.current;
     if (current.status !== "authenticated") return null;
@@ -134,7 +151,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       const refreshed = await authService.refreshSession(
         current.tokens.refreshToken
       );
-      await applySession(refreshed);
+      await applySessionRef.current(refreshed);
       return refreshed.tokens.accessToken;
     } catch (error) {
       // On network error, don't log out - just keep the current session
@@ -151,7 +168,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         const status = error.response.status;
         if (status === 401 || status === 403) {
           console.warn("Refresh token rejected by server, clearing session");
-          await clearSession();
+          await clearSessionRef.current();
           throw error;
         }
       }
@@ -160,13 +177,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       console.warn("Refresh token request failed with server error", error);
       throw error;
     }
-  }, [applySession, clearSession]);
+  }, []);
 
   const startRefreshTimer = useCallback(() => {
     stopRefreshTimer();
     if (stateRef.current.status !== "authenticated") return;
     refreshIntervalRef.current = setInterval(() => {
-      void refreshAccessToken().catch((err) => {
+      void refreshAccessTokenRef.current?.().catch((err) => {
         if (axios.isAxiosError(err) && !err.response) {
           // transient network failure already logged
           return;
@@ -174,7 +191,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         console.warn("Scheduled token refresh failed", err);
       });
     }, REFRESH_INTERVAL_MS);
-  }, [refreshAccessToken, stopRefreshTimer]);
+  }, [stopRefreshTimer]);
 
   const handleUnauthorized = useCallback(async () => {
     if (handlingUnauthorized.current) return;
@@ -182,7 +199,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
     const previousState = stateRef.current;
     try {
-      await clearSession();
+      await clearSessionRef.current();
       if (previousState.status === "authenticated") {
         Toast.show({
           type: "info",
@@ -193,14 +210,21 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     } finally {
       handlingUnauthorized.current = false;
     }
-  }, [clearSession]);
+  }, []);
 
+  // Update refs with latest callback values
+  useEffect(() => {
+    refreshAccessTokenRef.current = refreshAccessToken;
+    handleUnauthorizedRef.current = handleUnauthorized;
+  }, [refreshAccessToken, handleUnauthorized]);
   const bootstrap = useCallback(async () => {
     try {
       const stored = await SecureStore.getItemAsync(STORAGE_SESSION_KEY);
       const storedUser = await SecureStore.getItemAsync(STORAGE_USER_KEY);
       if (!stored) {
-        await clearSession();
+        if (isMountedRef.current) {
+          setState({ status: "unauthenticated", user: null, tokens: null });
+        }
         return;
       }
 
@@ -209,12 +233,16 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         tokens = JSON.parse(stored) as AuthTokens;
       } catch (parseError) {
         console.warn("Failed to parse stored session", parseError);
-        await clearSession();
+        if (isMountedRef.current) {
+          setState({ status: "unauthenticated", user: null, tokens: null });
+        }
         return;
       }
 
       if (!tokens?.accessToken || !tokens.refreshToken) {
-        await clearSession();
+        if (isMountedRef.current) {
+          setState({ status: "unauthenticated", user: null, tokens: null });
+        }
         return;
       }
 
@@ -228,34 +256,46 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       }
 
       setAuthToken(tokens.accessToken);
+
+      // Try to get fresh profile, but fall back to cached user
       try {
         const profile = await authService.getProfile();
-        await persistSession(tokens, profile.admin);
-        setState({
-          status: "authenticated",
-          tokens,
-          user: profile.admin,
-        });
+        await persistSessionRef.current(tokens, profile.admin);
+        if (isMountedRef.current) {
+          setState({
+            status: "authenticated",
+            tokens,
+            user: profile.admin,
+          });
+        }
       } catch (profileError) {
-        // If profile fetch fails, try refreshing the token
+        // If we have a cached user, use it even if profile fetch fails
+        if (cachedUser) {
+          console.warn(
+            "Using cached user profile due to fetch error",
+            profileError
+          );
+          if (isMountedRef.current) {
+            setState({ status: "authenticated", tokens, user: cachedUser });
+          }
+          return;
+        }
+
+        // Only try to refresh if we don't have cached data
         try {
           const refreshed = await authService.refreshSession(
             tokens.refreshToken
           );
-          await applySession(refreshed);
-        } catch (refreshError) {
-          // On network error, keep session with cached data
-          if (axios.isAxiosError(refreshError) && !refreshError.response) {
-            console.warn(
-              "Bootstrap refresh failed due to network; using cached session"
-            );
-            if (cachedUser) {
-              setState({ status: "authenticated", tokens, user: cachedUser });
-              await persistSession(tokens, cachedUser);
-              return;
-            }
+          await persistSessionRef.current(refreshed.tokens, refreshed.admin);
+          setAuthToken(refreshed.tokens.accessToken);
+          if (isMountedRef.current) {
+            setState({
+              status: "authenticated",
+              tokens: refreshed.tokens,
+              user: refreshed.admin,
+            });
           }
-
+        } catch (refreshError) {
           // Only clear session if it's an explicit auth error (401/403)
           const isAuthError =
             axios.isAxiosError(refreshError) &&
@@ -263,40 +303,41 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             [401, 403].includes(refreshError.response.status);
 
           if (isAuthError) {
-            console.warn(
-              "Session expired or revoked, clearing session",
-              refreshError
-            );
-            await clearSession();
-          } else if (cachedUser) {
-            // For other errors, keep using cached session
-            console.warn(
-              "Refresh failed but keeping cached session",
-              refreshError
-            );
-            setState({ status: "authenticated", tokens, user: cachedUser });
-            await persistSession(tokens, cachedUser);
+            console.warn("Session expired, clearing", refreshError);
+            await clearSessionRef.current();
           } else {
-            await clearSession();
+            // For network errors or server errors, keep trying with current token
+            console.warn(
+              "Bootstrap refresh failed but keeping session",
+              refreshError
+            );
+            if (isMountedRef.current) {
+              setState({ status: "unauthenticated", user: null, tokens: null });
+            }
           }
         }
       }
     } catch (error) {
       console.warn("Failed to bootstrap session", error);
-      await clearSession();
+      if (isMountedRef.current) {
+        setState({ status: "unauthenticated", user: null, tokens: null });
+      }
     }
-  }, [applySession, clearSession, persistSession]);
+  }, []);
 
+  // Set up unauthorized and token refresh handlers once on mount
   useEffect(() => {
     setUnauthorizedHandler(() => {
-      void handleUnauthorized();
+      void handleUnauthorizedRef.current?.();
     });
-    setTokenRefreshHandler(() => refreshAccessToken());
+    setTokenRefreshHandler(
+      () => refreshAccessTokenRef.current?.() ?? Promise.resolve(null)
+    );
     return () => {
       setUnauthorizedHandler();
       setTokenRefreshHandler();
     };
-  }, [handleUnauthorized, refreshAccessToken]);
+  }, []);
 
   useEffect(() => {
     bootstrap();
