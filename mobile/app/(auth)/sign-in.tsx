@@ -58,11 +58,12 @@ type FormValues = z.infer<typeof schema>;
 export default function SignInScreen() {
   const router = useRouter();
   const { signIn } = useAuth();
+  // No userIdentifier passed - use findBiometricCredentials for login screen
   const {
     status: biometricStatus,
     isLoading: biometricLoading,
     isAuthenticating,
-    authenticateWithBiometric,
+    findBiometricCredentials,
     getBiometricDisplayName,
     getBiometricIconName,
   } = useBiometric();
@@ -85,12 +86,13 @@ export default function SignInScreen() {
   });
 
   // Try biometric login on mount if enabled
+  // Uses findBiometricCredentials to find any user with biometric enabled on this device
   const handleBiometricLogin = useCallback(async () => {
     if (!biometricStatus?.isEnabled || isAuthenticating) return;
 
     try {
       setFormError(null);
-      const credentials = await authenticateWithBiometric();
+      const credentials = await findBiometricCredentials();
       if (credentials) {
         setLoading(true);
         await signIn({
@@ -110,7 +112,7 @@ export default function SignInScreen() {
   }, [
     biometricStatus?.isEnabled,
     isAuthenticating,
-    authenticateWithBiometric,
+    findBiometricCredentials,
     signIn,
     router,
   ]);

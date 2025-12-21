@@ -6,6 +6,11 @@ import type {
   StoredCredentials,
 } from "../services/biometric";
 
+interface UseBiometricOptions {
+  /** User identifier (e.g., email or user ID) for per-user biometric storage */
+  userIdentifier?: string;
+}
+
 interface UseBiometricReturn {
   status: BiometricStatus | null;
   isLoading: boolean;
@@ -14,6 +19,8 @@ interface UseBiometricReturn {
   enableBiometric: (credentials: StoredCredentials) => Promise<boolean>;
   disableBiometric: () => Promise<boolean>;
   authenticateWithBiometric: () => Promise<StoredCredentials | null>;
+  /** Find any user with biometric enabled (for login screen) */
+  findBiometricCredentials: () => Promise<StoredCredentials | null>;
   refreshStatus: () => Promise<void>;
   getBiometricDisplayName: (type: BiometricType) => string;
   getBiometricIconName: (
@@ -21,7 +28,10 @@ interface UseBiometricReturn {
   ) => "finger-print" | "scan" | "eye" | "lock-closed";
 }
 
-export function useBiometric(): UseBiometricReturn {
+export function useBiometric(
+  options: UseBiometricOptions = {}
+): UseBiometricReturn {
+  const { userIdentifier } = options;
   const [status, setStatus] = useState<BiometricStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isEnabling, setIsEnabling] = useState(false);
@@ -30,7 +40,9 @@ export function useBiometric(): UseBiometricReturn {
   const refreshStatus = useCallback(async () => {
     try {
       setIsLoading(true);
-      const biometricStatus = await biometricService.getBiometricStatus();
+      const biometricStatus = await biometricService.getBiometricStatus(
+        userIdentifier
+      );
       setStatus(biometricStatus);
     } catch (error) {
       console.warn("Failed to get biometric status:", error);
@@ -43,7 +55,7 @@ export function useBiometric(): UseBiometricReturn {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [userIdentifier]);
 
   useEffect(() => {
     refreshStatus();
@@ -53,7 +65,10 @@ export function useBiometric(): UseBiometricReturn {
     async (credentials: StoredCredentials): Promise<boolean> => {
       try {
         setIsEnabling(true);
-        const success = await biometricService.enableBiometric(credentials);
+        const success = await biometricService.enableBiometric(
+          credentials,
+          userIdentifier
+        );
         if (success) {
           await refreshStatus();
         }
@@ -62,13 +77,13 @@ export function useBiometric(): UseBiometricReturn {
         setIsEnabling(false);
       }
     },
-    [refreshStatus]
+    [refreshStatus, userIdentifier]
   );
 
   const disableBiometric = useCallback(async (): Promise<boolean> => {
     try {
       setIsEnabling(true);
-      const success = await biometricService.disableBiometric();
+      const success = await biometricService.disableBiometric(userIdentifier);
       if (success) {
         await refreshStatus();
       }
@@ -76,13 +91,23 @@ export function useBiometric(): UseBiometricReturn {
     } finally {
       setIsEnabling(false);
     }
-  }, [refreshStatus]);
+  }, [refreshStatus, userIdentifier]);
 
   const authenticateWithBiometric =
     useCallback(async (): Promise<StoredCredentials | null> => {
       try {
         setIsAuthenticating(true);
-        return await biometricService.authenticateWithBiometric();
+        return await biometricService.authenticateWithBiometric(userIdentifier);
+      } finally {
+        setIsAuthenticating(false);
+      }
+    }, [userIdentifier]);
+
+  const findBiometricCredentials =
+    useCallback(async (): Promise<StoredCredentials | null> => {
+      try {
+        setIsAuthenticating(true);
+        return await biometricService.findBiometricCredentials();
       } finally {
         setIsAuthenticating(false);
       }
@@ -96,6 +121,7 @@ export function useBiometric(): UseBiometricReturn {
     enableBiometric,
     disableBiometric,
     authenticateWithBiometric,
+    findBiometricCredentials,
     refreshStatus,
     getBiometricDisplayName: biometricService.getBiometricDisplayName,
     getBiometricIconName: biometricService.getBiometricIconName,

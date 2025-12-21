@@ -27,6 +27,7 @@ export function BiometricSettingsModal({
   onClose,
   userEmail,
 }: BiometricSettingsModalProps) {
+  // Pass userEmail as userIdentifier for per-user biometric storage
   const {
     status,
     isLoading,
@@ -35,7 +36,7 @@ export function BiometricSettingsModal({
     disableBiometric,
     getBiometricDisplayName,
     getBiometricIconName,
-  } = useBiometric();
+  } = useBiometric({ userIdentifier: userEmail });
 
   const [showPasswordInput, setShowPasswordInput] = useState(false);
   const [password, setPassword] = useState("");

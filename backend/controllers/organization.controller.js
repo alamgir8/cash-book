@@ -373,16 +373,17 @@ export const inviteMember = async (req, res, next) => {
     if (existingMember) {
       if (existingMember.status === "removed") {
         // Reactivate
-        existingMember.status = "invited";
+        existingMember.status = "active";
         existingMember.role = role;
         existingMember.permissions = ROLE_PERMISSION_DEFAULTS[role];
         existingMember.invited_by = userId;
         existingMember.invited_at = new Date();
+        existingMember.joined_at = new Date();
         existingMember.display_name = display_name;
         await existingMember.save();
 
         return res.json({
-          message: "Member re-invited successfully",
+          message: "Member re-activated successfully",
           member: existingMember,
         });
       }
@@ -399,7 +400,8 @@ export const inviteMember = async (req, res, next) => {
       permissions: ROLE_PERMISSION_DEFAULTS[role],
       invited_by: userId,
       invited_at: new Date(),
-      status: "invited",
+      joined_at: new Date(),
+      status: "active", // Active immediately since we create the account directly
       display_name,
     });
 

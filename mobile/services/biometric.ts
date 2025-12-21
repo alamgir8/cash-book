@@ -1,8 +1,12 @@
 import * as LocalAuthentication from "expo-local-authentication";
 import * as SecureStore from "expo-secure-store";
 
-const BIOMETRIC_ENABLED_KEY = "cash-book-biometric-enabled";
-const BIOMETRIC_CREDENTIALS_KEY = "cash-book-biometric-credentials";
+// Base keys - will be suffixed with user identifier for per-user storage
+const BIOMETRIC_ENABLED_KEY_PREFIX = "cash-book-biometric-enabled-";
+const BIOMETRIC_CREDENTIALS_KEY_PREFIX = "cash-book-biometric-credentials-";
+
+// For backward compatibility and to know which users have biometric enabled
+const BIOMETRIC_USERS_KEY = "cash-book-biometric-users";
 
 export type BiometricType = "fingerprint" | "facial" | "iris" | "none";
 
@@ -85,10 +89,13 @@ export async function checkBiometricAvailability(): Promise<{
 
 /**
  * Get the full biometric status including enabled state
+ * @param userIdentifier - Optional user identifier to check for specific user
  */
-export async function getBiometricStatus(): Promise<BiometricStatus> {
+export async function getBiometricStatus(
+  userIdentifier?: string
+): Promise<BiometricStatus> {
   const availability = await checkBiometricAvailability();
-  const isEnabled = await isBiometricEnabled();
+  const isEnabled = await isBiometricEnabled(userIdentifier);
 
   return {
     ...availability,
@@ -97,11 +104,30 @@ export async function getBiometricStatus(): Promise<BiometricStatus> {
 }
 
 /**
- * Check if biometric authentication is enabled by the user
+ * Get storage keys for a specific user
  */
-export async function isBiometricEnabled(): Promise<boolean> {
+function getUserKeys(userIdentifier?: string): {
+  enabledKey: string;
+  credentialsKey: string;
+} {
+  // If no identifier, use a hash of "default" or check stored users
+  const suffix = userIdentifier || "default";
+  return {
+    enabledKey: `${BIOMETRIC_ENABLED_KEY_PREFIX}${suffix}`,
+    credentialsKey: `${BIOMETRIC_CREDENTIALS_KEY_PREFIX}${suffix}`,
+  };
+}
+
+/**
+ * Check if biometric authentication is enabled by the user
+ * @param userIdentifier - Optional user identifier (email or phone)
+ */
+export async function isBiometricEnabled(
+  userIdentifier?: string
+): Promise<boolean> {
   try {
-    const enabled = await SecureStore.getItemAsync(BIOMETRIC_ENABLED_KEY);
+    const { enabledKey } = getUserKeys(userIdentifier);
+    const enabled = await SecureStore.getItemAsync(enabledKey);
     return enabled === "true";
   } catch (error) {
     console.warn("Failed to check biometric enabled status:", error);
@@ -111,9 +137,12 @@ export async function isBiometricEnabled(): Promise<boolean> {
 
 /**
  * Enable biometric authentication and store credentials securely
+ * @param credentials - User credentials to store
+ * @param userIdentifier - Optional user identifier for multi-user support
  */
 export async function enableBiometric(
-  credentials: StoredCredentials
+  credentials: StoredCredentials,
+  userIdentifier?: string
 ): Promise<boolean> {
   try {
     // First, verify biometric authentication works
@@ -128,12 +157,16 @@ export async function enableBiometric(
       return false;
     }
 
+    // Use the identifier from credentials if not provided
+    const identifier = userIdentifier || credentials.identifier;
+    const { enabledKey, credentialsKey } = getUserKeys(identifier);
+
     // Store credentials securely
-    await SecureStore.setItemAsync(
-      BIOMETRIC_CREDENTIALS_KEY,
-      JSON.stringify(credentials)
-    );
-    await SecureStore.setItemAsync(BIOMETRIC_ENABLED_KEY, "true");
+    await SecureStore.setItemAsync(credentialsKey, JSON.stringify(credentials));
+    await SecureStore.setItemAsync(enabledKey, "true");
+
+    // Track this user in the list of biometric users
+    await addBiometricUser(identifier);
 
     return true;
   } catch (error) {
@@ -143,12 +176,70 @@ export async function enableBiometric(
 }
 
 /**
- * Disable biometric authentication and remove stored credentials
+ * Track users who have enabled biometric
  */
-export async function disableBiometric(): Promise<boolean> {
+async function addBiometricUser(identifier: string): Promise<void> {
   try {
-    await SecureStore.deleteItemAsync(BIOMETRIC_CREDENTIALS_KEY);
-    await SecureStore.deleteItemAsync(BIOMETRIC_ENABLED_KEY);
+    const usersJson = await SecureStore.getItemAsync(BIOMETRIC_USERS_KEY);
+    const users: string[] = usersJson ? JSON.parse(usersJson) : [];
+    if (!users.includes(identifier)) {
+      users.push(identifier);
+      await SecureStore.setItemAsync(
+        BIOMETRIC_USERS_KEY,
+        JSON.stringify(users)
+      );
+    }
+  } catch (error) {
+    console.warn("Failed to track biometric user:", error);
+  }
+}
+
+/**
+ * Remove user from biometric users list
+ */
+async function removeBiometricUser(identifier: string): Promise<void> {
+  try {
+    const usersJson = await SecureStore.getItemAsync(BIOMETRIC_USERS_KEY);
+    const users: string[] = usersJson ? JSON.parse(usersJson) : [];
+    const filtered = users.filter((u) => u !== identifier);
+    await SecureStore.setItemAsync(
+      BIOMETRIC_USERS_KEY,
+      JSON.stringify(filtered)
+    );
+  } catch (error) {
+    console.warn("Failed to remove biometric user:", error);
+  }
+}
+
+/**
+ * Get list of users who have biometric enabled
+ */
+export async function getBiometricUsers(): Promise<string[]> {
+  try {
+    const usersJson = await SecureStore.getItemAsync(BIOMETRIC_USERS_KEY);
+    return usersJson ? JSON.parse(usersJson) : [];
+  } catch (error) {
+    console.warn("Failed to get biometric users:", error);
+    return [];
+  }
+}
+
+/**
+ * Disable biometric authentication and remove stored credentials
+ * @param userIdentifier - Optional user identifier
+ */
+export async function disableBiometric(
+  userIdentifier?: string
+): Promise<boolean> {
+  try {
+    const { enabledKey, credentialsKey } = getUserKeys(userIdentifier);
+    await SecureStore.deleteItemAsync(credentialsKey);
+    await SecureStore.deleteItemAsync(enabledKey);
+
+    if (userIdentifier) {
+      await removeBiometricUser(userIdentifier);
+    }
+
     return true;
   } catch (error) {
     console.warn("Failed to disable biometric:", error);
@@ -158,10 +249,13 @@ export async function disableBiometric(): Promise<boolean> {
 
 /**
  * Authenticate using biometrics and return stored credentials
+ * @param userIdentifier - Optional user identifier to get specific user's credentials
  */
-export async function authenticateWithBiometric(): Promise<StoredCredentials | null> {
+export async function authenticateWithBiometric(
+  userIdentifier?: string
+): Promise<StoredCredentials | null> {
   try {
-    const isEnabled = await isBiometricEnabled();
+    const isEnabled = await isBiometricEnabled(userIdentifier);
     if (!isEnabled) {
       return null;
     }
@@ -177,9 +271,8 @@ export async function authenticateWithBiometric(): Promise<StoredCredentials | n
       return null;
     }
 
-    const credentialsJson = await SecureStore.getItemAsync(
-      BIOMETRIC_CREDENTIALS_KEY
-    );
+    const { credentialsKey } = getUserKeys(userIdentifier);
+    const credentialsJson = await SecureStore.getItemAsync(credentialsKey);
     if (!credentialsJson) {
       return null;
     }
@@ -187,6 +280,44 @@ export async function authenticateWithBiometric(): Promise<StoredCredentials | n
     return JSON.parse(credentialsJson) as StoredCredentials;
   } catch (error) {
     console.warn("Failed to authenticate with biometric:", error);
+    return null;
+  }
+}
+
+/**
+ * Find any user with stored biometric credentials
+ * Used for quick login on app start
+ */
+export async function findBiometricCredentials(): Promise<StoredCredentials | null> {
+  try {
+    const users = await getBiometricUsers();
+
+    for (const user of users) {
+      const isEnabled = await isBiometricEnabled(user);
+      if (isEnabled) {
+        const result = await LocalAuthentication.authenticateAsync({
+          promptMessage: "Login with biometrics",
+          cancelLabel: "Cancel",
+          disableDeviceFallback: false,
+          fallbackLabel: "Use passcode",
+        });
+
+        if (result.success) {
+          const { credentialsKey } = getUserKeys(user);
+          const credentialsJson = await SecureStore.getItemAsync(
+            credentialsKey
+          );
+          if (credentialsJson) {
+            return JSON.parse(credentialsJson) as StoredCredentials;
+          }
+        }
+        break; // Only try once
+      }
+    }
+
+    return null;
+  } catch (error) {
+    console.warn("Failed to find biometric credentials:", error);
     return null;
   }
 }
@@ -227,20 +358,22 @@ export function getBiometricIconName(
 
 /**
  * Update stored credentials (e.g., after password change)
+ * @param credentials - New credentials to store
+ * @param userIdentifier - Optional user identifier
  */
 export async function updateStoredCredentials(
-  credentials: StoredCredentials
+  credentials: StoredCredentials,
+  userIdentifier?: string
 ): Promise<boolean> {
   try {
-    const isEnabled = await isBiometricEnabled();
+    const identifier = userIdentifier || credentials.identifier;
+    const isEnabled = await isBiometricEnabled(identifier);
     if (!isEnabled) {
       return false;
     }
 
-    await SecureStore.setItemAsync(
-      BIOMETRIC_CREDENTIALS_KEY,
-      JSON.stringify(credentials)
-    );
+    const { credentialsKey } = getUserKeys(identifier);
+    await SecureStore.setItemAsync(credentialsKey, JSON.stringify(credentials));
     return true;
   } catch (error) {
     console.warn("Failed to update stored credentials:", error);
@@ -250,12 +383,14 @@ export async function updateStoredCredentials(
 
 /**
  * Check if credentials are stored for biometric login
+ * @param userIdentifier - Optional user identifier
  */
-export async function hasStoredCredentials(): Promise<boolean> {
+export async function hasStoredCredentials(
+  userIdentifier?: string
+): Promise<boolean> {
   try {
-    const credentials = await SecureStore.getItemAsync(
-      BIOMETRIC_CREDENTIALS_KEY
-    );
+    const { credentialsKey } = getUserKeys(userIdentifier);
+    const credentials = await SecureStore.getItemAsync(credentialsKey);
     return credentials !== null;
   } catch (error) {
     console.warn("Failed to check stored credentials:", error);

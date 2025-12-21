@@ -45,11 +45,15 @@ export default function SettingsScreen() {
     canBackupRestore,
     isOwner,
   } = useOrganization();
+
+  // Get user email for per-user biometric status
+  const userEmail =
+    state.status === "authenticated" ? state.user.email : undefined;
   const {
     status: biometricStatus,
     getBiometricDisplayName,
     getBiometricIconName,
-  } = useBiometric();
+  } = useBiometric({ userIdentifier: userEmail });
   const queryClient = useQueryClient();
 
   // State
@@ -190,10 +194,9 @@ export default function SettingsScreen() {
     }
   };
 
-  // Get user info
+  // Get user info (userEmail already defined above for biometric)
   const isAuthenticated = state.status === "authenticated";
   const userName = isAuthenticated ? state.user.name : "Unknown User";
-  const userEmail = isAuthenticated ? state.user.email : undefined;
   const userPhone = isAuthenticated ? state.user.phone : undefined;
   const userRole = activeOrganization?.role;
 
