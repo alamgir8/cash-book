@@ -15,7 +15,6 @@ import {
 import { useLocalSearchParams, router } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useActiveOrgId } from "@/hooks/useOrganization";
 import { invoicesApi, InvoiceType } from "@/services/invoices";
 import { partiesApi, Party } from "@/services/parties";
@@ -24,6 +23,7 @@ import { QUERY_KEYS } from "@/lib/queryKeys";
 import { z } from "zod";
 import { useForm, Controller, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 // Zod validation schemas
 const lineItemSchema = z.object({
@@ -46,7 +46,7 @@ const invoiceSchema = z.object({
 
 type InvoiceFormData = z.infer<typeof invoiceSchema>;
 
-export default function NewInvoiceScreen() {
+export default function InvoiceScreen() {
   const { type: typeParam, partyId: partyIdParam } = useLocalSearchParams<{
     type?: string;
     partyId?: string;
@@ -221,7 +221,7 @@ export default function NewInvoiceScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50" edges={[]}>
+    <View className="flex-1 bg-slate-50">
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         className="flex-1"
@@ -740,7 +740,7 @@ export default function NewInvoiceScreen() {
         animationType="slide"
         presentationStyle="pageSheet"
       >
-        <SafeAreaView className="flex-1 bg-slate-50">
+        <View className="flex-1 bg-slate-50">
           <View className="flex-row items-center justify-between px-5 py-4 bg-white border-b border-slate-100">
             <Text className="text-lg font-semibold text-slate-800">
               Select {invoiceType === "sale" ? "Customer" : "Supplier"}
@@ -811,8 +811,8 @@ export default function NewInvoiceScreen() {
               </View>
             }
           />
-        </SafeAreaView>
+        </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }

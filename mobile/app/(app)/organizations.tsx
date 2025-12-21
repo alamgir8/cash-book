@@ -11,7 +11,6 @@ import {
 import { useRouter } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { ScreenHeader } from "../../components/screen-header";
 import { OrganizationFormModal } from "../../components/organization-form-modal";
 import { useOrganization } from "../../hooks/useOrganization";
@@ -121,17 +120,17 @@ export default function OrganizationsScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView className="flex-1 bg-white">
+      <View className="flex-1 bg-white">
         <ScreenHeader title="Organizations" showBack />
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color="#3B82F6" />
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-gray-50">
+    <View className="flex-1 bg-gray-50">
       <ScreenHeader
         title="Organizations"
         showBack
@@ -290,6 +289,6 @@ export default function OrganizationsScreen() {
         }}
         onSuccess={handleFormSuccess}
       />
-    </SafeAreaView>
+    </View>
   );
 }

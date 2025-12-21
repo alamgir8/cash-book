@@ -5,8 +5,6 @@ import {
   Modal,
   TouchableOpacity,
   ScrollView,
-  TextInput,
-  ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Platform,
@@ -20,7 +18,9 @@ import {
 import { getApiErrorMessage } from "../lib/api";
 import { z } from "zod";
 import { useForm, Controller } from "react-hook-form";
+import { CustomInput } from "./custom-input";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { ActionButton } from "./action-button";
 
 const BUSINESS_TYPES = [
   { value: "retail", label: "Retail Shop", icon: "storefront" },
@@ -150,254 +150,229 @@ export function OrganizationFormModal({
     <Modal
       visible={visible}
       animationType="slide"
-      presentationStyle="pageSheet"
+      transparent
       onRequestClose={onClose}
     >
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        className="flex-1 bg-white"
+        className="flex-1"
       >
-        {/* Header */}
-        <View className="flex-row items-center justify-between px-5 py-4 border-b border-slate-200">
-          <TouchableOpacity
-            onPress={onClose}
-            disabled={isLoading}
-            className="py-2"
+        <View className="flex-1 bg-black/40 justify-end">
+          <View
+            className="bg-white rounded-t-3xl flex-1"
+            style={{ maxHeight: "90%" }}
           >
-            <Text className="text-blue-600 text-base font-medium">Cancel</Text>
-          </TouchableOpacity>
-          <Text className="text-lg font-bold text-slate-900">
-            {isEditing ? "Edit Organization" : "New Organization"}
-          </Text>
-          <TouchableOpacity
-            onPress={handleSubmit(onSubmit)}
-            disabled={isLoading}
-            className="py-2"
-          >
-            {isLoading ? (
-              <ActivityIndicator size="small" color="#2563EB" />
-            ) : (
-              <Text className="text-blue-600 text-base font-semibold">
-                {isEditing ? "Save" : "Create"}
-              </Text>
-            )}
-          </TouchableOpacity>
-        </View>
-
-        <ScrollView
-          className="flex-1"
-          contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Business Name */}
-          <View className="mb-5">
-            <Text className="text-slate-700 mb-2 text-base font-medium">
-              Business Name <Text className="text-red-500">*</Text>
-            </Text>
-            <Controller
-              control={control}
-              name="name"
-              render={({ field: { onChange, onBlur, value } }) => (
-                <TextInput
-                  value={value}
-                  onChangeText={onChange}
-                  onBlur={onBlur}
-                  placeholder="Enter business name"
-                  placeholderTextColor="#94A3B8"
-                  autoCapitalize="words"
-                  className={`bg-slate-50 border rounded-2xl px-4 py-4 text-base text-slate-900 ${
-                    errors.name ? "border-red-400" : "border-slate-200"
-                  }`}
-                />
-              )}
-            />
-            {errors.name && (
-              <Text className="text-red-500 text-sm mt-2">
-                {errors.name.message}
-              </Text>
-            )}
-          </View>
-
-          {/* Business Type */}
-          <View className="mb-5">
-            <Text className="text-slate-700 mb-3 text-base font-medium">
-              Business Type
-            </Text>
-            <View className="flex-row flex-wrap gap-2">
-              {BUSINESS_TYPES.map((type) => (
-                <TouchableOpacity
-                  key={type.value}
-                  className={`flex-row items-center px-4 py-3 rounded-xl border-2 ${
-                    selectedBusinessType === type.value
-                      ? "bg-blue-50 border-blue-500"
-                      : "bg-slate-50 border-slate-200"
-                  }`}
-                  onPress={() => setValue("business_type", type.value)}
-                >
-                  <Ionicons
-                    name={type.icon as any}
-                    size={18}
-                    color={
-                      selectedBusinessType === type.value
-                        ? "#2563EB"
-                        : "#64748B"
-                    }
-                  />
-                  <Text
-                    className={`ml-2 text-sm font-medium ${
-                      selectedBusinessType === type.value
-                        ? "text-blue-600"
-                        : "text-slate-600"
-                    }`}
-                  >
-                    {type.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
-          {/* Description */}
-          <View className="mb-5">
-            <Text className="text-slate-700 mb-2 text-base font-medium">
-              Description
-            </Text>
-            <Controller
-              control={control}
-              name="description"
-              render={({ field: { onChange, onBlur, value } }) => (
-                <TextInput
-                  value={value}
-                  onChangeText={onChange}
-                  onBlur={onBlur}
-                  placeholder="Brief description of your business"
-                  placeholderTextColor="#94A3B8"
-                  multiline
-                  numberOfLines={3}
-                  textAlignVertical="top"
-                  className="bg-slate-50 border border-slate-200 rounded-2xl px-4 py-4 text-base text-slate-900 min-h-[80px]"
-                />
-              )}
-            />
-          </View>
-
-          {/* Contact Section */}
-          <View className="mb-5">
-            <Text className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">
-              Contact Information
-            </Text>
-
-            {/* Phone */}
-            <View className="mb-4">
-              <Text className="text-slate-700 mb-2 text-base font-medium">
-                Phone
-              </Text>
-              <Controller
-                control={control}
-                name="phone"
-                render={({ field: { onChange, onBlur, value } }) => (
-                  <TextInput
-                    value={value}
-                    onChangeText={onChange}
-                    onBlur={onBlur}
-                    placeholder="Business phone number"
-                    placeholderTextColor="#94A3B8"
-                    keyboardType="phone-pad"
-                    className="bg-slate-50 border border-slate-200 rounded-2xl px-4 py-4 text-base text-slate-900"
-                  />
-                )}
-              />
-            </View>
-
-            {/* Email */}
-            <View className="mb-4">
-              <Text className="text-slate-700 mb-2 text-base font-medium">
-                Email
-              </Text>
-              <Controller
-                control={control}
-                name="email"
-                render={({ field: { onChange, onBlur, value } }) => (
-                  <TextInput
-                    value={value}
-                    onChangeText={onChange}
-                    onBlur={onBlur}
-                    placeholder="Business email"
-                    placeholderTextColor="#94A3B8"
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    className={`bg-slate-50 border rounded-2xl px-4 py-4 text-base text-slate-900 ${
-                      errors.email ? "border-red-400" : "border-slate-200"
-                    }`}
-                  />
-                )}
-              />
-              {errors.email && (
-                <Text className="text-red-500 text-sm mt-2">
-                  {errors.email.message}
+            {/* Header */}
+            <View className="flex-row justify-between items-center p-6 pb-4 border-b border-gray-100">
+              <View>
+                <Text className="text-gray-900 text-xl font-bold">
+                  {isEditing ? "Edit Organization" : "New Organization"}
                 </Text>
-              )}
+                <Text className="text-gray-500 text-sm">
+                  {isEditing
+                    ? "Update organization details"
+                    : "Create a new organization"}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={onClose}
+                className="w-8 h-8 bg-gray-100 rounded-full items-center justify-center"
+              >
+                <Ionicons name="close" size={20} color="#6b7280" />
+              </TouchableOpacity>
             </View>
 
-            {/* Address */}
-            <View>
-              <Text className="text-slate-700 mb-2 text-base font-medium">
-                Address
-              </Text>
+            <ScrollView
+              className="flex-1 px-6 py-4"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: 20 }}
+            >
+              {/* Business Name */}
               <Controller
                 control={control}
-                name="address"
+                name="name"
                 render={({ field: { onChange, onBlur, value } }) => (
-                  <TextInput
+                  <CustomInput
+                    label="Business Name *"
                     value={value}
                     onChangeText={onChange}
                     onBlur={onBlur}
-                    placeholder="Business address"
-                    placeholderTextColor="#94A3B8"
-                    className="bg-slate-50 border border-slate-200 rounded-2xl px-4 py-4 text-base text-slate-900"
+                    placeholder="Enter business name"
+                    error={errors.name?.message}
+                    containerClassName="mb-5"
+                    autoCapitalize="words"
                   />
                 )}
               />
-            </View>
-          </View>
 
-          {/* Settings Section */}
-          <View className="mb-5">
-            <Text className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">
-              Settings
-            </Text>
-
-            {/* Currency */}
-            <View>
-              <Text className="text-slate-700 mb-3 text-base font-medium">
-                Currency
-              </Text>
-              <View className="flex-row gap-2">
-                {CURRENCIES.map((curr) => (
-                  <TouchableOpacity
-                    key={curr}
-                    className={`px-5 py-3 rounded-xl border-2 ${
-                      selectedCurrency === curr
-                        ? "bg-blue-50 border-blue-500"
-                        : "bg-slate-50 border-slate-200"
-                    }`}
-                    onPress={() => setValue("currency", curr)}
-                  >
-                    <Text
-                      className={`text-sm font-semibold ${
-                        selectedCurrency === curr
-                          ? "text-blue-600"
-                          : "text-slate-600"
+              {/* Business Type */}
+              <View className="mb-5">
+                <Text className="text-slate-700 mb-3 text-base font-medium">
+                  Business Type
+                </Text>
+                <View className="flex-row flex-wrap gap-2">
+                  {BUSINESS_TYPES.map((type) => (
+                    <TouchableOpacity
+                      key={type.value}
+                      className={`flex-row items-center px-4 py-3 rounded-xl border-2 ${
+                        selectedBusinessType === type.value
+                          ? "bg-blue-50 border-blue-500"
+                          : "bg-slate-50 border-slate-200"
                       }`}
+                      onPress={() => setValue("business_type", type.value)}
                     >
-                      {curr}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                      <Ionicons
+                        name={type.icon as any}
+                        size={18}
+                        color={
+                          selectedBusinessType === type.value
+                            ? "#2563EB"
+                            : "#64748B"
+                        }
+                      />
+                      <Text
+                        className={`ml-2 text-sm font-medium ${
+                          selectedBusinessType === type.value
+                            ? "text-blue-600"
+                            : "text-slate-600"
+                        }`}
+                      >
+                        {type.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
               </View>
+
+              {/* Description */}
+              <Controller
+                control={control}
+                name="description"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <CustomInput
+                    label="Description"
+                    value={value}
+                    onChangeText={onChange}
+                    onBlur={onBlur}
+                    placeholder="Brief description of your business"
+                    multiline
+                    numberOfLines={3}
+                    textAlignVertical="top"
+                    inputClassName="min-h-[80px]"
+                    containerClassName="mb-5"
+                  />
+                )}
+              />
+
+              {/* Contact Section */}
+              <View className="mb-5">
+                <Text className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">
+                  Contact Information
+                </Text>
+
+                {/* Phone */}
+                <Controller
+                  control={control}
+                  name="phone"
+                  render={({ field: { onChange, onBlur, value } }) => (
+                    <CustomInput
+                      label="Phone"
+                      value={value}
+                      onChangeText={onChange}
+                      onBlur={onBlur}
+                      placeholder="Business phone number"
+                      keyboardType="phone-pad"
+                      containerClassName="mb-4"
+                    />
+                  )}
+                />
+
+                {/* Email */}
+                <Controller
+                  control={control}
+                  name="email"
+                  render={({ field: { onChange, onBlur, value } }) => (
+                    <CustomInput
+                      label="Email"
+                      value={value}
+                      onChangeText={onChange}
+                      onBlur={onBlur}
+                      placeholder="Business email"
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      error={errors.email?.message}
+                      containerClassName="mb-4"
+                    />
+                  )}
+                />
+
+                {/* Address */}
+                <Controller
+                  control={control}
+                  name="address"
+                  render={({ field: { onChange, onBlur, value } }) => (
+                    <CustomInput
+                      label="Address"
+                      value={value}
+                      onChangeText={onChange}
+                      onBlur={onBlur}
+                      placeholder="Business address"
+                    />
+                  )}
+                />
+              </View>
+
+              {/* Settings Section */}
+              <View className="mb-5">
+                <Text className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">
+                  Settings
+                </Text>
+
+                {/* Currency */}
+                <View>
+                  <Text className="text-slate-700 mb-3 text-base font-medium">
+                    Currency
+                  </Text>
+                  <View className="flex-row gap-2">
+                    {CURRENCIES.map((curr) => (
+                      <TouchableOpacity
+                        key={curr}
+                        className={`px-5 py-3 rounded-xl border-2 ${
+                          selectedCurrency === curr
+                            ? "bg-blue-50 border-blue-500"
+                            : "bg-slate-50 border-slate-200"
+                        }`}
+                        onPress={() => setValue("currency", curr)}
+                      >
+                        <Text
+                          className={`text-sm font-semibold ${
+                            selectedCurrency === curr
+                              ? "text-blue-600"
+                              : "text-slate-600"
+                          }`}
+                        >
+                          {curr}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              </View>
+            </ScrollView>
+
+            {/* Footer */}
+            <View className="p-6 pt-4 pb-8 border-t border-gray-100">
+              <ActionButton
+                label={isEditing ? "Save Changes" : "Create Organization"}
+                onPress={handleSubmit(onSubmit)}
+                isLoading={isLoading}
+                disabled={isLoading}
+                fullWidth
+                size="medium"
+              />
             </View>
           </View>
-        </ScrollView>
+        </View>
       </KeyboardAvoidingView>
     </Modal>
   );

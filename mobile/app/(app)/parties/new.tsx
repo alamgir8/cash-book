@@ -8,7 +8,6 @@ import {
   Platform,
   TextInput,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { partiesApi, PartyType } from "@/services/parties";
@@ -140,7 +139,7 @@ export default function NewPartyScreen() {
   ];
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50" edges={[]}>
+    <View className="flex-1 bg-slate-50">
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         className="flex-1"
@@ -639,6 +638,6 @@ export default function NewPartyScreen() {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }

@@ -8,6 +8,7 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  TouchableOpacity,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -169,142 +170,78 @@ export const CategoryFormModal = ({
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
       >
-        <View
-          style={{
-            flex: 1,
-            backgroundColor: "rgba(0,0,0,0.4)",
-            justifyContent: "flex-end",
-          }}
-        >
+        <View className="flex-1 bg-black/40 justify-end">
           <View
-            style={{
-              backgroundColor: "white",
-              borderTopLeftRadius: 24,
-              borderTopRightRadius: 24,
-              height: "90%",
-            }}
+            className="bg-white rounded-t-3xl flex-1"
+            style={{ maxHeight: "90%" }}
           >
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: 16,
-                borderBottomWidth: 1,
-                borderBottomColor: "#f3f4f6",
-              }}
-            >
-              <Pressable onPress={onClose} style={{ padding: 8 }}>
-                <Ionicons name="close" size={24} color="#6b7280" />
-              </Pressable>
-              <Text
-                style={{ fontSize: 18, fontWeight: "bold", color: "#111827" }}
+            {/* Header */}
+            <View className="flex-row justify-between items-center p-6 pb-4 border-b border-gray-100">
+              <View>
+                <Text className="text-gray-900 text-xl font-bold">
+                  {isEditing ? "Edit Category" : "New Category"}
+                </Text>
+                <Text className="text-gray-500 text-sm">
+                  {isEditing
+                    ? "Update category details"
+                    : "Create a new category"}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={onClose}
+                className="w-8 h-8 bg-gray-100 rounded-full items-center justify-center"
               >
-                {isEditing ? "Edit Category" : "New Category"}
-              </Text>
-              <ActionButton
-                label="Save changes"
-                onPress={handleSubmit}
-                disabled={mutation.isPending}
-                isLoading={mutation.isPending}
-                icon="checkmark"
-                variant="primary"
-                size="medium"
-              />
+                <Ionicons name="close" size={20} color="#6b7280" />
+              </TouchableOpacity>
             </View>
 
-            <ScrollView style={{ flex: 1, padding: 16 }}>
-              <View style={{ gap: 24, paddingBottom: 40 }}>
-                {/* Error Message - Inside modal, at top */}
+            <ScrollView
+              className="flex-1 px-6 py-4"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: 20 }}
+            >
+              <View className="gap-5">
+                {/* Error Message */}
                 {error && (
-                  <View
-                    style={{
-                      backgroundColor: "#fef2f2",
-                      padding: 12,
-                      borderRadius: 12,
-                      borderWidth: 1,
-                      borderColor: "#fecaca",
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 8,
-                    }}
-                  >
+                  <View className="bg-red-50 p-3 rounded-xl border border-red-200 flex-row items-center gap-2">
                     <Ionicons name="alert-circle" size={20} color="#dc2626" />
-                    <Text style={{ color: "#dc2626", fontSize: 14, flex: 1 }}>
-                      {error}
-                    </Text>
+                    <Text className="text-red-600 text-sm flex-1">{error}</Text>
                     <Pressable onPress={() => setError(null)}>
                       <Ionicons name="close" size={18} color="#dc2626" />
                     </Pressable>
                   </View>
                 )}
 
-                {/* Flow Selection - Simplified toggle */}
+                {/* Flow Selection */}
                 <View>
-                  <Text
-                    style={{
-                      fontSize: 14,
-                      fontWeight: "500",
-                      color: "#374151",
-                      marginBottom: 8,
-                    }}
-                  >
+                  <Text className="text-gray-700 text-sm font-semibold mb-2">
                     Category Flow
                   </Text>
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      backgroundColor: "#f3f4f6",
-                      padding: 4,
-                      borderRadius: 12,
-                    }}
-                  >
+                  <View className="flex-row bg-gray-100 p-1 rounded-xl">
                     <Pressable
                       onPress={() => handleFlowChange("credit")}
-                      style={{
-                        flex: 1,
-                        paddingVertical: 12,
-                        borderRadius: 8,
-                        alignItems: "center",
-                        backgroundColor:
-                          flow === "credit" ? "white" : "transparent",
-                        shadowColor: flow === "credit" ? "#000" : "transparent",
-                        shadowOffset: { width: 0, height: 1 },
-                        shadowOpacity: flow === "credit" ? 0.1 : 0,
-                        shadowRadius: 2,
-                        elevation: flow === "credit" ? 2 : 0,
-                      }}
+                      className={`flex-1 py-3 rounded-lg items-center ${
+                        flow === "credit" ? "bg-white shadow-sm" : ""
+                      }`}
                     >
                       <Text
-                        style={{
-                          fontWeight: "600",
-                          color: flow === "credit" ? "#16a34a" : "#6b7280",
-                        }}
+                        className={`font-semibold ${
+                          flow === "credit" ? "text-green-600" : "text-gray-500"
+                        }`}
                       >
                         Income (Credit)
                       </Text>
                     </Pressable>
                     <Pressable
                       onPress={() => handleFlowChange("debit")}
-                      style={{
-                        flex: 1,
-                        paddingVertical: 12,
-                        borderRadius: 8,
-                        alignItems: "center",
-                        backgroundColor:
-                          flow === "debit" ? "white" : "transparent",
-                        shadowColor: flow === "debit" ? "#000" : "transparent",
-                        shadowOffset: { width: 0, height: 1 },
-                        shadowOpacity: flow === "debit" ? 0.1 : 0,
-                        shadowRadius: 2,
-                        elevation: flow === "debit" ? 2 : 0,
-                      }}
+                      className={`flex-1 py-3 rounded-lg items-center ${
+                        flow === "debit" ? "bg-white shadow-sm" : ""
+                      }`}
                     >
                       <Text
-                        style={{
-                          fontWeight: "600",
-                          color: flow === "debit" ? "#dc2626" : "#6b7280",
-                        }}
+                        className={`font-semibold ${
+                          flow === "debit" ? "text-red-600" : "text-gray-500"
+                        }`}
                       >
                         Expense (Debit)
                       </Text>
@@ -314,65 +251,38 @@ export const CategoryFormModal = ({
 
                 {/* Name Input */}
                 <View>
-                  <Text
-                    style={{
-                      fontSize: 14,
-                      fontWeight: "500",
-                      color: "#374151",
-                      marginBottom: 8,
-                    }}
-                  >
+                  <Text className="text-gray-700 text-sm font-semibold mb-2">
                     Category Name
                   </Text>
                   <TextInput
                     value={name}
                     onChangeText={setName}
                     placeholder="e.g., Groceries"
-                    style={{
-                      backgroundColor: "#f9fafb",
-                      borderWidth: 1,
-                      borderColor: "#e5e7eb",
-                      borderRadius: 12,
-                      padding: 16,
-                      fontSize: 16,
-                    }}
+                    placeholderTextColor="#9ca3af"
+                    className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200 text-base"
                   />
                 </View>
 
                 {/* Type Selection */}
                 <View>
-                  <Text
-                    style={{
-                      fontSize: 14,
-                      fontWeight: "500",
-                      color: "#374151",
-                      marginBottom: 8,
-                    }}
-                  >
+                  <Text className="text-gray-700 text-sm font-semibold mb-2">
                     Category Type
                   </Text>
-                  <View
-                    style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}
-                  >
+                  <View className="flex-row flex-wrap gap-2">
                     {currentTypes.map((t) => (
                       <Pressable
                         key={t.value}
                         onPress={() => setType(t.value)}
-                        style={{
-                          paddingHorizontal: 12,
-                          paddingVertical: 8,
-                          borderRadius: 8,
-                          borderWidth: 1,
-                          backgroundColor:
-                            type === t.value ? "#eff6ff" : "white",
-                          borderColor: type === t.value ? "#bfdbfe" : "#e5e7eb",
-                        }}
+                        className={`px-3 py-2 rounded-lg border ${
+                          type === t.value
+                            ? "bg-blue-50 border-blue-200"
+                            : "bg-white border-gray-200"
+                        }`}
                       >
                         <Text
-                          style={{
-                            fontSize: 14,
-                            color: type === t.value ? "#1d4ed8" : "#4b5563",
-                          }}
+                          className={`text-sm ${
+                            type === t.value ? "text-blue-700" : "text-gray-600"
+                          }`}
                         >
                           {t.label}
                         </Text>
@@ -383,33 +293,18 @@ export const CategoryFormModal = ({
 
                 {/* Color Selection */}
                 <View>
-                  <Text
-                    style={{
-                      fontSize: 14,
-                      fontWeight: "500",
-                      color: "#374151",
-                      marginBottom: 8,
-                    }}
-                  >
+                  <Text className="text-gray-700 text-sm font-semibold mb-2">
                     Color Tag
                   </Text>
-                  <View
-                    style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}
-                  >
+                  <View className="flex-row flex-wrap gap-3">
                     {COLORS.map((c) => (
                       <Pressable
                         key={c}
                         onPress={() => setColor(c)}
-                        style={{
-                          width: 40,
-                          height: 40,
-                          borderRadius: 20,
-                          alignItems: "center",
-                          justifyContent: "center",
-                          backgroundColor: c,
-                          borderWidth: color === c ? 2 : 0,
-                          borderColor: "#9ca3af",
-                        }}
+                        style={{ backgroundColor: c }}
+                        className={`w-10 h-10 rounded-full items-center justify-center ${
+                          color === c ? "border-2 border-gray-400" : ""
+                        }`}
                       >
                         {color === c && (
                           <Ionicons name="checkmark" size={20} color="white" />
@@ -421,36 +316,36 @@ export const CategoryFormModal = ({
 
                 {/* Description Input */}
                 <View>
-                  <Text
-                    style={{
-                      fontSize: 14,
-                      fontWeight: "500",
-                      color: "#374151",
-                      marginBottom: 8,
-                    }}
-                  >
+                  <Text className="text-gray-700 text-sm font-semibold mb-2">
                     Description (Optional)
                   </Text>
                   <TextInput
                     value={description}
                     onChangeText={setDescription}
                     placeholder="Add a note..."
+                    placeholderTextColor="#9ca3af"
                     multiline
                     numberOfLines={3}
-                    style={{
-                      backgroundColor: "#f9fafb",
-                      borderWidth: 1,
-                      borderColor: "#e5e7eb",
-                      borderRadius: 12,
-                      padding: 16,
-                      fontSize: 16,
-                      height: 96,
-                      textAlignVertical: "top",
-                    }}
+                    textAlignVertical="top"
+                    className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200 min-h-[96px]"
                   />
                 </View>
               </View>
             </ScrollView>
+
+            {/* Footer */}
+            <View className="p-6 pt-4 pb-8 border-t border-gray-100">
+              <ActionButton
+                label={isEditing ? "Update Category" : "Create Category"}
+                onPress={handleSubmit}
+                disabled={mutation.isPending}
+                isLoading={mutation.isPending}
+                icon="checkmark-circle"
+                variant="primary"
+                size="medium"
+                fullWidth
+              />
+            </View>
           </View>
         </View>
       </KeyboardAvoidingView>

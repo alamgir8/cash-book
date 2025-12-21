@@ -54,7 +54,7 @@ export const CustomButton: React.FC<CustomButtonProps> = ({
   const getTextStyles = () => {
     const baseStyles = "font-semibold text-center";
     const sizeStyles =
-      size === "small" ? "text-sm" : size === "large" ? "text-xl" : "text-lg";
+      size === "small" ? "text-sm" : size === "large" ? "text-xl" : "text-base";
     const colorStyles = variant === "outline" ? "text-blue-600" : "text-white";
     return `${baseStyles} ${sizeStyles} ${colorStyles}`;
   };

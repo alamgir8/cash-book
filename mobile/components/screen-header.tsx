@@ -34,7 +34,7 @@ export function ScreenHeader({
 
   return (
     <View
-      className="pt-3 pb-3 px-5 shadow-sm border-b border-gray-100"
+      className="pb-3 pt-4 px-5 shadow-sm border-b border-gray-100"
       style={{ backgroundColor }}
     >
       <View className="flex-row items-center justify-between">

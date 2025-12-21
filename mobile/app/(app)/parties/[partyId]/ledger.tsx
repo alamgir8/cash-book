@@ -10,7 +10,6 @@ import {
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { ScreenHeader } from "../../../../components/screen-header";
 import { partiesApi } from "../../../../services/parties";
 
@@ -64,17 +63,17 @@ export default function PartyLedgerScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView className="flex-1 bg-white">
+      <View className="flex-1 bg-white">
         <ScreenHeader title="Party Ledger" showBack />
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color="#3B82F6" />
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-gray-50">
+    <View className="flex-1 bg-gray-50">
       <ScreenHeader title={party?.name || "Party Ledger"} showBack />
 
       {/* Summary Card */}
@@ -267,6 +266,6 @@ export default function PartyLedgerScreen() {
           </View>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }

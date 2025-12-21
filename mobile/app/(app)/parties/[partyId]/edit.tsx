@@ -12,7 +12,6 @@ import {
 } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { partiesApi, PartyType } from "@/services/parties";
 import { getApiErrorMessage } from "@/lib/api";
 import { Ionicons } from "@expo/vector-icons";
@@ -179,7 +178,7 @@ export default function EditPartyScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView className="flex-1 bg-slate-50" edges={[]}>
+      <View className="flex-1 bg-slate-50">
         <View className="flex-row items-center justify-between px-5 py-3 bg-white border-b border-slate-100">
           <TouchableOpacity
             onPress={() => router.back()}
@@ -194,12 +193,12 @@ export default function EditPartyScreen() {
           <ActivityIndicator size="large" color="#6366F1" />
           <Text className="text-slate-500 mt-4">Loading party...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50" edges={[]}>
+    <View className="flex-1 bg-slate-50">
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         className="flex-1"
@@ -614,6 +613,6 @@ export default function EditPartyScreen() {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }

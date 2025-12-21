@@ -11,7 +11,6 @@ import {
 import { useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { ScreenHeader } from "../../components/screen-header";
 import { useActiveOrgId } from "../../hooks/useOrganization";
 import {
@@ -122,17 +121,17 @@ export default function InvoicesScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView className="flex-1 bg-white" edges={[]}>
+      <View className="flex-1 bg-white">
         <ScreenHeader title="Invoices" showBack />
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color="#3B82F6" />
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-gray-50" edges={[]}>
+    <View className="flex-1 bg-gray-50">
       <ScreenHeader
         title="Invoices"
         showBack
@@ -330,6 +329,6 @@ export default function InvoicesScreen() {
           </View>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }

@@ -12,7 +12,6 @@ import {
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { ScreenHeader } from "../../../components/screen-header";
 import { invoicesApi, type InvoiceStatus } from "../../../services/invoices";
 import { getApiErrorMessage } from "../../../lib/api";
@@ -154,12 +153,12 @@ export default function InvoiceDetailScreen() {
 
   if (isLoading || !invoice) {
     return (
-      <SafeAreaView className="flex-1 bg-white">
+      <View className="flex-1 bg-white">
         <ScreenHeader title="Invoice Details" showBack />
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color="#3B82F6" />
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -167,7 +166,7 @@ export default function InvoiceDetailScreen() {
   const statusColor = STATUS_COLORS[invoice.status] || STATUS_COLORS.draft;
 
   return (
-    <SafeAreaView className="flex-1 bg-gray-50">
+    <View className="flex-1 bg-gray-50">
       <ScreenHeader title={invoice.invoice_number} showBack />
 
       <ScrollView className="flex-1">
@@ -464,7 +463,7 @@ export default function InvoiceDetailScreen() {
         animationType="slide"
         presentationStyle="pageSheet"
       >
-        <SafeAreaView className="flex-1 bg-white">
+        <View className="flex-1 bg-white">
           <View className="flex-row items-center justify-between p-4 border-b border-gray-100">
             <Text className="text-lg font-semibold text-gray-900">
               Record Payment
@@ -552,8 +551,8 @@ export default function InvoiceDetailScreen() {
               )}
             </TouchableOpacity>
           </ScrollView>
-        </SafeAreaView>
+        </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }

@@ -13,13 +13,13 @@ import {
 import { useLocalSearchParams } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { ScreenHeader } from "../../../components/screen-header";
 import {
   organizationsApi,
   type OrganizationMember,
 } from "../../../services/organizations";
 import { getApiErrorMessage } from "../../../lib/api";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 const ROLES = [
   {
@@ -187,12 +187,12 @@ export default function OrganizationDetailScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView className="flex-1 bg-white">
+      <View className="flex-1 bg-white">
         <ScreenHeader title="Organization" showBack />
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color="#3B82F6" />
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -200,7 +200,7 @@ export default function OrganizationDetailScreen() {
   const members = data?.members || [];
 
   return (
-    <SafeAreaView className="flex-1 bg-gray-50">
+    <View className="flex-1 bg-gray-50">
       <ScreenHeader title={organization?.name || "Organization"} showBack />
 
       <ScrollView
@@ -447,6 +447,6 @@ export default function OrganizationDetailScreen() {
           </ScrollView>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
