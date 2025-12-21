@@ -16,6 +16,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { z } from "zod";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useActiveOrgId } from "@/hooks/useOrganization";
+import { getApiErrorMessage } from "@/lib/api";
 
 // Zod validation schema
 const partySchema = z.object({
@@ -45,6 +47,7 @@ type PartyFormData = z.infer<typeof partySchema>;
 
 export default function PartyScreen() {
   const queryClient = useQueryClient();
+  const organizationId = useActiveOrgId();
 
   const {
     control,
@@ -87,12 +90,15 @@ export default function PartyScreen() {
       router.back();
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.message || "Failed to create party");
+      console.error("Party creation error:", error);
+      const errorMessage = getApiErrorMessage(error);
+      toast.error(errorMessage);
     },
   });
 
   const onSubmit = (data: PartyFormData) => {
-    createMutation.mutate({
+    const payload = {
+      organization: organizationId || undefined,
       name: data.name,
       type: data.type,
       code: data.code || undefined,
@@ -110,7 +116,10 @@ export default function PartyScreen() {
         ? parseFloat(data.opening_balance)
         : 0,
       notes: data.notes || undefined,
-    });
+    };
+
+    console.log("Creating party with payload:", payload);
+    createMutation.mutate(payload);
   };
 
   const partyTypes: {

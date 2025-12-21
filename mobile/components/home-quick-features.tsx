@@ -63,8 +63,11 @@ export const HomeQuickFeatures = ({
     canViewReports,
     canManageParties,
     canManageInvoices,
+    canViewInvoices,
     canExportData,
     canBackupRestore,
+    canViewTransactions,
+    isOwner,
     activeOrganization,
   } = useOrganization();
 
@@ -117,7 +120,7 @@ export const HomeQuickFeatures = ({
       color: "#6366f1",
       bgColor: "bg-indigo-50",
       onPress: () => router.push("/(app)/transactions"),
-      permission: true, // Everyone can view transactions
+      permission: canViewTransactions, // Based on view_transactions permission
     },
     {
       id: "categories",
@@ -126,7 +129,7 @@ export const HomeQuickFeatures = ({
       color: "#f59e0b",
       bgColor: "bg-amber-50",
       onPress: () => router.push("/(app)/categories"),
-      permission: canManageCategories,
+      permission: canManageCategories, // Only if can manage categories
     },
     {
       id: "parties",
@@ -135,7 +138,7 @@ export const HomeQuickFeatures = ({
       color: "#14b8a6",
       bgColor: "bg-teal-50",
       onPress: () => router.push("/(app)/parties"),
-      permission: canManageParties || true, // Everyone can view parties
+      permission: canManageParties, // Only if can manage customers or suppliers
     },
     {
       id: "invoices",
@@ -144,7 +147,7 @@ export const HomeQuickFeatures = ({
       color: "#ec4899",
       bgColor: "bg-pink-50",
       onPress: () => router.push("/(app)/invoices"),
-      permission: canManageInvoices || true, // Everyone can view invoices
+      permission: canViewInvoices || canManageInvoices, // View or manage invoices
     },
   ];
 
@@ -157,7 +160,7 @@ export const HomeQuickFeatures = ({
       color: "#0ea5e9",
       bgColor: "bg-sky-50",
       onPress: onExportPDF,
-      permission: canViewReports || canExportData,
+      permission: canViewReports,
     },
     {
       id: "export-pdf",
@@ -184,7 +187,7 @@ export const HomeQuickFeatures = ({
       color: "#7c3aed",
       bgColor: "bg-violet-50",
       onPress: () => router.push("/(app)/organizations"),
-      permission: true, // Everyone can view their organizations
+      permission: isOwner, // Only owners can manage organizations
     },
     {
       id: "settings",
@@ -193,7 +196,7 @@ export const HomeQuickFeatures = ({
       color: "#64748b",
       bgColor: "bg-slate-50",
       onPress: () => router.push("/(app)/settings"),
-      permission: true,
+      permission: true, // Everyone can access settings
     },
     {
       id: "profile",
@@ -202,7 +205,7 @@ export const HomeQuickFeatures = ({
       color: "#f97316",
       bgColor: "bg-orange-50",
       onPress: () => router.push("/(app)/settings"),
-      permission: true,
+      permission: true, // Everyone can access profile
     },
   ];
 

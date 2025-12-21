@@ -28,7 +28,8 @@ export default function PartiesScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const organizationId = useActiveOrgId();
-  const { canManageParties } = useOrganization();
+  const { canManageParties, canManageCustomers, canManageSuppliers } =
+    useOrganization();
 
   const [activeTab, setActiveTab] = useState<PartyType | "all">("all");
   const [searchQuery, setSearchQuery] = useState("");

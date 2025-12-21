@@ -68,7 +68,8 @@ const getStatusColor = (status: InvoiceStatus) => {
 export default function InvoicesScreen() {
   const router = useRouter();
   const organizationId = useActiveOrgId();
-  const { canManageInvoices } = useOrganization();
+  const { canManageInvoices, canCreateInvoices, canViewInvoices } =
+    useOrganization();
 
   const [activeType, setActiveType] = useState<InvoiceType | "all">("all");
   const [activeStatus, setActiveStatus] = useState<InvoiceStatus | "all">(
@@ -137,7 +138,7 @@ export default function InvoicesScreen() {
         title="Invoices"
         showBack
         rightAction={
-          canManageInvoices ? (
+          canCreateInvoices ? (
             <View className="flex-row">
               <TouchableOpacity
                 className="p-2 mr-1"

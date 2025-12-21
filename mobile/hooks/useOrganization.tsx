@@ -27,9 +27,14 @@ interface OrganizationContextValue {
   canManageAccounts: boolean;
   canManageCategories: boolean;
   canCreateTransactions: boolean;
+  canViewTransactions: boolean;
   canViewReports: boolean;
   canManageMembers: boolean;
+  canCreateInvoices: boolean;
   canManageInvoices: boolean;
+  canViewInvoices: boolean;
+  canManageCustomers: boolean;
+  canManageSuppliers: boolean;
   canManageParties: boolean;
   canExportData: boolean;
   canBackupRestore: boolean;
@@ -143,10 +148,15 @@ export function OrganizationProvider({
       canManageAccounts: hasPermission("manage_accounts"),
       canManageCategories: hasPermission("manage_categories"),
       canCreateTransactions: hasPermission("create_transactions"),
+      canViewTransactions: hasPermission("view_transactions"),
       canViewReports: hasPermission("view_reports"),
       canManageMembers: hasPermission("manage_members"),
+      canCreateInvoices: hasPermission("create_invoices"),
       canManageInvoices:
         hasPermission("create_invoices") || hasPermission("edit_invoices"),
+      canViewInvoices: hasPermission("view_invoices"),
+      canManageCustomers: hasPermission("manage_customers"),
+      canManageSuppliers: hasPermission("manage_suppliers"),
       canManageParties:
         hasPermission("manage_customers") || hasPermission("manage_suppliers"),
       canExportData: hasPermission("export_data"),

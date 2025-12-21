@@ -31,12 +31,8 @@ const TabIcon = ({
 
 export default function AppLayout() {
   const insets = useSafeAreaInsets();
-  const {
-    activeOrganization,
-    canManageAccounts,
-    canCreateTransactions,
-    canViewReports,
-  } = useOrganization();
+  const { activeOrganization, canManageAccounts, canCreateTransactions } =
+    useOrganization();
 
   // If user is in an organization with viewer role (no permissions), show limited tabs
   const showLimitedTabs =
@@ -52,7 +48,7 @@ export default function AppLayout() {
           backgroundColor: "#fff",
           borderTopWidth: 1,
           borderTopColor: "#ddd",
-          height: 20 + insets.bottom,
+          height: 40 + insets.bottom,
           paddingBottom: insets.bottom + 5,
           paddingTop: 5,
           elevation: 0,
