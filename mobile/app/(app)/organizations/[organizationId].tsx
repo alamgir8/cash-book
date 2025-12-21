@@ -52,8 +52,10 @@ export default function OrganizationDetailScreen() {
   });
 
   const updateOrganizationMutation = useMutation({
-    mutationFn: (params: { settings: { currency: string }; status: string }) =>
-      organizationsApi.update(organizationId!, params),
+    mutationFn: (params: {
+      settings: { currency: string };
+      status: "active" | "suspended" | "archived";
+    }) => organizationsApi.update(organizationId!, params),
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: ["organization", organizationId],

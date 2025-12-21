@@ -351,14 +351,14 @@ export function OrganizationFormModal({
 
                 {/* Currency */}
                 <View className="mb-4">
-                  <Text className="text-slate-700 mb-3 text-base font-medium">
+                  <Text className="text-slate-700 mb-2 text-sm font-medium">
                     Currency
                   </Text>
-                  <View className="gap-2">
+                  <View className="flex-row flex-wrap gap-2">
                     {CURRENCIES.map((curr) => (
                       <TouchableOpacity
                         key={curr.code}
-                        className={`flex-row items-center p-4 rounded-xl border-2 ${
+                        className={`px-4 py-3 rounded-xl border-2 flex-row items-center ${
                           selectedCurrency === curr.code
                             ? "bg-blue-50 border-blue-500"
                             : "bg-slate-50 border-slate-200"
@@ -366,7 +366,7 @@ export function OrganizationFormModal({
                         onPress={() => setValue("currency", curr.code)}
                       >
                         <Text
-                          className={`text-2xl font-bold w-10 ${
+                          className={`text-lg font-bold mr-2 ${
                             selectedCurrency === curr.code
                               ? "text-blue-600"
                               : "text-slate-500"
@@ -375,22 +375,13 @@ export function OrganizationFormModal({
                           {curr.symbol}
                         </Text>
                         <Text
-                          className={`text-base font-semibold w-16 ${
+                          className={`text-sm font-semibold ${
                             selectedCurrency === curr.code
                               ? "text-blue-700"
-                              : "text-slate-700"
+                              : "text-slate-600"
                           }`}
                         >
                           {curr.code}
-                        </Text>
-                        <Text
-                          className={`flex-1 text-sm ${
-                            selectedCurrency === curr.code
-                              ? "text-blue-600"
-                              : "text-slate-500"
-                          }`}
-                        >
-                          {curr.name}
                         </Text>
                       </TouchableOpacity>
                     ))}
@@ -400,41 +391,46 @@ export function OrganizationFormModal({
                 {/* Status */}
                 {isEditing && (
                   <View>
-                    <Text className="text-slate-700 mb-3 text-base font-medium">
+                    <Text className="text-slate-700 mb-2 text-sm font-medium">
                       Status
                     </Text>
-                    <View className="gap-2">
+                    <View className="flex-row flex-wrap gap-2">
                       {STATUS_OPTIONS.map((status) => (
                         <TouchableOpacity
                           key={status.value}
-                          className={`flex-row items-center justify-between p-4 rounded-xl border-2 ${
+                          className={`flex-1 min-w-[100px] px-4 py-3 rounded-xl border-2 flex-row items-center justify-center ${
                             selectedStatus === status.value
                               ? "bg-blue-50 border-blue-500"
                               : "bg-slate-50 border-slate-200"
                           }`}
                           onPress={() => setValue("status", status.value)}
                         >
+                          <View
+                            className="w-5 h-5 rounded-full items-center justify-center mr-2"
+                            style={{
+                              backgroundColor:
+                                selectedStatus === status.value
+                                  ? status.color
+                                  : "#94a3b8",
+                            }}
+                          >
+                            {selectedStatus === status.value && (
+                              <Ionicons
+                                name="checkmark"
+                                size={12}
+                                color="white"
+                              />
+                            )}
+                          </View>
                           <Text
-                            className={`text-base font-semibold ${
+                            className={`text-sm font-semibold ${
                               selectedStatus === status.value
                                 ? "text-blue-700"
-                                : "text-slate-700"
+                                : "text-slate-600"
                             }`}
                           >
                             {status.label}
                           </Text>
-                          {selectedStatus === status.value && (
-                            <View
-                              className="w-6 h-6 rounded-full items-center justify-center"
-                              style={{ backgroundColor: status.color }}
-                            >
-                              <Ionicons
-                                name="checkmark"
-                                size={16}
-                                color="white"
-                              />
-                            </View>
-                          )}
                         </TouchableOpacity>
                       ))}
                     </View>

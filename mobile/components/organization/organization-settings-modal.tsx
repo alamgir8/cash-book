@@ -8,7 +8,6 @@ import {
   Modal,
   KeyboardAvoidingView,
   Platform,
-  StyleSheet,
   Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -119,77 +118,74 @@ export function OrganizationSettingsModal({
       animationType="slide"
       transparent={true}
       onRequestClose={onClose}
-      presentationStyle="pageSheet"
     >
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.keyboardView}
+        className="flex-1"
       >
-        <View style={styles.overlay}>
-          <View style={styles.modalContainer}>
+        <View className="flex-1 bg-black/40 justify-end">
+          <View className="bg-white rounded-t-3xl" style={{ maxHeight: "90%" }}>
             {/* Header */}
-            <View style={styles.header}>
+            <View className="flex-row justify-between items-center p-6 pb-4 border-b border-gray-100">
               <View>
-                <Text style={styles.headerTitle}>Organization Settings</Text>
-                <Text style={styles.headerSubtitle}>
+                <Text className="text-gray-900 text-xl font-bold">
+                  Organization Settings
+                </Text>
+                <Text className="text-gray-500 text-sm">
                   Update currency and status
                 </Text>
               </View>
-              <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+              <TouchableOpacity
+                onPress={onClose}
+                className="w-8 h-8 bg-gray-100 rounded-full items-center justify-center"
+              >
                 <Ionicons name="close" size={20} color="#6b7280" />
               </TouchableOpacity>
             </View>
 
             <ScrollView
-              style={styles.scrollView}
+              className="flex-1 px-6 py-4"
               showsVerticalScrollIndicator={false}
-              contentContainerStyle={styles.scrollContent}
+              contentContainerStyle={{ paddingBottom: 20 }}
             >
-              <View style={styles.formContainer}>
+              <View className="gap-6">
                 {/* Currency Selection */}
                 <View>
-                  <Text style={styles.label}>Currency</Text>
+                  <Text className="text-slate-700 mb-3 text-sm font-semibold">
+                    Currency
+                  </Text>
                   <Controller
                     control={control}
                     name="currency"
                     render={({ field: { onChange, value } }) => (
-                      <View style={styles.currencyContainer}>
+                      <View className="flex-row flex-wrap gap-2">
                         {CURRENCIES.map((currency) => (
                           <TouchableOpacity
                             key={currency.code}
-                            style={[
-                              styles.currencyButton,
-                              value === currency.code &&
-                                styles.currencyButtonActive,
-                            ]}
+                            className={`px-4 py-3 rounded-xl border-2 flex-row items-center ${
+                              value === currency.code
+                                ? "bg-blue-50 border-blue-500"
+                                : "bg-slate-50 border-slate-200"
+                            }`}
                             onPress={() => onChange(currency.code)}
                           >
                             <Text
-                              style={[
-                                styles.currencySymbol,
-                                value === currency.code &&
-                                  styles.currencySymbolActive,
-                              ]}
+                              className={`text-lg font-bold mr-2 ${
+                                value === currency.code
+                                  ? "text-blue-600"
+                                  : "text-slate-500"
+                              }`}
                             >
                               {currency.symbol}
                             </Text>
                             <Text
-                              style={[
-                                styles.currencyCode,
-                                value === currency.code &&
-                                  styles.currencyCodeActive,
-                              ]}
+                              className={`text-sm font-semibold ${
+                                value === currency.code
+                                  ? "text-blue-700"
+                                  : "text-slate-600"
+                              }`}
                             >
                               {currency.code}
-                            </Text>
-                            <Text
-                              style={[
-                                styles.currencyName,
-                                value === currency.code &&
-                                  styles.currencyNameActive,
-                              ]}
-                            >
-                              {currency.name}
                             </Text>
                           </TouchableOpacity>
                         ))}
@@ -200,53 +196,50 @@ export function OrganizationSettingsModal({
 
                 {/* Status Selection */}
                 <View>
-                  <Text style={styles.label}>Organization Status</Text>
+                  <Text className="text-slate-700 mb-3 text-sm font-semibold">
+                    Organization Status
+                  </Text>
                   <Controller
                     control={control}
                     name="status"
                     render={({ field: { onChange, value } }) => (
-                      <View style={styles.statusContainer}>
+                      <View className="flex-row flex-wrap gap-2">
                         {STATUS_OPTIONS.map((status) => (
                           <TouchableOpacity
                             key={status.value}
-                            style={[
-                              styles.statusButton,
-                              value === status.value &&
-                                styles.statusButtonActive,
-                              value === status.value && {
-                                borderColor: status.color,
-                              },
-                            ]}
+                            className={`flex-1 min-w-[100px] px-4 py-3 rounded-xl border-2 flex-row items-center justify-center ${
+                              value === status.value
+                                ? "bg-blue-50 border-blue-500"
+                                : "bg-slate-50 border-slate-200"
+                            }`}
                             onPress={() => onChange(status.value)}
                           >
-                            <View style={styles.statusButtonContent}>
-                              <Ionicons
-                                name={status.icon as any}
-                                size={24}
-                                color={
+                            <View
+                              className="w-5 h-5 rounded-full items-center justify-center mr-2"
+                              style={{
+                                backgroundColor:
                                   value === status.value
                                     ? status.color
-                                    : "#9ca3af"
-                                }
-                              />
-                              <Text
-                                style={[
-                                  styles.statusButtonText,
-                                  value === status.value && {
-                                    color: status.color,
-                                  },
-                                ]}
-                              >
-                                {status.label}
-                              </Text>
+                                    : "#94a3b8",
+                              }}
+                            >
+                              {value === status.value && (
+                                <Ionicons
+                                  name="checkmark"
+                                  size={12}
+                                  color="white"
+                                />
+                              )}
                             </View>
-                            {value === status.value && (
-                              <Ionicons
-                                name="checkmark-circle"
-                                size={20}
-                                color={status.color}
-                              />
-                            )}
+                            <Text
+                              className={`text-sm font-semibold ${
+                                value === status.value
+                                  ? "text-blue-700"
+                                  : "text-slate-600"
+                              }`}
+                            >
+                              {status.label}
+                            </Text>
                           </TouchableOpacity>
                         ))}
                       </View>
@@ -256,9 +249,9 @@ export function OrganizationSettingsModal({
 
                 {/* Warning for archived status */}
                 {selectedStatus === "archived" && (
-                  <View style={styles.warningBox}>
+                  <View className="flex-row bg-amber-50 p-3 rounded-xl border border-amber-200 gap-2">
                     <Ionicons name="warning" size={20} color="#f59e0b" />
-                    <Text style={styles.warningText}>
+                    <Text className="flex-1 text-amber-900 text-sm">
                       Archiving will disable access for all members. This action
                       can be reversed by reactivating the organization.
                     </Text>
@@ -268,12 +261,11 @@ export function OrganizationSettingsModal({
             </ScrollView>
 
             {/* Footer */}
-            <View style={styles.footer}>
+            <View className="p-6 pt-4 pb-8 border-t border-gray-100">
               <TouchableOpacity
-                style={[
-                  styles.submitButton,
-                  isLoading && styles.submitButtonDisabled,
-                ]}
+                className={`bg-blue-500 flex-row items-center justify-center py-3.5 rounded-xl ${
+                  isLoading ? "opacity-60" : ""
+                }`}
                 onPress={handleSubmit(handleFormSubmit)}
                 disabled={isLoading}
               >
@@ -282,7 +274,9 @@ export function OrganizationSettingsModal({
                 ) : (
                   <>
                     <Ionicons name="save" size={20} color="white" />
-                    <Text style={styles.submitButtonText}>Save Changes</Text>
+                    <Text className="text-white text-base font-semibold ml-2">
+                      Save Changes
+                    </Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -293,169 +287,3 @@ export function OrganizationSettingsModal({
     </Modal>
   );
 }
-
-const styles = StyleSheet.create({
-  keyboardView: {
-    flex: 1,
-  },
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.4)",
-    justifyContent: "flex-end",
-  },
-  modalContainer: {
-    backgroundColor: "white",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: "85%",
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 24,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f3f4f6",
-  },
-  headerTitle: {
-    color: "#111827",
-    fontSize: 20,
-    fontWeight: "bold",
-  },
-  headerSubtitle: {
-    color: "#6b7280",
-    fontSize: 14,
-  },
-  closeButton: {
-    width: 32,
-    height: 32,
-    backgroundColor: "#f3f4f6",
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  scrollView: {
-    flex: 1,
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-  },
-  scrollContent: {
-    paddingBottom: 20,
-  },
-  formContainer: {
-    gap: 24,
-  },
-  label: {
-    color: "#374151",
-    fontSize: 14,
-    fontWeight: "600",
-    marginBottom: 12,
-  },
-  currencyContainer: {
-    gap: 12,
-  },
-  currencyButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: "#e5e7eb",
-    backgroundColor: "#f9fafb",
-  },
-  currencyButtonActive: {
-    borderColor: "#3b82f6",
-    backgroundColor: "#eff6ff",
-  },
-  currencySymbol: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#6b7280",
-    width: 40,
-  },
-  currencySymbolActive: {
-    color: "#3b82f6",
-  },
-  currencyCode: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#374151",
-    width: 60,
-  },
-  currencyCodeActive: {
-    color: "#1e40af",
-  },
-  currencyName: {
-    flex: 1,
-    fontSize: 14,
-    color: "#6b7280",
-  },
-  currencyNameActive: {
-    color: "#3b82f6",
-  },
-  statusContainer: {
-    gap: 12,
-  },
-  statusButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: "#e5e7eb",
-    backgroundColor: "#f9fafb",
-  },
-  statusButtonActive: {
-    backgroundColor: "#f9fafb",
-  },
-  statusButtonContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  statusButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#374151",
-  },
-  warningBox: {
-    flexDirection: "row",
-    backgroundColor: "#fffbeb",
-    padding: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#fef3c7",
-    gap: 8,
-  },
-  warningText: {
-    flex: 1,
-    color: "#92400e",
-    fontSize: 13,
-  },
-  footer: {
-    padding: 24,
-    paddingTop: 16,
-    paddingBottom: 32,
-    borderTopWidth: 1,
-    borderTopColor: "#f3f4f6",
-  },
-  submitButton: {
-    backgroundColor: "#3b82f6",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 14,
-    borderRadius: 12,
-    gap: 8,
-  },
-  submitButtonDisabled: {
-    opacity: 0.6,
-  },
-  submitButtonText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-});

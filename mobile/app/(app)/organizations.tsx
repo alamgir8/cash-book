@@ -243,10 +243,12 @@ export default function OrganizationsScreen() {
                     <Text className="text-xs text-gray-500">Status</Text>
                     <Text
                       className={`text-sm font-medium ${
-                        org.is_active ? "text-green-600" : "text-red-600"
+                        org.status === "active"
+                          ? "text-green-600"
+                          : "text-red-600"
                       }`}
                     >
-                      {org.is_active ? "Active" : "Inactive"}
+                      {org.status === "active" ? "Active" : "Inactive"}
                     </Text>
                   </View>
                 </View>

@@ -125,7 +125,7 @@ const memberSchema = new Schema(
     user: {
       type: Schema.Types.ObjectId,
       ref: "Admin",
-      required: true,
+      required: false, // Allow null for pending invitations
       index: true,
     },
     role: {
@@ -147,6 +147,15 @@ const memberSchema = new Schema(
     },
     invited_at: {
       type: Date,
+    },
+    pending_email: {
+      type: String,
+      trim: true,
+      lowercase: true,
+    },
+    pending_phone: {
+      type: String,
+      trim: true,
     },
     joined_at: {
       type: Date,

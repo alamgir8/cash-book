@@ -343,11 +343,28 @@ export const inviteMember = async (req, res, next) => {
 
     const invitedUser = await Admin.findOne({ $or: query });
 
-    // If user doesn't exist, they need to sign up first
+    // If user doesn't exist, create a pending invitation
     if (!invitedUser) {
-      return res.status(404).json({
-        message: "User not found. They need to create an account first.",
-        code: "USER_NOT_FOUND",
+      const pendingInvitation = new OrganizationMember({
+        organization: organizationId,
+        user: null, // No user yet
+        role,
+        permissions: ROLE_PERMISSION_DEFAULTS[role],
+        status: "pending",
+        invited_by: userId,
+        invited_at: new Date(),
+        display_name: display_name || email || phone,
+        pending_email: email,
+        pending_phone: phone,
+      });
+
+      await pendingInvitation.save();
+
+      return res.status(201).json({
+        message:
+          "Invitation created. User will be added when they create an account with this email/phone.",
+        member: pendingInvitation,
+        isPending: true,
       });
     }
 
