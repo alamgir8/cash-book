@@ -43,7 +43,7 @@ const partySchema = z.object({
 
 type PartyFormData = z.infer<typeof partySchema>;
 
-export default function NewPartyScreen() {
+export default function PartyScreen() {
   const queryClient = useQueryClient();
 
   const {

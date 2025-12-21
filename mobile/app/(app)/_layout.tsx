@@ -126,7 +126,7 @@ export default function AppLayout() {
         }}
       />
       <Tabs.Screen
-        name="parties/new"
+        name="parties/partry"
         options={{
           href: null,
         }}
