@@ -13,6 +13,7 @@ import Toast from "react-native-toast-message";
 import { router } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../hooks/useAuth";
+import { useBiometric } from "../../hooks/useBiometric";
 import {
   exportTransactionsPdf,
   exportTransactionsByCategoryPdf,
@@ -26,17 +27,24 @@ import {
 import { ScreenHeader } from "../../components/screen-header";
 import { ActionButton } from "../../components/action-button";
 import { ProfileEditModal } from "../../components/profile-edit-modal";
+import { BiometricSettingsModal } from "../../components/biometric-settings-modal";
 import { queryKeys } from "../../lib/queryKeys";
 
 type ExportType = "all" | "category" | "counterparty" | "account" | null;
 
 export default function SettingsScreen() {
   const { state, signOut } = useAuth();
+  const {
+    status: biometricStatus,
+    getBiometricDisplayName,
+    getBiometricIconName,
+  } = useBiometric();
   const queryClient = useQueryClient();
   const [exportingType, setExportingType] = useState<ExportType>(null);
   const [backingUp, setBackingUp] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showBiometricModal, setShowBiometricModal] = useState(false);
 
   const handleExport = async (type: ExportType) => {
     if (!type) return;
@@ -266,6 +274,61 @@ export default function SettingsScreen() {
               </Text>
             </TouchableOpacity>
           </View>
+        </View>
+
+        {/* Security Settings - Biometric Login */}
+        <View className="bg-white rounded-3xl p-6 border border-gray-100 shadow-lg">
+          <View className="flex-row items-center gap-4 mb-4">
+            <View className="w-14 h-14 bg-gradient-to-br from-purple-100 to-purple-200 rounded-full items-center justify-center">
+              <Ionicons name="shield-checkmark" size={28} color="#8b5cf6" />
+            </View>
+            <View className="flex-1">
+              <Text className="text-gray-900 text-xl font-bold">Security</Text>
+              <Text className="text-gray-600 text-sm mt-1">
+                Protect your account
+              </Text>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            onPress={() => setShowBiometricModal(true)}
+            className="flex-row items-center gap-4 bg-purple-50 rounded-2xl p-4 active:scale-98"
+          >
+            <View className="w-12 h-12 bg-purple-100 rounded-full items-center justify-center">
+              <Ionicons
+                name={
+                  biometricStatus
+                    ? getBiometricIconName(biometricStatus.biometricType)
+                    : "finger-print"
+                }
+                size={24}
+                color="#8b5cf6"
+              />
+            </View>
+            <View className="flex-1">
+              <Text className="text-gray-900 font-bold text-base">
+                {biometricStatus
+                  ? getBiometricDisplayName(biometricStatus.biometricType)
+                  : "Biometric"}{" "}
+                Login
+              </Text>
+              <Text className="text-gray-600 text-sm">
+                {biometricStatus?.isEnabled
+                  ? "Enabled - Quick login with biometric"
+                  : biometricStatus?.isAvailable
+                  ? "Tap to enable quick login"
+                  : "Not available on this device"}
+              </Text>
+            </View>
+            <View className="flex-row items-center gap-2">
+              {biometricStatus?.isEnabled && (
+                <View className="bg-green-100 px-2 py-1 rounded-full">
+                  <Text className="text-green-700 text-xs font-bold">ON</Text>
+                </View>
+              )}
+              <Ionicons name="chevron-forward" size={20} color="#9ca3af" />
+            </View>
+          </TouchableOpacity>
         </View>
 
         {/* Enhanced Data Export Section */}
@@ -541,6 +604,15 @@ export default function SettingsScreen() {
       <ProfileEditModal
         visible={showProfileModal}
         onClose={handleProfileModalClose}
+      />
+
+      {/* Biometric Settings Modal */}
+      <BiometricSettingsModal
+        visible={showBiometricModal}
+        onClose={() => setShowBiometricModal(false)}
+        userEmail={
+          state.status === "authenticated" ? state.user.email : undefined
+        }
       />
     </View>
   );

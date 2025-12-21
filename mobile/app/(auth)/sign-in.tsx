@@ -1,5 +1,5 @@
 import { Link, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -7,11 +7,15 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from "react-native";
 import { useForm, Controller } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { Ionicons } from "@expo/vector-icons";
+import Toast from "react-native-toast-message";
 import { useAuth } from "../../hooks/useAuth";
+import { useBiometric } from "../../hooks/useBiometric";
 import { CustomInput } from "../../components/custom-input";
 import { CustomButton } from "../../components/custom-button";
 
@@ -54,6 +58,14 @@ type FormValues = z.infer<typeof schema>;
 export default function SignInScreen() {
   const router = useRouter();
   const { signIn } = useAuth();
+  const {
+    status: biometricStatus,
+    isLoading: biometricLoading,
+    isAuthenticating,
+    authenticateWithBiometric,
+    getBiometricDisplayName,
+    getBiometricIconName,
+  } = useBiometric();
   const [loading, setLoading] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [usePinLogin, setUsePinLogin] = useState(false);
@@ -71,6 +83,48 @@ export default function SignInScreen() {
       pin: "",
     },
   });
+
+  // Try biometric login on mount if enabled
+  const handleBiometricLogin = useCallback(async () => {
+    if (!biometricStatus?.isEnabled || isAuthenticating) return;
+
+    try {
+      setFormError(null);
+      const credentials = await authenticateWithBiometric();
+      if (credentials) {
+        setLoading(true);
+        await signIn({
+          identifier: credentials.identifier,
+          password: credentials.password,
+        });
+        router.replace("/(app)");
+      }
+    } catch (error) {
+      console.error("Biometric login failed:", error);
+      if (error instanceof Error && error.message) {
+        setFormError(error.message);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [
+    biometricStatus?.isEnabled,
+    isAuthenticating,
+    authenticateWithBiometric,
+    signIn,
+    router,
+  ]);
+
+  // Auto-prompt biometric on mount
+  useEffect(() => {
+    if (biometricStatus?.isEnabled && !biometricLoading) {
+      // Small delay to ensure the screen is fully rendered
+      const timer = setTimeout(() => {
+        handleBiometricLogin();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [biometricStatus?.isEnabled, biometricLoading]);
 
   useEffect(() => {
     if (usePinLogin) {
@@ -215,6 +269,34 @@ export default function SignInScreen() {
               loading={loading}
               containerClassName="mt-4"
             />
+
+            {/* Biometric Login Button */}
+            {biometricStatus?.isEnabled && (
+              <TouchableOpacity
+                onPress={handleBiometricLogin}
+                disabled={isAuthenticating || loading}
+                className="flex-row items-center justify-center gap-3 bg-purple-50 border border-purple-200 rounded-xl py-4 mt-3"
+                style={{ opacity: isAuthenticating || loading ? 0.6 : 1 }}
+              >
+                {isAuthenticating ? (
+                  <ActivityIndicator size="small" color="#8b5cf6" />
+                ) : (
+                  <Ionicons
+                    name={getBiometricIconName(biometricStatus.biometricType)}
+                    size={24}
+                    color="#8b5cf6"
+                  />
+                )}
+                <Text className="text-purple-700 font-bold text-base">
+                  {isAuthenticating
+                    ? "Authenticating..."
+                    : `Login with ${getBiometricDisplayName(
+                        biometricStatus.biometricType
+                      )}`}
+                </Text>
+              </TouchableOpacity>
+            )}
+
             {formError ? (
               <Text className="text-rose-500 text-sm text-center mt-3">
                 {formError}
