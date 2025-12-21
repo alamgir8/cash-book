@@ -345,6 +345,34 @@ export const inviteMember = async (req, res, next) => {
 
     // If user doesn't exist, create a pending invitation
     if (!invitedUser) {
+      // Check if there's already a pending invitation for this email/phone
+      const existingPendingQuery = [];
+      if (email) {
+        existingPendingQuery.push({
+          organization: organizationId,
+          pending_email: email.toLowerCase(),
+          user: null,
+        });
+      }
+      if (phone) {
+        existingPendingQuery.push({
+          organization: organizationId,
+          pending_phone: phone,
+          user: null,
+        });
+      }
+
+      const existingPending = await OrganizationMember.findOne({
+        $or: existingPendingQuery,
+      });
+
+      if (existingPending) {
+        return res.status(400).json({
+          message:
+            "An invitation has already been sent to this email/phone for this organization",
+        });
+      }
+
       const pendingInvitation = new OrganizationMember({
         organization: organizationId,
         user: null, // No user yet
@@ -354,7 +382,7 @@ export const inviteMember = async (req, res, next) => {
         invited_by: userId,
         invited_at: new Date(),
         display_name: display_name || email || phone,
-        pending_email: email,
+        pending_email: email?.toLowerCase(),
         pending_phone: phone,
       });
 

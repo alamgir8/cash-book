@@ -181,8 +181,40 @@ const memberSchema = new Schema(
   }
 );
 
-// Ensure unique user per organization
-memberSchema.index({ organization: 1, user: 1 }, { unique: true });
+// Unique index for active members (user is not null)
+// Using partial index to allow multiple null users (pending invitations)
+memberSchema.index(
+  { organization: 1, user: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { user: { $type: "objectId" } },
+  }
+);
+
+// Unique index for pending email invitations
+memberSchema.index(
+  { organization: 1, pending_email: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      pending_email: { $exists: true, $ne: null },
+      user: null,
+    },
+  }
+);
+
+// Unique index for pending phone invitations
+memberSchema.index(
+  { organization: 1, pending_phone: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      pending_phone: { $exists: true, $ne: null },
+      user: null,
+    },
+  }
+);
+
 memberSchema.index({ user: 1, status: 1 });
 
 // Set default permissions based on role before save
