@@ -23,7 +23,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { ActionButton } from "./action-button";
 
 const BUSINESS_TYPES = [
-  { value: "retail", label: "Retail Shop", icon: "storefront" },
+  { value: "retail_shop", label: "Retail Shop", icon: "storefront" },
   { value: "wholesale", label: "Wholesale", icon: "cube" },
   { value: "restaurant", label: "Restaurant/Food", icon: "restaurant" },
   { value: "service", label: "Service Business", icon: "construct" },

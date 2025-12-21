@@ -23,24 +23,19 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 const ROLES = [
   {
-    value: "admin",
-    label: "Admin",
-    description: "Full access except ownership transfer",
+    value: "owner",
+    label: "Owner",
+    description: "Full control over the organization",
   },
   {
     value: "manager",
     label: "Manager",
-    description: "Manage transactions, categories, and view reports",
-  },
-  {
-    value: "accountant",
-    label: "Accountant",
-    description: "View and create transactions, view reports",
+    description: "Manage members, transactions, categories, and view reports",
   },
   {
     value: "cashier",
     label: "Cashier",
-    description: "Create transactions only",
+    description: "Create transactions and view reports",
   },
   {
     value: "viewer",

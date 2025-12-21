@@ -21,6 +21,10 @@ router.get("/:organizationId", organizationController.getOrganization);
 
 // Update organization
 router.patch("/:organizationId", organizationController.updateOrganization);
+router.put("/:organizationId", organizationController.updateOrganization);
+
+// Delete organization
+router.delete("/:organizationId", organizationController.deleteOrganization);
 
 // Members management
 router.get("/:organizationId/members", organizationController.getMembers);

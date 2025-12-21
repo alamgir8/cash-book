@@ -20,7 +20,9 @@ export const createOrganization = async (req, res, next) => {
       description,
       phone,
       email,
+      website,
       address,
+      contact,
       settings,
     } = req.body;
 
@@ -30,13 +32,19 @@ export const createOrganization = async (req, res, next) => {
         .json({ message: "Organization name is required (min 2 characters)" });
     }
 
+    // Handle contact fields (can be direct or nested in contact object)
+    const phoneValue = contact?.phone || phone;
+    const emailValue = contact?.email || email;
+    const websiteValue = contact?.website || website;
+
     // Create organization
     const organization = await Organization.create({
       name: name.trim(),
       business_type: business_type || "general",
       description,
-      phone,
-      email,
+      phone: phoneValue,
+      email: emailValue,
+      website: websiteValue,
       address,
       settings,
       owner: userId,
@@ -150,12 +158,22 @@ export const getOrganization = async (req, res, next) => {
       return res.status(404).json({ message: "Organization not found" });
     }
 
+    // Get members list
+    const members = await OrganizationMember.find({
+      organization: organizationId,
+      status: { $ne: "removed" },
+    })
+      .populate("user", "name email phone")
+      .populate("invited_by", "name email")
+      .sort({ role: 1, joined_at: 1 });
+
     res.json({
       organization: {
         ...organization.toObject(),
         role: membership.role,
         permissions: membership.permissions,
       },
+      members,
     });
   } catch (error) {
     next(error);
@@ -179,11 +197,9 @@ export const updateOrganization = async (req, res, next) => {
     });
 
     if (!membership || !membership.hasPermission("manage_organization")) {
-      return res
-        .status(403)
-        .json({
-          message: "You don't have permission to update this organization",
-        });
+      return res.status(403).json({
+        message: "You don't have permission to update this organization",
+      });
     }
 
     // Fields that can be updated
@@ -197,6 +213,7 @@ export const updateOrganization = async (req, res, next) => {
       "website",
       "address",
       "settings",
+      "contact",
     ];
 
     const updateData = {};
@@ -204,6 +221,17 @@ export const updateOrganization = async (req, res, next) => {
       if (updates[field] !== undefined) {
         updateData[field] = updates[field];
       }
+    }
+
+    // Handle contact object if provided
+    if (updates.contact) {
+      if (updates.contact.phone !== undefined)
+        updateData.phone = updates.contact.phone;
+      if (updates.contact.email !== undefined)
+        updateData.email = updates.contact.email;
+      if (updates.contact.website !== undefined)
+        updateData.website = updates.contact.website;
+      delete updateData.contact;
     }
 
     const organization = await Organization.findByIdAndUpdate(
@@ -560,6 +588,48 @@ export const leaveOrganization = async (req, res, next) => {
     });
 
     res.json({ message: "Left organization successfully" });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Delete organization (owner only)
+ */
+export const deleteOrganization = async (req, res, next) => {
+  try {
+    const { organizationId } = req.params;
+    const userId = req.user.id;
+
+    // Check if user is owner
+    const membership = await OrganizationMember.findOne({
+      organization: organizationId,
+      user: userId,
+      status: "active",
+    });
+
+    if (!membership || membership.role !== "owner") {
+      return res.status(403).json({
+        message: "Only the owner can delete the organization",
+      });
+    }
+
+    const organization = await Organization.findById(organizationId);
+    if (!organization) {
+      return res.status(404).json({ message: "Organization not found" });
+    }
+
+    // Soft delete by archiving
+    organization.status = "archived";
+    await organization.save();
+
+    // Update all memberships
+    await OrganizationMember.updateMany(
+      { organization: organizationId },
+      { $set: { status: "removed" } }
+    );
+
+    res.json({ message: "Organization deleted successfully" });
   } catch (error) {
     next(error);
   }
