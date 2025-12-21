@@ -8,6 +8,7 @@ import * as Font from "expo-font";
 import * as SplashScreen from "expo-splash-screen";
 import { AuthProvider, useAuth } from "../hooks/useAuth";
 import { PreferencesProvider } from "../hooks/usePreferences";
+import { OrganizationProvider } from "../hooks/useOrganization";
 import { ErrorBoundary } from "../components/error-boundary";
 import { AuthLoading } from "../components/auth-loading";
 import { queryClient } from "../lib/queryClient";
@@ -101,7 +102,9 @@ export default function RootLayout() {
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
             <PreferencesProvider>
-              <RootContent />
+              <OrganizationProvider>
+                <RootContent />
+              </OrganizationProvider>
             </PreferencesProvider>
           </AuthProvider>
         </QueryClientProvider>

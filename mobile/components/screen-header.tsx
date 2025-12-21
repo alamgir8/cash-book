@@ -1,5 +1,6 @@
 import { Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 
 interface ScreenHeaderProps {
   title: string;
@@ -9,6 +10,8 @@ interface ScreenHeaderProps {
   backgroundColor?: string;
   gradientFrom?: string;
   gradientTo?: string;
+  showBack?: boolean;
+  rightAction?: React.ReactNode;
   actionButton?: {
     label: string;
     onPress: () => void;
@@ -23,14 +26,24 @@ export function ScreenHeader({
   icon,
   iconColor = "#1d4ed8",
   backgroundColor = "#ffffff",
+  showBack,
+  rightAction,
   actionButton,
 }: ScreenHeaderProps) {
+  const router = useRouter();
+
   return (
     <View
       className="pt-6 pb-6 px-6 shadow-sm border-b border-gray-100"
       style={{ backgroundColor }}
     >
       <View className="flex-row items-center justify-between">
+        {showBack && (
+          <TouchableOpacity className="mr-3 p-1" onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={24} color="#374151" />
+          </TouchableOpacity>
+        )}
+
         <View className="flex-1">
           <Text className="text-2xl font-bold text-gray-900">{title}</Text>
           {subtitle && (
@@ -38,11 +51,13 @@ export function ScreenHeader({
           )}
         </View>
 
-        {icon && !actionButton && (
+        {icon && !actionButton && !rightAction && (
           <View className="bg-blue-100 p-3 rounded-full">
             <Ionicons name={icon} size={24} color={iconColor} />
           </View>
         )}
+
+        {rightAction}
 
         {actionButton && (
           <TouchableOpacity

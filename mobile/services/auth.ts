@@ -1,4 +1,5 @@
 import { api } from "../lib/api";
+import type { OrganizationSummary } from "./organizations";
 
 export type User = {
   _id: string;
@@ -72,6 +73,7 @@ export type AuthTokens = {
 export type AuthSessionResponse = {
   tokens: AuthTokens;
   admin: User;
+  organizations?: OrganizationSummary[];
 };
 
 const normalizeUser = (admin: any): User => {
@@ -114,6 +116,7 @@ const normalizeAuthResponse = (data: any): AuthSessionResponse => {
       sessionId: data?.session_id,
     },
     admin: data.admin,
+    organizations: data?.organizations ?? [],
   };
 };
 
@@ -160,7 +163,10 @@ export const refreshSession = async (
 
 export const logout = async (refreshToken?: string | null) => {
   try {
-    await api.post("/auth/logout", refreshToken ? { refresh_token: refreshToken } : {});
+    await api.post(
+      "/auth/logout",
+      refreshToken ? { refresh_token: refreshToken } : {}
+    );
   } catch (error) {
     // swallow logout errors to avoid blocking client-side sign out
     console.warn("Logout request failed", error);
@@ -187,7 +193,9 @@ export const updateProfile = async (
     payload.profile_settings = data.profile_settings;
   } else if (data.settings) {
     payload.profile_settings = {
-      ...(data.settings.currency ? { currency_code: data.settings.currency } : {}),
+      ...(data.settings.currency
+        ? { currency_code: data.settings.currency }
+        : {}),
       ...(data.settings.language ? { language: data.settings.language } : {}),
       ...(data.settings.week_starts_on !== undefined
         ? { week_starts_on: data.settings.week_starts_on }
