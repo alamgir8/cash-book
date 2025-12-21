@@ -44,7 +44,12 @@ export default function InvoiceDetailScreen() {
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [paymentReference, setPaymentReference] = useState("");
 
-  const { data: invoice, isLoading } = useQuery({
+  const {
+    data: invoice,
+    isLoading,
+    error,
+    isError,
+  } = useQuery({
     queryKey: ["invoice", invoiceId],
     queryFn: () => invoicesApi.get(invoiceId!),
     enabled: !!invoiceId,
@@ -151,12 +156,35 @@ export default function InvoiceDetailScreen() {
     });
   };
 
-  if (isLoading || !invoice) {
+  if (isLoading) {
     return (
       <View className="flex-1 bg-white">
         <ScreenHeader title="Invoice Details" showBack />
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color="#3B82F6" />
+        </View>
+      </View>
+    );
+  }
+
+  if (isError || !invoice) {
+    return (
+      <View className="flex-1 bg-white">
+        <ScreenHeader title="Error" showBack />
+        <View className="flex-1 items-center justify-center p-4">
+          <Ionicons name="alert-circle-outline" size={48} color="#EF4444" />
+          <Text className="text-lg font-semibold text-gray-900 mt-4">
+            Failed to load invoice
+          </Text>
+          <Text className="text-gray-500 text-center mt-2">
+            {error ? getApiErrorMessage(error) : "Invoice not found"}
+          </Text>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            className="mt-6 bg-gray-100 px-6 py-3 rounded-lg"
+          >
+            <Text className="text-gray-700 font-medium">Go Back</Text>
+          </TouchableOpacity>
         </View>
       </View>
     );

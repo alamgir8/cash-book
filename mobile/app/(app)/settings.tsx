@@ -533,40 +533,6 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        {/* Enhanced App Info Section */}
-        <View className="bg-white rounded-3xl p-6 border border-gray-100 shadow-lg">
-          <View className="flex-row items-center gap-4 mb-6">
-            <View className="w-14 h-14 bg-gradient-to-br from-purple-100 to-purple-200 rounded-full items-center justify-center">
-              <Ionicons name="information-circle" size={28} color="#8b5cf6" />
-            </View>
-            <Text className="text-gray-900 text-xl font-bold">
-              App Information
-            </Text>
-          </View>
-
-          <View className="gap-3">
-            {/* <View className="flex-row items-center gap-3 py-2">
-              <Ionicons name="server" size={18} color="#6b7280" />
-              <View className="flex-1">
-                <Text className="text-gray-600 text-sm">API Endpoint</Text>
-                <Text className="text-gray-900 text-sm font-mono">
-                  {baseURL}
-                </Text>
-              </View>
-            </View> */}
-
-            <View className="flex-row items-center gap-3 py-2">
-              <Ionicons name="code-working" size={18} color="#6b7280" />
-              <View className="flex-1">
-                <Text className="text-gray-600 text-sm">App Version</Text>
-                <Text className="text-gray-900 text-sm font-mono">
-                  {Constants.expoConfig?.version || "2.0.0"}
-                </Text>
-              </View>
-            </View>
-          </View>
-        </View>
-
         {/* App Settings */}
         <View className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
           <Text className="text-gray-900 font-bold text-lg mb-4">
@@ -657,6 +623,40 @@ export default function SettingsScreen() {
               </View>
               <Ionicons name="chevron-forward" size={20} color="#9ca3af" />
             </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Enhanced App Info Section */}
+        <View className="bg-white rounded-3xl p-6 border border-gray-100 shadow-lg">
+          <View className="flex-row items-center gap-4 mb-6">
+            <View className="w-14 h-14 bg-gradient-to-br from-purple-100 to-purple-200 rounded-full items-center justify-center">
+              <Ionicons name="information-circle" size={28} color="#8b5cf6" />
+            </View>
+            <Text className="text-gray-900 text-xl font-bold">
+              App Information
+            </Text>
+          </View>
+
+          <View className="gap-3">
+            {/* <View className="flex-row items-center gap-3 py-2">
+              <Ionicons name="server" size={18} color="#6b7280" />
+              <View className="flex-1">
+                <Text className="text-gray-600 text-sm">API Endpoint</Text>
+                <Text className="text-gray-900 text-sm font-mono">
+                  {baseURL}
+                </Text>
+              </View>
+            </View> */}
+
+            <View className="flex-row items-center gap-3 py-2">
+              <Ionicons name="code-working" size={18} color="#6b7280" />
+              <View className="flex-1">
+                <Text className="text-gray-600 text-sm">App Version</Text>
+                <Text className="text-gray-900 text-sm font-mono">
+                  {Constants.expoConfig?.version || "2.0.0"}
+                </Text>
+              </View>
+            </View>
           </View>
         </View>
 

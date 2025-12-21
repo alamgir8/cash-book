@@ -235,6 +235,16 @@ export const getInvoice = async (req, res, next) => {
     const userId = req.user.id;
     const { invoiceId } = req.params;
 
+    // Handle "new" or other non-ObjectId strings gracefully
+    if (!mongoose.Types.ObjectId.isValid(invoiceId)) {
+      console.log(`[getInvoice] Invalid invoiceId: ${invoiceId}`);
+      return res.status(400).json({ message: "Invalid invoice ID" });
+    }
+
+    console.log(
+      `[getInvoice] Fetching invoice ${invoiceId} for user ${userId}`
+    );
+
     const invoice = await Invoice.findById(invoiceId)
       .populate("party", "name phone email address code type current_balance")
       .populate("payments.account", "name kind")
@@ -244,25 +254,32 @@ export const getInvoice = async (req, res, next) => {
       .populate("organization", "name settings");
 
     if (!invoice) {
+      console.log(`[getInvoice] Invoice ${invoiceId} not found`);
       return res.status(404).json({ message: "Invoice not found" });
     }
 
     // Check access
     if (invoice.organization) {
+      console.log(
+        `[getInvoice] Checking org access for ${invoice.organization._id}`
+      );
       const access = await checkOrgAccess(
         userId,
         invoice.organization._id,
         "view_invoices"
       );
       if (!access.hasAccess) {
+        console.log(`[getInvoice] Access denied: ${access.error}`);
         return res.status(403).json({ message: access.error });
       }
     } else if (invoice.admin.toString() !== userId) {
+      console.log(`[getInvoice] Access denied (personal invoice)`);
       return res.status(403).json({ message: "Access denied" });
     }
 
     res.json({ invoice });
   } catch (error) {
+    console.error(`[getInvoice] Error:`, error);
     next(error);
   }
 };

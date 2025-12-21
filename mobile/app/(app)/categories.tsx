@@ -91,6 +91,10 @@ export default function CategoriesScreen() {
 
   const filteredCategories = categories?.filter((c) => c.flow === activeTab);
 
+  const handleTabChange = useCallback((tab: "credit" | "debit") => {
+    setActiveTab(tab);
+  }, []);
+
   const renderItem = ({ item }: { item: Category }) => (
     <View className="bg-white p-4 rounded-2xl border border-gray-100 flex-row items-center justify-between mb-3">
       <View className="flex-row items-center gap-4 flex-1">
@@ -147,7 +151,7 @@ export default function CategoriesScreen() {
       {/* Tabs */}
       <View className="flex-row px-4 py-2 gap-4">
         <TouchableOpacity
-          onPress={() => setActiveTab("debit")}
+          onPress={() => handleTabChange("debit")}
           className={`flex-1 py-3 rounded-xl items-center border ${
             activeTab === "debit"
               ? "bg-red-50 border-red-200"
@@ -163,7 +167,7 @@ export default function CategoriesScreen() {
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          onPress={() => setActiveTab("credit")}
+          onPress={() => handleTabChange("credit")}
           className={`flex-1 py-3 rounded-xl items-center border ${
             activeTab === "credit"
               ? "bg-green-50 border-green-200"

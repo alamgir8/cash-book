@@ -40,15 +40,16 @@ export default function AppLayout() {
           backgroundColor: "#fff",
           borderTopWidth: 1,
           borderTopColor: "#ddd",
-          height: 40 + insets.bottom,
-          paddingBottom: insets.bottom,
+          height: 60 + insets.bottom,
+          paddingBottom: insets.bottom + 5,
+          paddingTop: 5,
           elevation: 0,
           shadowOpacity: 0,
           shadowColor: "transparent",
         },
         tabBarLabelStyle: {
           fontSize: 14,
-          fontWeight: 600,
+          fontWeight: "600",
         },
         tabBarBadgeStyle: {
           top: -5,
@@ -125,7 +126,7 @@ export default function AppLayout() {
         }}
       />
       <Tabs.Screen
-        name="parties/invoice"
+        name="parties/new"
         options={{
           href: null,
         }}

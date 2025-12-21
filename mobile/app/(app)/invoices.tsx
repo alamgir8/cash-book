@@ -188,34 +188,35 @@ export default function InvoicesScreen() {
       </View>
 
       {/* Status Filters */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        className="bg-white border-b border-gray-100 py-2"
-        contentContainerStyle={{ paddingHorizontal: 16 }}
-      >
-        {STATUS_OPTIONS.map((status) => (
-          <TouchableOpacity
-            key={status.value}
-            className={`mr-2 px-3 py-1.5 rounded-full border ${
-              activeStatus === status.value
-                ? "border-blue-500 bg-blue-50"
-                : "border-gray-200 bg-white"
-            }`}
-            onPress={() => setActiveStatus(status.value)}
-          >
-            <Text
-              className={`text-xs font-medium ${
+      <View className="bg-white border-b border-gray-100 py-2">
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: 16 }}
+        >
+          {STATUS_OPTIONS.map((status) => (
+            <TouchableOpacity
+              key={status.value}
+              className={`mr-2 px-3 py-1.5 rounded-full border ${
                 activeStatus === status.value
-                  ? "text-blue-600"
-                  : "text-gray-500"
+                  ? "border-blue-500 bg-blue-50"
+                  : "border-gray-200 bg-white"
               }`}
+              onPress={() => setActiveStatus(status.value)}
             >
-              {status.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+              <Text
+                className={`text-xs font-medium ${
+                  activeStatus === status.value
+                    ? "text-blue-600"
+                    : "text-gray-500"
+                }`}
+              >
+                {status.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
 
       <ScrollView
         className="flex-1"

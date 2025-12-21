@@ -141,7 +141,7 @@ const partySchema = new Schema(
 // Indexes
 partySchema.index({ organization: 1, type: 1, archived: 1 });
 partySchema.index({ organization: 1, name: 1 });
-partySchema.index({ organization: 1, code: 1 }, { sparse: true });
+// partySchema.index({ organization: 1, code: 1 }, { sparse: true }); // Removed duplicate index
 partySchema.index({ organization: 1, phone: 1 }, { sparse: true });
 partySchema.index({ name: "text", phone: "text", email: "text", code: "text" });
 
