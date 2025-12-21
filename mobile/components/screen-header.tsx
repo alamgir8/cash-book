@@ -32,6 +32,14 @@ export function ScreenHeader({
 }: ScreenHeaderProps) {
   const router = useRouter();
 
+  const handleBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace("/(app)/(tabs)");
+    }
+  };
+
   return (
     <View
       className="pb-3 pt-4 px-5 shadow-sm border-b border-gray-100"
@@ -39,7 +47,7 @@ export function ScreenHeader({
     >
       <View className="flex-row items-center justify-between">
         {showBack && (
-          <TouchableOpacity className="mr-3 p-1" onPress={() => router.back()}>
+          <TouchableOpacity className="mr-3 p-1" onPress={handleBack}>
             <Ionicons name="arrow-back" size={24} color="#374151" />
           </TouchableOpacity>
         )}

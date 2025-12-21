@@ -121,10 +121,13 @@ export function OrganizationSettingsModal({
     >
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        className="flex-1"
+        style={{ flex: 1 }}
       >
         <View className="flex-1 bg-black/40 justify-end">
-          <View className="bg-white rounded-t-3xl" style={{ maxHeight: "90%" }}>
+          <View
+            className="bg-white rounded-t-3xl flex-1"
+            style={{ maxHeight: "92%" }}
+          >
             {/* Header */}
             <View className="flex-row justify-between items-center p-6 pb-4 border-b border-gray-100">
               <View>
