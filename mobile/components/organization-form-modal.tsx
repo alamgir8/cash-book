@@ -5,17 +5,13 @@ import {
   Modal,
   TouchableOpacity,
   ScrollView,
-  Alert,
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import {
-  organizationsApi,
-  type Organization,
-  type CreateOrganizationParams,
-} from "../services/organizations";
+import { organizationsApi, type Organization } from "../services/organizations";
 import { getApiErrorMessage } from "../lib/api";
+import { toast } from "../lib/toast";
 import { z } from "zod";
 import { useForm, Controller } from "react-hook-form";
 import { CustomInput } from "./custom-input";
@@ -161,7 +157,7 @@ export function OrganizationFormModal({
       onSuccess(result);
       onClose();
     } catch (error) {
-      Alert.alert("Error", getApiErrorMessage(error));
+      toast.error(getApiErrorMessage(error));
     } finally {
       setIsLoading(false);
     }

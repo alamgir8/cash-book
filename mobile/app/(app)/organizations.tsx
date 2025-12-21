@@ -19,6 +19,7 @@ import {
   type Organization,
 } from "../../services/organizations";
 import { getApiErrorMessage } from "../../lib/api";
+import { toast } from "../../lib/toast";
 
 export default function OrganizationsScreen() {
   const router = useRouter();
@@ -42,9 +43,10 @@ export default function OrganizationsScreen() {
     mutationFn: organizationsApi.delete,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["organizations"] });
+      toast.success("Organization deleted successfully");
     },
     onError: (error) => {
-      Alert.alert("Error", getApiErrorMessage(error));
+      toast.error(getApiErrorMessage(error));
     },
   });
 
@@ -134,6 +136,7 @@ export default function OrganizationsScreen() {
       <ScreenHeader
         title="Organizations"
         showBack
+        goBack
         rightAction={
           <TouchableOpacity
             className="p-2"

@@ -5,7 +5,6 @@ import {
   ScrollView,
   TextInput,
   TouchableOpacity,
-  Alert,
   ActivityIndicator,
   Modal,
   FlatList,
@@ -13,6 +12,7 @@ import {
   Platform,
 } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
+import { toast } from "@/lib/toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import { useActiveOrgId } from "@/hooks/useOrganization";
@@ -126,12 +126,11 @@ export default function InvoiceScreen() {
     mutationFn: invoicesApi.create,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.INVOICES });
-      Alert.alert("Success", "Invoice created successfully", [
-        { text: "OK", onPress: () => router.back() },
-      ]);
+      toast.success("Invoice created successfully");
+      router.back();
     },
     onError: (error: any) => {
-      Alert.alert("Error", getApiErrorMessage(error));
+      toast.error(getApiErrorMessage(error));
     },
   });
 
@@ -189,8 +188,7 @@ export default function InvoiceScreen() {
     );
 
     if (validItems.length === 0) {
-      Alert.alert(
-        "Error",
+      toast.error(
         "Please add at least one valid item with description and price"
       );
       return;

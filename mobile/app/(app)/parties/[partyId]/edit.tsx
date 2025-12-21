@@ -4,13 +4,13 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
-  Alert,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   TextInput,
 } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
+import { toast } from "@/lib/toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { partiesApi, PartyType } from "@/services/parties";
 import { getApiErrorMessage } from "@/lib/api";
@@ -127,12 +127,11 @@ export default function EditPartyScreen() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PARTIES });
       queryClient.invalidateQueries({ queryKey: ["party", partyId] });
-      Alert.alert("Success", "Party updated successfully", [
-        { text: "OK", onPress: () => router.back() },
-      ]);
+      toast.success("Party updated successfully");
+      router.back();
     },
     onError: (error: any) => {
-      Alert.alert("Error", getApiErrorMessage(error));
+      toast.error(getApiErrorMessage(error));
     },
   });
 

@@ -3,12 +3,12 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   TextInput,
 } from "react-native";
 import { router } from "expo-router";
+import { toast } from "../../../lib/toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { partiesApi, PartyType } from "@/services/parties";
 import { QUERY_KEYS } from "@/lib/queryKeys";
@@ -83,15 +83,11 @@ export default function PartyScreen() {
     mutationFn: partiesApi.create,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PARTIES });
-      Alert.alert("Success", "Party created successfully", [
-        { text: "OK", onPress: () => router.back() },
-      ]);
+      toast.success("Party created successfully");
+      router.back();
     },
     onError: (error: any) => {
-      Alert.alert(
-        "Error",
-        error.response?.data?.message || "Failed to create party"
-      );
+      toast.error(error.response?.data?.message || "Failed to create party");
     },
   });
 

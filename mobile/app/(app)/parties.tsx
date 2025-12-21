@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { toast } from "../../lib/toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import { ScreenHeader } from "../../components/screen-header";
@@ -46,7 +47,7 @@ export default function PartiesScreen() {
       queryClient.invalidateQueries({ queryKey: ["parties"] });
     },
     onError: (error) => {
-      Alert.alert("Error", getApiErrorMessage(error));
+      toast.error(getApiErrorMessage(error));
     },
   });
 

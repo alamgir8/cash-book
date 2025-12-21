@@ -4,6 +4,7 @@ import { StatusBar } from "expo-status-bar";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import Toast from "react-native-toast-message";
+import ToastManager from "toastify-react-native";
 import * as Font from "expo-font";
 import * as SplashScreen from "expo-splash-screen";
 import { AuthProvider, useAuth } from "../hooks/useAuth";
@@ -88,6 +89,7 @@ const RootContent = () => {
       style={{ flex: 1 }}
       // className="[bg-[#f8f7f4]"
     >
+      <ToastManager />
       <Slot />
       <StatusBar style="dark" backgroundColor="#f9fafb" />
       <Toast />

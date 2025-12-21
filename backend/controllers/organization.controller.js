@@ -350,7 +350,7 @@ export const inviteMember = async (req, res, next) => {
         user: null, // No user yet
         role,
         permissions: ROLE_PERMISSION_DEFAULTS[role],
-        status: "pending",
+        status: "invited",
         invited_by: userId,
         invited_at: new Date(),
         display_name: display_name || email || phone,
@@ -564,7 +564,7 @@ export const removeMember = async (req, res, next) => {
     }
 
     // Cannot remove self (use leave instead)
-    if (targetMember.user.toString() === userId) {
+    if (targetMember.user && targetMember.user.toString() === userId) {
       return res
         .status(400)
         .json({ message: "Use leave endpoint to remove yourself" });

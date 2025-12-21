@@ -9,6 +9,7 @@ import {
   Linking,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { toast } from "../../../lib/toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import { ScreenHeader } from "../../../components/screen-header";
@@ -30,12 +31,11 @@ export default function PartyDetailScreen() {
     mutationFn: partiesApi.delete,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["parties"] });
-      Alert.alert("Success", "Party deleted successfully", [
-        { text: "OK", onPress: () => router.back() },
-      ]);
+      toast.success("Party deleted successfully");
+      router.back();
     },
     onError: (error) => {
-      Alert.alert("Error", getApiErrorMessage(error));
+      toast.error(getApiErrorMessage(error));
     },
   });
 

@@ -3,7 +3,6 @@ import {
   View,
   ScrollView,
   RefreshControl,
-  Alert,
   ActivityIndicator,
 } from "react-native";
 import { useLocalSearchParams } from "expo-router";
@@ -14,6 +13,7 @@ import {
   type OrganizationMember,
 } from "../../../services/organizations";
 import { getApiErrorMessage } from "../../../lib/api";
+import { toast } from "../../../lib/toast";
 import { AddMemberModal } from "../../../components/modals/add-member-modal";
 import { OrganizationSettingsModal } from "../../../components/organization/organization-settings-modal";
 import { OrganizationInfoCard } from "../../../components/organization/organization-info-card";
@@ -44,10 +44,10 @@ export default function OrganizationDetailScreen() {
         queryKey: ["organization", organizationId],
       });
       setShowAddMemberModal(false);
-      Alert.alert("Success", "Member added successfully");
+      toast.success("Member added successfully");
     },
     onError: (error) => {
-      Alert.alert("Error", getApiErrorMessage(error));
+      toast.error(getApiErrorMessage(error));
     },
   });
 
@@ -61,10 +61,10 @@ export default function OrganizationDetailScreen() {
         queryKey: ["organization", organizationId],
       });
       setShowSettingsModal(false);
-      Alert.alert("Success", "Settings updated successfully");
+      toast.success("Settings updated successfully");
     },
     onError: (error) => {
-      Alert.alert("Error", getApiErrorMessage(error));
+      toast.error(getApiErrorMessage(error));
     },
   });
 
@@ -75,10 +75,10 @@ export default function OrganizationDetailScreen() {
       queryClient.invalidateQueries({
         queryKey: ["organization", organizationId],
       });
-      Alert.alert("Success", "Role updated successfully");
+      toast.success("Role updated successfully");
     },
     onError: (error) => {
-      Alert.alert("Error", getApiErrorMessage(error));
+      toast.error(getApiErrorMessage(error));
     },
   });
 
@@ -89,10 +89,10 @@ export default function OrganizationDetailScreen() {
       queryClient.invalidateQueries({
         queryKey: ["organization", organizationId],
       });
-      Alert.alert("Success", "Member removed successfully");
+      toast.success("Member removed successfully");
     },
     onError: (error) => {
-      Alert.alert("Error", getApiErrorMessage(error));
+      toast.error(getApiErrorMessage(error));
     },
   });
 
@@ -125,7 +125,11 @@ export default function OrganizationDetailScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: "#f9fafb" }}>
-      <ScreenHeader title={organization?.name || "Organization"} showBack />
+      <ScreenHeader
+        title={organization?.name || "Organization"}
+        showBack
+        goBack
+      />
 
       <ScrollView
         style={{ flex: 1 }}

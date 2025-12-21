@@ -10,6 +10,7 @@ import {
   TextInput,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { toast } from "../../../lib/toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import { ScreenHeader } from "../../../components/screen-header";
@@ -63,7 +64,7 @@ export default function InvoiceDetailScreen() {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
     },
     onError: (error) => {
-      Alert.alert("Error", getApiErrorMessage(error));
+      toast.error(getApiErrorMessage(error));
     },
   });
 
@@ -76,10 +77,10 @@ export default function InvoiceDetailScreen() {
       setPaymentModalVisible(false);
       setPaymentAmount("");
       setPaymentReference("");
-      Alert.alert("Success", "Payment recorded successfully");
+      toast.success("Payment recorded successfully");
     },
     onError: (error) => {
-      Alert.alert("Error", getApiErrorMessage(error));
+      toast.error(getApiErrorMessage(error));
     },
   });
 
@@ -87,12 +88,11 @@ export default function InvoiceDetailScreen() {
     mutationFn: invoicesApi.delete,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
-      Alert.alert("Success", "Invoice deleted successfully", [
-        { text: "OK", onPress: () => router.back() },
-      ]);
+      toast.success("Invoice deleted successfully");
+      router.back();
     },
     onError: (error) => {
-      Alert.alert("Error", getApiErrorMessage(error));
+      toast.error(getApiErrorMessage(error));
     },
   });
 
@@ -113,7 +113,7 @@ export default function InvoiceDetailScreen() {
   const handleRecordPayment = () => {
     const amount = parseFloat(paymentAmount);
     if (!amount || amount <= 0) {
-      Alert.alert("Error", "Please enter a valid payment amount");
+      toast.error("Please enter a valid payment amount");
       return;
     }
 
