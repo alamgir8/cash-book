@@ -64,10 +64,14 @@ export const HomeQuickFeatures = ({
     canManageParties,
     canManageInvoices,
     canViewInvoices,
+    canCreateInvoices,
+    canManageCustomers,
     canExportData,
     canBackupRestore,
     canViewTransactions,
+    canManageMembers,
     isOwner,
+    isManager,
     activeOrganization,
   } = useOrganization();
 
@@ -114,6 +118,24 @@ export const HomeQuickFeatures = ({
   // Secondary actions - second row
   const secondaryFeatures = [
     {
+      id: "add-invoice",
+      icon: "document-text" as const,
+      label: "Add Invoice",
+      color: "#ec4899",
+      bgColor: "bg-pink-50",
+      onPress: () => router.push("/(app)/invoices/new?type=sale"),
+      permission: canCreateInvoices, // Only if can create invoices
+    },
+    {
+      id: "add-customer",
+      icon: "person-add" as const,
+      label: "Add Customer",
+      color: "#14b8a6",
+      bgColor: "bg-teal-50",
+      onPress: () => router.push("/(app)/parties/new"),
+      permission: canManageCustomers, // Only if can manage customers
+    },
+    {
       id: "transactions",
       icon: "receipt" as const,
       label: "Transactions",
@@ -123,13 +145,26 @@ export const HomeQuickFeatures = ({
       permission: canViewTransactions, // Based on view_transactions permission
     },
     {
+      id: "invoices",
+      icon: "document-text" as const,
+      label: "Invoices",
+      color: "#a855f7",
+      bgColor: "bg-purple-50",
+      onPress: () => router.push("/(app)/invoices"),
+      permission: canViewInvoices, // View invoices
+    },
+  ];
+
+  // More features - shown when "See More" is pressed
+  const moreFeatures = [
+    {
       id: "categories",
       icon: "grid" as const,
       label: "Categories",
       color: "#f59e0b",
       bgColor: "bg-amber-50",
       onPress: () => router.push("/(app)/categories"),
-      permission: canManageCategories, // Only if can manage categories
+      permission: canManageCategories, // Only owner/manager
     },
     {
       id: "parties",
@@ -138,21 +173,8 @@ export const HomeQuickFeatures = ({
       color: "#14b8a6",
       bgColor: "bg-teal-50",
       onPress: () => router.push("/(app)/parties"),
-      permission: canManageParties, // Only if can manage customers or suppliers
+      permission: canManageParties, // Can view all parties
     },
-    {
-      id: "invoices",
-      icon: "document-text" as const,
-      label: "Invoices",
-      color: "#ec4899",
-      bgColor: "bg-pink-50",
-      onPress: () => router.push("/(app)/invoices"),
-      permission: canViewInvoices || canManageInvoices, // View or manage invoices
-    },
-  ];
-
-  // More features - shown when "See More" is pressed
-  const moreFeatures = [
     {
       id: "reports",
       icon: "bar-chart" as const,

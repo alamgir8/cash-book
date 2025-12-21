@@ -137,7 +137,7 @@ export default function AppLayout() {
         }}
       />
       <Tabs.Screen
-        name="parties/partry"
+        name="parties/new"
         options={{
           href: null,
         }}
@@ -167,7 +167,7 @@ export default function AppLayout() {
         }}
       />
       <Tabs.Screen
-        name="invoices/invoice"
+        name="invoices/new"
         options={{
           href: null,
         }}

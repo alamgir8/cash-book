@@ -278,6 +278,7 @@ export default function SettingsScreen() {
         <BusinessManagementSection
           canManageParties={canManageParties}
           canManageInvoices={canManageInvoices}
+          isOwner={isOwner}
         />
 
         {/* App Info Section */}

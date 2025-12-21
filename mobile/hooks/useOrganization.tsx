@@ -69,6 +69,10 @@ export function OrganizationProvider({
           if (org) {
             setActiveOrganization(org);
           }
+        } else if (organizations.length === 1 && !savedOrgId) {
+          // Auto-select if user only has one organization
+          setActiveOrganization(organizations[0]);
+          await AsyncStorage.setItem(ACTIVE_ORG_KEY, organizations[0].id);
         }
       } catch (error) {
         console.warn("Failed to load active organization:", error);
@@ -120,9 +124,16 @@ export function OrganizationProvider({
 
       // Check the permission from the permissions object
       const perms = activeOrganization.permissions;
-      if (!perms) return false;
+      if (!perms) {
+        console.warn(
+          `No permissions found for org: ${activeOrganization.name}`
+        );
+        return false;
+      }
 
-      return perms[permission] === true;
+      const hasIt = perms[permission] === true;
+      console.log(`Permission check: ${permission} = ${hasIt}`, perms);
+      return hasIt;
     },
     [activeOrganization]
   );
@@ -139,12 +150,12 @@ export function OrganizationProvider({
       setOrganizations,
       switchOrganization,
       hasPermission,
-      isOwner: !activeOrganization || activeOrganization.role === "owner",
-      isManager:
-        !activeOrganization ||
-        activeOrganization.role === "owner" ||
-        activeOrganization.role === "admin" ||
-        activeOrganization.role === "manager",
+      isOwner: activeOrganization ? activeOrganization.role === "owner" : true,
+      isManager: activeOrganization
+        ? activeOrganization.role === "owner" ||
+          activeOrganization.role === "admin" ||
+          activeOrganization.role === "manager"
+        : true,
       canManageAccounts: hasPermission("manage_accounts"),
       canManageCategories: hasPermission("manage_categories"),
       canCreateTransactions: hasPermission("create_transactions"),

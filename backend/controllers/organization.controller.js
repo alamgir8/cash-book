@@ -353,14 +353,19 @@ export const inviteMember = async (req, res, next) => {
       // Hash the password
       const hashedPassword = await argon2.hash(password);
 
-      // Create new user
-      invitedUser = new Admin({
+      // Create new user - only include phone if provided
+      const userData = {
         name: display_name,
         email: email?.toLowerCase(),
-        phone: phone,
         password_hash: hashedPassword,
-      });
+      };
 
+      // Only set phone if it's provided (avoid null to prevent unique index collision)
+      if (phone) {
+        userData.phone = phone;
+      }
+
+      invitedUser = new Admin(userData);
       await invitedUser.save();
     }
 
