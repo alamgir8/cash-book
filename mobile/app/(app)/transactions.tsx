@@ -26,6 +26,7 @@ import { useLocalSearchParams } from "expo-router";
 import { fetchCategories } from "../../services/categories";
 import { fetchAccounts } from "../../services/accounts";
 import { queryKeys } from "../../lib/queryKeys";
+import { useOrganization } from "../../hooks/useOrganization";
 import type { SelectOption } from "../../components/searchable-select";
 import Toast from "react-native-toast-message";
 const defaultFilters: TransactionFilters = {
@@ -44,6 +45,11 @@ export default function TransactionsScreen() {
   const searchParams = useLocalSearchParams<{ accountId?: string }>();
   const accountId = searchParams?.accountId;
   const queryClient = useQueryClient();
+  const { hasPermission } = useOrganization();
+  const canEditTransactions = hasPermission("edit_transactions");
+  const canDeleteTransactions = hasPermission("delete_transactions");
+  const canExportData = hasPermission("export_data");
+  const canExportData = hasPermission("export_data");
   const [filters, setFilters] = useState<TransactionFilters>({
     ...defaultFilters,
     ...(accountId ? { accountId } : {}),
@@ -368,10 +374,15 @@ export default function TransactionsScreen() {
         transaction={item}
         onCategoryPress={handleCategoryPress}
         onCounterpartyPress={handleCounterpartyPress}
-        onEdit={handleEditTransaction}
+        onEdit={canEditTransactions ? handleEditTransaction : undefined}
       />
     ),
-    [handleCategoryPress, handleCounterpartyPress, handleEditTransaction]
+    [
+      handleCategoryPress,
+      handleCounterpartyPress,
+      handleEditTransaction,
+      canEditTransactions,
+    ]
   );
 
   // console.log("transactions", transactions, "query", transactionsQuery.data);
@@ -465,12 +476,16 @@ export default function TransactionsScreen() {
         title="Transactions"
         subtitle={accountId ? "Account transactions" : "All transactions"}
         icon="receipt"
-        actionButton={{
-          label: exporting ? "Exporting..." : "Export PDF",
-          onPress: handleExport,
-          icon: "document-text",
-          color: "green",
-        }}
+        actionButton={
+          canExportData
+            ? {
+                label: exporting ? "Exporting..." : "Export PDF",
+                onPress: handleExport,
+                icon: "document-text",
+                color: "green",
+              }
+            : undefined
+        }
       />
 
       {/* Transaction List */}

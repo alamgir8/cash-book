@@ -82,15 +82,15 @@ export default function OrganizationsScreen() {
   const handleFormSuccess = useCallback(
     (org: Organization) => {
       queryClient.invalidateQueries({ queryKey: ["organizations"] });
-      // Update context
+      // Update context with proper role and permissions from API
       refetch().then((result) => {
         if (result.data) {
           const summaries = result.data.map((o) => ({
             id: o._id,
             name: o.name,
             business_type: o.business_type,
-            role: "owner",
-            permissions: [],
+            role: o.role || "owner", // Role comes from API
+            permissions: o.permissions || {}, // Permissions come from API
             settings: o.settings,
           }));
           setOrganizations(summaries);
@@ -224,11 +224,11 @@ export default function OrganizationsScreen() {
                   </View>
                   <View
                     className={`px-2 py-1 rounded-full ${getRoleColor(
-                      "owner"
+                      org.role || "owner"
                     )}`}
                   >
                     <Text className="text-xs font-medium capitalize">
-                      Owner
+                      {org.role || "Owner"}
                     </Text>
                   </View>
                 </View>
@@ -256,29 +256,43 @@ export default function OrganizationsScreen() {
                   </View>
                 </View>
 
-                {/* Actions */}
-                <View className="flex-row mt-3 pt-3 border-t border-gray-100 gap-2">
-                  <TouchableOpacity
-                    className="flex-1 flex-row items-center justify-center py-2 bg-gray-50 rounded-lg"
-                    onPress={() => handleEdit(org)}
-                  >
-                    <Ionicons name="pencil" size={16} color="#6B7280" />
-                    <Text className="ml-1 text-sm text-gray-600">Edit</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    className="flex-1 flex-row items-center justify-center py-2 bg-gray-50 rounded-lg"
-                    onPress={() => handleViewDetails(org)}
-                  >
-                    <Ionicons name="people" size={16} color="#6B7280" />
-                    <Text className="ml-1 text-sm text-gray-600">Members</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    className="flex-row items-center justify-center py-2 px-3 bg-red-50 rounded-lg"
-                    onPress={() => handleDelete(org)}
-                  >
-                    <Ionicons name="trash" size={16} color="#EF4444" />
-                  </TouchableOpacity>
-                </View>
+                {/* Actions - Only show management actions to owners/managers */}
+                {(org.role === "owner" ||
+                  org.role === "manager" ||
+                  !org.role) && (
+                  <View className="flex-row mt-3 pt-3 border-t border-gray-100 gap-2">
+                    {(org.role === "owner" || !org.role) && (
+                      <TouchableOpacity
+                        className="flex-1 flex-row items-center justify-center py-2 bg-gray-50 rounded-lg"
+                        onPress={() => handleEdit(org)}
+                      >
+                        <Ionicons name="pencil" size={16} color="#6B7280" />
+                        <Text className="ml-1 text-sm text-gray-600">Edit</Text>
+                      </TouchableOpacity>
+                    )}
+                    {(org.role === "owner" ||
+                      org.role === "manager" ||
+                      !org.role) && (
+                      <TouchableOpacity
+                        className="flex-1 flex-row items-center justify-center py-2 bg-gray-50 rounded-lg"
+                        onPress={() => handleViewDetails(org)}
+                      >
+                        <Ionicons name="people" size={16} color="#6B7280" />
+                        <Text className="ml-1 text-sm text-gray-600">
+                          Members
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                    {(org.role === "owner" || !org.role) && (
+                      <TouchableOpacity
+                        className="flex-row items-center justify-center py-2 px-3 bg-red-50 rounded-lg"
+                        onPress={() => handleDelete(org)}
+                      >
+                        <Ionicons name="trash" size={16} color="#EF4444" />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
               </TouchableOpacity>
             ))}
           </View>

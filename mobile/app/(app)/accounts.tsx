@@ -33,6 +33,7 @@ import {
 } from "../../services/accounts";
 import { queryKeys } from "../../lib/queryKeys";
 import { usePreferences } from "../../hooks/usePreferences";
+import { useOrganization } from "../../hooks/useOrganization";
 
 const schema = z.object({
   name: z.string().min(2, "Account name is required"),
@@ -74,6 +75,7 @@ const parseVoiceForAccount = (transcript: string): Partial<FormValues> => {
 
 export default function AccountsScreen() {
   const { formatAmount } = usePreferences();
+  const { canManageAccounts } = useOrganization();
   const queryClient = useQueryClient();
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
@@ -346,11 +348,15 @@ export default function AccountsScreen() {
       <ScreenHeader
         title="Accounts"
         subtitle="Manage your financial accounts"
-        actionButton={{
-          label: "Add",
-          onPress: () => openModal(),
-          icon: "add",
-        }}
+        actionButton={
+          canManageAccounts
+            ? {
+                label: "Add",
+                onPress: () => openModal(),
+                icon: "add",
+              }
+            : undefined
+        }
         icon="analytics"
       />
 
@@ -386,11 +392,19 @@ export default function AccountsScreen() {
               isLoading={false}
               icon="wallet-outline"
               title="No Accounts Yet"
-              description="Create your first account to start tracking your finances."
-              actionButton={{
-                label: "Create Account",
-                onPress: () => openModal(),
-              }}
+              description={
+                canManageAccounts
+                  ? "Create your first account to start tracking your finances."
+                  : "No accounts available. Contact your organization owner to add accounts."
+              }
+              actionButton={
+                canManageAccounts
+                  ? {
+                      label: "Create Account",
+                      onPress: () => openModal(),
+                    }
+                  : undefined
+              }
             />
           )
         }
@@ -510,13 +524,15 @@ export default function AccountsScreen() {
                   <Ionicons name="time-outline" size={18} color="#fff" />
                   <Text className="text-white font-semibold">View History</Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => openModal(item)}
-                  className="flex-1 flex-row items-center justify-center gap-2 border border-gray-200 rounded-xl py-2.5 bg-gray-50 active:bg-gray-100"
-                >
-                  <Ionicons name="pencil" size={18} color="#334155" />
-                  <Text className="text-gray-700 font-semibold">Edit</Text>
-                </TouchableOpacity>
+                {canManageAccounts && (
+                  <TouchableOpacity
+                    onPress={() => openModal(item)}
+                    className="flex-1 flex-row items-center justify-center gap-2 border border-gray-200 rounded-xl py-2.5 bg-gray-50 active:bg-gray-100"
+                  >
+                    <Ionicons name="pencil" size={18} color="#334155" />
+                    <Text className="text-gray-700 font-semibold">Edit</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
           );

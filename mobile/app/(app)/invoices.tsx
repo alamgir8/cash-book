@@ -12,7 +12,7 @@ import { useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import { ScreenHeader } from "../../components/screen-header";
-import { useActiveOrgId } from "../../hooks/useOrganization";
+import { useActiveOrgId, useOrganization } from "../../hooks/useOrganization";
 import {
   invoicesApi,
   type InvoiceType,
@@ -68,6 +68,7 @@ const getStatusColor = (status: InvoiceStatus) => {
 export default function InvoicesScreen() {
   const router = useRouter();
   const organizationId = useActiveOrgId();
+  const { canManageInvoices } = useOrganization();
 
   const [activeType, setActiveType] = useState<InvoiceType | "all">("all");
   const [activeStatus, setActiveStatus] = useState<InvoiceStatus | "all">(
@@ -136,14 +137,16 @@ export default function InvoicesScreen() {
         title="Invoices"
         showBack
         rightAction={
-          <View className="flex-row">
-            <TouchableOpacity
-              className="p-2 mr-1"
-              onPress={() => handleCreateInvoice("sale")}
-            >
-              <Ionicons name="add-circle" size={28} color="#10B981" />
-            </TouchableOpacity>
-          </View>
+          canManageInvoices ? (
+            <View className="flex-row">
+              <TouchableOpacity
+                className="p-2 mr-1"
+                onPress={() => handleCreateInvoice("sale")}
+              >
+                <Ionicons name="add-circle" size={28} color="#10B981" />
+              </TouchableOpacity>
+            </View>
+          ) : undefined
         }
       />
 
@@ -231,23 +234,28 @@ export default function InvoicesScreen() {
               No Invoices Found
             </Text>
             <Text className="text-sm text-gray-400 text-center mt-2">
-              Create sales or purchase invoices to track your business
-              transactions.
+              {canManageInvoices
+                ? "Create sales or purchase invoices to track your business transactions."
+                : "No invoices available. Contact your organization admin to create invoices."}
             </Text>
-            <View className="flex-row mt-6 gap-3">
-              <TouchableOpacity
-                className="bg-green-500 px-5 py-3 rounded-lg"
-                onPress={() => handleCreateInvoice("sale")}
-              >
-                <Text className="text-white font-medium">Sales Invoice</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                className="bg-orange-500 px-5 py-3 rounded-lg"
-                onPress={() => handleCreateInvoice("purchase")}
-              >
-                <Text className="text-white font-medium">Purchase Invoice</Text>
-              </TouchableOpacity>
-            </View>
+            {canManageInvoices && (
+              <View className="flex-row mt-6 gap-3">
+                <TouchableOpacity
+                  className="bg-green-500 px-5 py-3 rounded-lg"
+                  onPress={() => handleCreateInvoice("sale")}
+                >
+                  <Text className="text-white font-medium">Sales Invoice</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  className="bg-orange-500 px-5 py-3 rounded-lg"
+                  onPress={() => handleCreateInvoice("purchase")}
+                >
+                  <Text className="text-white font-medium">
+                    Purchase Invoice
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         ) : (
           <View className="px-4 py-4">

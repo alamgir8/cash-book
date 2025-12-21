@@ -14,7 +14,7 @@ import { toast } from "../../lib/toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import { ScreenHeader } from "../../components/screen-header";
-import { useActiveOrgId } from "../../hooks/useOrganization";
+import { useActiveOrgId, useOrganization } from "../../hooks/useOrganization";
 import { partiesApi, type Party, type PartyType } from "../../services/parties";
 import { getApiErrorMessage } from "../../lib/api";
 
@@ -28,6 +28,7 @@ export default function PartiesScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const organizationId = useActiveOrgId();
+  const { canManageParties } = useOrganization();
 
   const [activeTab, setActiveTab] = useState<PartyType | "all">("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -120,12 +121,14 @@ export default function PartiesScreen() {
         title="Parties"
         showBack
         rightAction={
-          <TouchableOpacity
-            className="p-2"
-            onPress={() => router.push("/parties/new")}
-          >
-            <Ionicons name="add-circle" size={28} color="#3B82F6" />
-          </TouchableOpacity>
+          canManageParties ? (
+            <TouchableOpacity
+              className="p-2"
+              onPress={() => router.push("/parties/new")}
+            >
+              <Ionicons name="add-circle" size={28} color="#3B82F6" />
+            </TouchableOpacity>
+          ) : undefined
         }
       />
 
@@ -182,14 +185,18 @@ export default function PartiesScreen() {
               No Parties Found
             </Text>
             <Text className="text-sm text-gray-400 text-center mt-2">
-              Add customers and suppliers to track your business relationships.
+              {canManageParties
+                ? "Add customers and suppliers to track your business relationships."
+                : "No parties available. Contact your organization admin to add parties."}
             </Text>
-            <TouchableOpacity
-              className="mt-6 bg-blue-500 px-6 py-3 rounded-lg"
-              onPress={() => router.push("/parties/new")}
-            >
-              <Text className="text-white font-medium">Add Party</Text>
-            </TouchableOpacity>
+            {canManageParties && (
+              <TouchableOpacity
+                className="mt-6 bg-blue-500 px-6 py-3 rounded-lg"
+                onPress={() => router.push("/parties/new")}
+              >
+                <Text className="text-white font-medium">Add Party</Text>
+              </TouchableOpacity>
+            )}
           </View>
         ) : (
           <View className="px-4 py-4">
@@ -257,19 +264,25 @@ export default function PartiesScreen() {
                     <Ionicons name="document-text" size={16} color="#6B7280" />
                     <Text className="ml-1 text-sm text-gray-600">Ledger</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    className="flex-1 flex-row items-center justify-center py-2 bg-gray-50 rounded-lg"
-                    onPress={() => router.push(`/parties/${party._id}/edit`)}
-                  >
-                    <Ionicons name="pencil" size={16} color="#6B7280" />
-                    <Text className="ml-1 text-sm text-gray-600">Edit</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    className="flex-row items-center justify-center py-2 px-3 bg-red-50 rounded-lg"
-                    onPress={() => handleDelete(party)}
-                  >
-                    <Ionicons name="trash" size={16} color="#EF4444" />
-                  </TouchableOpacity>
+                  {canManageParties && (
+                    <>
+                      <TouchableOpacity
+                        className="flex-1 flex-row items-center justify-center py-2 bg-gray-50 rounded-lg"
+                        onPress={() =>
+                          router.push(`/parties/${party._id}/edit`)
+                        }
+                      >
+                        <Ionicons name="pencil" size={16} color="#6B7280" />
+                        <Text className="ml-1 text-sm text-gray-600">Edit</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        className="flex-row items-center justify-center py-2 px-3 bg-red-50 rounded-lg"
+                        onPress={() => handleDelete(party)}
+                      >
+                        <Ionicons name="trash" size={16} color="#EF4444" />
+                      </TouchableOpacity>
+                    </>
+                  )}
                 </View>
               </TouchableOpacity>
             ))}

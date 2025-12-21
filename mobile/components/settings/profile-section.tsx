@@ -6,18 +6,39 @@ interface ProfileSectionProps {
   userEmail?: string;
   userPhone?: string;
   userRole?: string;
+  organizationName?: string;
+  isPersonalMode?: boolean;
   onEditProfile: () => void;
   onPreferences: () => void;
 }
+
+const getRoleBadgeStyle = (role?: string) => {
+  switch (role) {
+    case "owner":
+      return { bg: "bg-purple-100", text: "text-purple-700" };
+    case "manager":
+      return { bg: "bg-blue-100", text: "text-blue-700" };
+    case "cashier":
+      return { bg: "bg-green-100", text: "text-green-700" };
+    case "viewer":
+      return { bg: "bg-gray-100", text: "text-gray-700" };
+    default:
+      return { bg: "bg-indigo-100", text: "text-indigo-700" };
+  }
+};
 
 export function ProfileSection({
   userName,
   userEmail,
   userPhone,
   userRole,
+  organizationName,
+  isPersonalMode = true,
   onEditProfile,
   onPreferences,
 }: ProfileSectionProps) {
+  const roleStyle = getRoleBadgeStyle(userRole);
+
   return (
     <View className="bg-white rounded-3xl p-6 border border-gray-100 shadow-lg">
       <View className="flex-row items-center gap-4 mb-6">
@@ -26,18 +47,24 @@ export function ProfileSection({
         </View>
         <View className="flex-1">
           <Text className="text-gray-500 text-xs font-semibold uppercase tracking-wider">
-            Your Profile
+            {isPersonalMode ? "Personal Account" : organizationName || "Organization"}
           </Text>
           <Text className="text-gray-900 text-xl font-bold mt-1">
             {userName}
           </Text>
-          {userRole && (
-            <View className="bg-blue-100 px-3 py-1 rounded-full self-start mt-2">
-              <Text className="text-blue-700 font-bold text-xs uppercase">
+          {!isPersonalMode && userRole ? (
+            <View className={`${roleStyle.bg} px-3 py-1 rounded-full self-start mt-2`}>
+              <Text className={`${roleStyle.text} font-bold text-xs uppercase`}>
                 {userRole}
               </Text>
             </View>
-          )}
+          ) : isPersonalMode ? (
+            <View className="bg-indigo-100 px-3 py-1 rounded-full self-start mt-2">
+              <Text className="text-indigo-700 font-bold text-xs uppercase">
+                Owner
+              </Text>
+            </View>
+          ) : null}
         </View>
       </View>
 

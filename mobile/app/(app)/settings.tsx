@@ -36,10 +36,13 @@ export default function SettingsScreen() {
   const { state, signOut } = useAuth();
   const {
     activeOrganization,
+    isPersonalMode,
     canManageCategories,
     canManageParties,
     canManageInvoices,
     canViewReports,
+    canExportData,
+    canBackupRestore,
     isOwner,
   } = useOrganization();
   const {
@@ -220,6 +223,8 @@ export default function SettingsScreen() {
           userEmail={userEmail}
           userPhone={userPhone}
           userRole={userRole}
+          organizationName={activeOrganization?.name}
+          isPersonalMode={isPersonalMode}
           onEditProfile={() => setShowProfileModal(true)}
           onPreferences={() => setShowProfileModal(true)}
         />
@@ -235,15 +240,15 @@ export default function SettingsScreen() {
         />
 
         {/* PDF Reports Section - Role Based */}
-        {canViewReports && (
+        {(canViewReports || canExportData) && (
           <PDFReportsSection
             exportingType={exportingType}
             onExport={handleExport}
           />
         )}
 
-        {/* Backup Section - Owner Only */}
-        {isOwner && (
+        {/* Backup Section - Owner or users with backup permission */}
+        {canBackupRestore && (
           <BackupSection
             backingUp={backingUp}
             restoring={restoring}

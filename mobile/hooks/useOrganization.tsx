@@ -7,7 +7,10 @@ import React, {
   useMemo,
 } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import type { OrganizationSummary } from "../services/organizations";
+import type {
+  OrganizationSummary,
+  OrganizationPermissions,
+} from "../services/organizations";
 
 const ACTIVE_ORG_KEY = "@active_organization";
 
@@ -15,9 +18,10 @@ interface OrganizationContextValue {
   organizations: OrganizationSummary[];
   activeOrganization: OrganizationSummary | null;
   isLoading: boolean;
+  isPersonalMode: boolean; // True when user is not in any organization context
   setOrganizations: (orgs: OrganizationSummary[]) => void;
   switchOrganization: (orgId: string | null) => Promise<void>;
-  hasPermission: (permission: string) => boolean;
+  hasPermission: (permission: keyof OrganizationPermissions) => boolean;
   isOwner: boolean;
   isManager: boolean;
   canManageAccounts: boolean;
@@ -27,6 +31,8 @@ interface OrganizationContextValue {
   canManageMembers: boolean;
   canManageInvoices: boolean;
   canManageParties: boolean;
+  canExportData: boolean;
+  canBackupRestore: boolean;
 }
 
 const OrganizationContext = createContext<OrganizationContextValue | null>(
@@ -96,9 +102,9 @@ export function OrganizationProvider({
   );
 
   const hasPermission = useCallback(
-    (permission: string) => {
+    (permission: keyof OrganizationPermissions) => {
       if (!activeOrganization) {
-        // Personal mode - user has all permissions
+        // Personal mode - user has all permissions (they own their own data)
         return true;
       }
 
@@ -107,24 +113,33 @@ export function OrganizationProvider({
         return true;
       }
 
-      return activeOrganization.permissions.includes(permission);
+      // Check the permission from the permissions object
+      const perms = activeOrganization.permissions;
+      if (!perms) return false;
+
+      return perms[permission] === true;
     },
     [activeOrganization]
   );
+
+  // Determine if user is in personal mode (no active organization)
+  const isPersonalMode = !activeOrganization;
 
   const value = useMemo<OrganizationContextValue>(
     () => ({
       organizations,
       activeOrganization,
       isLoading,
+      isPersonalMode,
       setOrganizations,
       switchOrganization,
       hasPermission,
-      isOwner: activeOrganization?.role === "owner",
+      isOwner: !activeOrganization || activeOrganization.role === "owner",
       isManager:
-        activeOrganization?.role === "owner" ||
-        activeOrganization?.role === "admin" ||
-        activeOrganization?.role === "manager",
+        !activeOrganization ||
+        activeOrganization.role === "owner" ||
+        activeOrganization.role === "admin" ||
+        activeOrganization.role === "manager",
       canManageAccounts: hasPermission("manage_accounts"),
       canManageCategories: hasPermission("manage_categories"),
       canCreateTransactions: hasPermission("create_transactions"),
@@ -132,7 +147,10 @@ export function OrganizationProvider({
       canManageMembers: hasPermission("manage_members"),
       canManageInvoices:
         hasPermission("create_invoices") || hasPermission("edit_invoices"),
-      canManageParties: hasPermission("manage_parties"),
+      canManageParties:
+        hasPermission("manage_customers") || hasPermission("manage_suppliers"),
+      canExportData: hasPermission("export_data"),
+      canBackupRestore: hasPermission("backup_restore"),
     }),
     [
       organizations,

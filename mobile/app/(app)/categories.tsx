@@ -20,9 +20,11 @@ import {
   type Category,
 } from "../../services/categories";
 import { queryKeys } from "../../lib/queryKeys";
+import { useOrganization } from "../../hooks/useOrganization";
 
 export default function CategoriesScreen() {
   const queryClient = useQueryClient();
+  const { canManageCategories } = useOrganization();
   const [activeTab, setActiveTab] = useState<"credit" | "debit">("debit");
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(
@@ -118,18 +120,22 @@ export default function CategoriesScreen() {
       </View>
 
       <View className="flex-row items-center gap-2">
-        <TouchableOpacity
-          onPress={() => handleEdit(item)}
-          className="p-2 bg-gray-50 rounded-full"
-        >
-          <Ionicons name="pencil" size={16} color="#4b5563" />
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => handleDelete(item)}
-          className="p-2 bg-red-50 rounded-full"
-        >
-          <Ionicons name="trash" size={16} color="#ef4444" />
-        </TouchableOpacity>
+        {canManageCategories && (
+          <>
+            <TouchableOpacity
+              onPress={() => handleEdit(item)}
+              className="p-2 bg-gray-50 rounded-full"
+            >
+              <Ionicons name="pencil" size={16} color="#4b5563" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => handleDelete(item)}
+              className="p-2 bg-red-50 rounded-full"
+            >
+              <Ionicons name="trash" size={16} color="#ef4444" />
+            </TouchableOpacity>
+          </>
+        )}
       </View>
     </View>
   );
@@ -141,11 +147,15 @@ export default function CategoriesScreen() {
         subtitle="Manage income and expense categories"
         icon="list"
         iconColor="#8b5cf6"
-        actionButton={{
-          label: "Add New",
-          icon: "add",
-          onPress: handleAdd,
-        }}
+        actionButton={
+          canManageCategories
+            ? {
+                label: "Add New",
+                icon: "add",
+                onPress: handleAdd,
+              }
+            : undefined
+        }
       />
 
       {/* Tabs */}

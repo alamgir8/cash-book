@@ -9,6 +9,26 @@ export interface OrganizationSettings {
   time_format: string;
 }
 
+export interface OrganizationPermissions {
+  manage_organization?: boolean;
+  manage_members?: boolean;
+  manage_accounts?: boolean;
+  manage_categories?: boolean;
+  manage_customers?: boolean;
+  manage_suppliers?: boolean;
+  create_transactions?: boolean;
+  edit_transactions?: boolean;
+  delete_transactions?: boolean;
+  view_transactions?: boolean;
+  create_invoices?: boolean;
+  edit_invoices?: boolean;
+  delete_invoices?: boolean;
+  view_invoices?: boolean;
+  view_reports?: boolean;
+  export_data?: boolean;
+  backup_restore?: boolean;
+}
+
 export interface Organization {
   _id: string;
   name: string;
@@ -33,17 +53,22 @@ export interface Organization {
   is_active: boolean;
   createdAt: string;
   updatedAt: string;
+  // These fields are added when returning from getMyOrganizations
+  role?: string;
+  permissions?: OrganizationPermissions;
+  member_status?: string;
+  joined_at?: string;
 }
 
 export interface OrganizationMember {
   _id: string;
   organization: string | Organization;
-  user: string;
+  user: string | { _id: string; name: string; email: string; phone?: string };
   display_name?: string;
   role: string;
-  permissions: string[];
+  permissions: OrganizationPermissions;
   status: string;
-  invited_by?: string;
+  invited_by?: string | { _id: string; name: string; email: string };
   joined_at?: string;
   createdAt: string;
   updatedAt: string;
@@ -54,7 +79,7 @@ export interface OrganizationSummary {
   name: string;
   business_type: string;
   role: string;
-  permissions: string[];
+  permissions: OrganizationPermissions;
   settings: OrganizationSettings;
 }
 
