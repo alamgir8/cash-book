@@ -12,7 +12,7 @@ import Toast from "react-native-toast-message";
 import { FilterBar } from "../../components/filter-bar";
 import { TransactionCard } from "../../components/transaction-card";
 import { StatsCards } from "../../components/stats-cards";
-import { QuickActions } from "../../components/quick-actions";
+import { HomeQuickFeatures } from "../../components/home-quick-features";
 import { ScreenHeader } from "../../components/screen-header";
 import { EmptyState } from "../../components/empty-state";
 import { FloatingActionButton } from "../../components/floating-action-button";
@@ -387,6 +387,19 @@ export default function DashboardScreen() {
       (transactionsQuery.data as any)?.transactions?.length || 0;
     const accountCount = accountsQuery.data?.length || 0;
 
+    const handleExportPDF = async () => {
+      try {
+        await exportTransactionsPdf(filters);
+        Toast.show({
+          type: "success",
+          text1: "PDF exported successfully!",
+        });
+      } catch (error) {
+        console.error(error);
+        Toast.show({ type: "error", text1: "Failed to export PDF" });
+      }
+    };
+
     return (
       <View className="gap-6">
         {/* Enhanced Statistics Cards */}
@@ -398,28 +411,11 @@ export default function DashboardScreen() {
           isLoading={accountsQuery.isLoading || transactionsQuery.isLoading}
         />
 
-        {/* Quick Actions */}
-        <QuickActions
+        {/* Quick Features Grid - bKash Style */}
+        <HomeQuickFeatures
           onAddTransaction={() => setModalVisible(true)}
           onAddTransfer={openTransferModal}
-          onAddAccount={() => {
-            router.push("/(app)/accounts");
-          }}
-          onExportPDF={async () => {
-            try {
-              await exportTransactionsPdf(filters);
-              Toast.show({
-                type: "success",
-                text1: "PDF exported successfully!",
-              });
-            } catch (error) {
-              console.error(error);
-              Toast.show({ type: "error", text1: "Failed to export PDF" });
-            }
-          }}
-          onVoiceInput={() => {
-            setModalVisible(true);
-          }}
+          onExportPDF={handleExportPDF}
         />
 
         {/* Filter Bar */}

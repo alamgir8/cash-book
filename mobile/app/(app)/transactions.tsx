@@ -49,7 +49,6 @@ export default function TransactionsScreen() {
   const canEditTransactions = hasPermission("edit_transactions");
   const canDeleteTransactions = hasPermission("delete_transactions");
   const canExportData = hasPermission("export_data");
-  const canExportData = hasPermission("export_data");
   const [filters, setFilters] = useState<TransactionFilters>({
     ...defaultFilters,
     ...(accountId ? { accountId } : {}),
