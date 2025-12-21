@@ -40,7 +40,7 @@ export default function AppLayout() {
           backgroundColor: "#fff",
           borderTopWidth: 1,
           borderTopColor: "#ddd",
-          height: 60 + insets.bottom,
+          height: 20 + insets.bottom,
           paddingBottom: insets.bottom + 5,
           paddingTop: 5,
           elevation: 0,
