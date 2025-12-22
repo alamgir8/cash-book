@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
-import { useBiometric } from "../hooks/useBiometric";
+import { useBiometric } from "../../hooks/useBiometric";
 
 interface BiometricSettingsModalProps {
   visible: boolean;

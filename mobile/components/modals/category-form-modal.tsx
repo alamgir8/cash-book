@@ -16,9 +16,9 @@ import {
   createCategory,
   updateCategory,
   type Category,
-} from "../services/categories";
-import { queryKeys } from "../lib/queryKeys";
-import { ActionButton } from "./action-button";
+} from "../../services/categories";
+import { queryKeys } from "../../lib/queryKeys";
+import { ActionButton } from "../action-button";
 
 type CategoryFormModalProps = {
   visible: boolean;

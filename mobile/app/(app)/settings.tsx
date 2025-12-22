@@ -16,7 +16,7 @@ import { exportBackupToFile, importBackupFromFile } from "@/services/backup";
 import { ScreenHeader } from "@/components/screen-header";
 import { ActionButton } from "@/components/action-button";
 import { ProfileEditModal } from "@/components/profile-edit-modal";
-import { BiometricSettingsModal } from "@/components/biometric-settings-modal";
+import { BiometricSettingsModal } from "@/components/modals/biometric-settings-modal";
 import { queryKeys } from "@/lib/queryKeys";
 import {
   ProfileSection,

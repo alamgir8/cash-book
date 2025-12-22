@@ -13,7 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
 import { ScreenHeader } from "@/components/screen-header";
 import { EmptyState } from "@/components/empty-state";
-import { CategoryFormModal } from "@/components/category-form-modal";
+import { CategoryFormModal } from "@/components/modals/category-form-modal";
 import {
   fetchCategories,
   deleteCategory,
