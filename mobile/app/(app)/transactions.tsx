@@ -8,26 +8,26 @@ import {
 } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
-import { ScreenHeader } from "../../components/screen-header";
-import { EmptyState } from "../../components/empty-state";
-import { FilterBar } from "../../components/filter-bar";
-import { TransactionCard } from "../../components/transaction-card";
-import { TransactionModal } from "../../components/modals/transaction-modal";
-import type { TransactionFormValues } from "../../components/modals/types";
+import { ScreenHeader } from "@/components/screen-header";
+import { EmptyState } from "@/components/empty-state";
+import { FilterBar } from "@/components/filter-bar";
+import { TransactionCard } from "@/components/transaction-card";
+import { TransactionModal } from "@/components/modals/transaction-modal";
+import type { TransactionFormValues } from "@/components/modals/types";
 import {
   fetchTransactions,
   fetchCounterparties,
   updateTransaction,
   type Transaction,
   type TransactionFilters,
-} from "../../services/transactions";
-import { exportTransactionsPdf } from "../../services/reports";
+} from "@/services/transactions";
+import { exportTransactionsPdf } from "@/services/reports";
 import { useLocalSearchParams } from "expo-router";
-import { fetchCategories } from "../../services/categories";
-import { fetchAccounts } from "../../services/accounts";
-import { queryKeys } from "../../lib/queryKeys";
-import { useOrganization } from "../../hooks/useOrganization";
-import type { SelectOption } from "../../components/searchable-select";
+import { fetchCategories } from "@/services/categories";
+import { fetchAccounts } from "@/services/accounts";
+import { queryKeys } from "@/lib/queryKeys";
+import { useOrganization } from "@/hooks/useOrganization";
+import type { SelectOption } from "@/components/searchable-select";
 import Toast from "react-native-toast-message";
 const defaultFilters: TransactionFilters = {
   page: 1,

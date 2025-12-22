@@ -8,7 +8,7 @@ import {
   TextInput,
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
-import { toast } from "../../../lib/toast";
+import { toast } from "@/lib/toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { partiesApi, PartyType } from "@/services/parties";
 import { QUERY_KEYS } from "@/lib/queryKeys";

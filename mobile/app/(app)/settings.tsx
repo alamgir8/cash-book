@@ -3,24 +3,21 @@ import { ScrollView, View, Alert } from "react-native";
 import Toast from "react-native-toast-message";
 import { router } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { useAuth } from "../../hooks/useAuth";
-import { useBiometric } from "../../hooks/useBiometric";
-import { useOrganization } from "../../hooks/useOrganization";
+import { useAuth } from "@/hooks/useAuth";
+import { useBiometric } from "@/hooks/useBiometric";
+import { useOrganization } from "@/hooks/useOrganization";
 import {
   exportTransactionsPdf,
   exportTransactionsByCategoryPdf,
   exportTransactionsByCounterpartyPdf,
   exportTransactionsByAccountPdf,
-} from "../../services/reports";
-import {
-  exportBackupToFile,
-  importBackupFromFile,
-} from "../../services/backup";
-import { ScreenHeader } from "../../components/screen-header";
-import { ActionButton } from "../../components/action-button";
-import { ProfileEditModal } from "../../components/profile-edit-modal";
-import { BiometricSettingsModal } from "../../components/biometric-settings-modal";
-import { queryKeys } from "../../lib/queryKeys";
+} from "@/services/reports";
+import { exportBackupToFile, importBackupFromFile } from "@/services/backup";
+import { ScreenHeader } from "@/components/screen-header";
+import { ActionButton } from "@/components/action-button";
+import { ProfileEditModal } from "@/components/profile-edit-modal";
+import { BiometricSettingsModal } from "@/components/biometric-settings-modal";
+import { queryKeys } from "@/lib/queryKeys";
 import {
   ProfileSection,
   SecuritySection,
@@ -28,7 +25,7 @@ import {
   BackupSection,
   BusinessManagementSection,
   AppInfoSection,
-} from "../../components/settings";
+} from "@/components/settings";
 
 type ExportType = "all" | "category" | "counterparty" | "account" | null;
 

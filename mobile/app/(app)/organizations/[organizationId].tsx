@@ -7,17 +7,17 @@ import {
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ScreenHeader } from "../../../components/screen-header";
+import { ScreenHeader } from "@/components/screen-header";
 import {
   organizationsApi,
   type OrganizationMember,
-} from "../../../services/organizations";
-import { getApiErrorMessage } from "../../../lib/api";
-import { toast } from "../../../lib/toast";
-import { AddMemberModal } from "../../../components/modals/add-member-modal";
-import { OrganizationSettingsModal } from "../../../components/organization/organization-settings-modal";
-import { OrganizationInfoCard } from "../../../components/organization/organization-info-card";
-import { MemberList } from "../../../components/organization/member-list";
+} from "@/services/organizations";
+import { getApiErrorMessage } from "@/lib/api";
+import { toast } from "@/lib/toast";
+import { AddMemberModal } from "@/components/modals/add-member-modal";
+import { OrganizationSettingsModal } from "@/components/organization/organization-settings-modal";
+import { OrganizationInfoCard } from "@/components/organization/organization-info-card";
+import { MemberList } from "@/components/organization/member-list";
 
 export default function OrganizationDetailScreen() {
   const { organizationId } = useLocalSearchParams<{ organizationId: string }>();

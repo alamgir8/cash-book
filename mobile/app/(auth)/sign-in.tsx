@@ -14,10 +14,10 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Ionicons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
-import { useAuth } from "../../hooks/useAuth";
-import { useBiometric } from "../../hooks/useBiometric";
-import { CustomInput } from "../../components/custom-input";
-import { CustomButton } from "../../components/custom-button";
+import { useAuth } from "@/hooks/useAuth";
+import { useBiometric } from "@/hooks/useBiometric";
+import { CustomInput } from "@/components/custom-input";
+import { CustomButton } from "@/components/custom-button";
 
 const schema = z
   .object({

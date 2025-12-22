@@ -23,7 +23,6 @@ import { QUERY_KEYS } from "@/lib/queryKeys";
 import { z } from "zod";
 import { useForm, Controller, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { SafeAreaView } from "react-native-safe-area-context";
 
 // Zod validation schemas
 const lineItemSchema = z.object({

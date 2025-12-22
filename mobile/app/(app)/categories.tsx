@@ -11,16 +11,16 @@ import {
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
-import { ScreenHeader } from "../../components/screen-header";
-import { EmptyState } from "../../components/empty-state";
-import { CategoryFormModal } from "../../components/category-form-modal";
+import { ScreenHeader } from "@/components/screen-header";
+import { EmptyState } from "@/components/empty-state";
+import { CategoryFormModal } from "@/components/category-form-modal";
 import {
   fetchCategories,
   deleteCategory,
   type Category,
-} from "../../services/categories";
-import { queryKeys } from "../../lib/queryKeys";
-import { useOrganization } from "../../hooks/useOrganization";
+} from "@/services/categories";
+import { queryKeys } from "@/lib/queryKeys";
+import { useOrganization } from "@/hooks/useOrganization";
 
 export default function CategoriesScreen() {
   const queryClient = useQueryClient();

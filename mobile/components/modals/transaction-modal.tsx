@@ -16,13 +16,13 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Ionicons } from "@expo/vector-icons";
 import dayjs from "dayjs";
 import { SearchableSelect } from "../searchable-select";
-import { usePreferences } from "../../hooks/usePreferences";
+import { usePreferences } from "@/hooks/usePreferences";
 import {
   transactionSchema,
   type TransactionFormValues,
   type SelectOption,
 } from "./types";
-import type { Transaction } from "../../services/transactions";
+import type { Transaction } from "@/services/transactions";
 
 type TransactionModalProps = {
   visible: boolean;

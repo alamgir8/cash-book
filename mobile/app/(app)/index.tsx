@@ -9,21 +9,21 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import Toast from "react-native-toast-message";
-import { FilterBar } from "../../components/filter-bar";
-import { TransactionCard } from "../../components/transaction-card";
-import { StatsCards } from "../../components/stats-cards";
-import { HomeQuickFeatures } from "../../components/home-quick-features";
-import { ScreenHeader } from "../../components/screen-header";
-import { EmptyState } from "../../components/empty-state";
-import { FloatingActionButton } from "../../components/floating-action-button";
-import { TransactionModal } from "../../components/modals/transaction-modal";
-import { TransferModal } from "../../components/modals/transfer-modal";
+import { FilterBar } from "@/components/filter-bar";
+import { TransactionCard } from "@/components/transaction-card";
+import { StatsCards } from "@/components/stats-cards";
+import { HomeQuickFeatures } from "@/components/home-quick-features";
+import { ScreenHeader } from "@/components/screen-header";
+import { EmptyState } from "@/components/empty-state";
+import { FloatingActionButton } from "@/components/floating-action-button";
+import { TransactionModal } from "@/components/modals/transaction-modal";
+import { TransferModal } from "@/components/modals/transfer-modal";
 import type {
   TransactionFormValues,
   TransferFormValues,
   SelectOption,
-} from "../../components/modals/types";
-import { exportTransactionsPdf } from "../../services/reports";
+} from "@/components/modals/types";
+import { exportTransactionsPdf } from "@/services/reports";
 import {
   createTransaction,
   createTransfer,
@@ -32,12 +32,12 @@ import {
   updateTransaction,
   type Transaction,
   type TransactionFilters,
-} from "../../services/transactions";
-import { fetchAccounts } from "../../services/accounts";
-import { fetchCategories } from "../../services/categories";
-import { queryKeys } from "../../lib/queryKeys";
-import { usePreferences } from "../../hooks/usePreferences";
-import { useOrganization } from "../../hooks/useOrganization";
+} from "@/services/transactions";
+import { fetchAccounts } from "@/services/accounts";
+import { fetchCategories } from "@/services/categories";
+import { queryKeys } from "@/lib/queryKeys";
+import { usePreferences } from "@/hooks/usePreferences";
+import { useOrganization } from "@/hooks/useOrganization";
 
 const defaultFilters: TransactionFilters = {
   range: "monthly",

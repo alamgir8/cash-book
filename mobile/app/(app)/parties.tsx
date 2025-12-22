@@ -10,13 +10,13 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { toast } from "../../lib/toast";
+import { toast } from "@/lib/toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
-import { ScreenHeader } from "../../components/screen-header";
-import { useActiveOrgId, useOrganization } from "../../hooks/useOrganization";
-import { partiesApi, type Party, type PartyType } from "../../services/parties";
-import { getApiErrorMessage } from "../../lib/api";
+import { ScreenHeader } from "@/components/screen-header";
+import { useActiveOrgId, useOrganization } from "@/hooks/useOrganization";
+import { partiesApi, type Party, type PartyType } from "@/services/parties";
+import { getApiErrorMessage } from "@/lib/api";
 
 const TAB_OPTIONS: { value: PartyType | "all"; label: string }[] = [
   { value: "all", label: "All" },

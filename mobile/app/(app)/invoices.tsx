@@ -11,13 +11,13 @@ import {
 import { useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
-import { ScreenHeader } from "../../components/screen-header";
-import { useActiveOrgId, useOrganization } from "../../hooks/useOrganization";
+import { ScreenHeader } from "@/components/screen-header";
+import { useActiveOrgId, useOrganization } from "@/hooks/useOrganization";
 import {
   invoicesApi,
   type InvoiceType,
   type InvoiceStatus,
-} from "../../services/invoices";
+} from "@/services/invoices";
 
 const TYPE_TABS: { value: InvoiceType | "all"; label: string }[] = [
   { value: "all", label: "All" },

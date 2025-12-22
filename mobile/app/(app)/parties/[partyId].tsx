@@ -9,12 +9,12 @@ import {
   Linking,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { toast } from "../../../lib/toast";
+import { toast } from "@/lib/toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
-import { ScreenHeader } from "../../../components/screen-header";
-import { partiesApi } from "../../../services/parties";
-import { getApiErrorMessage } from "../../../lib/api";
+import { ScreenHeader } from "@/components/screen-header";
+import { partiesApi } from "@/services/parties";
+import { getApiErrorMessage } from "@/lib/api";
 
 export default function PartyDetailScreen() {
   const { partyId } = useLocalSearchParams<{ partyId: string }>();

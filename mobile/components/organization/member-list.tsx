@@ -1,7 +1,7 @@
 import React, { useCallback } from "react";
 import { View, Text, TouchableOpacity, Alert, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import type { OrganizationMember } from "../../services/organizations";
+import type { OrganizationMember } from "@/services/organizations";
 
 const ROLES = [
   {

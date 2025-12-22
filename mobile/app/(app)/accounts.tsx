@@ -20,20 +20,20 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import dayjs from "dayjs";
 import Toast from "react-native-toast-message";
-import { VoiceInputButton } from "../../components/voice-input-button";
-import { ScreenHeader } from "../../components/screen-header";
-import { EmptyState } from "../../components/empty-state";
-import { ActionButton } from "../../components/action-button";
+import { VoiceInputButton } from "@/components/voice-input-button";
+import { ScreenHeader } from "@/components/screen-header";
+import { EmptyState } from "@/components/empty-state";
+import { ActionButton } from "@/components/action-button";
 import {
   createAccount,
   fetchAccountsOverview,
   updateAccount,
   type Account,
   type AccountOverview,
-} from "../../services/accounts";
-import { queryKeys } from "../../lib/queryKeys";
-import { usePreferences } from "../../hooks/usePreferences";
-import { useOrganization } from "../../hooks/useOrganization";
+} from "@/services/accounts";
+import { queryKeys } from "@/lib/queryKeys";
+import { usePreferences } from "@/hooks/usePreferences";
+import { useOrganization } from "@/hooks/useOrganization";
 
 const schema = z.object({
   name: z.string().min(2, "Account name is required"),

@@ -10,13 +10,13 @@ import {
   TextInput,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { toast } from "../../../lib/toast";
+import { toast } from "@/lib/toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
-import { ScreenHeader } from "../../../components/screen-header";
-import { invoicesApi, type InvoiceStatus } from "../../../services/invoices";
-import { exportInvoicePdf } from "../../../services/reports";
-import { getApiErrorMessage } from "../../../lib/api";
+import { ScreenHeader } from "@/components/screen-header";
+import { invoicesApi, type InvoiceStatus } from "@/services/invoices";
+import { exportInvoicePdf } from "@/services/reports";
+import { getApiErrorMessage } from "@/lib/api";
 
 const STATUS_COLORS: Record<InvoiceStatus, { bg: string; text: string }> = {
   draft: { bg: "bg-gray-100", text: "text-gray-600" },
@@ -233,11 +233,9 @@ export default function InvoiceDetailScreen() {
         }
       />
 
-      <ScrollView
-        className="flex-1"
-        contentContainerStyle={{ paddingBottom: 100 }}
-      >
-        {/* Header Card */}
+      <ScrollView className="flex-1">
+        <View className="pb-24">
+        {/* Header Card */}}
         <View className="bg-white p-6 border-b border-gray-100">
           <View className="flex-row items-center justify-between">
             <View className="flex-row items-center">
@@ -521,7 +519,8 @@ export default function InvoiceDetailScreen() {
               </Text>
             </TouchableOpacity>
           </View>
-        )}
+        )}}
+        </View>
       </ScrollView>
 
       {/* Payment Modal */}

@@ -1,7 +1,7 @@
 import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import type { Organization } from "../../services/organizations";
+import type { Organization } from "@/services/organizations";
 
 interface OrganizationInfoCardProps {
   organization: Organization;

@@ -11,15 +11,12 @@ import {
 import { useRouter } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
-import { ScreenHeader } from "../../components/screen-header";
-import { OrganizationFormModal } from "../../components/organization-form-modal";
-import { useOrganization } from "../../hooks/useOrganization";
-import {
-  organizationsApi,
-  type Organization,
-} from "../../services/organizations";
-import { getApiErrorMessage } from "../../lib/api";
-import { toast } from "../../lib/toast";
+import { ScreenHeader } from "@/components/screen-header";
+import { OrganizationFormModal } from "@/components/organization-form-modal";
+import { useOrganization } from "@/hooks/useOrganization";
+import { organizationsApi, type Organization } from "@/services/organizations";
+import { getApiErrorMessage } from "@/lib/api";
+import { toast } from "@/lib/toast";
 
 export default function OrganizationsScreen() {
   const router = useRouter();

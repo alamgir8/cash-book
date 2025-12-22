@@ -12,21 +12,21 @@ import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import dayjs from "dayjs";
 import Toast from "react-native-toast-message";
-import { FilterBar } from "../../../components/filter-bar";
-import { TransactionCard } from "../../../components/transaction-card";
-import { exportTransactionsPdf } from "../../../services/reports";
+import { FilterBar } from "@/components/filter-bar";
+import { TransactionCard } from "@/components/transaction-card";
+import { exportTransactionsPdf } from "@/services/reports";
 import {
   fetchAccountDetail,
   fetchAccountTransactions,
-} from "../../../services/accounts";
-import { fetchCategories } from "../../../services/categories";
+} from "@/services/accounts";
+import { fetchCategories } from "@/services/categories";
 import {
   fetchCounterparties,
   type TransactionFilters,
-} from "../../../services/transactions";
-import { queryKeys } from "../../../lib/queryKeys";
+} from "@/services/transactions";
+import { queryKeys } from "@/lib/queryKeys";
 import { usePreferences } from "@/hooks/usePreferences";
-import type { SelectOption } from "../../../components/searchable-select";
+import type { SelectOption } from "@/components/searchable-select";
 
 const defaultFilters: TransactionFilters = {
   page: 1,
