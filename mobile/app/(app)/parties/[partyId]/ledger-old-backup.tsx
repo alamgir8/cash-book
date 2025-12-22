@@ -8,16 +8,11 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useQuery } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import { toast } from "@/lib/toast";
 import { ScreenHeader } from "@/components/screen-header";
-import { PartyLedgerTable } from "@/components/parties";
-import { useParty, usePartyLedger } from "@/hooks/use-parties";
-import {
-  formatLedgerDate,
-  formatLedgerAmount,
-  formatLedgerBalance,
-} from "@/lib/party-utils";
+import { partiesApi } from "@/services/parties";
 import { exportPartyLedgerPdf } from "@/services/reports";
 
 export default function PartyLedgerScreen() {
@@ -28,10 +23,16 @@ export default function PartyLedgerScreen() {
   const [exportingPdf, setExportingPdf] = useState(false);
   const limit = 50;
 
-  const { data: party } = useParty(partyId!);
-  const { data, isLoading, refetch, isRefetching } = usePartyLedger(partyId!, {
-    page,
-    limit,
+  const { data: party } = useQuery({
+    queryKey: ["party", partyId],
+    queryFn: () => partiesApi.get(partyId!),
+    enabled: !!partyId,
+  });
+
+  const { data, isLoading, refetch, isRefetching } = useQuery({
+    queryKey: ["partyLedger", partyId, page],
+    queryFn: () => partiesApi.getLedger(partyId!, { page, limit }),
+    enabled: !!partyId,
   });
 
   const ledgerEntries = useMemo(() => data?.entries || [], [data?.entries]);
@@ -52,6 +53,33 @@ export default function PartyLedgerScreen() {
     } finally {
       setExportingPdf(false);
     }
+  };
+
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  };
+
+  const formatAmount = (amount: number) => {
+    return Math.abs(amount).toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  };
+
+  const formatBalance = (balance: number) => {
+    const absBalance = Math.abs(balance);
+    const formatted = absBalance.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+    if (balance > 0) return `${formatted} Dr`;
+    if (balance < 0) return `${formatted} Cr`;
+    return "0.00";
   };
 
   if (isLoading) {
@@ -119,7 +147,7 @@ export default function PartyLedgerScreen() {
                 }`}
               >
                 {data?.summary?.opening_balance
-                  ? formatLedgerBalance(data.summary.opening_balance)
+                  ? formatBalance(data.summary.opening_balance)
                   : "0.00"}
               </Text>
             </View>
@@ -131,7 +159,7 @@ export default function PartyLedgerScreen() {
               <Text className="text-xs text-gray-500 mb-1">Total Debit</Text>
               <Text className="text-lg font-bold text-green-600">
                 {data?.summary?.total_debit
-                  ? formatLedgerAmount(data.summary.total_debit)
+                  ? formatAmount(data.summary.total_debit)
                   : "0.00"}
               </Text>
             </View>
@@ -139,7 +167,7 @@ export default function PartyLedgerScreen() {
               <Text className="text-xs text-gray-500 mb-1">Total Credit</Text>
               <Text className="text-lg font-bold text-red-600">
                 {data?.summary?.total_credit
-                  ? formatLedgerAmount(data.summary.total_credit)
+                  ? formatAmount(data.summary.total_credit)
                   : "0.00"}
               </Text>
             </View>
@@ -161,7 +189,7 @@ export default function PartyLedgerScreen() {
                 }`}
               >
                 {data?.summary?.closing_balance
-                  ? formatLedgerBalance(data.summary.closing_balance)
+                  ? formatBalance(data.summary.closing_balance)
                   : "0.00"}
               </Text>
             </View>
@@ -195,9 +223,28 @@ export default function PartyLedgerScreen() {
             </View>
           ) : (
             <View className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-4">
+              {/* Table Header */}
+              <View className="flex-row bg-gradient-to-r from-gray-50 to-gray-100 px-3 py-3 border-b border-gray-200">
+                <Text className="w-20 text-xs font-bold text-gray-700">
+                  Date
+                </Text>
+                <Text className="flex-1 text-xs font-bold text-gray-700 px-2">
+                  Particulars
+                </Text>
+                <Text className="w-20 text-xs font-bold text-gray-700 text-right">
+                  Debit
+                </Text>
+                <Text className="w-20 text-xs font-bold text-gray-700 text-right px-2">
+                  Credit
+                </Text>
+                <Text className="w-24 text-xs font-bold text-gray-700 text-right">
+                  Balance
+                </Text>
+              </View>
+
               {/* Opening Balance Row */}
               {data?.summary?.opening_balance !== 0 && (
-                <View className="flex-row px-3 py-3 bg-blue-50 border-b border-gray-200">
+                <View className="flex-row px-3 py-3 border-b border-gray-100 bg-blue-50">
                   <Text className="w-20 text-xs text-gray-500">—</Text>
                   <Text className="flex-1 text-xs font-medium text-gray-700 italic px-2">
                     Opening Balance
@@ -215,7 +262,7 @@ export default function PartyLedgerScreen() {
                         : "text-red-600"
                     }`}
                   >
-                    {formatLedgerBalance(data?.summary?.opening_balance || 0)}
+                    {formatBalance(data?.summary?.opening_balance || 0)}
                   </Text>
                 </View>
               )}
@@ -234,7 +281,7 @@ export default function PartyLedgerScreen() {
                   }}
                 >
                   <Text className="w-20 text-xs text-gray-600">
-                    {formatLedgerDate(entry.date)}
+                    {formatDate(entry.date)}
                   </Text>
                   <View className="flex-1 px-2">
                     <Text
@@ -250,10 +297,10 @@ export default function PartyLedgerScreen() {
                     )}
                   </View>
                   <Text className="w-20 text-xs font-semibold text-green-600 text-right">
-                    {entry.debit > 0 ? formatLedgerAmount(entry.debit) : "—"}
+                    {entry.debit > 0 ? formatAmount(entry.debit) : "—"}
                   </Text>
                   <Text className="w-20 text-xs font-semibold text-red-600 text-right px-2">
-                    {entry.credit > 0 ? formatLedgerAmount(entry.credit) : "—"}
+                    {entry.credit > 0 ? formatAmount(entry.credit) : "—"}
                   </Text>
                   <Text
                     className={`w-24 text-xs font-bold text-right ${
@@ -264,7 +311,7 @@ export default function PartyLedgerScreen() {
                         : "text-gray-600"
                     }`}
                   >
-                    {formatLedgerBalance(entry.running_balance)}
+                    {formatBalance(entry.running_balance)}
                   </Text>
                 </TouchableOpacity>
               ))}
