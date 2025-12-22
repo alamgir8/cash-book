@@ -9,7 +9,6 @@ import {
   Modal,
   KeyboardAvoidingView,
   Platform,
-  StyleSheet,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { z } from "zod";
@@ -35,22 +34,13 @@ const ROLES = [
 ];
 
 // Zod validation schema
-const memberSchema = z
-  .object({
-    display_name: z.string().min(2, "Name must be at least 2 characters"),
-    email: z
-      .string()
-      .email("Invalid email address")
-      .optional()
-      .or(z.literal("")),
-    phone: z.string().optional().or(z.literal("")),
-    password: z.string().min(6, "Password must be at least 6 characters"),
-    role: z.enum(["manager", "cashier", "viewer"]),
-  })
-  .refine((data) => data.email || data.phone, {
-    message: "Either email or phone number is required",
-    path: ["email"],
-  });
+const memberSchema = z.object({
+  display_name: z.string().min(2, "Name must be at least 2 characters"),
+  email: z.string().email("Invalid email address").min(1, "Email is required"),
+  phone: z.string().min(1, "Phone number is required"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+  role: z.enum(["manager", "cashier", "viewer"]),
+});
 
 type MemberFormData = z.infer<typeof memberSchema>;
 
@@ -58,8 +48,8 @@ interface AddMemberModalProps {
   visible: boolean;
   onClose: () => void;
   onSubmit: (data: {
-    email?: string;
-    phone?: string;
+    email: string;
+    phone: string;
     password: string;
     role: string;
     display_name: string;
@@ -95,10 +85,13 @@ export function AddMemberModal({
   };
 
   const handleFormSubmit = (data: MemberFormData) => {
+    const trimmedEmail = data.email.trim();
+    const trimmedPhone = data.phone.trim();
+
     onSubmit({
       display_name: data.display_name.trim(),
-      email: data.email?.trim() || undefined,
-      phone: data.phone?.trim() || undefined,
+      email: trimmedEmail,
+      phone: trimmedPhone,
       password: data.password,
       role: data.role,
     });
@@ -114,44 +107,47 @@ export function AddMemberModal({
     >
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.keyboardView}
+        className="flex-1"
       >
-        <View style={styles.overlay}>
-          <View style={styles.modalContainer}>
-            {/* Header */}
-            <View style={styles.header}>
+        <View className="flex-1 bg-black/40 justify-end">
+          <View className="bg-white rounded-t-3xl flex-1 max-h-[90%]">
+            <View className="flex-row justify-between items-center p-6 pb-4 border-b border-gray-100">
               <View>
-                <Text style={styles.headerTitle}>Add Team Member</Text>
-                <Text style={styles.headerSubtitle}>
+                <Text className="text-gray-900 text-xl font-bold">
+                  Add Team Member
+                </Text>
+                <Text className="text-gray-500 text-sm">
                   Invite someone to join your organization
                 </Text>
               </View>
               <TouchableOpacity
                 onPress={handleClose}
-                style={styles.closeButton}
+                className="w-8 h-8 bg-gray-100 rounded-full items-center justify-center"
               >
                 <Ionicons name="close" size={20} color="#6b7280" />
               </TouchableOpacity>
             </View>
 
             <ScrollView
-              style={styles.scrollView}
+              className="flex-1 px-6 py-4"
               showsVerticalScrollIndicator={false}
-              contentContainerStyle={styles.scrollContent}
+              contentContainerClassName="pb-5"
             >
-              <View style={styles.formContainer}>
-                {/* Display Name */}
+              <View className="gap-5">
                 <View>
-                  <Text style={styles.label}>Display Name *</Text>
+                  <Text className="text-gray-700 text-sm font-semibold mb-2">
+                    Display Name *
+                  </Text>
                   <Controller
                     control={control}
                     name="display_name"
                     render={({ field: { onChange, onBlur, value } }) => (
                       <TextInput
-                        style={[
-                          styles.input,
-                          errors.display_name && styles.inputError,
-                        ]}
+                        className={`bg-gray-50 text-gray-900 border rounded-xl px-4 py-3 ${
+                          errors.display_name
+                            ? "border-red-500"
+                            : "border-gray-200"
+                        }`}
                         placeholder="Member's full name"
                         placeholderTextColor="#9ca3af"
                         value={value}
@@ -161,24 +157,24 @@ export function AddMemberModal({
                     )}
                   />
                   {errors.display_name && (
-                    <Text style={styles.errorText}>
+                    <Text className="text-red-500 text-xs mt-1">
                       {errors.display_name.message}
                     </Text>
                   )}
                 </View>
 
-                {/* Email Address */}
                 <View>
-                  <Text style={styles.label}>Email Address</Text>
+                  <Text className="text-gray-700 text-sm font-semibold mb-2">
+                    Email Address <Text className="text-red-500">*</Text>
+                  </Text>
                   <Controller
                     control={control}
                     name="email"
                     render={({ field: { onChange, onBlur, value } }) => (
                       <TextInput
-                        style={[
-                          styles.input,
-                          errors.email && styles.inputError,
-                        ]}
+                        className={`bg-gray-50 text-gray-900 border rounded-xl px-4 py-3 ${
+                          errors.email ? "border-red-500" : "border-gray-200"
+                        }`}
                         placeholder="member@example.com"
                         placeholderTextColor="#9ca3af"
                         value={value}
@@ -190,21 +186,24 @@ export function AddMemberModal({
                     )}
                   />
                   {errors.email && (
-                    <Text style={styles.errorText}>{errors.email.message}</Text>
+                    <Text className="text-red-500 text-xs mt-1">
+                      {errors.email.message}
+                    </Text>
                   )}
                 </View>
 
-                <Text style={styles.orText}>or</Text>
-
-                {/* Phone Number */}
                 <View>
-                  <Text style={styles.label}>Phone Number</Text>
+                  <Text className="text-gray-700 text-sm font-semibold mb-2">
+                    Phone Number <Text className="text-red-500">*</Text>
+                  </Text>
                   <Controller
                     control={control}
                     name="phone"
                     render={({ field: { onChange, onBlur, value } }) => (
                       <TextInput
-                        style={styles.input}
+                        className={`bg-gray-50 text-gray-900 border rounded-xl px-4 py-3 ${
+                          errors.phone ? "border-red-500" : "border-gray-200"
+                        }`}
                         placeholder="+1 234 567 8900"
                         placeholderTextColor="#9ca3af"
                         value={value}
@@ -214,20 +213,25 @@ export function AddMemberModal({
                       />
                     )}
                   />
+                  {errors.phone && (
+                    <Text className="text-red-500 text-xs mt-1">
+                      {errors.phone.message}
+                    </Text>
+                  )}
                 </View>
 
-                {/* Password */}
                 <View>
-                  <Text style={styles.label}>Password *</Text>
+                  <Text className="text-gray-700 text-sm font-semibold mb-2">
+                    Password *
+                  </Text>
                   <Controller
                     control={control}
                     name="password"
                     render={({ field: { onChange, onBlur, value } }) => (
                       <TextInput
-                        style={[
-                          styles.input,
-                          errors.password && styles.inputError,
-                        ]}
+                        className={`bg-gray-50 text-gray-900 border rounded-xl px-4 py-3 ${
+                          errors.password ? "border-red-500" : "border-gray-200"
+                        }`}
                         placeholder="Minimum 6 characters"
                         placeholderTextColor="#9ca3af"
                         value={value}
@@ -239,48 +243,46 @@ export function AddMemberModal({
                     )}
                   />
                   {errors.password && (
-                    <Text style={styles.errorText}>
+                    <Text className="text-red-500 text-xs mt-1">
                       {errors.password.message}
                     </Text>
                   )}
                 </View>
 
-                {/* Role Selection */}
                 <View>
-                  <Text style={styles.label}>Role *</Text>
+                  <Text className="text-gray-700 text-sm font-semibold mb-2">
+                    Role *
+                  </Text>
                   <Controller
                     control={control}
                     name="role"
                     render={({ field: { onChange, value } }) => (
-                      <View style={styles.roleContainer}>
+                      <View className="gap-3">
                         {ROLES.map((role) => (
                           <TouchableOpacity
                             key={role.value}
-                            style={[
-                              styles.roleButton,
+                            className={`p-3 rounded-xl border ${
                               value === role.value
-                                ? styles.roleButtonActive
-                                : styles.roleButtonInactive,
-                            ]}
+                                ? "bg-blue-50 border-blue-500"
+                                : "bg-gray-50 border-gray-200"
+                            }`}
                             onPress={() => onChange(role.value)}
                           >
                             <Text
-                              style={[
-                                styles.roleButtonTitle,
+                              className={`text-base font-semibold ${
                                 value === role.value
-                                  ? styles.roleButtonTitleActive
-                                  : styles.roleButtonTitleInactive,
-                              ]}
+                                  ? "text-blue-900"
+                                  : "text-gray-700"
+                              }`}
                             >
                               {role.label}
                             </Text>
                             <Text
-                              style={[
-                                styles.roleButtonDescription,
+                              className={`text-sm mt-1 ${
                                 value === role.value
-                                  ? styles.roleButtonDescriptionActive
-                                  : styles.roleButtonDescriptionInactive,
-                              ]}
+                                  ? "text-blue-600"
+                                  : "text-gray-500"
+                              }`}
                             >
                               {role.description}
                             </Text>
@@ -291,13 +293,13 @@ export function AddMemberModal({
                   />
                 </View>
 
-                <View style={styles.infoBox}>
+                <View className="flex-row bg-blue-50 p-3 rounded-xl gap-2">
                   <Ionicons
                     name="information-circle"
                     size={20}
                     color="#3b82f6"
                   />
-                  <Text style={styles.infoText}>
+                  <Text className="flex-1 text-blue-900 text-xs">
                     A new user account will be created. The member can log in
                     immediately with the provided email/phone and password.
                   </Text>
@@ -305,13 +307,11 @@ export function AddMemberModal({
               </View>
             </ScrollView>
 
-            {/* Footer */}
-            <View style={styles.footer}>
+            <View className="p-6 pt-4 pb-8 border-t border-gray-100">
               <TouchableOpacity
-                style={[
-                  styles.submitButton,
-                  isLoading && styles.submitButtonDisabled,
-                ]}
+                className={`bg-blue-500 flex-row items-center justify-center py-3.5 rounded-xl gap-2 ${
+                  isLoading ? "opacity-60" : ""
+                }`}
                 onPress={handleSubmit(handleFormSubmit)}
                 disabled={isLoading}
               >
@@ -320,7 +320,9 @@ export function AddMemberModal({
                 ) : (
                   <>
                     <Ionicons name="person-add" size={20} color="white" />
-                    <Text style={styles.submitButtonText}>Add Member</Text>
+                    <Text className="text-white text-base font-semibold">
+                      Add Member
+                    </Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -331,159 +333,3 @@ export function AddMemberModal({
     </Modal>
   );
 }
-
-const styles = StyleSheet.create({
-  keyboardView: {
-    flex: 1,
-  },
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.4)",
-    justifyContent: "flex-end",
-  },
-  modalContainer: {
-    backgroundColor: "white",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    flex: 1,
-    maxHeight: "90%",
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 24,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f3f4f6",
-  },
-  headerTitle: {
-    color: "#111827",
-    fontSize: 20,
-    fontWeight: "bold",
-  },
-  headerSubtitle: {
-    color: "#6b7280",
-    fontSize: 14,
-  },
-  closeButton: {
-    width: 32,
-    height: 32,
-    backgroundColor: "#f3f4f6",
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  scrollView: {
-    flex: 1,
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-  },
-  scrollContent: {
-    paddingBottom: 20,
-  },
-  formContainer: {
-    gap: 20,
-  },
-  label: {
-    color: "#374151",
-    fontSize: 14,
-    fontWeight: "600",
-    marginBottom: 8,
-  },
-  input: {
-    backgroundColor: "#f9fafb",
-    color: "#111827",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-    fontSize: 16,
-  },
-  inputError: {
-    borderColor: "#ef4444",
-  },
-  errorText: {
-    color: "#ef4444",
-    fontSize: 12,
-    marginTop: 4,
-  },
-  orText: {
-    textAlign: "center",
-    color: "#9ca3af",
-    fontSize: 14,
-  },
-  roleContainer: {
-    gap: 12,
-  },
-  roleButton: {
-    padding: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  roleButtonActive: {
-    backgroundColor: "#eff6ff",
-    borderColor: "#3b82f6",
-  },
-  roleButtonInactive: {
-    backgroundColor: "#f9fafb",
-    borderColor: "#e5e7eb",
-  },
-  roleButtonTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  roleButtonTitleActive: {
-    color: "#1e40af",
-  },
-  roleButtonTitleInactive: {
-    color: "#374151",
-  },
-  roleButtonDescription: {
-    fontSize: 14,
-    marginTop: 4,
-  },
-  roleButtonDescriptionActive: {
-    color: "#3b82f6",
-  },
-  roleButtonDescriptionInactive: {
-    color: "#6b7280",
-  },
-  infoBox: {
-    flexDirection: "row",
-    backgroundColor: "#eff6ff",
-    padding: 12,
-    borderRadius: 12,
-    gap: 8,
-  },
-  infoText: {
-    flex: 1,
-    color: "#1e40af",
-    fontSize: 12,
-  },
-  footer: {
-    padding: 24,
-    paddingTop: 16,
-    paddingBottom: 32,
-    borderTopWidth: 1,
-    borderTopColor: "#f3f4f6",
-  },
-  submitButton: {
-    backgroundColor: "#3b82f6",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 14,
-    borderRadius: 12,
-    gap: 8,
-  },
-  submitButtonDisabled: {
-    opacity: 0.6,
-  },
-  submitButtonText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-});

@@ -35,8 +35,8 @@ export default function OrganizationDetailScreen() {
 
   const addMemberMutation = useMutation({
     mutationFn: (params: {
-      email?: string;
-      phone?: string;
+      email: string;
+      phone: string;
       password: string;
       role: string;
       display_name: string;
