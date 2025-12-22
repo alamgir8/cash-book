@@ -7,9 +7,7 @@ import type {
   Invoice,
   InvoiceStatus,
   ListInvoicesParams,
-  CreateInvoiceParams,
   UpdateInvoiceParams,
-  RecordPaymentParams,
 } from "@/types/invoice";
 
 /**
@@ -148,15 +146,16 @@ export function useDeleteInvoice(options?: {
 
 /**
  * Hook for sending invoice via email
+ * Note: sendEmail API method needs to be implemented in services/invoices.ts
  */
-export function useSendInvoice(invoiceId: string) {
-  return useMutation({
-    mutationFn: (email: string) => invoicesApi.sendEmail(invoiceId, email),
-    onSuccess: () => {
-      toast.success("Invoice sent successfully");
-    },
-    onError: (error) => {
-      toast.error(getApiErrorMessage(error));
-    },
-  });
-}
+// export function useSendInvoice(invoiceId: string) {
+//   return useMutation({
+//     mutationFn: (email: string) => invoicesApi.sendEmail(invoiceId, email),
+//     onSuccess: () => {
+//       toast.success("Invoice sent successfully");
+//     },
+//     onError: (error) => {
+//       toast.error(getApiErrorMessage(error));
+//     },
+//   });
+// }
