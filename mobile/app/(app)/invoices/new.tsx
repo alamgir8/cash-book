@@ -10,16 +10,16 @@ import {
   Platform,
 } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
+import { useForm, Controller, useFieldArray } from "react-hook-form";
 import { toast } from "@/lib/toast";
 import { useQuery } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import { useActiveOrgId } from "@/hooks/useOrganization";
 import { useCreateInvoice } from "@/hooks/use-invoices";
 import type { InvoiceType } from "@/types/invoice";
-import { invoiceSchema, type InvoiceFormData } from "@/lib/validations/invoice";
 import { partiesApi, type Party } from "@/services/parties";
-import { useForm, Controller, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { invoiceSchema, type InvoiceFormData } from "@/lib/validations/invoice";
 import {
   InvoiceTypeHeader,
   PartySelectionModal,
