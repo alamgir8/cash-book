@@ -36,7 +36,7 @@ import type { SelectOption } from "@/components/searchable-select";
 
 const defaultFilters: TransactionFilters = {
   page: 1,
-  limit: 20,
+  limit: 50,
 };
 
 export default function AccountDetailScreen() {

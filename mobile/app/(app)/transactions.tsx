@@ -33,7 +33,7 @@ import type { SelectOption } from "@/components/searchable-select";
 import Toast from "react-native-toast-message";
 const defaultFilters: TransactionFilters = {
   page: 1,
-  limit: 100,
+  limit: 50,
   // Removed financialScope to show ALL transactions regardless of category
 };
 
@@ -511,12 +511,12 @@ export default function TransactionsScreen() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.bg.secondary }}>
+    <View style={{ flex: 1, backgroundColor: colors.bg.primary }}>
       <ScreenHeader
         title="Transactions"
         subtitle={accountId ? "Account transactions" : "All transactions"}
         icon="receipt"
-        backgroundColor={colors.bg.secondary}
+        backgroundColor={colors.bg.primary}
         actionButton={
           canExportData
             ? {

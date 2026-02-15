@@ -11,26 +11,26 @@ import { useColorScheme } from "react-native";
 export type ColorScheme = "light" | "dark" | "system";
 
 export const lightColors = {
-  primary: "#3b82f6",
+  primary: "#2576f8",
   primaryDark: "#1d4ed8",
   secondary: "#8b5cf6",
   success: "#10b981",
   error: "#ef4444",
   warning: "#f59e0b",
-  info: "#06b6d4",
+  info: "#05889f",
 
   // Background colors
   bg: {
     primary: "#ffffff",
     secondary: "#f8fafc",
-    tertiary: "#f1f5f9",
+    tertiary: "#d4e5f5",
   },
 
   // Text colors
   text: {
     primary: "#0f172a",
     secondary: "#475569",
-    tertiary: "#94a3b8",
+    tertiary: "#7e93af",
     inverse: "#ffffff",
   },
 
@@ -58,7 +58,7 @@ export const darkColors = {
   secondary: "#a78bfa",
   success: "#34d399",
   error: "#f87171",
-  warning: "#fbbf24",
+  warning: "#fbb400",
   info: "#22d3ee",
 
   // Background colors
