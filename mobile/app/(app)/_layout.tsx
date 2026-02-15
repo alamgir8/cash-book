@@ -3,24 +3,33 @@ import { View, Text } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useOrganization } from "@/hooks/useOrganization";
+import { useTheme } from "@/hooks/useTheme";
 
 const TabIcon = ({
   icon,
   label,
   focused,
+  colors,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
   focused: boolean;
+  colors: ReturnType<typeof useTheme>["colors"];
 }) => (
   <View className="items-center justify-center px-1 py-1 gap-0.5 min-w-[60px]">
-    <View className={`p-1.5 rounded-lg ${focused ? "bg-blue-100" : ""}`}>
-      <Ionicons name={icon} size={20} color={focused ? "#2563eb" : "#64748b"} />
+    <View
+      className="p-1.5 rounded-lg"
+      style={{ backgroundColor: focused ? colors.info + "20" : "transparent" }}
+    >
+      <Ionicons
+        name={icon}
+        size={20}
+        color={focused ? colors.info : colors.text.secondary}
+      />
     </View>
     <Text
-      className={`text-xs font-medium text-center ${
-        focused ? "text-blue-600" : "text-slate-500"
-      }`}
+      className="text-xs font-medium text-center"
+      style={{ color: focused ? colors.info : colors.text.secondary }}
       numberOfLines={1}
       adjustsFontSizeToFit
     >
@@ -31,6 +40,7 @@ const TabIcon = ({
 
 export default function AppLayout() {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
   const { activeOrganization, canManageAccounts, canCreateTransactions } =
     useOrganization();
 
@@ -42,12 +52,12 @@ export default function AppLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarInactiveTintColor: "#2a2828",
-        tabBarActiveTintColor: "#2563eb",
+        tabBarInactiveTintColor: colors.text.secondary,
+        tabBarActiveTintColor: colors.info,
         tabBarStyle: {
-          backgroundColor: "#fff",
+          backgroundColor: colors.bg.primary,
           borderTopWidth: 1,
-          borderTopColor: "#ddd",
+          borderTopColor: colors.border,
           height: 50 + insets.bottom,
           paddingBottom: insets.bottom + 5,
           paddingTop: 5,
@@ -72,7 +82,12 @@ export default function AppLayout() {
         options={{
           title: "Dashboard",
           tabBarIcon: ({ focused }) => (
-            <TabIcon icon="home" label="Home" focused={focused} />
+            <TabIcon
+              icon="home"
+              label="Home"
+              focused={focused}
+              colors={colors}
+            />
           ),
         }}
       />
@@ -81,7 +96,12 @@ export default function AppLayout() {
         options={{
           title: "Accounts",
           tabBarIcon: ({ focused }) => (
-            <TabIcon icon="wallet" label="Accounts" focused={focused} />
+            <TabIcon
+              icon="wallet"
+              label="Accounts"
+              focused={focused}
+              colors={colors}
+            />
           ),
           // Hide if user doesn't have account management permissions and is in an organization
           href: showLimitedTabs ? null : undefined,
@@ -92,7 +112,12 @@ export default function AppLayout() {
         options={{
           title: "Transactions",
           tabBarIcon: ({ focused }) => (
-            <TabIcon icon="receipt" label="History" focused={focused} />
+            <TabIcon
+              icon="receipt"
+              label="History"
+              focused={focused}
+              colors={colors}
+            />
           ),
           // Always show transactions (viewers can see, just not create)
         }}
@@ -102,7 +127,12 @@ export default function AppLayout() {
         options={{
           title: "Settings",
           tabBarIcon: ({ focused }) => (
-            <TabIcon icon="settings" label="Settings" focused={focused} />
+            <TabIcon
+              icon="settings"
+              label="Settings"
+              focused={focused}
+              colors={colors}
+            />
           ),
         }}
       />

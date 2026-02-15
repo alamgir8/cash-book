@@ -12,6 +12,7 @@ import { ScreenHeader } from "@/components/screen-header";
 import { EmptyState } from "@/components/empty-state";
 import { FilterBar } from "@/components/filter-bar";
 import { TransactionCard } from "@/components/transaction-card";
+import { StatsCards } from "@/components/stats-cards";
 import { TransactionModal } from "@/components/modals/transaction-modal";
 import type { TransactionFormValues } from "@/components/modals/types";
 import {
@@ -32,7 +33,7 @@ import type { SelectOption } from "@/components/searchable-select";
 import Toast from "react-native-toast-message";
 const defaultFilters: TransactionFilters = {
   page: 1,
-  limit: 20,
+  limit: 100,
   // Removed financialScope to show ALL transactions regardless of category
 };
 
@@ -170,6 +171,24 @@ export default function TransactionsScreen() {
     queryFn: () => fetchTransactions(filters),
     placeholderData: (previousData) => previousData,
   });
+
+  const summaryTotals = useMemo(() => {
+    return allTransactions.reduce(
+      (acc, txn: Transaction) => {
+        if (txn.type === "credit") {
+          acc.credit += txn.amount;
+        } else {
+          acc.debit += txn.amount;
+        }
+        return acc;
+      },
+      { debit: 0, credit: 0 },
+    );
+  }, [allTransactions]);
+
+  const totalTransactionCount =
+    (transactionsQuery.data as any)?.pagination?.total ??
+    allTransactions.length;
 
   // Update accumulated transactions when new data arrives
   useEffect(() => {
@@ -391,6 +410,13 @@ export default function TransactionsScreen() {
   const renderHeader = () => {
     return (
       <View className="gap-6">
+        <StatsCards
+          totalDebit={summaryTotals.debit}
+          totalCredit={summaryTotals.credit}
+          transactionCount={totalTransactionCount}
+          accountCount={accountsQuery.data?.length ?? 0}
+          isLoading={transactionsQuery.isLoading}
+        />
         {/* Filter Section */}
         <FilterBar
           filters={filters}

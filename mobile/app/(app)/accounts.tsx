@@ -291,25 +291,55 @@ export default function AccountsScreen() {
           </View>
 
           <View className="flex-row gap-3 mt-4">
-            <View className="flex-1 bg-green-50 rounded-xl p-4 border border-green-100">
-              <Text className="text-xs font-semibold text-green-700 uppercase">
+            <View
+              className="flex-1 rounded-xl p-4 border"
+              style={{
+                backgroundColor: colors.success + "15",
+                borderColor: colors.success + "40",
+              }}
+            >
+              <Text
+                className="text-xs font-semibold uppercase"
+                style={{ color: colors.success }}
+              >
                 Total Credit
               </Text>
-              <Text className="text-2xl font-bold text-green-700 mt-2">
+              <Text
+                className="text-2xl font-bold mt-2"
+                style={{ color: colors.success }}
+              >
                 {formatAmount(totals.totalCredit)}
               </Text>
-              <Text className="text-xs text-green-600 mt-1">
+              <Text
+                className="text-xs mt-1"
+                style={{ color: colors.text.secondary }}
+              >
                 Across all accounts
               </Text>
             </View>
-            <View className="flex-1 bg-red-50 rounded-xl p-4 border border-red-100">
-              <Text className="text-xs font-semibold text-red-700 uppercase">
+            <View
+              className="flex-1 rounded-xl p-4 border"
+              style={{
+                backgroundColor: colors.error + "15",
+                borderColor: colors.error + "40",
+              }}
+            >
+              <Text
+                className="text-xs font-semibold uppercase"
+                style={{ color: colors.error }}
+              >
                 Total Debit
               </Text>
-              <Text className="text-2xl font-bold text-red-700 mt-2">
+              <Text
+                className="text-2xl font-bold mt-2"
+                style={{ color: colors.error }}
+              >
                 {formatAmount(totals.totalDebit)}
               </Text>
-              <Text className="text-xs text-red-600 mt-1">
+              <Text
+                className="text-xs mt-1"
+                style={{ color: colors.text.secondary }}
+              >
                 Overall spending
               </Text>
             </View>
@@ -317,23 +347,25 @@ export default function AccountsScreen() {
 
           <View className="flex-row gap-3 mt-3">
             <View
-              className={`flex-1 rounded-xl p-4 border ${
-                netPositive
-                  ? "bg-emerald-50 border-emerald-100"
-                  : "bg-rose-50 border-rose-100"
-              }`}
+              className="flex-1 rounded-xl p-4 border"
+              style={{
+                backgroundColor: netPositive
+                  ? colors.success + "15"
+                  : colors.error + "15",
+                borderColor: netPositive
+                  ? colors.success + "40"
+                  : colors.error + "40",
+              }}
             >
               <Text
-                className={`text-xs font-semibold uppercase ${
-                  netPositive ? "text-emerald-700" : "text-rose-700"
-                }`}
+                className="text-xs font-semibold uppercase"
+                style={{ color: netPositive ? colors.success : colors.error }}
               >
                 Net Balance
               </Text>
               <Text
-                className={`text-2xl font-bold mt-2 ${
-                  netPositive ? "text-emerald-700" : "text-rose-700"
-                }`}
+                className="text-2xl font-bold mt-2"
+                style={{ color: netPositive ? colors.success : colors.error }}
               >
                 {formatAmount(Math.abs(totals.netBalance))}
               </Text>
@@ -346,23 +378,41 @@ export default function AccountsScreen() {
                   : "Outstanding balance"}
               </Text>
             </View>
-            <View className="flex-1 bg-indigo-50 rounded-xl p-4 border border-indigo-100">
-              <Text className="text-xs font-semibold text-indigo-700 uppercase">
+            <View
+              className="flex-1 rounded-xl p-4 border"
+              style={{
+                backgroundColor: colors.info + "15",
+                borderColor: colors.info + "40",
+              }}
+            >
+              <Text
+                className="text-xs font-semibold uppercase"
+                style={{ color: colors.info }}
+              >
                 Transactions
               </Text>
-              <Text className="text-2xl font-bold text-indigo-700 mt-2">
+              <Text
+                className="text-2xl font-bold mt-2"
+                style={{ color: colors.info }}
+              >
                 {formatAmount(totals.totalTransactions, {
                   showCurrency: false,
                 })}
               </Text>
-              <Text className="text-xs text-indigo-600 mt-1">
+              <Text
+                className="text-xs mt-1"
+                style={{ color: colors.text.secondary }}
+              >
                 Last activity: {lastActivityLabel}
               </Text>
             </View>
           </View>
         </View>
 
-        <Text className="text-gray-500 text-sm font-semibold uppercase tracking-wide px-1">
+        <Text
+          className="text-sm font-semibold uppercase tracking-wide px-1"
+          style={{ color: colors.text.secondary }}
+        >
           Accounts
         </Text>
       </View>
@@ -402,16 +452,19 @@ export default function AccountsScreen() {
           <RefreshControl
             refreshing={accountsQuery.isRefetching}
             onRefresh={() => accountsQuery.refetch()}
-            tintColor="#1d4ed8"
-            colors={["#1d4ed8"]}
+            tintColor={colors.info}
+            colors={[colors.info]}
           />
         }
         ListHeaderComponent={renderHeader}
         ListEmptyComponent={
           accountsQuery.isLoading ? (
             <View className="items-center mt-12">
-              <ActivityIndicator color="#1d4ed8" size="large" />
-              <Text className="text-gray-500 mt-4 text-base">
+              <ActivityIndicator color={colors.info} size="large" />
+              <Text
+                className="mt-4 text-base"
+                style={{ color: colors.text.secondary }}
+              >
                 Loading accounts...
               </Text>
             </View>
@@ -481,9 +534,10 @@ export default function AccountsScreen() {
                     Balance
                   </Text>
                   <Text
-                    className={`text-2xl font-bold ${
-                      item.balance >= 0 ? "text-emerald-600" : "text-rose-600"
-                    }`}
+                    className="text-2xl font-bold"
+                    style={{
+                      color: item.balance >= 0 ? colors.success : colors.error,
+                    }}
                   >
                     {formatAmount(Math.abs(item.balance))}
                   </Text>
@@ -500,19 +554,43 @@ export default function AccountsScreen() {
               ) : null}
 
               <View className="flex-row gap-3 mt-4">
-                <View className="flex-1 bg-blue-50 rounded-xl p-3 border border-blue-100">
-                  <Text className="text-xs font-semibold text-blue-600 uppercase">
+                <View
+                  className="flex-1 rounded-xl p-3 border"
+                  style={{
+                    backgroundColor: colors.success + "15",
+                    borderColor: colors.success + "40",
+                  }}
+                >
+                  <Text
+                    className="text-xs font-semibold uppercase"
+                    style={{ color: colors.success }}
+                  >
                     Total Credit
                   </Text>
-                  <Text className="text-lg font-bold text-blue-700 mt-1">
+                  <Text
+                    className="text-lg font-bold mt-1"
+                    style={{ color: colors.success }}
+                  >
                     {formatAmount(item.summary.totalCredit ?? 0)}
                   </Text>
                 </View>
-                <View className="flex-1 bg-amber-50 rounded-xl p-3 border border-amber-100">
-                  <Text className="text-xs font-semibold text-amber-600 uppercase">
+                <View
+                  className="flex-1 rounded-xl p-3 border"
+                  style={{
+                    backgroundColor: colors.error + "15",
+                    borderColor: colors.error + "40",
+                  }}
+                >
+                  <Text
+                    className="text-xs font-semibold uppercase"
+                    style={{ color: colors.error }}
+                  >
                     Total Debit
                   </Text>
-                  <Text className="text-lg font-bold text-amber-700 mt-1">
+                  <Text
+                    className="text-lg font-bold mt-1"
+                    style={{ color: colors.error }}
+                  >
                     {formatAmount(item.summary.totalDebit ?? 0)}
                   </Text>
                 </View>
@@ -542,23 +620,29 @@ export default function AccountsScreen() {
                   </Text>
                 </View>
                 <View
-                  className={`flex-1 rounded-xl p-3 border ${
-                    netFlowPositive
-                      ? "bg-emerald-50 border-emerald-100"
-                      : "bg-rose-50 border-rose-100"
-                  }`}
+                  className="flex-1 rounded-xl p-3 border"
+                  style={{
+                    backgroundColor: netFlowPositive
+                      ? colors.success + "15"
+                      : colors.error + "15",
+                    borderColor: netFlowPositive
+                      ? colors.success + "40"
+                      : colors.error + "40",
+                  }}
                 >
                   <Text
-                    className={`text-xs font-semibold uppercase ${
-                      netFlowPositive ? "text-emerald-600" : "text-rose-600"
-                    }`}
+                    className="text-xs font-semibold uppercase"
+                    style={{
+                      color: netFlowPositive ? colors.success : colors.error,
+                    }}
                   >
                     Net Flow
                   </Text>
                   <Text
-                    className={`text-lg font-bold mt-1 ${
-                      netFlowPositive ? "text-emerald-600" : "text-rose-600"
-                    }`}
+                    className="text-lg font-bold mt-1"
+                    style={{
+                      color: netFlowPositive ? colors.success : colors.error,
+                    }}
                   >
                     {formatSignedAmount(netFlow)}
                   </Text>
@@ -573,7 +657,8 @@ export default function AccountsScreen() {
                       params: { accountId: item._id },
                     } as any)
                   }
-                  className="flex-1 flex-row items-center justify-center gap-2 bg-blue-500 rounded-xl py-2.5 active:opacity-90"
+                  className="flex-1 flex-row items-center justify-center gap-2 rounded-xl py-2.5 active:opacity-90"
+                  style={{ backgroundColor: colors.info }}
                 >
                   <Ionicons name="time-outline" size={18} color="#fff" />
                   <Text className="text-white font-semibold">View History</Text>

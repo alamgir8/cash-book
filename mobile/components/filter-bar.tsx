@@ -22,6 +22,7 @@ const ranges = [
 ];
 
 const quickFilters = [
+  { label: "All", value: "all" },
   { label: "Today", value: "today" },
   { label: "Last 7 Days", value: "last7days" },
   { label: "Last 30 Days", value: "last30days" },
@@ -38,6 +39,9 @@ const getDateRangeFromQuickFilter = (
   let startDate = new Date(today);
 
   switch (filter) {
+    case "all":
+      startDate = new Date(1970, 0, 1);
+      break;
     case "today":
       startDate = new Date(today);
       break;
@@ -329,6 +333,15 @@ export const FilterBar = ({
               <TouchableOpacity
                 key={qf.value}
                 onPress={() => {
+                  if (qf.value === "all") {
+                    onChange({
+                      ...filters,
+                      startDate: undefined,
+                      endDate: undefined,
+                      page: 1,
+                    });
+                    return;
+                  }
                   const dateRange = getDateRangeFromQuickFilter(qf.value);
                   onChange({
                     ...filters,
