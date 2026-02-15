@@ -192,7 +192,7 @@ export const FilterBar = ({
             style={{
               backgroundColor:
                 filters.range === range.value
-                  ? colors.info + "25"
+                  ? colors.info
                   : colors.bg.tertiary,
               borderColor:
                 filters.range === range.value ? colors.info : colors.border,
@@ -203,8 +203,8 @@ export const FilterBar = ({
               style={{
                 color:
                   filters.range === range.value
-                    ? colors.info
-                    : colors.text.secondary,
+                    ? "#ffffff"
+                    : colors.text.primary,
               }}
               className="text-sm font-semibold"
             >
@@ -216,8 +216,8 @@ export const FilterBar = ({
         <TouchableOpacity
           onPress={() => setExpanded((prev) => !prev)}
           style={{
-            backgroundColor: colors.bg.tertiary,
-            borderColor: colors.border,
+            backgroundColor: expanded ? colors.info + "20" : colors.bg.tertiary,
+            borderColor: expanded ? colors.info : colors.border,
           }}
           className="flex-row items-center gap-1 px-3 py-1.5 rounded-full border"
         >
@@ -227,7 +227,7 @@ export const FilterBar = ({
             color={colors.info}
           />
           <Text
-            style={{ color: colors.text.secondary }}
+            style={{ color: expanded ? colors.info : colors.text.primary }}
             className="text-sm font-semibold"
           >
             Filters
@@ -270,25 +270,19 @@ export const FilterBar = ({
                 : filters.type === option.value;
             const bgColor = isActive
               ? option.value === "credit"
-                ? colors.success + "25"
+                ? colors.success
                 : option.value === "debit"
-                  ? colors.error + "25"
-                  : colors.info + "25"
+                  ? colors.error
+                  : colors.info
               : colors.bg.tertiary;
             const borderColor = isActive
-              ? option.value === "credit"
-                ? colors.success + "50"
-                : option.value === "debit"
-                  ? colors.error + "50"
-                  : colors.info + "50"
-              : colors.border;
-            const textColor = isActive
               ? option.value === "credit"
                 ? colors.success
                 : option.value === "debit"
                   ? colors.error
                   : colors.info
-              : colors.text.secondary;
+              : colors.border;
+            const textColor = isActive ? "#ffffff" : colors.text.primary;
 
             return (
               <TouchableOpacity
@@ -325,31 +319,38 @@ export const FilterBar = ({
           className="flex-row gap-2 mt-3"
           contentContainerStyle={{ paddingRight: 12 }}
         >
-          {quickFilters.map((qf) => (
-            <TouchableOpacity
-              key={qf.value}
-              onPress={() => {
-                const dateRange = getDateRangeFromQuickFilter(qf.value);
-                onChange({
-                  ...filters,
-                  ...dateRange,
-                  page: 1,
-                });
-              }}
-              style={{
-                backgroundColor: colors.warning + "25",
-                borderColor: colors.warning + "40",
-              }}
-              className="px-3 py-1 rounded-full border"
-            >
-              <Text
-                style={{ color: colors.warning }}
-                className="text-xs font-semibold"
+          {quickFilters.map((qf) => {
+            const isActive =
+              (qf.value === "today" &&
+                filters.startDate === new Date().toISOString().split("T")[0]) ||
+              (filters.startDate && filters.endDate);
+
+            return (
+              <TouchableOpacity
+                key={qf.value}
+                onPress={() => {
+                  const dateRange = getDateRangeFromQuickFilter(qf.value);
+                  onChange({
+                    ...filters,
+                    ...dateRange,
+                    page: 1,
+                  });
+                }}
+                style={{
+                  backgroundColor: colors.warning + "20",
+                  borderColor: colors.warning + "50",
+                }}
+                className="px-3 py-1 rounded-full border"
               >
-                {qf.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
+                <Text
+                  style={{ color: colors.warning }}
+                  className="text-xs font-semibold"
+                >
+                  {qf.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </ScrollView>
       )}
 

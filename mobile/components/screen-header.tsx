@@ -79,10 +79,10 @@ export function ScreenHeader({
 
         {icon && !actionButton && !rightAction && (
           <View
-            style={{ backgroundColor: colors.info + "25" }}
+            style={{ backgroundColor: colors.info + "20" }}
             className="p-3 rounded-full"
           >
-            <Ionicons name={icon} size={24} color={iconColor} />
+            <Ionicons name={icon} size={24} color={colors.info} />
           </View>
         )}
 
@@ -91,21 +91,23 @@ export function ScreenHeader({
         {actionButton && (
           <TouchableOpacity
             onPress={actionButton.onPress}
-            className="px-5 py-3 rounded-xl shadow-lg"
+            className="px-4 py-2.5 rounded-xl shadow-sm"
             style={{
+              backgroundColor:
+                actionButton.color === "green" ? colors.success : colors.info,
               shadowColor:
-                actionButton.color === "green" ? "#16a34a" : "#1d4ed8",
-              shadowOffset: { width: 0, height: 4 },
+                actionButton.color === "green" ? colors.success : colors.info,
+              shadowOffset: { width: 0, height: 2 },
               shadowOpacity: 0.2,
-              shadowRadius: 8,
-              elevation: 6,
+              shadowRadius: 4,
+              elevation: 3,
             }}
           >
             <View className="flex-row items-center gap-2">
               {actionButton.icon && (
-                <Ionicons name={actionButton.icon} size={20} color="white" />
+                <Ionicons name={actionButton.icon} size={18} color="#ffffff" />
               )}
-              <Text className="text-white font-bold text-base">
+              <Text className="text-white font-bold text-sm">
                 {actionButton.label}
               </Text>
             </View>

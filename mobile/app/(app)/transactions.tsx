@@ -490,6 +490,7 @@ export default function TransactionsScreen() {
         title="Transactions"
         subtitle={accountId ? "Account transactions" : "All transactions"}
         icon="receipt"
+        backgroundColor={colors.bg.secondary}
         actionButton={
           canExportData
             ? {

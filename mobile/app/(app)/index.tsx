@@ -485,6 +485,7 @@ export default function DashboardScreen() {
             : "Track your finances easily"
         }
         icon="analytics"
+        backgroundColor={colors.bg.secondary}
       />
 
       <FlatList

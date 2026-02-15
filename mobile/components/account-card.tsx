@@ -141,25 +141,33 @@ const AccountCardComponent = ({ account, onEdit, onDelete }: Props) => {
         <View className="flex-row gap-3">
           <TouchableOpacity
             onPress={() => router.push(`/accounts/${account._id}`)}
-            style={{ backgroundColor: colors.info + "25" }}
+            style={{ backgroundColor: colors.info }}
             className="flex-1 rounded-xl py-3 active:scale-95"
           >
             <Text
-              style={{ color: colors.info }}
+              style={{ color: "#ffffff" }}
               className="font-bold text-center text-sm"
             >
               View Details
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={{ backgroundColor: colors.bg.tertiary }}
+            style={{
+              backgroundColor: colors.bg.tertiary,
+              borderWidth: 1,
+              borderColor: colors.border,
+            }}
             onPress={() => onEdit(account._id)}
             className="rounded-xl px-4 py-3 active:scale-95"
           >
-            <Ionicons name="create" size={18} color={colors.text.secondary} />
+            <Ionicons name="create" size={18} color={colors.info} />
           </TouchableOpacity>
           <TouchableOpacity
-            style={{ backgroundColor: colors.error + "15" }}
+            style={{
+              backgroundColor: colors.error + "15",
+              borderWidth: 1,
+              borderColor: colors.error + "40",
+            }}
             onPress={() => onDelete(account._id, account.name)}
             className="rounded-xl px-4 py-3 active:scale-95"
           >
