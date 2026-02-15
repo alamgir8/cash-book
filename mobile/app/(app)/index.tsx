@@ -473,7 +473,7 @@ export default function DashboardScreen() {
   // console.log("transactionsQuery", transactionsQuery.data);
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.bg.primary }}>
+    <View style={{ flex: 1, backgroundColor: colors.bg.secondary }}>
       <ScreenHeader
         title="Dashboard"
         subtitle={

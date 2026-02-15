@@ -485,7 +485,7 @@ export default function TransactionsScreen() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.bg.primary }}>
+    <View style={{ flex: 1, backgroundColor: colors.bg.secondary }}>
       <ScreenHeader
         title="Transactions"
         subtitle={accountId ? "Account transactions" : "All transactions"}

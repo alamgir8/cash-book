@@ -1,5 +1,6 @@
 import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTheme } from "../hooks/useTheme";
 
 interface ActionButtonProps {
   label: string;
@@ -28,20 +29,58 @@ export function ActionButton({
   color,
   bgColor,
 }: ActionButtonProps) {
+  const { colors } = useTheme();
+
   const getVariantStyles = () => {
     switch (variant) {
       case "primary":
-        return "bg-blue-600";
+        return {
+          backgroundColor: colors.info,
+          textColor: "#ffffff",
+          iconColor: "#ffffff",
+          borderColor: "transparent",
+          shadowColor: colors.info,
+        };
       case "success":
-        return "bg-green-600";
+        return {
+          backgroundColor: colors.success,
+          textColor: "#ffffff",
+          iconColor: "#ffffff",
+          borderColor: "transparent",
+          shadowColor: colors.success,
+        };
       case "danger":
-        return "bg-rose-500";
+        return {
+          backgroundColor: colors.error,
+          textColor: "#ffffff",
+          iconColor: "#ffffff",
+          borderColor: "transparent",
+          shadowColor: colors.error,
+        };
       case "secondary":
-        return "bg-gray-600";
+        return {
+          backgroundColor: colors.bg.tertiary,
+          textColor: colors.text.primary,
+          iconColor: colors.text.primary,
+          borderColor: colors.border,
+          shadowColor: colors.border,
+        };
       case "outline":
-        return "bg-gray-50 border-2 border-blue-600";
+        return {
+          backgroundColor: "transparent",
+          textColor: colors.info,
+          iconColor: colors.info,
+          borderColor: colors.info,
+          shadowColor: "transparent",
+        };
       default:
-        return "bg-blue-600";
+        return {
+          backgroundColor: colors.info,
+          textColor: "#ffffff",
+          iconColor: "#ffffff",
+          borderColor: "transparent",
+          shadowColor: colors.info,
+        };
     }
   };
 
@@ -62,8 +101,7 @@ export function ActionButton({
     const baseStyle = "font-bold";
     const sizeStyle =
       size === "small" ? "text-sm" : size === "large" ? "text-lg" : "text-base";
-    const colorStyle = variant === "outline" ? "text-blue-600" : "text-white";
-    return `${baseStyle} ${sizeStyle} ${colorStyle}`;
+    return `${baseStyle} ${sizeStyle}`;
   };
 
   const getIconSize = () => {
@@ -83,43 +121,65 @@ export function ActionButton({
       <TouchableOpacity
         onPress={onPress}
         disabled={disabled || isLoading}
-        className={`${bgColor || "bg-gray-50"} ${getSizeStyles()} ${
+        className={`${getSizeStyles()} ${
           fullWidth ? "w-full" : ""
         } flex-row items-center gap-3 p-4 rounded-2xl active:scale-95 ${
           disabled ? "opacity-50" : ""
         }`}
+        style={{
+          backgroundColor: bgColor || colors.bg.tertiary,
+          borderColor: colors.border,
+          borderWidth: 1,
+        }}
       >
-        {icon && <Ionicons name={icon} size={24} color={color || "#6b7280"} />}
+        {icon && (
+          <Ionicons
+            name={icon}
+            size={24}
+            color={color || colors.text.primary}
+          />
+        )}
         <View className="flex-1">
-          <Text className="font-semibold text-gray-900">{label}</Text>
+          <Text
+            className="font-semibold"
+            style={{ color: color || colors.text.primary }}
+          >
+            {label}
+          </Text>
           {subLabel && (
-            <Text className="text-sm text-gray-500 mt-0.5">{subLabel}</Text>
+            <Text
+              className="text-sm mt-0.5"
+              style={{ color: colors.text.secondary }}
+            >
+              {subLabel}
+            </Text>
           )}
         </View>
-        {isLoading && <ActivityIndicator color={color || "#6b7280"} />}
+        {isLoading && (
+          <ActivityIndicator color={color || colors.text.primary} />
+        )}
       </TouchableOpacity>
     );
   }
+
+  const variantStyles = getVariantStyles();
 
   return (
     <TouchableOpacity
       onPress={onPress}
       disabled={disabled || isLoading}
       className={`
-        ${getVariantStyles()} 
         ${getSizeStyles()} 
         ${fullWidth ? "w-full" : ""} 
         items-center justify-center mb-10
-        shadow-lg active:scale-95
+        ${variant === "outline" ? "border-2" : ""}
+        ${variant !== "outline" ? "shadow-lg" : ""} active:scale-95
         ${disabled ? "opacity-50" : ""}
       `}
       style={{
-        shadowColor:
-          variant === "success"
-            ? "#16a34a"
-            : variant === "danger"
-            ? "#dc265a"
-            : "#1d4ed8",
+        backgroundColor: variantStyles.backgroundColor,
+        borderColor: variantStyles.borderColor,
+        shadowColor: variantStyles.shadowColor,
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.2,
         shadowRadius: 8,
@@ -127,19 +187,22 @@ export function ActionButton({
       }}
     >
       {isLoading ? (
-        <ActivityIndicator
-          color={variant === "outline" ? "#1d4ed8" : "#ffffff"}
-        />
+        <ActivityIndicator color={variantStyles.iconColor} />
       ) : (
         <View className="flex-row items-center gap-2">
           {icon && (
             <Ionicons
               name={icon}
               size={getIconSize()}
-              color={variant === "outline" ? "#1d4ed8" : "white"}
+              color={variantStyles.iconColor}
             />
           )}
-          <Text className={getTextStyles()}>{label}</Text>
+          <Text
+            className={getTextStyles()}
+            style={{ color: variantStyles.textColor }}
+          >
+            {label}
+          </Text>
         </View>
       )}
     </TouchableOpacity>
