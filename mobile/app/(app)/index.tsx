@@ -18,6 +18,12 @@ import { EmptyState } from "@/components/empty-state";
 import { FloatingActionButton } from "@/components/floating-action-button";
 import { TransactionModal } from "@/components/modals/transaction-modal";
 import { TransferModal } from "@/components/modals/transfer-modal";
+import {
+  StatsCardsSkeleton,
+  QuickFeaturesSkeleton,
+  TransactionListSkeleton,
+} from "@/components/skeletons";
+import { LoadMoreButton } from "@/components/load-more-button";
 import type {
   TransactionFormValues,
   TransferFormValues,
@@ -38,6 +44,7 @@ import { fetchCategories } from "@/services/categories";
 import { queryKeys } from "@/lib/queryKeys";
 import { usePreferences } from "@/hooks/usePreferences";
 import { useOrganization } from "@/hooks/useOrganization";
+import { usePaginationCache } from "@/hooks/usePaginationCache";
 
 const defaultFilters: TransactionFilters = {
   range: "monthly",
@@ -48,6 +55,7 @@ const defaultFilters: TransactionFilters = {
 export default function DashboardScreen() {
   const { formatAmount } = usePreferences();
   const { canCreateTransactions, activeOrganization } = useOrganization();
+  const { mergeTransactionPages } = usePaginationCache();
   const queryClient = useQueryClient();
   const [filters, setFilters] = useState<TransactionFilters>(defaultFilters);
   const [isModalVisible, setModalVisible] = useState(false);
@@ -161,7 +169,7 @@ export default function DashboardScreen() {
           account.currency_symbol ? ` · ${account.currency_symbol}` : ""
         }`,
       })),
-    [accountsQuery.data, formatAmount]
+    [accountsQuery.data, formatAmount],
   );
 
   const formatCategoryGroup = (type: string) =>
@@ -285,7 +293,7 @@ export default function DashboardScreen() {
       setEditingTransaction(transaction);
       setModalVisible(true);
     },
-    [canCreateTransactions]
+    [canCreateTransactions],
   );
 
   const closeModal = useCallback(() => {
@@ -305,7 +313,7 @@ export default function DashboardScreen() {
         acc[txn.type] += txn.amount;
         return acc;
       },
-      { debit: 0, credit: 0 }
+      { debit: 0, credit: 0 },
     );
   }, [transactionsQuery.data]);
 
@@ -370,6 +378,21 @@ export default function DashboardScreen() {
     }));
   }, []);
 
+  const handleLoadMore = useCallback(() => {
+    setFilters((prev) => ({
+      ...prev,
+      page: (prev.page ?? 1) + 1,
+    }));
+  }, []);
+
+  const totalTransactions = (transactionsQuery.data as any)?.total || 0;
+  const currentTransactions =
+    (transactionsQuery.data as any)?.transactions?.length || 0;
+  const currentPage = filters.page ?? 1;
+  const limit = filters.limit ?? 20;
+  const hasMore =
+    currentTransactions + (currentPage - 1) * limit < totalTransactions;
+
   const renderTransactionItem = useCallback(
     ({ item }: { item: any }) => (
       <TransactionCard
@@ -379,7 +402,7 @@ export default function DashboardScreen() {
         onEdit={handleEditTransaction}
       />
     ),
-    [handleCategoryFilter, handleCounterpartyFilter, handleEditTransaction]
+    [handleCategoryFilter, handleCounterpartyFilter, handleEditTransaction],
   );
 
   const renderHeader = () => {
@@ -403,20 +426,28 @@ export default function DashboardScreen() {
     return (
       <View className="gap-6">
         {/* Enhanced Statistics Cards */}
-        <StatsCards
-          totalDebit={totals.debit}
-          totalCredit={totals.credit}
-          transactionCount={transactionCount}
-          accountCount={accountCount}
-          isLoading={accountsQuery.isLoading || transactionsQuery.isLoading}
-        />
+        {accountsQuery.isLoading || transactionsQuery.isLoading ? (
+          <StatsCardsSkeleton />
+        ) : (
+          <StatsCards
+            totalDebit={totals.debit}
+            totalCredit={totals.credit}
+            transactionCount={transactionCount}
+            accountCount={accountCount}
+            isLoading={false}
+          />
+        )}
 
         {/* Quick Features Grid - bKash Style */}
-        <HomeQuickFeatures
-          onAddTransaction={() => setModalVisible(true)}
-          onAddTransfer={openTransferModal}
-          onExportPDF={handleExportPDF}
-        />
+        {accountsQuery.isLoading ? (
+          <QuickFeaturesSkeleton />
+        ) : (
+          <HomeQuickFeatures
+            onAddTransaction={() => setModalVisible(true)}
+            onAddTransfer={openTransferModal}
+            onExportPDF={handleExportPDF}
+          />
+        )}
 
         {/* Filter Bar */}
         <FilterBar
@@ -467,7 +498,10 @@ export default function DashboardScreen() {
         refreshControl={
           <RefreshControl
             refreshing={transactionsQuery.isRefetching}
-            onRefresh={() => transactionsQuery.refetch()}
+            onRefresh={() => {
+              setFilters({ ...defaultFilters });
+              transactionsQuery.refetch();
+            }}
             tintColor="#1d4ed8"
             colors={["#1d4ed8"]}
           />
@@ -475,12 +509,7 @@ export default function DashboardScreen() {
         ListHeaderComponent={renderHeader}
         ListEmptyComponent={
           transactionsQuery.isLoading ? (
-            <View className="items-center mt-12">
-              <ActivityIndicator color="#1d4ed8" size="large" />
-              <Text className="text-gray-500 mt-4 text-base">
-                Loading transactions...
-              </Text>
-            </View>
+            <TransactionListSkeleton count={8} />
           ) : (
             <EmptyState
               icon="receipt-outline"
@@ -492,6 +521,15 @@ export default function DashboardScreen() {
               }}
             />
           )
+        }
+        ListFooterComponent={
+          currentTransactions > 0 ? (
+            <LoadMoreButton
+              onPress={handleLoadMore}
+              isLoading={transactionsQuery.isLoading && filters.page !== 1}
+              hasMore={hasMore}
+            />
+          ) : null
         }
         renderItem={renderTransactionItem}
         removeClippedSubviews={true}

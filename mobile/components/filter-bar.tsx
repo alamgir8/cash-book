@@ -20,6 +20,52 @@ const ranges = [
   { label: "Yearly", value: "yearly" },
 ];
 
+const quickFilters = [
+  { label: "Today", value: "today" },
+  { label: "Last 7 Days", value: "last7days" },
+  { label: "Last 30 Days", value: "last30days" },
+  { label: "This Month", value: "thismonth" },
+  { label: "Last Month", value: "lastmonth" },
+  { label: "This Year", value: "thisyear" },
+];
+
+const getDateRangeFromQuickFilter = (
+  filter: string,
+): { startDate: string; endDate: string } => {
+  const today = new Date();
+  const endDate = new Date(today);
+  let startDate = new Date(today);
+
+  switch (filter) {
+    case "today":
+      startDate = new Date(today);
+      break;
+    case "last7days":
+      startDate = new Date(today.setDate(today.getDate() - 7));
+      break;
+    case "last30days":
+      startDate = new Date(today.setDate(today.getDate() - 30));
+      break;
+    case "thismonth":
+      startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+      break;
+    case "lastmonth":
+      const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+      startDate = lastMonth;
+      endDate = new Date(today.getFullYear(), today.getMonth(), 0);
+      break;
+    case "thisyear":
+      startDate = new Date(today.getFullYear(), 0, 1);
+      break;
+  }
+
+  const formatDate = (date: Date) => date.toISOString().split("T")[0];
+  return {
+    startDate: formatDate(startDate),
+    endDate: formatDate(endDate),
+  };
+};
+
 type Props = {
   filters: TransactionFilters;
   onChange: (filters: TransactionFilters) => void;
@@ -107,17 +153,17 @@ export const FilterBar = ({
       ? hasActiveFilters
       : Boolean(
           filters.startDate ||
-            filters.endDate ||
-            filters.accountId ||
-            filters.categoryId ||
-            filters.counterparty ||
-            filters.type ||
-            filters.search ||
-            filters.q ||
-            filters.accountName ||
-            filters.minAmount !== undefined ||
-            filters.maxAmount !== undefined ||
-            filters.includeDeleted
+          filters.endDate ||
+          filters.accountId ||
+          filters.categoryId ||
+          filters.counterparty ||
+          filters.type ||
+          filters.search ||
+          filters.q ||
+          filters.accountName ||
+          filters.minAmount !== undefined ||
+          filters.maxAmount !== undefined ||
+          filters.includeDeleted,
         );
 
   return (
@@ -205,8 +251,8 @@ export const FilterBar = ({
                     ? option.value === "credit"
                       ? "border-green-500 bg-green-50"
                       : option.value === "debit"
-                      ? "border-red-500 bg-red-50"
-                      : "border-blue-500 bg-blue-50"
+                        ? "border-red-500 bg-red-50"
+                        : "border-blue-500 bg-blue-50"
                     : "border-gray-200 bg-gray-50"
                 }`}
               >
@@ -216,8 +262,8 @@ export const FilterBar = ({
                       ? option.value === "credit"
                         ? "text-green-700"
                         : option.value === "debit"
-                        ? "text-red-600"
-                        : "text-blue-700"
+                          ? "text-red-600"
+                          : "text-blue-700"
                       : "text-gray-600"
                   }`}
                 >
@@ -228,6 +274,34 @@ export const FilterBar = ({
           })}
         </View>
       ) : null}
+
+      {!expanded && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          className="flex-row gap-2 mt-3"
+          contentContainerStyle={{ paddingRight: 12 }}
+        >
+          {quickFilters.map((qf) => (
+            <TouchableOpacity
+              key={qf.value}
+              onPress={() => {
+                const dateRange = getDateRangeFromQuickFilter(qf.value);
+                onChange({
+                  ...filters,
+                  ...dateRange,
+                  page: 1,
+                });
+              }}
+              className="px-3 py-1 rounded-full border border-purple-200 bg-purple-50"
+            >
+              <Text className="text-purple-700 text-xs font-semibold">
+                {qf.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
 
       {expanded ? (
         <View className="mt-3 gap-3">

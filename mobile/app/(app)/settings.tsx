@@ -25,6 +25,7 @@ import {
   BackupSection,
   BusinessManagementSection,
   AppInfoSection,
+  ThemeSection,
 } from "@/components/settings";
 
 type ExportType = "all" | "category" | "counterparty" | "account" | null;
@@ -129,7 +130,7 @@ export default function SettingsScreen() {
           text: "Select File",
           onPress: performRestore,
         },
-      ]
+      ],
     );
   };
 
@@ -238,6 +239,9 @@ export default function SettingsScreen() {
           getBiometricIconName={getBiometricIconName}
           onPress={() => setShowBiometricModal(true)}
         />
+
+        {/* Theme Section */}
+        <ThemeSection />
 
         {/* PDF Reports Section - Role Based */}
         {(canViewReports || canExportData) && (

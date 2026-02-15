@@ -15,8 +15,10 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Ionicons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
 import { useAuth } from "@/hooks/useAuth";
+import { useTheme } from "@/hooks/useTheme";
 import { useBiometric } from "@/hooks/useBiometric";
 import { CustomInput } from "@/components/custom-input";
+import { PasswordInput } from "@/components/password-input";
 import { CustomButton } from "@/components/custom-button";
 
 const schema = z
@@ -171,12 +173,13 @@ export default function SignInScreen() {
     }
   };
 
+  const { colors, isDark } = useTheme();
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "padding"}
-      style={{ flex: 1 }}
+      style={{ flex: 1, backgroundColor: colors.bg.primary }}
       keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
-      className="bg-slate-50"
     >
       <ScrollView
         className="flex-1"
@@ -190,10 +193,16 @@ export default function SignInScreen() {
       >
         <View className="flex-1 justify-center gap-8 py-12">
           <View className="items-center mb-8">
-            <Text className="text-4xl font-bold text-slate-900 mb-3">
+            <Text
+              style={{ color: colors.text.primary }}
+              className="text-4xl font-bold mb-3"
+            >
               Welcome Back
             </Text>
-            <Text className="text-lg text-slate-600 text-center leading-6">
+            <Text
+              style={{ color: colors.text.secondary }}
+              className="text-lg text-center leading-6"
+            >
               Manage your debit and credit accounts effortlessly.
             </Text>
             {/* <Image
@@ -225,13 +234,11 @@ export default function SignInScreen() {
                 control={control}
                 name="pin"
                 render={({ field: { onChange, value } }) => (
-                  <CustomInput
+                  <PasswordInput
                     label="5-digit PIN"
                     value={value ?? ""}
                     onChangeText={onChange}
                     placeholder="Enter PIN"
-                    autoCapitalize="none"
-                    secureTextEntry
                     keyboardType="number-pad"
                     maxLength={5}
                     error={errors.pin?.message}
@@ -243,13 +250,11 @@ export default function SignInScreen() {
                 control={control}
                 name="password"
                 render={({ field: { onChange, value } }) => (
-                  <CustomInput
+                  <PasswordInput
                     label="Password"
                     value={value ?? ""}
                     onChangeText={onChange}
                     placeholder="••••••••"
-                    autoCapitalize="none"
-                    secureTextEntry
                     error={errors.password?.message}
                   />
                 )}
@@ -277,40 +282,56 @@ export default function SignInScreen() {
               <TouchableOpacity
                 onPress={handleBiometricLogin}
                 disabled={isAuthenticating || loading}
-                className="flex-row items-center justify-center gap-3 bg-purple-50 border border-purple-200 rounded-xl py-4 mt-3"
-                style={{ opacity: isAuthenticating || loading ? 0.6 : 1 }}
+                style={{
+                  backgroundColor: `${colors.primary}15`,
+                  borderColor: colors.primary,
+                  opacity: isAuthenticating || loading ? 0.6 : 1,
+                }}
+                className="flex-row items-center justify-center gap-3 border rounded-xl py-4 mt-3"
               >
                 {isAuthenticating ? (
-                  <ActivityIndicator size="small" color="#8b5cf6" />
+                  <ActivityIndicator size="small" color={colors.primary} />
                 ) : (
                   <Ionicons
                     name={getBiometricIconName(biometricStatus.biometricType)}
                     size={24}
-                    color="#8b5cf6"
+                    color={colors.primary}
                   />
                 )}
-                <Text className="text-purple-700 font-bold text-base">
+                <Text
+                  style={{ color: colors.primary }}
+                  className="font-bold text-base"
+                >
                   {isAuthenticating
                     ? "Authenticating..."
                     : `Login with ${getBiometricDisplayName(
-                        biometricStatus.biometricType
+                        biometricStatus.biometricType,
                       )}`}
                 </Text>
               </TouchableOpacity>
             )}
 
             {formError ? (
-              <Text className="text-rose-500 text-sm text-center mt-3">
+              <Text
+                style={{ color: colors.error }}
+                className="text-sm text-center mt-3"
+              >
                 {formError}
               </Text>
             ) : null}
           </View>
 
           <View className="flex-row justify-center items-center gap-2 mt-8">
-            <Text className="text-slate-600 text-base">New here?</Text>
+            <Text
+              style={{ color: colors.text.secondary }}
+              className="text-base"
+            >
+              New here?
+            </Text>
             <Link
               href="/(auth)/sign-up"
-              className="text-blue-600 font-semibold text-base"
+              style={{ color: colors.primary }}
+              className="font-semibold text-base"
             >
               Create an account
             </Link>

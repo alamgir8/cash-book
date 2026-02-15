@@ -4,3 +4,4 @@ export { PDFReportsSection } from "./pdf-reports-section";
 export { BackupSection } from "./backup-section";
 export { BusinessManagementSection } from "./business-management-section";
 export { AppInfoSection } from "./app-info-section";
+export { ThemeSection } from "./theme-section";

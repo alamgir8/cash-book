@@ -16,6 +16,7 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import Toast from "react-native-toast-message";
 import SearchableSelect, { type SelectOption } from "./searchable-select";
+import { PasswordInput } from "./password-input";
 import { ActionButton } from "./action-button";
 import { useAuth } from "../hooks/useAuth";
 
@@ -110,7 +111,7 @@ const languageOptions: SelectOption[] = [
 ];
 
 const currencySymbolMap = Object.fromEntries(
-  currencyOptions.map((option) => [option.value, option.subtitle ?? "$"])
+  currencyOptions.map((option) => [option.value, option.subtitle ?? "$"]),
 );
 
 export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
@@ -370,65 +371,41 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
                     {enablePin
                       ? "Enter a new 5-digit PIN to enable quick logins."
                       : hasExistingPin
-                      ? "Your login PIN will be removed when you save changes."
-                      : "Enable a 5-digit PIN to sign in without your password."}
+                        ? "Your login PIN will be removed when you save changes."
+                        : "Enable a 5-digit PIN to sign in without your password."}
                   </Text>
                   {enablePin ? (
                     <View className="gap-4">
-                      <View>
-                        <Text className="text-sm font-semibold text-gray-700 mb-2">
-                          New PIN
-                        </Text>
-                        <Controller
-                          control={control}
-                          name="loginPin"
-                          render={({ field: { value, onChange } }) => (
-                            <TextInput
-                              value={value ?? ""}
-                              onChangeText={onChange}
-                              placeholder="12345"
-                              placeholderTextColor="#9ca3af"
-                              keyboardType="number-pad"
-                              secureTextEntry
-                              maxLength={5}
-                              autoCapitalize="none"
-                              className="bg-white text-gray-900 px-4 py-3 rounded-xl border border-gray-200"
-                            />
-                          )}
-                        />
-                        {errors.loginPin ? (
-                          <Text className="text-sm text-red-500 mt-1">
-                            {errors.loginPin.message}
-                          </Text>
-                        ) : null}
-                      </View>
-                      <View>
-                        <Text className="text-sm font-semibold text-gray-700 mb-2">
-                          Confirm PIN
-                        </Text>
-                        <Controller
-                          control={control}
-                          name="confirmPin"
-                          render={({ field: { value, onChange } }) => (
-                            <TextInput
-                              value={value ?? ""}
-                              onChangeText={onChange}
-                              placeholder="12345"
-                              placeholderTextColor="#9ca3af"
-                              keyboardType="number-pad"
-                              secureTextEntry
-                              maxLength={5}
-                              autoCapitalize="none"
-                              className="bg-white text-gray-900 px-4 py-3 rounded-xl border border-gray-200"
-                            />
-                          )}
-                        />
-                        {errors.confirmPin ? (
-                          <Text className="text-sm text-red-500 mt-1">
-                            {errors.confirmPin.message}
-                          </Text>
-                        ) : null}
-                      </View>
+                      <Controller
+                        control={control}
+                        name="loginPin"
+                        render={({ field: { value, onChange } }) => (
+                          <PasswordInput
+                            label="New PIN"
+                            value={value ?? ""}
+                            onChangeText={onChange}
+                            placeholder="12345"
+                            keyboardType="number-pad"
+                            maxLength={5}
+                            error={errors.loginPin?.message}
+                          />
+                        )}
+                      />
+                      <Controller
+                        control={control}
+                        name="confirmPin"
+                        render={({ field: { value, onChange } }) => (
+                          <PasswordInput
+                            label="Confirm PIN"
+                            value={value ?? ""}
+                            onChangeText={onChange}
+                            placeholder="12345"
+                            keyboardType="number-pad"
+                            maxLength={5}
+                            error={errors.confirmPin?.message}
+                          />
+                        )}
+                      />
                     </View>
                   ) : null}
                 </View>

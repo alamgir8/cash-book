@@ -14,6 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { z } from "zod";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { PasswordInput } from "../password-input";
 
 const ROLES = [
   {
@@ -228,25 +229,17 @@ export function AddMemberModal({
                     control={control}
                     name="password"
                     render={({ field: { onChange, onBlur, value } }) => (
-                      <TextInput
-                        className={`bg-gray-50 text-gray-900 border rounded-xl px-4 py-3 ${
-                          errors.password ? "border-red-500" : "border-gray-200"
-                        }`}
-                        placeholder="Minimum 6 characters"
-                        placeholderTextColor="#9ca3af"
+                      <PasswordInput
+                        label=""
                         value={value}
                         onChangeText={onChange}
-                        onBlur={onBlur}
-                        secureTextEntry
-                        autoCapitalize="none"
+                        placeholder="Minimum 6 characters"
+                        error={errors.password?.message}
+                        containerClassName="gap-0"
+                        labelClassName="hidden"
                       />
                     )}
                   />
-                  {errors.password && (
-                    <Text className="text-red-500 text-xs mt-1">
-                      {errors.password.message}
-                    </Text>
-                  )}
                 </View>
 
                 <View>

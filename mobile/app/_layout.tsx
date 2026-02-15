@@ -9,6 +9,7 @@ import * as Font from "expo-font";
 import * as SplashScreen from "expo-splash-screen";
 import { AuthProvider, useAuth } from "../hooks/useAuth";
 import { PreferencesProvider } from "../hooks/usePreferences";
+import { ThemeProvider, useTheme } from "../hooks/useTheme";
 import {
   OrganizationProvider,
   useOrganization,
@@ -20,6 +21,7 @@ import { organizationsApi } from "../services/organizations";
 import type { OrganizationSummary } from "../services/organizations";
 import "../global.css";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { View } from "react-native";
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync().catch(() => {
@@ -129,15 +131,19 @@ const RootContent = () => {
     return <AuthLoading />;
   }
 
+  const { colors, isDark } = useTheme();
+
   return (
     <SafeAreaView
       edges={["top", "bottom"]}
-      style={{ flex: 1 }}
-      // className="[bg-[#f8f7f4]"
+      style={{ flex: 1, backgroundColor: colors.bg.primary }}
     >
+      <StatusBar
+        style={isDark ? "light" : "dark"}
+        backgroundColor={colors.bg.primary}
+      />
       <ToastManager />
       <Slot />
-      <StatusBar style="dark" backgroundColor="#f9fafb" />
       <Toast />
     </SafeAreaView>
   );
@@ -149,13 +155,15 @@ export default function RootLayout() {
       <GestureHandlerRootView style={{ flex: 1 }}>
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
-            <PreferencesProvider>
-              <OrganizationProvider>
-                <OrganizationLoader>
-                  <RootContent />
-                </OrganizationLoader>
-              </OrganizationProvider>
-            </PreferencesProvider>
+            <ThemeProvider>
+              <PreferencesProvider>
+                <OrganizationProvider>
+                  <OrganizationLoader>
+                    <RootContent />
+                  </OrganizationLoader>
+                </OrganizationProvider>
+              </PreferencesProvider>
+            </ThemeProvider>
           </AuthProvider>
         </QueryClientProvider>
       </GestureHandlerRootView>

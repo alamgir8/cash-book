@@ -31,7 +31,8 @@ import type {
 const LEGACY_TOKEN_KEY = "debit-credit-token";
 const STORAGE_SESSION_KEY = "cash-book-auth-session";
 const STORAGE_USER_KEY = "cash-book-auth-user";
-const REFRESH_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
+// Disable automatic token refresh - only refresh on demand to prevent auto logouts
+const REFRESH_INTERVAL_MS = 0; // Disabled - manual refresh only
 
 type AuthState =
   | { status: "loading"; user: null; tokens: null }
@@ -68,7 +69,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   const handlingUnauthorized = useRef(false);
   const refreshIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
-    null
+    null,
   );
 
   const stopRefreshTimer = useCallback(() => {
@@ -83,20 +84,20 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       try {
         await SecureStore.setItemAsync(
           STORAGE_SESSION_KEY,
-          JSON.stringify(tokens)
+          JSON.stringify(tokens),
         );
         await SecureStore.setItemAsync(LEGACY_TOKEN_KEY, tokens.accessToken);
         if (user) {
           await SecureStore.setItemAsync(
             STORAGE_USER_KEY,
-            JSON.stringify(user)
+            JSON.stringify(user),
           );
         }
       } catch (error) {
         console.warn("Failed to persist auth session", error);
       }
     },
-    []
+    [],
   );
 
   const clearSession = useCallback(async () => {
@@ -124,7 +125,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         setState({ status: "authenticated", tokens, user: admin });
       }
     },
-    [persistSession]
+    [persistSession],
   );
 
   // Store callbacks in refs to avoid dependency changes causing re-runs
@@ -135,7 +136,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     (() => Promise<string | null>) | undefined
   >(undefined);
   const handleUnauthorizedRef = useRef<(() => Promise<void>) | undefined>(
-    undefined
+    undefined,
   );
 
   useEffect(() => {
@@ -149,7 +150,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     if (current.status !== "authenticated") return null;
     try {
       const refreshed = await authService.refreshSession(
-        current.tokens.refreshToken
+        current.tokens.refreshToken,
       );
       await applySessionRef.current(refreshed);
       return refreshed.tokens.accessToken;
@@ -158,7 +159,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       if (axios.isAxiosError(error) && !error.response) {
         console.warn(
           "Refresh token request failed (network issue)",
-          error.message
+          error.message,
         );
         return current.tokens.accessToken; // Return current token, let next request retry
       }
@@ -181,6 +182,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   const startRefreshTimer = useCallback(() => {
     stopRefreshTimer();
+    // Token refresh disabled - keep session alive until manual logout
+    // Only refresh when needed by individual API requests
+    if (REFRESH_INTERVAL_MS <= 0) {
+      return; // Disabled
+    }
     if (stateRef.current.status !== "authenticated") return;
     refreshIntervalRef.current = setInterval(() => {
       void refreshAccessTokenRef.current?.().catch((err) => {
@@ -273,7 +279,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         if (cachedUser) {
           console.warn(
             "Using cached user profile due to fetch error",
-            profileError
+            profileError,
           );
           if (isMountedRef.current) {
             setState({ status: "authenticated", tokens, user: cachedUser });
@@ -281,39 +287,75 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           return;
         }
 
-        // Only try to refresh if we don't have cached data
-        try {
-          const refreshed = await authService.refreshSession(
-            tokens.refreshToken
+        // For bootstrap, keep session alive on network errors
+        // Only clear on explicit auth errors (401/403)
+        const isAuthError =
+          axios.isAxiosError(profileError) &&
+          profileError.response &&
+          [401, 403].includes(profileError.response.status);
+
+        if (isAuthError) {
+          // Explicit auth error - try refresh
+          try {
+            const refreshed = await authService.refreshSession(
+              tokens.refreshToken,
+            );
+            await persistSessionRef.current(refreshed.tokens, refreshed.admin);
+            setAuthToken(refreshed.tokens.accessToken);
+            if (isMountedRef.current) {
+              setState({
+                status: "authenticated",
+                tokens: refreshed.tokens,
+                user: refreshed.admin,
+              });
+            }
+          } catch (refreshError) {
+            const isRefreshAuthError =
+              axios.isAxiosError(refreshError) &&
+              refreshError.response &&
+              [401, 403].includes(refreshError.response.status);
+
+            if (isRefreshAuthError) {
+              console.warn("Session expired, clearing", refreshError);
+              await clearSessionRef.current();
+            } else {
+              // Network error during refresh - keep session
+              console.warn(
+                "Bootstrap refresh failed (network) but keeping session",
+                refreshError,
+              );
+              if (isMountedRef.current) {
+                setState({
+                  status: "authenticated",
+                  tokens,
+                  user: cachedUser || {
+                    _id: "",
+                    email: "",
+                    phone: "",
+                    name: "",
+                  },
+                });
+              }
+            }
+          }
+        } else {
+          // Network error or server error - keep session alive
+          console.warn(
+            "Bootstrap profile fetch failed (network/server) but keeping session",
+            profileError,
           );
-          await persistSessionRef.current(refreshed.tokens, refreshed.admin);
-          setAuthToken(refreshed.tokens.accessToken);
+          // Use cached user if available, otherwise create minimal user object
           if (isMountedRef.current) {
             setState({
               status: "authenticated",
-              tokens: refreshed.tokens,
-              user: refreshed.admin,
+              tokens,
+              user: cachedUser || {
+                _id: "",
+                email: "",
+                phone: "",
+                name: "",
+              },
             });
-          }
-        } catch (refreshError) {
-          // Only clear session if it's an explicit auth error (401/403)
-          const isAuthError =
-            axios.isAxiosError(refreshError) &&
-            refreshError.response &&
-            [401, 403].includes(refreshError.response.status);
-
-          if (isAuthError) {
-            console.warn("Session expired, clearing", refreshError);
-            await clearSessionRef.current();
-          } else {
-            // For network errors or server errors, keep trying with current token
-            console.warn(
-              "Bootstrap refresh failed but keeping session",
-              refreshError
-            );
-            if (isMountedRef.current) {
-              setState({ status: "unauthenticated", user: null, tokens: null });
-            }
           }
         }
       }
@@ -331,7 +373,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       void handleUnauthorizedRef.current?.();
     });
     setTokenRefreshHandler(
-      () => refreshAccessTokenRef.current?.() ?? Promise.resolve(null)
+      () => refreshAccessTokenRef.current?.() ?? Promise.resolve(null),
     );
     return () => {
       setUnauthorizedHandler();
@@ -364,13 +406,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       } catch (error) {
         const message = getApiErrorMessage(
           error,
-          "Check your credentials and try again."
+          "Check your credentials and try again.",
         );
         Toast.show({ type: "error", text1: "Sign-in failed", text2: message });
         throw new Error(message);
       }
     },
-    [applySession]
+    [applySession],
   );
 
   const signUp = useCallback(
@@ -382,13 +424,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       } catch (error) {
         const message = getApiErrorMessage(
           error,
-          "Please review your details and try again."
+          "Please review your details and try again.",
         );
         Toast.show({ type: "error", text1: "Sign-up failed", text2: message });
         throw new Error(message);
       }
     },
-    [applySession]
+    [applySession],
   );
 
   const signOut = useCallback(async () => {
@@ -407,7 +449,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         setState((prev) =>
           prev.status === "authenticated"
             ? { ...prev, user: data.admin }
-            : { status: "unauthenticated", user: null, tokens: null }
+            : { status: "unauthenticated", user: null, tokens: null },
         );
       }
     } catch (error) {
@@ -423,14 +465,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         setState((prev) =>
           prev.status === "authenticated"
             ? { ...prev, user: data.admin }
-            : { status: "unauthenticated", user: null, tokens: null }
+            : { status: "unauthenticated", user: null, tokens: null },
         );
       }
       Toast.show({ type: "success", text1: "Profile updated successfully" });
     } catch (error) {
       const message = getApiErrorMessage(
         error,
-        "Failed to update profile. Please try again."
+        "Failed to update profile. Please try again.",
       );
       Toast.show({ type: "error", text1: "Update failed", text2: message });
       throw new Error(message);
@@ -446,7 +488,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       refreshProfile,
       updateProfile,
     }),
-    [state, signIn, signUp, signOut, refreshProfile, updateProfile]
+    [state, signIn, signUp, signOut, refreshProfile, updateProfile],
   );
 
   useEffect(() => {

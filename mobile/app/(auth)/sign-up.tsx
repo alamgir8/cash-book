@@ -6,12 +6,16 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  TouchableOpacity,
 } from "react-native";
 import { useForm, Controller } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/hooks/useAuth";
+import { useTheme } from "@/hooks/useTheme";
 import { CustomInput } from "@/components/custom-input";
+import { PasswordInput } from "@/components/password-input";
 import { CustomButton } from "@/components/custom-button";
 
 const schema = z
@@ -78,12 +82,13 @@ export default function SignUpScreen() {
     }
   };
 
+  const { colors, isDark } = useTheme();
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "padding"}
-      style={{ flex: 1 }}
+      style={{ flex: 1, backgroundColor: colors.bg.primary }}
       keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
-      className="bg-slate-50"
     >
       <ScrollView
         className="flex-1"
@@ -97,10 +102,16 @@ export default function SignUpScreen() {
       >
         <View className="gap-8 py-12">
           <View className="items-center mb-4">
-            <Text className="text-4xl font-bold text-slate-900 mb-3">
+            <Text
+              style={{ color: colors.text.primary }}
+              className="text-4xl font-bold mb-3"
+            >
               Create Account
             </Text>
-            <Text className="text-lg text-slate-600 text-center leading-6">
+            <Text
+              style={{ color: colors.text.secondary }}
+              className="text-lg text-center leading-6"
+            >
               Sign up with your email or phone number to get started.
             </Text>
           </View>
@@ -124,8 +135,8 @@ export default function SignUpScreen() {
                       field === "phone"
                         ? "phone-pad"
                         : field === "email"
-                        ? "email-address"
-                        : "default"
+                          ? "email-address"
+                          : "default"
                     }
                     error={errors[field]?.message}
                   />
@@ -139,7 +150,7 @@ export default function SignUpScreen() {
                 control={control}
                 name={field}
                 render={({ field: { onChange, value } }) => (
-                  <CustomInput
+                  <PasswordInput
                     label={
                       field === "confirmPassword"
                         ? "Confirm password"
@@ -148,8 +159,6 @@ export default function SignUpScreen() {
                     value={value}
                     onChangeText={onChange}
                     placeholder="••••••••"
-                    autoCapitalize="none"
-                    secureTextEntry
                     error={errors[field]?.message}
                   />
                 )}
@@ -163,19 +172,26 @@ export default function SignUpScreen() {
               containerClassName="mt-6"
             />
             {formError ? (
-              <Text className="text-rose-500 text-sm text-center mt-3">
+              <Text
+                style={{ color: colors.error }}
+                className="text-sm text-center mt-3"
+              >
                 {formError}
               </Text>
             ) : null}
           </View>
 
           <View className="flex-row justify-center items-center gap-2 mt-6 pb-6">
-            <Text className="text-slate-600 text-base">
+            <Text
+              style={{ color: colors.text.secondary }}
+              className="text-base"
+            >
               Already registered?
             </Text>
             <Link
               href="/(auth)/sign-in"
-              className="text-blue-600 font-semibold text-base"
+              style={{ color: colors.primary }}
+              className="font-semibold text-base"
             >
               Sign in
             </Link>

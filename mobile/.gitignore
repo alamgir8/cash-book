@@ -10,6 +10,7 @@ expo-env.d.ts
 .expo/web/
 .expo/settings.json
 .expo
+.expo/cache/
 
 # native
 *.orig.*
