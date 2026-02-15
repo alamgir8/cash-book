@@ -314,20 +314,31 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
                             value={value}
                             onChangeText={onChange}
                             placeholder="Your name"
-                            placeholderTextColor="#9ca3af"
-                            className="bg-white text-gray-900 px-4 py-3 rounded-xl border border-gray-200"
+                            placeholderTextColor={colors.text.tertiary}
+                            style={{
+                              backgroundColor: colors.bg.tertiary,
+                              color: colors.text.primary,
+                              borderColor: colors.border,
+                            }}
+                            className="px-4 py-3 rounded-xl border"
                           />
                         )}
                       />
                       {errors.name ? (
-                        <Text className="text-sm text-red-500 mt-1">
+                        <Text
+                          className="text-sm mt-1"
+                          style={{ color: colors.error }}
+                        >
                           {errors.name.message}
                         </Text>
                       ) : null}
                     </View>
 
                     <View>
-                      <Text className="text-sm font-semibold text-gray-700 mb-2">
+                      <Text
+                        className="text-sm font-semibold mb-2"
+                        style={{ color: colors.text.primary }}
+                      >
                         Email
                       </Text>
                       <Controller
@@ -338,22 +349,33 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
                             value={value}
                             onChangeText={onChange}
                             placeholder="you@example.com"
-                            placeholderTextColor="#9ca3af"
+                            placeholderTextColor={colors.text.tertiary}
                             keyboardType="email-address"
                             autoCapitalize="none"
-                            className="bg-white text-gray-900 px-4 py-3 rounded-xl border border-gray-200"
+                            style={{
+                              backgroundColor: colors.bg.tertiary,
+                              color: colors.text.primary,
+                              borderColor: colors.border,
+                            }}
+                            className="px-4 py-3 rounded-xl border"
                           />
                         )}
                       />
                       {errors.email ? (
-                        <Text className="text-sm text-red-500 mt-1">
+                        <Text
+                          className="text-sm mt-1"
+                          style={{ color: colors.error }}
+                        >
                           {errors.email.message}
                         </Text>
                       ) : null}
                     </View>
 
                     <View>
-                      <Text className="text-sm font-semibold text-gray-700 mb-2">
+                      <Text
+                        className="text-sm font-semibold mb-2"
+                        style={{ color: colors.text.primary }}
+                      >
                         Phone (optional)
                       </Text>
                       <Controller
@@ -364,9 +386,14 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
                             value={value ?? ""}
                             onChangeText={onChange}
                             placeholder="Phone number"
-                            placeholderTextColor="#9ca3af"
+                            placeholderTextColor={colors.text.tertiary}
                             keyboardType="phone-pad"
-                            className="bg-white text-gray-900 px-4 py-3 rounded-xl border border-gray-200"
+                            style={{
+                              backgroundColor: colors.bg.tertiary,
+                              color: colors.text.primary,
+                              borderColor: colors.border,
+                            }}
+                            className="px-4 py-3 rounded-xl border"
                           />
                         )}
                       />
@@ -375,9 +402,18 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
                 </View>
 
                 {/* Security Section */}
-                <View className="bg-gray-50 rounded-2xl p-4 border border-gray-200">
+                <View
+                  className="rounded-2xl p-4 border"
+                  style={{
+                    backgroundColor: colors.bg.secondary,
+                    borderColor: colors.border,
+                  }}
+                >
                   <View className="flex-row items-center justify-between mb-2">
-                    <Text className="text-base font-semibold text-gray-900">
+                    <Text
+                      className="text-base font-semibold"
+                      style={{ color: colors.text.primary }}
+                    >
                       Security
                     </Text>
                     <Controller
@@ -393,13 +429,19 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
                               setValue("confirmPin", "");
                             }
                           }}
-                          trackColor={{ false: "#d1d5db", true: "#2563eb" }}
+                          trackColor={{
+                            false: colors.border,
+                            true: colors.info,
+                          }}
                           thumbColor="#ffffff"
                         />
                       )}
                     />
                   </View>
-                  <Text className="text-xs text-gray-500 mb-4">
+                  <Text
+                    className="text-xs mb-4"
+                    style={{ color: colors.text.secondary }}
+                  >
                     {enablePin
                       ? "Enter a new 5-digit PIN to enable quick logins."
                       : hasExistingPin
@@ -443,8 +485,17 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
                 </View>
 
                 {/* Preferences Section */}
-                <View className="bg-gray-50 rounded-2xl p-4 border border-gray-200">
-                  <Text className="text-base font-semibold text-gray-900 mb-3">
+                <View
+                  className="rounded-2xl p-4 border"
+                  style={{
+                    backgroundColor: colors.bg.secondary,
+                    borderColor: colors.border,
+                  }}
+                >
+                  <Text
+                    className="text-base font-semibold mb-3"
+                    style={{ color: colors.text.primary }}
+                  >
                     Preferences
                   </Text>
 
@@ -463,7 +514,7 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
                       )}
                     />
                     {errors.currency ? (
-                      <Text className="text-sm text-red-500">
+                      <Text className="text-sm" style={{ color: colors.error }}>
                         {errors.currency.message}
                       </Text>
                     ) : null}
@@ -482,7 +533,7 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
                       )}
                     />
                     {errors.language ? (
-                      <Text className="text-sm text-red-500">
+                      <Text className="text-sm" style={{ color: colors.error }}>
                         {errors.language.message}
                       </Text>
                     ) : null}
@@ -492,7 +543,13 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
             </ScrollView>
 
             {/* Submit Button - Fixed at bottom */}
-            <View className="p-6 pb-8 bg-white border-t border-gray-100">
+            <View
+              className="p-6 pb-8 border-t"
+              style={{
+                backgroundColor: colors.bg.primary,
+                borderColor: colors.border,
+              }}
+            >
               <ActionButton
                 label="Save changes"
                 onPress={handleSubmit(handleSave)}

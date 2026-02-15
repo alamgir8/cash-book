@@ -22,7 +22,13 @@ export function ThemeSection() {
   ];
 
   return (
-    <View className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm gap-4">
+    <View
+      className="rounded-3xl p-6 border shadow-sm gap-4"
+      style={{
+        backgroundColor: colors.bg.secondary,
+        borderColor: colors.border,
+      }}
+    >
       {/* Section Header */}
       <View className="flex-row items-center gap-3 mb-2">
         <View
@@ -32,10 +38,16 @@ export function ThemeSection() {
           <Ionicons name="eye-outline" size={20} color={colors.primary} />
         </View>
         <View className="flex-1">
-          <Text className="text-lg font-semibold text-gray-900">
+          <Text
+            className="text-lg font-semibold"
+            style={{ color: colors.text.primary }}
+          >
             Appearance
           </Text>
-          <Text className="text-sm text-gray-500 mt-1">
+          <Text
+            className="text-sm mt-1"
+            style={{ color: colors.text.secondary }}
+          >
             Choose your preferred theme
           </Text>
         </View>
@@ -47,39 +59,47 @@ export function ThemeSection() {
           <Pressable
             key={option.value}
             onPress={() => setColorScheme(option.value)}
-            className={`flex-row items-center gap-3 p-4 rounded-2xl border ${
-              colorScheme === option.value
-                ? "bg-blue-50 border-blue-300"
-                : "bg-gray-50 border-gray-200"
-            }`}
+            className={`flex-row items-center gap-3 p-4 rounded-2xl border`}
+            style={{
+              backgroundColor:
+                colorScheme === option.value
+                  ? colors.info + "15"
+                  : colors.bg.tertiary,
+              borderColor:
+                colorScheme === option.value
+                  ? colors.info + "60"
+                  : colors.border,
+            }}
           >
             {/* Icon */}
             <View
-              className={`w-10 h-10 rounded-full items-center justify-center ${
-                colorScheme === option.value
-                  ? "bg-blue-500"
-                  : isDark
-                    ? "bg-gray-700"
-                    : "bg-gray-200"
-              }`}
+              className="w-10 h-10 rounded-full items-center justify-center"
+              style={{
+                backgroundColor:
+                  colorScheme === option.value
+                    ? colors.info
+                    : colors.bg.primary,
+              }}
             >
               <Ionicons
                 name={option.icon as any}
                 size={20}
-                color={colorScheme === option.value ? "white" : "#666"}
+                color={
+                  colorScheme === option.value ? "white" : colors.text.tertiary
+                }
               />
             </View>
 
             {/* Label */}
             <View className="flex-1">
               <Text
-                className={`font-semibold ${
-                  colorScheme === option.value
-                    ? "text-blue-600"
-                    : isDark
-                      ? "text-gray-100"
-                      : "text-gray-700"
-                }`}
+                className="font-semibold"
+                style={{
+                  color:
+                    colorScheme === option.value
+                      ? colors.info
+                      : colors.text.primary,
+                }}
               >
                 {option.label}
               </Text>
@@ -87,7 +107,10 @@ export function ThemeSection() {
 
             {/* Radio Button */}
             {colorScheme === option.value && (
-              <View className="w-5 h-5 rounded-full bg-blue-500 items-center justify-center">
+              <View
+                className="w-5 h-5 rounded-full items-center justify-center"
+                style={{ backgroundColor: colors.info }}
+              >
                 <Ionicons name="checkmark" size={14} color="white" />
               </View>
             )}
@@ -97,14 +120,12 @@ export function ThemeSection() {
 
       {/* Current Theme Info */}
       <View
-        className={`p-3 rounded-xl mt-2 ${
-          isDark ? "bg-gray-800" : "bg-gray-100"
-        }`}
+        className="p-3 rounded-xl mt-2"
+        style={{ backgroundColor: colors.bg.tertiary }}
       >
         <Text
-          className={`text-xs font-medium ${
-            isDark ? "text-gray-400" : "text-gray-600"
-          }`}
+          className="text-xs font-medium"
+          style={{ color: colors.text.secondary }}
         >
           {colorScheme === "system"
             ? `Currently using ${isDark ? "Dark" : "Light"} Mode (from system settings)`

@@ -147,7 +147,7 @@ export const SearchableSelect = ({
       ) : null}
       <TouchableOpacity
         style={{
-          backgroundColor: colors.bg.secondary,
+          backgroundColor: colors.bg.tertiary,
           borderColor: colors.border,
           opacity: disabled ? 0.5 : 1,
           ...styles.trigger,
@@ -218,11 +218,15 @@ export const SearchableSelect = ({
             ListHeaderComponent={
               allowCustomValue && search.trim() && !searchMatchesExisting ? (
                 <TouchableOpacity
-                  style={styles.addNewRow}
+                  style={{
+                    ...styles.addNewRow,
+                    backgroundColor: colors.info + "15",
+                    borderBottomColor: colors.border,
+                  }}
                   onPress={handleAddCustom}
                 >
-                  <Ionicons name="add-circle" size={20} color="#2563eb" />
-                  <Text style={styles.addNewText}>
+                  <Ionicons name="add-circle" size={20} color={colors.info} />
+                  <Text style={{ ...styles.addNewText, color: colors.info }}>
                     Add &quot;{search.trim()}&quot;
                   </Text>
                 </TouchableOpacity>
@@ -230,13 +234,23 @@ export const SearchableSelect = ({
             }
             ListFooterComponent={
               hasMore ? (
-                <View style={styles.moreHint}>
+                <View
+                  style={{
+                    ...styles.moreHint,
+                    backgroundColor: colors.bg.tertiary,
+                  }}
+                >
                   <Ionicons
                     name="information-circle-outline"
                     size={16}
-                    color="#6b7280"
+                    color={colors.text.secondary}
                   />
-                  <Text style={styles.moreHintText}>
+                  <Text
+                    style={{
+                      ...styles.moreHintText,
+                      color: colors.text.secondary,
+                    }}
+                  >
                     Showing 50 of {totalCount}. Type to search for more.
                   </Text>
                 </View>
@@ -245,8 +259,17 @@ export const SearchableSelect = ({
             ListEmptyComponent={
               allowCustomValue && !search.trim() ? (
                 <View style={styles.emptyState}>
-                  <Ionicons name="search-outline" size={32} color="#9ca3af" />
-                  <Text style={styles.emptyStateText}>
+                  <Ionicons
+                    name="search-outline"
+                    size={32}
+                    color={colors.text.tertiary}
+                  />
+                  <Text
+                    style={{
+                      ...styles.emptyStateText,
+                      color: colors.text.secondary,
+                    }}
+                  >
                     Type to search or add new
                   </Text>
                 </View>
@@ -255,9 +278,14 @@ export const SearchableSelect = ({
                   <Ionicons
                     name="folder-open-outline"
                     size={32}
-                    color="#9ca3af"
+                    color={colors.text.tertiary}
                   />
-                  <Text style={styles.emptyStateText}>
+                  <Text
+                    style={{
+                      ...styles.emptyStateText,
+                      color: colors.text.secondary,
+                    }}
+                  >
                     No options available
                   </Text>
                 </View>
@@ -265,27 +293,51 @@ export const SearchableSelect = ({
             }
             renderItem={({ item }) => {
               if (item.type === "GROUP") {
-                return <Text style={styles.groupLabel}>{item.title}</Text>;
+                return (
+                  <Text
+                    style={{
+                      ...styles.groupLabel,
+                      color: colors.text.secondary,
+                    }}
+                  >
+                    {item.title}
+                  </Text>
+                );
               }
               const isSelected = item.option.value === value;
               return (
                 <TouchableOpacity
                   style={[
-                    styles.optionRow,
-                    isSelected && styles.optionSelected,
+                    { ...styles.optionRow, borderBottomColor: colors.border },
+                    isSelected && {
+                      ...styles.optionSelected,
+                      backgroundColor: colors.info + "15",
+                    },
                   ]}
                   onPress={() => handleSelect(item.option)}
                 >
                   <View>
-                    <Text style={styles.optionLabel}>{item.option.label}</Text>
+                    <Text
+                      style={{
+                        ...styles.optionLabel,
+                        color: colors.text.primary,
+                      }}
+                    >
+                      {item.option.label}
+                    </Text>
                     {item.option.subtitle ? (
-                      <Text style={styles.optionSubtitle}>
+                      <Text
+                        style={{
+                          ...styles.optionSubtitle,
+                          color: colors.text.secondary,
+                        }}
+                      >
                         {item.option.subtitle}
                       </Text>
                     ) : null}
                   </View>
                   {isSelected ? (
-                    <Ionicons name="checkmark" size={18} color="#2563eb" />
+                    <Ionicons name="checkmark" size={18} color={colors.info} />
                   ) : null}
                 </TouchableOpacity>
               );
@@ -305,7 +357,6 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 13,
-    color: "#374151",
     marginBottom: 6,
     fontWeight: "600",
   },
@@ -313,10 +364,8 @@ const styles = StyleSheet.create({
     minHeight: 48,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#d1d5db",
     paddingHorizontal: 14,
     paddingVertical: Platform.OS === "ios" ? 12 : 10,
-    backgroundColor: "#f9fafb",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -325,13 +374,11 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   valueText: {
-    color: "#111827",
     fontSize: 15,
     flex: 1,
     marginRight: 12,
   },
   placeholderText: {
-    color: "#9ca3af",
     fontSize: 15,
     flex: 1,
     marginRight: 12,
@@ -350,7 +397,6 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     maxHeight: "80%",
-    backgroundColor: "#fff",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingTop: 16,
@@ -365,53 +411,44 @@ const styles = StyleSheet.create({
   sheetTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#111827",
   },
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#e5e7eb",
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 10,
     marginBottom: 16,
-    backgroundColor: "#f9fafb",
   },
   searchInput: {
     marginLeft: 8,
     flex: 1,
     fontSize: 15,
-    color: "#111827",
   },
   groupLabel: {
     fontSize: 13,
     fontWeight: "600",
-    color: "#4b5563",
     marginTop: 8,
     marginBottom: 4,
   },
   optionRow: {
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#e5e7eb",
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
   optionSelected: {
-    backgroundColor: "#eff6ff",
     borderRadius: 12,
     paddingHorizontal: 8,
   },
   optionLabel: {
     fontSize: 15,
-    color: "#111827",
     fontWeight: "500",
   },
   optionSubtitle: {
     fontSize: 13,
-    color: "#6b7280",
     marginTop: 2,
   },
   addNewRow: {
@@ -420,15 +457,12 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#e5e7eb",
-    backgroundColor: "#eff6ff",
     borderRadius: 12,
     marginBottom: 8,
     gap: 8,
   },
   addNewText: {
     fontSize: 15,
-    color: "#2563eb",
     fontWeight: "600",
   },
   emptyState: {
@@ -439,7 +473,6 @@ const styles = StyleSheet.create({
   },
   emptyStateText: {
     fontSize: 14,
-    color: "#9ca3af",
     textAlign: "center",
   },
   moreHint: {
@@ -448,14 +481,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: 12,
     paddingHorizontal: 16,
-    backgroundColor: "#f3f4f6",
     borderRadius: 8,
     marginTop: 8,
     gap: 6,
   },
   moreHintText: {
     fontSize: 13,
-    color: "#6b7280",
     textAlign: "center",
   },
 });

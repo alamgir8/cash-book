@@ -1,5 +1,6 @@
 import { View, Text, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTheme } from "@/hooks/useTheme";
 
 interface ProfileSectionProps {
   userName: string;
@@ -37,30 +38,60 @@ export function ProfileSection({
   onEditProfile,
   onPreferences,
 }: ProfileSectionProps) {
+  const { colors } = useTheme();
   const roleStyle = getRoleBadgeStyle(userRole);
 
   return (
-    <View className="bg-white rounded-3xl p-6 border border-gray-100 shadow-lg">
+    <View
+      className="rounded-3xl p-6 border shadow-lg"
+      style={{
+        backgroundColor: colors.bg.secondary,
+        borderColor: colors.border,
+      }}
+    >
       <View className="flex-row items-center gap-4 mb-6">
-        <View className="w-18 h-18 bg-gradient-to-br from-blue-100 to-blue-200 rounded-full items-center justify-center">
-          <Ionicons name="person" size={32} color="#1d4ed8" />
+        <View
+          className="w-18 h-18 rounded-full items-center justify-center"
+          style={{ backgroundColor: colors.info + "20" }}
+        >
+          <Ionicons name="person" size={32} color={colors.info} />
         </View>
         <View className="flex-1">
-          <Text className="text-gray-500 text-xs font-semibold uppercase tracking-wider">
-            {isPersonalMode ? "Personal Account" : organizationName || "Organization"}
+          <Text
+            className="text-xs font-semibold uppercase tracking-wider"
+            style={{ color: colors.text.secondary }}
+          >
+            {isPersonalMode
+              ? "Personal Account"
+              : organizationName || "Organization"}
           </Text>
-          <Text className="text-gray-900 text-xl font-bold mt-1">
+          <Text
+            className="text-xl font-bold mt-1"
+            style={{ color: colors.text.primary }}
+          >
             {userName}
           </Text>
           {!isPersonalMode && userRole ? (
-            <View className={`${roleStyle.bg} px-3 py-1 rounded-full self-start mt-2`}>
-              <Text className={`${roleStyle.text} font-bold text-xs uppercase`}>
+            <View
+              className="px-3 py-1 rounded-full self-start mt-2"
+              style={{ backgroundColor: colors.info + "20" }}
+            >
+              <Text
+                className="font-bold text-xs uppercase"
+                style={{ color: colors.info }}
+              >
                 {userRole}
               </Text>
             </View>
           ) : isPersonalMode ? (
-            <View className="bg-indigo-100 px-3 py-1 rounded-full self-start mt-2">
-              <Text className="text-indigo-700 font-bold text-xs uppercase">
+            <View
+              className="px-3 py-1 rounded-full self-start mt-2"
+              style={{ backgroundColor: colors.info + "20" }}
+            >
+              <Text
+                className="font-bold text-xs uppercase"
+                style={{ color: colors.info }}
+              >
                 Owner
               </Text>
             </View>
@@ -72,14 +103,18 @@ export function ProfileSection({
         <View className="gap-3">
           {userEmail && (
             <View className="flex-row items-center gap-3">
-              <Ionicons name="mail" size={18} color="#6b7280" />
-              <Text className="text-gray-700 flex-1">{userEmail}</Text>
+              <Ionicons name="mail" size={18} color={colors.text.secondary} />
+              <Text className="flex-1" style={{ color: colors.text.primary }}>
+                {userEmail}
+              </Text>
             </View>
           )}
           {userPhone && (
             <View className="flex-row items-center gap-3">
-              <Ionicons name="call" size={18} color="#6b7280" />
-              <Text className="text-gray-700 flex-1">{userPhone}</Text>
+              <Ionicons name="call" size={18} color={colors.text.secondary} />
+              <Text className="flex-1" style={{ color: colors.text.primary }}>
+                {userPhone}
+              </Text>
             </View>
           )}
         </View>
@@ -88,19 +123,23 @@ export function ProfileSection({
       <View className="flex-row gap-3 mt-4">
         <TouchableOpacity
           onPress={onEditProfile}
-          className="flex-1 flex-row gap-2 items-center justify-center bg-purple-50 rounded-2xl py-3 active:scale-95"
+          className="flex-1 flex-row gap-2 items-center justify-center rounded-2xl py-3 active:scale-95"
+          style={{ backgroundColor: colors.info + "15" }}
         >
-          <Ionicons name="create" size={18} color="#8b5cf6" />
-          <Text className="text-purple-700 font-bold text-sm">
+          <Ionicons name="create" size={18} color={colors.info} />
+          <Text className="font-bold text-sm" style={{ color: colors.info }}>
             Edit Profile
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
           onPress={onPreferences}
-          className="flex-1 flex-row gap-2 items-center justify-center bg-blue-50 rounded-2xl py-3 active:scale-95"
+          className="flex-1 flex-row gap-2 items-center justify-center rounded-2xl py-3 active:scale-95"
+          style={{ backgroundColor: colors.success + "15" }}
         >
-          <Ionicons name="settings" size={18} color="#1d4ed8" />
-          <Text className="text-blue-700 font-bold text-sm">Preferences</Text>
+          <Ionicons name="settings" size={18} color={colors.success} />
+          <Text className="font-bold text-sm" style={{ color: colors.success }}>
+            Preferences
+          </Text>
         </TouchableOpacity>
       </View>
     </View>

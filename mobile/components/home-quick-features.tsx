@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useOrganization } from "../hooks/useOrganization";
+import { useTheme } from "../hooks/useTheme";
 
 type FeatureItemProps = {
   icon: keyof typeof Ionicons.glyphMap;
@@ -18,32 +19,36 @@ const FeatureItem = ({
   color,
   bgColor,
   onPress,
-}: FeatureItemProps) => (
-  <TouchableOpacity
-    onPress={onPress}
-    className="items-center w-[23%] mb-4"
-    activeOpacity={0.7}
-  >
-    <View
-      className={`w-14 h-14 rounded-2xl items-center justify-center ${bgColor} border border-gray-100 shadow-sm`}
-      style={{
-        shadowColor: color,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 2,
-      }}
+}: FeatureItemProps) => {
+  const { colors } = useTheme();
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      className="items-center w-[23%] mb-4"
+      activeOpacity={0.7}
     >
-      <Ionicons name={icon} size={26} color={color} />
-    </View>
-    <Text
-      className="text-gray-700 text-xs font-medium mt-2 text-center"
-      numberOfLines={2}
-    >
-      {label}
-    </Text>
-  </TouchableOpacity>
-);
+      <View
+        className={`w-14 h-14 rounded-2xl items-center justify-center ${bgColor} border border-gray-100 shadow-sm`}
+        style={{
+          shadowColor: color,
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 4,
+          elevation: 2,
+        }}
+      >
+        <Ionicons name={icon} size={26} color={color} />
+      </View>
+      <Text
+        className="text-xs font-medium mt-2 text-center"
+        style={{ color: colors.text.primary }}
+        numberOfLines={2}
+      >
+        {label}
+      </Text>
+    </TouchableOpacity>
+  );
+};
 
 type HomeQuickFeaturesProps = {
   onAddTransaction: () => void;
@@ -56,6 +61,7 @@ export const HomeQuickFeatures = ({
   onAddTransfer,
   onExportPDF,
 }: HomeQuickFeaturesProps) => {
+  const { colors } = useTheme();
   const [showAll, setShowAll] = useState(false);
   const {
     canCreateTransactions,
@@ -237,13 +243,30 @@ export const HomeQuickFeatures = ({
   const visibleMore = moreFeatures.filter((f) => f.permission);
 
   return (
-    <View className="bg-white rounded-3xl p-5 border border-gray-100 shadow-sm">
+    <View
+      className="rounded-3xl p-5 border shadow-sm"
+      style={{
+        backgroundColor: colors.bg.secondary,
+        borderColor: colors.border,
+      }}
+    >
       {/* Section Title */}
       <View className="flex-row items-center justify-between mb-4">
-        <Text className="text-gray-900 text-lg font-bold">Quick Features</Text>
+        <Text
+          className="text-lg font-bold"
+          style={{ color: colors.text.primary }}
+        >
+          Quick Features
+        </Text>
         {activeOrganization && (
-          <View className="bg-blue-50 px-2 py-1 rounded-full">
-            <Text className="text-blue-600 text-xs font-medium">
+          <View
+            className="px-2 py-1 rounded-full"
+            style={{ backgroundColor: colors.info + "15" }}
+          >
+            <Text
+              className="text-xs font-medium"
+              style={{ color: colors.info }}
+            >
               {activeOrganization.name}
             </Text>
           </View>
@@ -266,7 +289,10 @@ export const HomeQuickFeatures = ({
 
       {/* More Features - Expandable */}
       {showAll && visibleMore.length > 0 && (
-        <View className="flex-row flex-wrap justify-between mt-2 pt-4 border-t border-gray-100">
+        <View
+          className="flex-row flex-wrap justify-between mt-2 pt-4 border-t"
+          style={{ borderColor: colors.border }}
+        >
           {visibleMore.map((feature) => (
             <FeatureItem key={feature.id} {...feature} />
           ))}
@@ -282,16 +308,20 @@ export const HomeQuickFeatures = ({
       {visibleMore.length > 0 && (
         <TouchableOpacity
           onPress={() => setShowAll(!showAll)}
-          className="flex-row items-center justify-center mt-3 pt-3 border-t border-gray-100"
+          className="flex-row items-center justify-center mt-3 pt-3 border-t"
+          style={{ borderColor: colors.border }}
           activeOpacity={0.7}
         >
-          <Text className="text-blue-600 font-semibold text-sm mr-1">
+          <Text
+            className="font-semibold text-sm mr-1"
+            style={{ color: colors.info }}
+          >
             {showAll ? "See Less" : "See More"}
           </Text>
           <Ionicons
             name={showAll ? "chevron-up" : "chevron-down"}
             size={16}
-            color="#2563eb"
+            color={colors.info}
           />
         </TouchableOpacity>
       )}

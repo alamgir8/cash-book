@@ -26,6 +26,7 @@ import { useTheme } from "@/hooks/useTheme";
 export default function CategoriesScreen() {
   const queryClient = useQueryClient();
   const { canManageCategories } = useOrganization();
+  const { colors } = useTheme();
   const [activeTab, setActiveTab] = useState<"credit" | "debit">("debit");
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(
@@ -99,7 +100,6 @@ export default function CategoriesScreen() {
   }, []);
 
   const renderItem = ({ item }: { item: Category }) => {
-    const { colors } = useTheme();
     return (
       <View
         className="p-4 rounded-2xl border flex-row items-center justify-between mb-3"
@@ -158,15 +158,13 @@ export default function CategoriesScreen() {
     );
   };
 
-  const { colors } = useTheme();
-
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg.primary }}>
       <ScreenHeader
         title="Categories"
         subtitle="Manage income and expense categories"
         icon="list"
-        iconColor="#8b5cf6"
+        iconColor={colors.info}
         actionButton={
           canManageCategories
             ? {
@@ -226,7 +224,7 @@ export default function CategoriesScreen() {
 
       {isLoading ? (
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#8b5cf6" />
+          <ActivityIndicator size="large" color={colors.info} />
         </View>
       ) : (
         <FlatList
@@ -238,8 +236,8 @@ export default function CategoriesScreen() {
             <RefreshControl
               refreshing={isRefetching}
               onRefresh={onRefresh}
-              colors={["#8b5cf6"]}
-              tintColor="#8b5cf6"
+              colors={[colors.info]}
+              tintColor={colors.info}
             />
           }
           ListEmptyComponent={

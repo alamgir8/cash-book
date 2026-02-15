@@ -17,6 +17,7 @@ import { Ionicons } from "@expo/vector-icons";
 import dayjs from "dayjs";
 import { SearchableSelect } from "../searchable-select";
 import { usePreferences } from "@/hooks/usePreferences";
+import { useTheme } from "@/hooks/useTheme";
 import {
   transferSchema,
   type TransferFormValues,
@@ -53,6 +54,7 @@ export const TransferModal = ({
   isSubmitting = false,
 }: TransferModalProps) => {
   const { formatAmount } = usePreferences();
+  const { colors } = useTheme();
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
 
@@ -68,7 +70,7 @@ export const TransferModal = ({
   // Filter destination accounts (exclude source account)
   const destinationAccountOptions = useMemo(
     () => accountOptions.filter((option) => option.value !== fromAccountId),
-    [accountOptions, fromAccountId]
+    [accountOptions, fromAccountId],
   );
 
   // Reset form when modal opens
@@ -109,26 +111,43 @@ export const TransferModal = ({
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
       >
-        <View className="flex-1 bg-black/40 justify-end">
+        <View
+          className="flex-1 justify-end"
+          style={{ backgroundColor: "rgba(0,0,0,0.4)" }}
+        >
           <View
-            className="bg-white rounded-t-3xl flex-1"
-            style={{ maxHeight: "90%" }}
+            className="rounded-t-3xl flex-1"
+            style={{ maxHeight: "90%", backgroundColor: colors.bg.primary }}
           >
             {/* Header */}
-            <View className="flex-row justify-between items-center p-6 pb-4 border-b border-gray-100">
+            <View
+              className="flex-row justify-between items-center p-6 pb-4 border-b"
+              style={{ borderColor: colors.border }}
+            >
               <View>
-                <Text className="text-gray-900 text-xl font-bold">
+                <Text
+                  className="text-xl font-bold"
+                  style={{ color: colors.text.primary }}
+                >
                   Transfer Funds
                 </Text>
-                <Text className="text-gray-500 text-sm">
+                <Text
+                  className="text-sm"
+                  style={{ color: colors.text.secondary }}
+                >
                   Move money between your accounts
                 </Text>
               </View>
               <TouchableOpacity
                 onPress={closeModal}
-                className="w-8 h-8 bg-gray-100 rounded-full items-center justify-center"
+                className="w-8 h-8 rounded-full items-center justify-center"
+                style={{ backgroundColor: colors.bg.tertiary }}
               >
-                <Ionicons name="close" size={20} color="#6b7280" />
+                <Ionicons
+                  name="close"
+                  size={20}
+                  color={colors.text.secondary}
+                />
               </TouchableOpacity>
             </View>
 
@@ -152,8 +171,8 @@ export const TransferModal = ({
                           isAccountsLoading
                             ? "Loading accounts..."
                             : accountOptions.length > 0
-                            ? "Select source account"
-                            : "No accounts available"
+                              ? "Select source account"
+                              : "No accounts available"
                         }
                         value={value}
                         options={accountOptions}
@@ -163,7 +182,10 @@ export const TransferModal = ({
                         }
                       />
                       {fieldState.error ? (
-                        <Text className="text-red-500 text-sm">
+                        <Text
+                          className="text-sm"
+                          style={{ color: colors.error }}
+                        >
                           {fieldState.error.message}
                         </Text>
                       ) : null}
@@ -183,8 +205,8 @@ export const TransferModal = ({
                           isAccountsLoading
                             ? "Loading accounts..."
                             : destinationAccountOptions.length > 0
-                            ? "Select destination account"
-                            : "No destination accounts available"
+                              ? "Select destination account"
+                              : "No destination accounts available"
                         }
                         value={value}
                         options={destinationAccountOptions}
@@ -195,7 +217,10 @@ export const TransferModal = ({
                         }
                       />
                       {fieldState.error ? (
-                        <Text className="text-red-500 text-sm">
+                        <Text
+                          className="text-sm mt-1"
+                          style={{ color: colors.error }}
+                        >
                           {fieldState.error.message}
                         </Text>
                       ) : null}
@@ -203,13 +228,16 @@ export const TransferModal = ({
                   )}
                 />
 
-                {/* Amount */}
+                {/* Date */}
                 <Controller
                   control={control}
                   name="amount"
                   render={({ field: { value, onChange }, fieldState }) => (
                     <View>
-                      <Text className="text-gray-700 text-sm font-semibold mb-2">
+                      <Text
+                        className="text-sm font-semibold mb-2"
+                        style={{ color: colors.text.primary }}
+                      >
                         Amount
                       </Text>
                       <TextInput
@@ -223,11 +251,19 @@ export const TransferModal = ({
                         }
                         keyboardType="numeric"
                         placeholder="0"
-                        placeholderTextColor="#9ca3af"
-                        className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200 text-lg font-semibold"
+                        placeholderTextColor={colors.text.tertiary}
+                        style={{
+                          backgroundColor: colors.bg.tertiary,
+                          color: colors.text.primary,
+                          borderColor: colors.border,
+                        }}
+                        className="px-4 py-3 rounded-xl border text-lg font-semibold"
                       />
                       {fieldState.error ? (
-                        <Text className="text-red-500 text-sm mt-1">
+                        <Text
+                          className="text-sm mt-1"
+                          style={{ color: colors.error }}
+                        >
                           {fieldState.error.message}
                         </Text>
                       ) : null}
@@ -241,14 +277,24 @@ export const TransferModal = ({
                   name="date"
                   render={({ field: { value } }) => (
                     <View>
-                      <Text className="text-gray-700 text-sm font-semibold mb-2">
+                      <Text
+                        className="text-sm font-semibold mb-2"
+                        style={{ color: colors.text.primary }}
+                      >
                         Date
                       </Text>
                       <TouchableOpacity
                         onPress={() => setShowDatePicker(true)}
-                        className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200 flex-row items-center justify-between"
+                        style={{
+                          backgroundColor: colors.bg.tertiary,
+                          borderColor: colors.border,
+                        }}
+                        className="px-4 py-3 rounded-xl border flex-row items-center justify-between"
                       >
-                        <Text className="text-gray-900 text-base">
+                        <Text
+                          className="text-base"
+                          style={{ color: colors.text.primary }}
+                        >
                           {value
                             ? dayjs(value).format("MMM DD, YYYY")
                             : "Select Date"}
@@ -256,7 +302,7 @@ export const TransferModal = ({
                         <Ionicons
                           name="calendar-outline"
                           size={20}
-                          color="#6b7280"
+                          color={colors.text.secondary}
                         />
                       </TouchableOpacity>
                       {showDatePicker && (
@@ -276,7 +322,10 @@ export const TransferModal = ({
 
                 {/* Description */}
                 <View>
-                  <Text className="text-gray-700 text-sm font-semibold mb-2">
+                  <Text
+                    className="text-sm font-semibold mb-2"
+                    style={{ color: colors.text.primary }}
+                  >
                     Description
                   </Text>
                   <Controller
@@ -287,8 +336,13 @@ export const TransferModal = ({
                         value={value || ""}
                         onChangeText={onChange}
                         placeholder="What is this transfer for?"
-                        placeholderTextColor="#9ca3af"
-                        className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200"
+                        placeholderTextColor={colors.text.tertiary}
+                        style={{
+                          backgroundColor: colors.bg.tertiary,
+                          color: colors.text.primary,
+                          borderColor: colors.border,
+                        }}
+                        className="px-4 py-3 rounded-xl border"
                       />
                     )}
                   />
@@ -313,7 +367,10 @@ export const TransferModal = ({
 
                 {/* Comment */}
                 <View>
-                  <Text className="text-gray-700 text-sm font-semibold mb-2">
+                  <Text
+                    className="text-sm font-semibold mb-2"
+                    style={{ color: colors.text.primary }}
+                  >
                     Additional Notes
                   </Text>
                   <Controller
@@ -324,8 +381,13 @@ export const TransferModal = ({
                         value={value || ""}
                         onChangeText={onChange}
                         placeholder="Any additional details..."
-                        placeholderTextColor="#9ca3af"
-                        className="bg-gray-50 text-gray-900 px-4 py-3 rounded-xl border border-gray-200 min-h-[80px]"
+                        placeholderTextColor={colors.text.tertiary}
+                        style={{
+                          backgroundColor: colors.bg.tertiary,
+                          color: colors.text.primary,
+                          borderColor: colors.border,
+                        }}
+                        className="px-4 py-3 rounded-xl border min-h-[80px]"
                         multiline
                         textAlignVertical="top"
                       />
@@ -335,8 +397,17 @@ export const TransferModal = ({
 
                 {/* Transfer Preview */}
                 {transferAmount > 0 ? (
-                  <View className="bg-green-50 rounded-xl p-3 border border-green-100">
-                    <Text className="text-green-700 text-sm font-medium text-center">
+                  <View
+                    className="rounded-xl p-3 border"
+                    style={{
+                      backgroundColor: colors.success + "15",
+                      borderColor: colors.success + "40",
+                    }}
+                  >
+                    <Text
+                      className="text-sm font-medium text-center"
+                      style={{ color: colors.success }}
+                    >
                       🔄 Transfer Preview: {formatAmount(transferAmount)}
                     </Text>
                   </View>
@@ -345,12 +416,16 @@ export const TransferModal = ({
             </ScrollView>
 
             {/* Submit Button */}
-            <View className="p-6 pt-4 pb-8 border-t border-gray-100">
+            <View
+              className="p-6 pt-4 pb-8 border-t"
+              style={{ borderColor: colors.border }}
+            >
               <TouchableOpacity
                 onPress={handleSubmit(handleFormSubmit)}
                 disabled={isSubmitting}
-                className="bg-indigo-500 rounded-2xl py-4 items-center shadow-lg shadow-indigo-500/25"
+                className="rounded-2xl py-4 items-center shadow-lg"
                 style={{
+                  backgroundColor: colors.info,
                   shadowColor: "#6366f1",
                   shadowOffset: { width: 0, height: 4 },
                   shadowOpacity: 0.2,

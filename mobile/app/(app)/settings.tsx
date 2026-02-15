@@ -266,7 +266,13 @@ export default function SettingsScreen() {
 
         {/* Manage Categories - Role Based */}
         {canManageCategories && (
-          <View className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
+          <View
+            className="rounded-3xl p-6 border shadow-sm"
+            style={{
+              backgroundColor: colors.bg.secondary,
+              borderColor: colors.border,
+            }}
+          >
             <ActionButton
               icon="list"
               label="Manage Categories"
@@ -289,7 +295,13 @@ export default function SettingsScreen() {
         <AppInfoSection />
 
         {/* Sign Out Section */}
-        <View className="bg-white rounded-3xl p-6 border border-red-100 shadow-lg">
+        <View
+          className="rounded-3xl p-6 border shadow-lg"
+          style={{
+            backgroundColor: colors.bg.secondary,
+            borderColor: colors.error + "40",
+          }}
+        >
           <ActionButton
             label="Sign Out"
             onPress={signOut}
