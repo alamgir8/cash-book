@@ -22,7 +22,7 @@ export interface ExportResult {
 export async function safeExportTransactions(
   exportFn: (filters: TransactionFilters) => Promise<string>,
   filters: TransactionFilters,
-  transactions: Transaction[]
+  transactions: Transaction[],
 ): Promise<ExportResult> {
   const startTime = Date.now();
   const result: ExportResult = {
@@ -56,10 +56,14 @@ export async function safeExportTransactions(
     result.warnings.push(...dataValidation.warnings);
 
     // Perform balance audit
-    const balanceAudit = auditBalance(transactions);
+    const totalDebit = calculateTotalByType(transactions, "debit");
+    const totalCredit = calculateTotalByType(transactions, "credit");
+    const reportedBalance = totalCredit - totalDebit;
+
+    const balanceAudit = auditBalance(transactions, reportedBalance);
     if (!balanceAudit.isValid) {
       result.warnings.push(
-        `Balance audit warning: ${balanceAudit.discrepancy} discrepancy detected`
+        `Balance audit warning: ${balanceAudit.discrepancy} discrepancy detected`,
       );
       result.warnings.push(...balanceAudit.errors);
     }
@@ -82,10 +86,6 @@ export async function safeExportTransactions(
       result.warnings.push("PDF may not contain summary information");
     }
 
-    // Calculate metrics
-    const totalDebit = calculateTotalByType(transactions, "debit");
-    const totalCredit = calculateTotalByType(transactions, "credit");
-
     result.success = true;
     result.byteSize = pdfContent.length;
     result.metrics = {
@@ -96,7 +96,7 @@ export async function safeExportTransactions(
     };
   } catch (error) {
     result.errors.push(
-      error instanceof Error ? error.message : "Unknown error during export"
+      error instanceof Error ? error.message : "Unknown error during export",
     );
   }
 
@@ -109,7 +109,7 @@ export async function safeExportTransactions(
  */
 function calculateTotalByType(
   transactions: Transaction[],
-  type: "debit" | "credit"
+  type: "debit" | "credit",
 ): number {
   return transactions.reduce((sum, txn) => {
     return txn.type === type ? sum + txn.amount : sum;
