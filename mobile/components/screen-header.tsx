@@ -1,6 +1,7 @@
 import { Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { useTheme } from "../hooks/useTheme";
 
 interface ScreenHeaderProps {
   title: string;
@@ -33,6 +34,7 @@ export function ScreenHeader({
   actionButton,
 }: ScreenHeaderProps) {
   const router = useRouter();
+  const { colors } = useTheme();
 
   const handleBack = () => {
     if (onBack) {
@@ -44,25 +46,42 @@ export function ScreenHeader({
 
   return (
     <View
-      className="pb-3 pt-4 px-5 shadow-sm border-b border-gray-100"
-      style={{ backgroundColor }}
+      style={{
+        backgroundColor:
+          backgroundColor === "#ffffff" ? colors.bg.primary : backgroundColor,
+        borderColor: colors.border,
+      }}
+      className="pb-3 pt-4 px-5 shadow-sm border-b"
     >
       <View className="flex-row items-center justify-between">
         {showBack && (
           <TouchableOpacity className="mr-3 p-1" onPress={handleBack}>
-            <Ionicons name="arrow-back" size={24} color="#374151" />
+            <Ionicons name="arrow-back" size={24} color={colors.text.primary} />
           </TouchableOpacity>
         )}
 
         <View className="flex-1">
-          <Text className="text-xl font-bold text-gray-900">{title}</Text>
+          <Text
+            style={{ color: colors.text.primary }}
+            className="text-xl font-bold"
+          >
+            {title}
+          </Text>
           {subtitle && (
-            <Text className="text-sm text-gray-600 mt-1">{subtitle}</Text>
+            <Text
+              style={{ color: colors.text.secondary }}
+              className="text-sm mt-1"
+            >
+              {subtitle}
+            </Text>
           )}
         </View>
 
         {icon && !actionButton && !rightAction && (
-          <View className="bg-blue-100 p-3 rounded-full">
+          <View
+            style={{ backgroundColor: colors.info + "25" }}
+            className="p-3 rounded-full"
+          >
             <Ionicons name={icon} size={24} color={iconColor} />
           </View>
         )}
@@ -72,11 +91,7 @@ export function ScreenHeader({
         {actionButton && (
           <TouchableOpacity
             onPress={actionButton.onPress}
-            className={`px-5 py-3 rounded-xl bg-emerald-500 shadow-lg ${
-              actionButton.color === "green"
-                ? "bg-gradient-to-r from-green-600 to-green-700"
-                : "bg-gradient-to-r from-blue-600 to-blue-700"
-            }`}
+            className="px-5 py-3 rounded-xl shadow-lg"
             style={{
               shadowColor:
                 actionButton.color === "green" ? "#16a34a" : "#1d4ed8",

@@ -10,6 +10,7 @@ import {
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
 import { ActionButton } from "./action-button";
+import { useTheme } from "../hooks/useTheme";
 import type { TransactionFilters } from "../services/transactions";
 import { SearchableSelect, type SelectOption } from "./searchable-select";
 
@@ -33,7 +34,7 @@ const getDateRangeFromQuickFilter = (
   filter: string,
 ): { startDate: string; endDate: string } => {
   const today = new Date();
-  const endDate = new Date(today);
+  let endDate = new Date(today);
   let startDate = new Date(today);
 
   switch (filter) {
@@ -99,6 +100,7 @@ export const FilterBar = ({
   onReset,
   onApplyFilters,
 }: Props) => {
+  const { colors } = useTheme();
   const [expanded, setExpanded] = useState(false);
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
@@ -167,7 +169,13 @@ export const FilterBar = ({
         );
 
   return (
-    <View className="bg-white rounded-2xl p-3 border border-gray-200 shadow-sm">
+    <View
+      style={{
+        backgroundColor: colors.bg.secondary,
+        borderColor: colors.border,
+      }}
+      className="rounded-2xl p-3 border shadow-sm"
+    >
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -181,18 +189,24 @@ export const FilterBar = ({
             onPress={() =>
               onChange({ ...filters, range: range.value, page: 1 })
             }
-            className={`px-3 py-1.5 rounded-full border ${
-              filters.range === range.value
-                ? "bg-blue-50 border-blue-500"
-                : "border-gray-200 bg-gray-50"
-            }`}
+            style={{
+              backgroundColor:
+                filters.range === range.value
+                  ? colors.info + "25"
+                  : colors.bg.tertiary,
+              borderColor:
+                filters.range === range.value ? colors.info : colors.border,
+            }}
+            className="px-3 py-1.5 rounded-full border"
           >
             <Text
-              className={`text-sm font-semibold ${
-                filters.range === range.value
-                  ? "text-blue-700"
-                  : "text-gray-600"
-              }`}
+              style={{
+                color:
+                  filters.range === range.value
+                    ? colors.info
+                    : colors.text.secondary,
+              }}
+              className="text-sm font-semibold"
             >
               {range.label}
             </Text>
@@ -201,14 +215,23 @@ export const FilterBar = ({
 
         <TouchableOpacity
           onPress={() => setExpanded((prev) => !prev)}
-          className="flex-row items-center gap-1 px-3 py-1.5 rounded-full border border-gray-200 bg-gray-50"
+          style={{
+            backgroundColor: colors.bg.tertiary,
+            borderColor: colors.border,
+          }}
+          className="flex-row items-center gap-1 px-3 py-1.5 rounded-full border"
         >
           <Ionicons
             name={expanded ? "chevron-up" : "chevron-down"}
             size={16}
-            color="#3b82f6"
+            color={colors.info}
           />
-          <Text className="text-gray-600 text-sm font-semibold">Filters</Text>
+          <Text
+            style={{ color: colors.text.secondary }}
+            className="text-sm font-semibold"
+          >
+            Filters
+          </Text>
         </TouchableOpacity>
 
         {onReset && derivedHasActiveFilters ? (
@@ -217,10 +240,19 @@ export const FilterBar = ({
               onReset();
               setExpanded(false);
             }}
-            className="flex-row items-center gap-1 px-3 py-1.5 rounded-full border border-gray-200 bg-red-50"
+            style={{
+              backgroundColor: colors.error + "20",
+              borderColor: colors.error + "40",
+            }}
+            className="flex-row items-center gap-1 px-3 py-1.5 rounded-full border"
           >
-            <Ionicons name="refresh" size={16} color="#dc2626" />
-            <Text className="text-red-600 text-sm font-semibold">Reset</Text>
+            <Ionicons name="refresh" size={16} color={colors.error} />
+            <Text
+              style={{ color: colors.error }}
+              className="text-sm font-semibold"
+            >
+              Reset
+            </Text>
           </TouchableOpacity>
         ) : null}
       </ScrollView>
@@ -236,6 +268,28 @@ export const FilterBar = ({
               option.value === undefined
                 ? !filters.type
                 : filters.type === option.value;
+            const bgColor = isActive
+              ? option.value === "credit"
+                ? colors.success + "25"
+                : option.value === "debit"
+                  ? colors.error + "25"
+                  : colors.info + "25"
+              : colors.bg.tertiary;
+            const borderColor = isActive
+              ? option.value === "credit"
+                ? colors.success + "50"
+                : option.value === "debit"
+                  ? colors.error + "50"
+                  : colors.info + "50"
+              : colors.border;
+            const textColor = isActive
+              ? option.value === "credit"
+                ? colors.success
+                : option.value === "debit"
+                  ? colors.error
+                  : colors.info
+              : colors.text.secondary;
+
             return (
               <TouchableOpacity
                 key={option.label}
@@ -246,26 +300,15 @@ export const FilterBar = ({
                     page: 1,
                   })
                 }
-                className={`flex-1 py-1.5 rounded-full border ${
-                  isActive
-                    ? option.value === "credit"
-                      ? "border-green-500 bg-green-50"
-                      : option.value === "debit"
-                        ? "border-red-500 bg-red-50"
-                        : "border-blue-500 bg-blue-50"
-                    : "border-gray-200 bg-gray-50"
-                }`}
+                style={{
+                  backgroundColor: bgColor,
+                  borderColor,
+                }}
+                className="flex-1 py-1.5 rounded-full border"
               >
                 <Text
-                  className={`text-center text-sm font-semibold ${
-                    isActive
-                      ? option.value === "credit"
-                        ? "text-green-700"
-                        : option.value === "debit"
-                          ? "text-red-600"
-                          : "text-blue-700"
-                      : "text-gray-600"
-                  }`}
+                  style={{ color: textColor }}
+                  className="text-center text-sm font-semibold"
                 >
                   {option.label}
                 </Text>
@@ -293,9 +336,16 @@ export const FilterBar = ({
                   page: 1,
                 });
               }}
-              className="px-3 py-1 rounded-full border border-purple-200 bg-purple-50"
+              style={{
+                backgroundColor: colors.warning + "25",
+                borderColor: colors.warning + "40",
+              }}
+              className="px-3 py-1 rounded-full border"
             >
-              <Text className="text-purple-700 text-xs font-semibold">
+              <Text
+                style={{ color: colors.warning }}
+                className="text-xs font-semibold"
+              >
                 {qf.label}
               </Text>
             </TouchableOpacity>
@@ -307,39 +357,65 @@ export const FilterBar = ({
         <View className="mt-3 gap-3">
           <View className="flex-row gap-3">
             <View className="flex-1">
-              <Text className="text-gray-700 text-sm font-semibold mb-1.5">
+              <Text
+                style={{ color: colors.text.primary }}
+                className="text-sm font-semibold mb-1.5"
+              >
                 Start Date
               </Text>
               <TouchableOpacity
                 onPress={() => setShowStartDatePicker(true)}
-                className="bg-gray-50 px-3 py-2.5 rounded-xl border border-gray-200 flex-row items-center justify-between"
+                style={{
+                  backgroundColor: colors.bg.tertiary,
+                  borderColor: colors.border,
+                }}
+                className="px-3 py-2.5 rounded-xl border flex-row items-center justify-between"
               >
                 <Text
-                  className={`${
-                    formFilters.startDate ? "text-gray-900" : "text-gray-400"
-                  }`}
+                  style={{
+                    color: formFilters.startDate
+                      ? colors.text.primary
+                      : colors.text.tertiary,
+                  }}
                 >
                   {formFilters.startDate || "Select start date"}
                 </Text>
-                <Ionicons name="calendar-outline" size={16} color="#6b7280" />
+                <Ionicons
+                  name="calendar-outline"
+                  size={16}
+                  color={colors.text.secondary}
+                />
               </TouchableOpacity>
             </View>
             <View className="flex-1">
-              <Text className="text-gray-700 text-sm font-semibold mb-1.5">
+              <Text
+                style={{ color: colors.text.primary }}
+                className="text-sm font-semibold mb-1.5"
+              >
                 End Date
               </Text>
               <TouchableOpacity
                 onPress={() => setShowEndDatePicker(true)}
-                className="bg-gray-50 px-3 py-2.5 rounded-xl border border-gray-200 flex-row items-center justify-between"
+                style={{
+                  backgroundColor: colors.bg.tertiary,
+                  borderColor: colors.border,
+                }}
+                className="px-3 py-2.5 rounded-xl border flex-row items-center justify-between"
               >
                 <Text
-                  className={`${
-                    formFilters.endDate ? "text-gray-900" : "text-gray-400"
-                  }`}
+                  style={{
+                    color: formFilters.endDate
+                      ? colors.text.primary
+                      : colors.text.tertiary,
+                  }}
                 >
                   {formFilters.endDate || "Select end date"}
                 </Text>
-                <Ionicons name="calendar-outline" size={16} color="#6b7280" />
+                <Ionicons
+                  name="calendar-outline"
+                  size={16}
+                  color={colors.text.secondary}
+                />
               </TouchableOpacity>
             </View>
           </View>
@@ -365,7 +441,10 @@ export const FilterBar = ({
           <View className="flex-row gap-3">
             {showAccountField ? (
               <View className="flex-1">
-                <Text className="text-gray-700 text-sm font-semibold mb-1.5">
+                <Text
+                  style={{ color: colors.text.primary }}
+                  className="text-sm font-semibold mb-1.5"
+                >
                   Account Name
                 </Text>
                 <TextInput
@@ -374,8 +453,13 @@ export const FilterBar = ({
                     setFormFilters({ ...formFilters, accountNameInput: value })
                   }
                   placeholder="Search account..."
-                  placeholderTextColor="#9ca3af"
-                  className="bg-gray-50 text-gray-900 px-3 py-2.5 rounded-xl border border-gray-200"
+                  placeholderTextColor={colors.text.tertiary}
+                  style={{
+                    backgroundColor: colors.bg.tertiary,
+                    color: colors.text.primary,
+                    borderColor: colors.border,
+                  }}
+                  className="px-3 py-2.5 rounded-xl border"
                 />
               </View>
             ) : null}
@@ -438,7 +522,10 @@ export const FilterBar = ({
 
           <View className="flex-row gap-3">
             <View className="flex-1">
-              <Text className="text-gray-700 text-sm font-semibold mb-1.5">
+              <Text
+                style={{ color: colors.text.primary }}
+                className="text-sm font-semibold mb-1.5"
+              >
                 Amount Range
               </Text>
               <View className="flex-row gap-2">
@@ -454,8 +541,13 @@ export const FilterBar = ({
                   }
                   keyboardType="numeric"
                   placeholder="Min"
-                  placeholderTextColor="#9ca3af"
-                  className="flex-1 bg-gray-50 text-gray-900 px-3 py-2.5 rounded-xl border border-gray-200"
+                  placeholderTextColor={colors.text.tertiary}
+                  style={{
+                    backgroundColor: colors.bg.tertiary,
+                    color: colors.text.primary,
+                    borderColor: colors.border,
+                  }}
+                  className="flex-1 px-3 py-2.5 rounded-xl border"
                 />
                 <TextInput
                   value={
@@ -469,15 +561,23 @@ export const FilterBar = ({
                   }
                   keyboardType="numeric"
                   placeholder="Max"
-                  placeholderTextColor="#9ca3af"
-                  className="flex-1 bg-gray-50 text-gray-900 px-3 py-2.5 rounded-xl border border-gray-200"
+                  placeholderTextColor={colors.text.tertiary}
+                  style={{
+                    backgroundColor: colors.bg.tertiary,
+                    color: colors.text.primary,
+                    borderColor: colors.border,
+                  }}
+                  className="flex-1 px-3 py-2.5 rounded-xl border"
                 />
               </View>
             </View>
           </View>
 
           <View>
-            <Text className="text-gray-700 text-sm font-semibold mb-1.5">
+            <Text
+              style={{ color: colors.text.primary }}
+              className="text-sm font-semibold mb-1.5"
+            >
               Search Keywords
             </Text>
             <TextInput
@@ -486,8 +586,13 @@ export const FilterBar = ({
                 setFormFilters({ ...formFilters, searchInput: value })
               }
               placeholder="Search description or comments..."
-              placeholderTextColor="#9ca3af"
-              className="bg-gray-50 text-gray-900 px-3 py-2.5 rounded-xl border border-gray-200"
+              placeholderTextColor={colors.text.tertiary}
+              style={{
+                backgroundColor: colors.bg.tertiary,
+                color: colors.text.primary,
+                borderColor: colors.border,
+              }}
+              className="px-3 py-2.5 rounded-xl border"
             />
           </View>
 

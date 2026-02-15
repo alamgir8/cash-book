@@ -21,6 +21,7 @@ import {
 } from "@/services/categories";
 import { queryKeys } from "@/lib/queryKeys";
 import { useOrganization } from "@/hooks/useOrganization";
+import { useTheme } from "@/hooks/useTheme";
 
 export default function CategoriesScreen() {
   const queryClient = useQueryClient();
@@ -28,7 +29,7 @@ export default function CategoriesScreen() {
   const [activeTab, setActiveTab] = useState<"credit" | "debit">("debit");
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(
-    null
+    null,
   );
 
   const {
@@ -77,7 +78,7 @@ export default function CategoriesScreen() {
           style: "destructive",
           onPress: () => deleteMutation.mutate(category._id),
         },
-      ]
+      ],
     );
   };
 
@@ -97,51 +98,70 @@ export default function CategoriesScreen() {
     setActiveTab(tab);
   }, []);
 
-  const renderItem = ({ item }: { item: Category }) => (
-    <View className="bg-white p-4 rounded-2xl border border-gray-100 flex-row items-center justify-between mb-3">
-      <View className="flex-row items-center gap-4 flex-1">
-        <View
-          className="w-10 h-10 rounded-full items-center justify-center"
-          style={{ backgroundColor: item.color + "20" }}
-        >
+  const renderItem = ({ item }: { item: Category }) => {
+    const { colors } = useTheme();
+    return (
+      <View
+        className="p-4 rounded-2xl border flex-row items-center justify-between mb-3"
+        style={{
+          backgroundColor: colors.bg.secondary,
+          borderColor: colors.border,
+        }}
+      >
+        <View className="flex-row items-center gap-4 flex-1">
           <View
-            className="w-4 h-4 rounded-full"
-            style={{ backgroundColor: item.color }}
-          />
+            className="w-10 h-10 rounded-full items-center justify-center"
+            style={{ backgroundColor: item.color + "20" }}
+          >
+            <View
+              className="w-4 h-4 rounded-full"
+              style={{ backgroundColor: item.color }}
+            />
+          </View>
+          <View className="flex-1">
+            <Text
+              className="font-semibold text-base"
+              style={{ color: colors.text.primary }}
+            >
+              {item.name}
+            </Text>
+            <Text
+              className="text-xs capitalize"
+              style={{ color: colors.text.secondary }}
+            >
+              {item.type.replace("_", " ")}
+            </Text>
+          </View>
         </View>
-        <View className="flex-1">
-          <Text className="font-semibold text-gray-900 text-base">
-            {item.name}
-          </Text>
-          <Text className="text-gray-500 text-xs capitalize">
-            {item.type.replace("_", " ")}
-          </Text>
-        </View>
-      </View>
 
-      <View className="flex-row items-center gap-2">
-        {canManageCategories && (
-          <>
-            <TouchableOpacity
-              onPress={() => handleEdit(item)}
-              className="p-2 bg-gray-50 rounded-full"
-            >
-              <Ionicons name="pencil" size={16} color="#4b5563" />
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => handleDelete(item)}
-              className="p-2 bg-red-50 rounded-full"
-            >
-              <Ionicons name="trash" size={16} color="#ef4444" />
-            </TouchableOpacity>
-          </>
-        )}
+        <View className="flex-row items-center gap-2">
+          {canManageCategories && (
+            <>
+              <TouchableOpacity
+                onPress={() => handleEdit(item)}
+                className="p-2 rounded-full"
+                style={{ backgroundColor: colors.bg.tertiary }}
+              >
+                <Ionicons name="pencil" size={16} color={colors.info} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => handleDelete(item)}
+                className="p-2 rounded-full"
+                style={{ backgroundColor: colors.error + "20" }}
+              >
+                <Ionicons name="trash" size={16} color={colors.error} />
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
       </View>
-    </View>
-  );
+    );
+  };
+
+  const { colors } = useTheme();
 
   return (
-    <View className="flex-1 bg-gray-50">
+    <View style={{ flex: 1, backgroundColor: colors.bg.primary }}>
       <ScreenHeader
         title="Categories"
         subtitle="Manage income and expense categories"
@@ -162,32 +182,42 @@ export default function CategoriesScreen() {
       <View className="flex-row px-4 py-2 gap-4">
         <TouchableOpacity
           onPress={() => handleTabChange("debit")}
-          className={`flex-1 py-3 rounded-xl items-center border ${
-            activeTab === "debit"
-              ? "bg-red-50 border-red-200"
-              : "bg-white border-gray-200"
-          }`}
+          className="flex-1 py-3 rounded-xl items-center border"
+          style={{
+            backgroundColor:
+              activeTab === "debit" ? colors.error + "15" : colors.bg.secondary,
+            borderColor:
+              activeTab === "debit" ? colors.error + "40" : colors.border,
+          }}
         >
           <Text
-            className={`font-bold ${
-              activeTab === "debit" ? "text-red-600" : "text-gray-500"
-            }`}
+            className="font-bold"
+            style={{
+              color:
+                activeTab === "debit" ? colors.error : colors.text.secondary,
+            }}
           >
             Expenses
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
           onPress={() => handleTabChange("credit")}
-          className={`flex-1 py-3 rounded-xl items-center border ${
-            activeTab === "credit"
-              ? "bg-green-50 border-green-200"
-              : "bg-white border-gray-200"
-          }`}
+          className="flex-1 py-3 rounded-xl items-center border"
+          style={{
+            backgroundColor:
+              activeTab === "credit"
+                ? colors.success + "15"
+                : colors.bg.secondary,
+            borderColor:
+              activeTab === "credit" ? colors.success + "40" : colors.border,
+          }}
         >
           <Text
-            className={`font-bold ${
-              activeTab === "credit" ? "text-green-600" : "text-gray-500"
-            }`}
+            className="font-bold"
+            style={{
+              color:
+                activeTab === "credit" ? colors.success : colors.text.secondary,
+            }}
           >
             Income
           </Text>

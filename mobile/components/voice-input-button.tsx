@@ -5,12 +5,14 @@ import {
   ActivityIndicator,
   Platform,
 } from "react-native";
+import { useTheme } from "../hooks/useTheme";
 
 type Props = {
   onResult: (transcript: string) => void;
 };
 
 export const VoiceInputButton = ({ onResult }: Props) => {
+  const { colors } = useTheme();
   const [isListening, setIsListening] = useState(false);
   const [loading, setLoading] = useState(false);
   const [recognition, setRecognition] = useState<any>(null);
@@ -88,28 +90,31 @@ export const VoiceInputButton = ({ onResult }: Props) => {
   return (
     <TouchableOpacity
       onPress={isListening ? stopListening : startListening}
-      className={`w-full py-4 rounded-2xl border-2 flex-row gap-3 items-center justify-center ${
-        isListening
-          ? "bg-green-50 border-green-500"
-          : "bg-purple-50 border-purple-200"
-      }`}
       style={{
-        shadowColor: isListening ? "#10b981" : "#8b5cf6",
+        backgroundColor: isListening
+          ? colors.success + "20"
+          : colors.warning + "20",
+        borderColor: isListening ? colors.success : colors.warning,
+        shadowColor: isListening ? colors.success : colors.warning,
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
         shadowRadius: 4,
         elevation: 2,
       }}
+      className="w-full py-4 rounded-2xl border-2 flex-row gap-3 items-center justify-center"
     >
       {loading ? (
-        <ActivityIndicator color={isListening ? "#10b981" : "#8b5cf6"} />
+        <ActivityIndicator
+          color={isListening ? colors.success : colors.warning}
+        />
       ) : (
         <>
           <Text className="text-2xl">{isListening ? "🎤" : "🎙️"}</Text>
           <Text
-            className={`font-bold ${
-              isListening ? "text-green-700" : "text-purple-700"
-            }`}
+            style={{
+              color: isListening ? colors.success : colors.warning,
+            }}
+            className="font-bold"
           >
             {isListening
               ? "Listening... tap to finish"

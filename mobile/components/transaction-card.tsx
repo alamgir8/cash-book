@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import dayjs from "dayjs";
 import type { Transaction } from "../services/transactions";
 import { usePreferences } from "../hooks/usePreferences";
+import { useTheme } from "../hooks/useTheme";
 
 type Props = {
   transaction: Transaction;
@@ -19,41 +20,61 @@ const TransactionCardComponent = ({
   onEdit,
 }: Props) => {
   const { formatAmount } = usePreferences();
+  const { colors } = useTheme();
   const isCredit = transaction.type === "credit";
-  const amountColor = isCredit ? "text-green-600" : "text-red-600";
+  const amountColor = isCredit ? colors.success : colors.error;
   const accountKindLabel = transaction.account?.kind
     ? transaction.account.kind.replace(/_/g, " ")
     : "Account";
 
   return (
-    <View className="bg-white rounded-2xl p-3 border border-gray-100 shadow-sm">
+    <View
+      style={{
+        backgroundColor: colors.bg.secondary,
+        borderColor: colors.border,
+      }}
+      className="rounded-2xl p-3 border shadow-sm"
+    >
       <View className="flex-row justify-between items-start">
         <View className="flex-1 mr-4">
           <View className="flex-row items-center gap-2">
             <View
-              className={`w-3 h-3 rounded-full ${
-                isCredit ? "bg-green-500" : "bg-red-500"
-              }`}
+              style={{
+                backgroundColor: isCredit ? colors.success : colors.error,
+              }}
+              className="w-3 h-3 rounded-full"
             />
-            <Text className="text-gray-900 font-bold text-lg">
+            <Text
+              style={{ color: colors.text.primary }}
+              className="font-bold text-lg"
+            >
               {transaction.account?.name ?? "N/A"}
             </Text>
           </View>
-          <Text className="text-gray-500 text-sm mt-1">
+          <Text
+            style={{ color: colors.text.tertiary }}
+            className="text-sm mt-1"
+          >
             {dayjs(transaction.date).format("MMM D, YYYY")}
           </Text>
         </View>
         <View className="items-end">
-          <Text className={`text-xl font-bold ${amountColor}`}>
+          <Text style={{ color: amountColor }} className="text-xl font-bold">
             {isCredit ? "+" : "-"}
             {formatAmount(transaction.amount)}
           </Text>
           <View
-            className={`px-2 py-1 rounded-full ${
-              isCredit ? "bg-green-50" : "bg-red-50"
-            }`}
+            style={{
+              backgroundColor: isCredit
+                ? colors.success + "20"
+                : colors.error + "20",
+            }}
+            className="px-2 py-1 rounded-full"
           >
-            <Text className={`text-xs font-medium ${amountColor}`}>
+            <Text
+              style={{ color: amountColor }}
+              className="text-xs font-medium"
+            >
               {transaction.type.toUpperCase()}
             </Text>
           </View>
@@ -61,7 +82,10 @@ const TransactionCardComponent = ({
       </View>
 
       {transaction.description ? (
-        <Text className="text-gray-700 mt-3 text-sm leading-5">
+        <Text
+          style={{ color: colors.text.secondary }}
+          className="mt-3 text-sm leading-5"
+        >
           {transaction.description}
         </Text>
       ) : null}
@@ -75,9 +99,16 @@ const TransactionCardComponent = ({
                 onCategoryPress(transaction.category._id);
               }
             }}
-            className="self-start mt-3 px-3 py-1 rounded-full bg-blue-50 border border-blue-100"
+            style={{
+              backgroundColor: colors.info + "25",
+              borderColor: colors.info + "40",
+            }}
+            className="self-start mt-3 px-3 py-1 rounded-full border"
           >
-            <Text className="text-xs font-semibold text-blue-700">
+            <Text
+              style={{ color: colors.info }}
+              className="text-xs font-semibold"
+            >
               {transaction.category.name}
             </Text>
           </TouchableOpacity>
@@ -90,9 +121,16 @@ const TransactionCardComponent = ({
                 onCounterpartyPress(transaction.counterparty);
               }
             }}
-            className="self-start mt-3 px-3 py-1 rounded-full bg-blue-50 border border-blue-100"
+            style={{
+              backgroundColor: colors.info + "25",
+              borderColor: colors.info + "40",
+            }}
+            className="self-start mt-3 px-3 py-1 rounded-full border"
           >
-            <Text className="text-xs font-semibold text-blue-700">
+            <Text
+              style={{ color: colors.info }}
+              className="text-xs font-semibold"
+            >
               Counterparty: {transaction.counterparty}
             </Text>
           </TouchableOpacity>
@@ -106,13 +144,22 @@ const TransactionCardComponent = ({
       </View> */}
 
       {onEdit && !transaction.is_deleted ? (
-        <View className="flex-row justify-end pt-2 border-t border-gray-100">
+        <View
+          style={{ borderColor: colors.border }}
+          className="flex-row justify-end pt-2 border-t"
+        >
           <TouchableOpacity
             onPress={() => onEdit(transaction)}
-            className="flex-row items-center gap-1.5 bg-blue-50 px-3 py-2 rounded-lg active:scale-95"
+            style={{ backgroundColor: colors.info + "20" }}
+            className="flex-row items-center gap-1.5 px-3 py-2 rounded-lg active:scale-95"
           >
-            <Ionicons name="create-outline" size={16} color="#2563eb" />
-            <Text className="text-xs font-semibold text-blue-600">Edit</Text>
+            <Ionicons name="create-outline" size={16} color={colors.info} />
+            <Text
+              style={{ color: colors.info }}
+              className="text-xs font-semibold"
+            >
+              Edit
+            </Text>
           </TouchableOpacity>
         </View>
       ) : null}
@@ -140,5 +187,5 @@ export const TransactionCard = memo(
       prevProps.onCategoryPress === nextProps.onCategoryPress &&
       prevProps.onCounterpartyPress === nextProps.onCounterpartyPress
     );
-  }
+  },
 );

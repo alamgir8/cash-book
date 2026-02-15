@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTheme } from "../hooks/useTheme";
 
 interface PasswordInputProps extends Omit<TextInputProps, "secureTextEntry"> {
   label: string;
@@ -30,19 +31,26 @@ export const PasswordInput: React.FC<PasswordInputProps> = ({
   testID,
   ...props
 }) => {
+  const { colors } = useTheme();
   const [showPassword, setShowPassword] = useState(false);
 
   return (
     <View className={`${containerClassName}`}>
       <Text
-        className={`text-slate-700 mb-3 text-base font-medium ${labelClassName}`}
+        style={{ color: colors.text.primary }}
+        className={`mb-3 text-base font-medium ${labelClassName}`}
       >
         {label}
       </Text>
       <View className="relative">
         <TextInput
-          className={`bg-white text-slate-900 px-4 py-4 pr-12 rounded-2xl border border-slate-300 text-base shadow-sm ${inputClassName}`}
-          placeholderTextColor="#94a3b8"
+          style={{
+            backgroundColor: colors.bg.secondary,
+            color: colors.text.primary,
+            borderColor: colors.border,
+          }}
+          className="px-4 py-4 pr-12 rounded-2xl border text-base shadow-sm"
+          placeholderTextColor={colors.text.tertiary}
           secureTextEntry={!showPassword}
           value={value}
           onChangeText={onChangeText}
@@ -58,11 +66,15 @@ export const PasswordInput: React.FC<PasswordInputProps> = ({
           <Ionicons
             name={showPassword ? "eye" : "eye-off"}
             size={20}
-            color="#64748b"
+            color={colors.text.secondary}
           />
         </TouchableOpacity>
       </View>
-      {error && <Text className="text-red-500 text-sm mt-2">{error}</Text>}
+      {error && (
+        <Text style={{ color: colors.error }} className="text-sm mt-2">
+          {error}
+        </Text>
+      )}
     </View>
   );
 };

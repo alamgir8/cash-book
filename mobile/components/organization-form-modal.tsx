@@ -17,6 +17,7 @@ import { useForm, Controller } from "react-hook-form";
 import { CustomInput } from "./custom-input";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ActionButton } from "./action-button";
+import { useTheme } from "../hooks/useTheme";
 
 const BUSINESS_TYPES = [
   { value: "retail_shop", label: "Retail Shop", icon: "storefront" },
@@ -163,6 +164,8 @@ export function OrganizationFormModal({
     }
   };
 
+  const { colors } = useTheme();
+
   return (
     <Modal
       visible={visible}
@@ -174,18 +177,30 @@ export function OrganizationFormModal({
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         className="flex-1"
       >
-        <View className="flex-1 bg-black/40 justify-end">
+        <View
+          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)" }}
+          className="justify-end"
+        >
           <View
-            className="bg-white rounded-t-3xl flex-1"
-            style={{ maxHeight: "90%" }}
+            style={{ backgroundColor: colors.bg.primary, maxHeight: "90%" }}
+            className="rounded-t-3xl flex-1"
           >
             {/* Header */}
-            <View className="flex-row justify-between items-center p-6 pb-4 border-b border-gray-100">
+            <View
+              style={{ borderColor: colors.border }}
+              className="flex-row justify-between items-center p-6 pb-4 border-b"
+            >
               <View>
-                <Text className="text-gray-900 text-xl font-bold">
+                <Text
+                  style={{ color: colors.text.primary }}
+                  className="text-xl font-bold"
+                >
                   {isEditing ? "Edit Organization" : "New Organization"}
                 </Text>
-                <Text className="text-gray-500 text-sm">
+                <Text
+                  style={{ color: colors.text.secondary }}
+                  className="text-sm"
+                >
                   {isEditing
                     ? "Update organization details"
                     : "Create a new organization"}
@@ -193,9 +208,14 @@ export function OrganizationFormModal({
               </View>
               <TouchableOpacity
                 onPress={onClose}
-                className="w-8 h-8 bg-gray-100 rounded-full items-center justify-center"
+                style={{ backgroundColor: colors.bg.tertiary }}
+                className="w-8 h-8 rounded-full items-center justify-center"
               >
-                <Ionicons name="close" size={20} color="#6b7280" />
+                <Ionicons
+                  name="close"
+                  size={20}
+                  color={colors.text.secondary}
+                />
               </TouchableOpacity>
             </View>
 

@@ -13,6 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { ScreenHeader } from "@/components/screen-header";
 import { exportInvoicePdf } from "@/services/reports";
 import { getApiErrorMessage } from "@/lib/api";
+import { useTheme } from "@/hooks/useTheme";
 import {
   useInvoice,
   useUpdateInvoiceStatus,
@@ -55,7 +56,7 @@ export default function InvoiceDetailScreen() {
           text: "Confirm",
           onPress: () => statusMutation.mutate({ status: newStatus }),
         },
-      ]
+      ],
     );
   };
 
@@ -69,7 +70,7 @@ export default function InvoiceDetailScreen() {
         onSuccess: () => {
           setPaymentModalVisible(false);
         },
-      }
+      },
     );
   };
 
@@ -84,7 +85,7 @@ export default function InvoiceDetailScreen() {
           style: "destructive",
           onPress: () => deleteMutation.mutate(invoiceId!),
         },
-      ]
+      ],
     );
   };
 
@@ -112,12 +113,14 @@ export default function InvoiceDetailScreen() {
     ? STATUS_TRANSITIONS[invoice.status] || []
     : [];
 
+  const { colors } = useTheme();
+
   if (isLoading) {
     return (
-      <View className="flex-1 bg-white">
+      <View className="flex-1" style={{ backgroundColor: colors.bg.primary }}>
         <ScreenHeader title="Invoice Details" showBack />
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#3B82F6" />
+          <ActivityIndicator size="large" color={colors.info} />
         </View>
       </View>
     );
@@ -125,21 +128,37 @@ export default function InvoiceDetailScreen() {
 
   if (isError || !invoice) {
     return (
-      <View className="flex-1 bg-white">
+      <View className="flex-1" style={{ backgroundColor: colors.bg.primary }}>
         <ScreenHeader title="Error" showBack />
         <View className="flex-1 items-center justify-center p-4">
-          <Ionicons name="alert-circle-outline" size={48} color="#EF4444" />
-          <Text className="text-lg font-semibold text-gray-900 mt-4">
+          <Ionicons
+            name="alert-circle-outline"
+            size={48}
+            color={colors.error}
+          />
+          <Text
+            className="text-lg font-semibold mt-4"
+            style={{ color: colors.text.primary }}
+          >
             Failed to load invoice
           </Text>
-          <Text className="text-gray-500 text-center mt-2">
+          <Text
+            className="text-center mt-2"
+            style={{ color: colors.text.secondary }}
+          >
             {error ? getApiErrorMessage(error) : "Invoice not found"}
           </Text>
           <TouchableOpacity
             onPress={() => router.back()}
-            className="mt-6 bg-gray-100 px-6 py-3 rounded-lg"
+            className="mt-6 px-6 py-3 rounded-lg"
+            style={{ backgroundColor: colors.bg.tertiary }}
           >
-            <Text className="text-gray-700 font-medium">Go Back</Text>
+            <Text
+              className="font-medium"
+              style={{ color: colors.text.primary }}
+            >
+              Go Back
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -147,7 +166,7 @@ export default function InvoiceDetailScreen() {
   }
 
   return (
-    <View className="flex-1 bg-gray-50">
+    <View className="flex-1" style={{ backgroundColor: colors.bg.primary }}>
       <ScreenHeader
         title={invoice.invoice_number}
         showBack

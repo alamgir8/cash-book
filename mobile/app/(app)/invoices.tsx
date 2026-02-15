@@ -13,6 +13,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import { ScreenHeader } from "@/components/screen-header";
 import { useActiveOrgId, useOrganization } from "@/hooks/useOrganization";
+import { useTheme } from "@/hooks/useTheme";
 import {
   invoicesApi,
   type InvoiceType,
@@ -73,7 +74,7 @@ export default function InvoicesScreen() {
 
   const [activeType, setActiveType] = useState<InvoiceType | "all">("all");
   const [activeStatus, setActiveStatus] = useState<InvoiceStatus | "all">(
-    "all"
+    "all",
   );
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -95,7 +96,7 @@ export default function InvoicesScreen() {
     return list.filter(
       (inv) =>
         inv.invoice_number.toLowerCase().includes(query) ||
-        inv.party?.name?.toLowerCase().includes(query)
+        inv.party?.name?.toLowerCase().includes(query),
     );
   }, [data?.invoices, searchQuery]);
 
@@ -118,7 +119,7 @@ export default function InvoicesScreen() {
     (type: InvoiceType) => {
       router.push(`/invoices/new?type=${type}`);
     },
-    [router]
+    [router],
   );
 
   if (isLoading) {
@@ -132,8 +133,10 @@ export default function InvoicesScreen() {
     );
   }
 
+  const { colors } = useTheme();
+
   return (
-    <View className="flex-1 bg-gray-50">
+    <View style={{ flex: 1, backgroundColor: colors.bg.primary }}>
       <ScreenHeader
         title="Invoices"
         showBack
@@ -144,7 +147,7 @@ export default function InvoicesScreen() {
                 className="p-2 mr-1"
                 onPress={() => handleCreateInvoice("sale")}
               >
-                <Ionicons name="add-circle" size={28} color="#10B981" />
+                <Ionicons name="add-circle" size={28} color={colors.success} />
               </TouchableOpacity>
             </View>
           ) : undefined
@@ -152,38 +155,64 @@ export default function InvoicesScreen() {
       />
 
       {/* Search Bar */}
-      <View className="px-4 py-2 bg-white border-b border-gray-100">
-        <View className="flex-row items-center bg-gray-100 rounded-lg px-3 py-2">
-          <Ionicons name="search" size={20} color="#9CA3AF" />
+      <View
+        className="px-4 py-2 border-b"
+        style={{
+          backgroundColor: colors.bg.secondary,
+          borderColor: colors.border,
+        }}
+      >
+        <View
+          className="flex-row items-center rounded-lg px-3 py-2"
+          style={{ backgroundColor: colors.bg.tertiary }}
+        >
+          <Ionicons name="search" size={20} color={colors.text.tertiary} />
           <TextInput
-            className="flex-1 ml-2 text-base text-gray-900"
+            className="flex-1 ml-2 text-base"
+            style={{
+              color: colors.text.primary,
+            }}
             placeholder="Search by invoice # or party..."
             value={searchQuery}
             onChangeText={setSearchQuery}
-            placeholderTextColor="#9CA3AF"
+            placeholderTextColor={colors.text.tertiary}
           />
           {searchQuery.length > 0 && (
             <TouchableOpacity onPress={() => setSearchQuery("")}>
-              <Ionicons name="close-circle" size={20} color="#9CA3AF" />
+              <Ionicons
+                name="close-circle"
+                size={20}
+                color={colors.text.tertiary}
+              />
             </TouchableOpacity>
           )}
         </View>
       </View>
 
       {/* Type Tabs */}
-      <View className="flex-row bg-white border-b border-gray-100 px-4 py-2">
+      <View
+        className="flex-row border-b px-4 py-2"
+        style={{
+          backgroundColor: colors.bg.secondary,
+          borderColor: colors.border,
+        }}
+      >
         {TYPE_TABS.map((tab) => (
           <TouchableOpacity
             key={tab.value}
-            className={`mr-2 px-4 py-2 rounded-full ${
-              activeType === tab.value ? "bg-blue-500" : "bg-gray-100"
-            }`}
+            className="mr-2 px-4 py-2 rounded-full"
+            style={{
+              backgroundColor:
+                activeType === tab.value ? colors.info : colors.bg.tertiary,
+            }}
             onPress={() => setActiveType(tab.value)}
           >
             <Text
-              className={`text-sm font-medium ${
-                activeType === tab.value ? "text-white" : "text-gray-600"
-              }`}
+              className="text-sm font-medium"
+              style={{
+                color:
+                  activeType === tab.value ? "white" : colors.text.secondary,
+              }}
             >
               {tab.label}
             </Text>
@@ -192,7 +221,13 @@ export default function InvoicesScreen() {
       </View>
 
       {/* Status Filters */}
-      <View className="bg-white border-b border-gray-100 py-2">
+      <View
+        className="border-b py-2"
+        style={{
+          backgroundColor: colors.bg.secondary,
+          borderColor: colors.border,
+        }}
+      >
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -201,19 +236,25 @@ export default function InvoicesScreen() {
           {STATUS_OPTIONS.map((status) => (
             <TouchableOpacity
               key={status.value}
-              className={`mr-2 px-3 py-1.5 rounded-full border ${
-                activeStatus === status.value
-                  ? "border-blue-500 bg-blue-50"
-                  : "border-gray-200 bg-white"
-              }`}
+              className="mr-2 px-3 py-1.5 rounded-full border"
+              style={{
+                borderColor:
+                  activeStatus === status.value ? colors.info : colors.border,
+                backgroundColor:
+                  activeStatus === status.value
+                    ? colors.info + "15"
+                    : colors.bg.secondary,
+              }}
               onPress={() => setActiveStatus(status.value)}
             >
               <Text
-                className={`text-xs font-medium ${
-                  activeStatus === status.value
-                    ? "text-blue-600"
-                    : "text-gray-500"
-                }`}
+                className="text-xs font-medium"
+                style={{
+                  color:
+                    activeStatus === status.value
+                      ? colors.info
+                      : colors.text.secondary,
+                }}
               >
                 {status.label}
               </Text>
@@ -230,11 +271,21 @@ export default function InvoicesScreen() {
       >
         {invoices.length === 0 ? (
           <View className="p-8 items-center">
-            <Ionicons name="receipt-outline" size={64} color="#D1D5DB" />
-            <Text className="text-lg font-medium text-gray-500 mt-4">
+            <Ionicons
+              name="receipt-outline"
+              size={64}
+              color={colors.text.tertiary}
+            />
+            <Text
+              className="text-lg font-medium mt-4"
+              style={{ color: colors.text.secondary }}
+            >
               No Invoices Found
             </Text>
-            <Text className="text-sm text-gray-400 text-center mt-2">
+            <Text
+              className="text-sm text-center mt-2"
+              style={{ color: colors.text.tertiary }}
+            >
               {canManageInvoices
                 ? "Create sales or purchase invoices to track your business transactions."
                 : "No invoices available. Contact your organization admin to create invoices."}
@@ -242,13 +293,15 @@ export default function InvoicesScreen() {
             {canManageInvoices && (
               <View className="flex-row mt-6 gap-3">
                 <TouchableOpacity
-                  className="bg-green-500 px-5 py-3 rounded-lg"
+                  className="px-5 py-3 rounded-lg"
+                  style={{ backgroundColor: colors.success }}
                   onPress={() => handleCreateInvoice("sale")}
                 >
                   <Text className="text-white font-medium">Sales Invoice</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  className="bg-orange-500 px-5 py-3 rounded-lg"
+                  className="px-5 py-3 rounded-lg"
+                  style={{ backgroundColor: colors.warning }}
                   onPress={() => handleCreateInvoice("purchase")}
                 >
                   <Text className="text-white font-medium">
@@ -263,44 +316,85 @@ export default function InvoicesScreen() {
             {invoices.map((invoice) => (
               <TouchableOpacity
                 key={invoice._id}
-                className="bg-white rounded-xl p-4 mb-3 border border-gray-100 shadow-sm"
+                className="rounded-xl p-4 mb-3 border shadow-sm"
+                style={{
+                  backgroundColor: colors.bg.secondary,
+                  borderColor: colors.border,
+                }}
                 onPress={() => router.push(`/invoices/${invoice._id}`)}
               >
                 <View className="flex-row items-start">
                   <View
-                    className={`w-12 h-12 rounded-xl items-center justify-center ${
-                      invoice.type === "sale" ? "bg-green-100" : "bg-orange-100"
-                    }`}
+                    className="w-12 h-12 rounded-xl items-center justify-center"
+                    style={{
+                      backgroundColor:
+                        invoice.type === "sale"
+                          ? colors.success + "20"
+                          : colors.warning + "20",
+                    }}
                   >
                     <Ionicons
                       name={invoice.type === "sale" ? "arrow-up" : "arrow-down"}
                       size={24}
-                      color={invoice.type === "sale" ? "#10B981" : "#F97316"}
+                      color={
+                        invoice.type === "sale"
+                          ? colors.success
+                          : colors.warning
+                      }
                     />
                   </View>
                   <View className="flex-1 ml-3">
                     <View className="flex-row items-center">
-                      <Text className="text-base font-semibold text-gray-900 flex-1">
+                      <Text
+                        className="text-base font-semibold flex-1"
+                        style={{ color: colors.text.primary }}
+                      >
                         {invoice.invoice_number}
                       </Text>
                       <View
-                        className={`px-2 py-0.5 rounded-full ${
-                          getStatusColor(invoice.status).split(" ")[0]
-                        }`}
+                        className="px-2 py-0.5 rounded-full"
+                        style={{
+                          backgroundColor:
+                            invoice.status === "paid"
+                              ? colors.success + "20"
+                              : invoice.status === "pending"
+                                ? colors.warning + "20"
+                                : invoice.status === "partial"
+                                  ? colors.info + "20"
+                                  : invoice.status === "cancelled"
+                                    ? colors.error + "20"
+                                    : colors.bg.tertiary,
+                        }}
                       >
                         <Text
-                          className={`text-xs font-medium capitalize ${
-                            getStatusColor(invoice.status).split(" ")[1]
-                          }`}
+                          className="text-xs font-medium capitalize"
+                          style={{
+                            color:
+                              invoice.status === "paid"
+                                ? colors.success
+                                : invoice.status === "pending"
+                                  ? colors.warning
+                                  : invoice.status === "partial"
+                                    ? colors.info
+                                    : invoice.status === "cancelled"
+                                      ? colors.error
+                                      : colors.text.secondary,
+                          }}
                         >
                           {invoice.status}
                         </Text>
                       </View>
                     </View>
-                    <Text className="text-sm text-gray-500 mt-0.5">
+                    <Text
+                      className="text-sm mt-0.5"
+                      style={{ color: colors.text.secondary }}
+                    >
                       {invoice.party?.name || "No party"}
                     </Text>
-                    <Text className="text-xs text-gray-400 mt-1">
+                    <Text
+                      className="text-xs mt-1"
+                      style={{ color: colors.text.tertiary }}
+                    >
                       {formatDate(invoice.date)}
                       {invoice.due_date &&
                         ` • Due: ${formatDate(invoice.due_date)}`}
@@ -308,27 +402,53 @@ export default function InvoicesScreen() {
                   </View>
                 </View>
 
-                <View className="flex-row mt-3 pt-3 border-t border-gray-100">
+                <View
+                  className="flex-row mt-3 pt-3 border-t"
+                  style={{ borderColor: colors.border }}
+                >
                   <View className="flex-1">
-                    <Text className="text-xs text-gray-500">Total</Text>
-                    <Text className="text-base font-bold text-gray-900">
+                    <Text
+                      className="text-xs"
+                      style={{ color: colors.text.secondary }}
+                    >
+                      Total
+                    </Text>
+                    <Text
+                      className="text-base font-bold"
+                      style={{ color: colors.text.primary }}
+                    >
                       {formatAmount(invoice.grand_total)}
                     </Text>
                   </View>
                   <View className="flex-1">
-                    <Text className="text-xs text-gray-500">Paid</Text>
-                    <Text className="text-base font-medium text-green-600">
+                    <Text
+                      className="text-xs"
+                      style={{ color: colors.text.secondary }}
+                    >
+                      Paid
+                    </Text>
+                    <Text
+                      className="text-base font-medium"
+                      style={{ color: colors.success }}
+                    >
                       {formatAmount(invoice.amount_paid)}
                     </Text>
                   </View>
                   <View className="flex-1">
-                    <Text className="text-xs text-gray-500">Balance</Text>
                     <Text
-                      className={`text-base font-medium ${
-                        invoice.balance_due > 0
-                          ? "text-red-600"
-                          : "text-gray-600"
-                      }`}
+                      className="text-xs"
+                      style={{ color: colors.text.secondary }}
+                    >
+                      Balance
+                    </Text>
+                    <Text
+                      className="text-base font-medium"
+                      style={{
+                        color:
+                          invoice.balance_due > 0
+                            ? colors.error
+                            : colors.text.secondary,
+                      }}
                     >
                       {formatAmount(invoice.balance_due)}
                     </Text>

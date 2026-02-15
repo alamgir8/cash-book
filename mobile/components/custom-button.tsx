@@ -5,6 +5,7 @@ import {
   ActivityIndicator,
   TouchableOpacityProps,
 } from "react-native";
+import { useTheme } from "../hooks/useTheme";
 
 interface CustomButtonProps extends TouchableOpacityProps {
   title: string;
@@ -25,16 +26,34 @@ export const CustomButton: React.FC<CustomButtonProps> = ({
   disabled,
   ...props
 }) => {
+  const { colors } = useTheme();
+
   const getVariantStyles = () => {
     switch (variant) {
       case "primary":
-        return "bg-blue-600 shadow-lg";
+        return {
+          backgroundColor: colors.info,
+          shadowColor: colors.info,
+          shadowOpacity: 0.3,
+        };
       case "secondary":
-        return "bg-slate-600";
+        return {
+          backgroundColor: colors.bg.tertiary,
+          shadowColor: "#000",
+          shadowOpacity: 0.1,
+        };
       case "outline":
-        return "bg-transparent border-2 border-blue-600";
+        return {
+          backgroundColor: "transparent",
+          borderWidth: 2,
+          borderColor: colors.info,
+        };
       default:
-        return "bg-blue-600 shadow-lg";
+        return {
+          backgroundColor: colors.info,
+          shadowColor: colors.info,
+          shadowOpacity: 0.3,
+        };
     }
   };
 
@@ -51,31 +70,50 @@ export const CustomButton: React.FC<CustomButtonProps> = ({
     }
   };
 
-  const getTextStyles = () => {
-    const baseStyles = "font-semibold text-center";
-    const sizeStyles =
-      size === "small" ? "text-sm" : size === "large" ? "text-xl" : "text-base";
-    const colorStyles = variant === "outline" ? "text-blue-600" : "text-white";
-    return `${baseStyles} ${sizeStyles} ${colorStyles}`;
+  const getTextColor = () => {
+    if (variant === "outline") {
+      return colors.info;
+    }
+    if (variant === "secondary") {
+      return colors.text.primary;
+    }
+    return "white";
+  };
+
+  const getSizeTextStyles = () => {
+    return size === "small"
+      ? "text-sm"
+      : size === "large"
+        ? "text-xl"
+        : "text-base";
   };
 
   const isDisabled = disabled || loading;
 
+  const variantStyles = getVariantStyles();
+
   return (
     <TouchableOpacity
-      className={`rounded-2xl items-center justify-center ${getVariantStyles()} ${getSizeStyles()} ${
-        isDisabled ? "opacity-50" : ""
-      } ${containerClassName}`}
+      style={{
+        ...variantStyles,
+        shadowOffset: { width: 0, height: 2 },
+        shadowRadius: 4,
+        elevation: 3,
+        opacity: isDisabled ? 0.5 : 1,
+      }}
+      className={`rounded-2xl items-center justify-center ${getSizeStyles()} ${containerClassName}`}
       disabled={isDisabled}
       {...props}
     >
       {loading ? (
-        <ActivityIndicator
-          color={variant === "outline" ? "#2563eb" : "#ffffff"}
-          size="small"
-        />
+        <ActivityIndicator color={getTextColor()} size="small" />
       ) : (
-        <Text className={`${getTextStyles()} ${textClassName}`}>{title}</Text>
+        <Text
+          style={{ color: getTextColor() }}
+          className={`font-semibold text-center ${getSizeTextStyles()} ${textClassName}`}
+        >
+          {title}
+        </Text>
       )}
     </TouchableOpacity>
   );

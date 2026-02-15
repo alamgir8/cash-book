@@ -45,6 +45,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import { usePreferences } from "@/hooks/usePreferences";
 import { useOrganization } from "@/hooks/useOrganization";
 import { usePaginationCache } from "@/hooks/usePaginationCache";
+import { useTheme } from "@/hooks/useTheme";
 
 const defaultFilters: TransactionFilters = {
   range: "monthly",
@@ -56,6 +57,7 @@ export default function DashboardScreen() {
   const { formatAmount } = usePreferences();
   const { canCreateTransactions, activeOrganization } = useOrganization();
   const { mergeTransactionPages } = usePaginationCache();
+  const { colors } = useTheme();
   const queryClient = useQueryClient();
   const [filters, setFilters] = useState<TransactionFilters>(defaultFilters);
   const [isModalVisible, setModalVisible] = useState(false);
@@ -471,7 +473,7 @@ export default function DashboardScreen() {
   // console.log("transactionsQuery", transactionsQuery.data);
 
   return (
-    <View className="flex-1 bg-gradient-to-b from-blue-50 to-gray-50">
+    <View style={{ flex: 1, backgroundColor: colors.bg.primary }}>
       <ScreenHeader
         title="Dashboard"
         subtitle={

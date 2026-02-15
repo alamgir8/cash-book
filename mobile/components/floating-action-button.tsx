@@ -1,5 +1,6 @@
 import { TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTheme } from "../hooks/useTheme";
 
 interface FloatingActionButtonProps {
   onPress: () => void;
@@ -16,16 +17,18 @@ export function FloatingActionButton({
   position = "bottom-right",
   size = "medium",
 }: FloatingActionButtonProps) {
-  const getColorStyles = () => {
+  const { colors } = useTheme();
+
+  const getColorValue = () => {
     switch (color) {
       case "green":
-        return "bg-green-600";
+        return colors.success;
       case "red":
-        return "bg-red-600";
+        return colors.error;
       case "purple":
-        return "bg-purple-600";
+        return colors.warning;
       default:
-        return "bg-blue-600";
+        return colors.info;
     }
   };
 
@@ -48,31 +51,20 @@ export function FloatingActionButton({
     return size === "large" ? 36 : 32;
   };
 
-  const getShadowColor = () => {
-    switch (color) {
-      case "green":
-        return "#16a34a";
-      case "red":
-        return "#dc2626";
-      case "purple":
-        return "#9333ea";
-      default:
-        return "#1d4ed8";
-    }
-  };
+  const bgColor = getColorValue();
 
   return (
     <TouchableOpacity
       onPress={onPress}
       className={`
         ${getPositionStyles()} 
-        ${getColorStyles()} 
         ${getSizeStyles()} 
         rounded-2xl items-center justify-center shadow-xl border-2 border-white
         active:scale-95
       `}
       style={{
-        shadowColor: getShadowColor(),
+        backgroundColor: bgColor,
+        shadowColor: bgColor,
         shadowOffset: { width: 0, height: 8 },
         shadowOpacity: 0.3,
         shadowRadius: 20,

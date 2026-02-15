@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import dayjs from "dayjs";
 import { router } from "expo-router";
 import { usePreferences } from "../hooks/usePreferences";
+import { useTheme } from "../hooks/useTheme";
 import type { AccountOverview } from "../services/accounts";
 
 type Props = {
@@ -14,6 +15,7 @@ type Props = {
 
 const AccountCardComponent = ({ account, onEdit, onDelete }: Props) => {
   const { formatAmount } = usePreferences();
+  const { colors } = useTheme();
 
   const lastActivity = account.summary.lastTransactionDate
     ? dayjs(account.summary.lastTransactionDate).format("MMM D, YYYY")
@@ -23,43 +25,60 @@ const AccountCardComponent = ({ account, onEdit, onDelete }: Props) => {
 
   return (
     <View
-      className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm"
       style={{
+        backgroundColor: colors.bg.secondary,
+        borderColor: colors.border,
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 3 },
         shadowOpacity: 0.06,
         shadowRadius: 10,
         elevation: 4,
       }}
+      className="rounded-2xl p-4 border shadow-sm"
     >
       <View className="flex-row justify-between items-start">
         <View className="flex-1 mr-4">
-          <Text className="text-gray-900 text-xl font-bold">
+          <Text
+            style={{ color: colors.text.primary }}
+            className="text-xl font-bold"
+          >
             {account.name}
           </Text>
           <View className="flex-row items-center gap-2 mt-2">
-            <View className="bg-blue-100 px-3 py-1 rounded-full">
-              <Text className="text-blue-700 text-xs font-semibold uppercase">
+            <View
+              style={{ backgroundColor: colors.info + "25" }}
+              className="px-3 py-1 rounded-full"
+            >
+              <Text
+                style={{ color: colors.info }}
+                className="text-xs font-semibold uppercase"
+              >
                 {account.kind.replace(/_/g, " ")}
               </Text>
             </View>
-            <Text className="text-gray-500 text-xs">{lastActivity}</Text>
+            <Text style={{ color: colors.text.tertiary }} className="text-xs">
+              {lastActivity}
+            </Text>
           </View>
         </View>
         <View className="items-end">
-          <Text className="text-2xl font-bold text-gray-900">
+          <Text
+            style={{ color: colors.text.primary }}
+            className="text-2xl font-bold"
+          >
             {formatAmount(account.balance ?? 0)}
           </Text>
           <View className="flex-row items-center gap-1 mt-1">
             <Ionicons
               name={netFlowPositive ? "trending-up" : "trending-down"}
               size={14}
-              color={netFlowPositive ? "#10b981" : "#ef4444"}
+              color={netFlowPositive ? colors.success : colors.error}
             />
             <Text
-              className={`text-xs font-semibold ${
-                netFlowPositive ? "text-green-600" : "text-red-600"
-              }`}
+              style={{
+                color: netFlowPositive ? colors.success : colors.error,
+              }}
+              className="text-xs font-semibold"
             >
               {netFlowPositive ? "+" : ""}
               {formatAmount(netFlow)}
@@ -68,23 +87,52 @@ const AccountCardComponent = ({ account, onEdit, onDelete }: Props) => {
         </View>
       </View>
 
-      <View className="mt-4 pt-4 border-t border-gray-100">
+      <View
+        style={{
+          borderColor: colors.border,
+        }}
+        className="mt-4 pt-4 border-t"
+      >
         <View className="flex-row justify-between mb-3">
           <View className="flex-1">
-            <Text className="text-xs text-gray-500 mb-1">Total Credit</Text>
-            <Text className="text-base font-bold text-green-600">
+            <Text
+              style={{ color: colors.text.tertiary }}
+              className="text-xs mb-1"
+            >
+              Total Credit
+            </Text>
+            <Text
+              style={{ color: colors.success }}
+              className="text-base font-bold"
+            >
               {formatAmount(account.summary.totalCredit ?? 0)}
             </Text>
           </View>
           <View className="flex-1 items-center">
-            <Text className="text-xs text-gray-500 mb-1">Total Debit</Text>
-            <Text className="text-base font-bold text-red-600">
+            <Text
+              style={{ color: colors.text.tertiary }}
+              className="text-xs mb-1"
+            >
+              Total Debit
+            </Text>
+            <Text
+              style={{ color: colors.error }}
+              className="text-base font-bold"
+            >
               {formatAmount(account.summary.totalDebit ?? 0)}
             </Text>
           </View>
           <View className="flex-1 items-end">
-            <Text className="text-xs text-gray-500 mb-1">Transactions</Text>
-            <Text className="text-base font-bold text-gray-900">
+            <Text
+              style={{ color: colors.text.tertiary }}
+              className="text-xs mb-1"
+            >
+              Transactions
+            </Text>
+            <Text
+              style={{ color: colors.text.primary }}
+              className="text-base font-bold"
+            >
               {formatAmount(account.summary.totalTransactions ?? 0)}
             </Text>
           </View>
@@ -93,23 +141,29 @@ const AccountCardComponent = ({ account, onEdit, onDelete }: Props) => {
         <View className="flex-row gap-3">
           <TouchableOpacity
             onPress={() => router.push(`/accounts/${account._id}`)}
-            className="flex-1 bg-blue-50 rounded-xl py-3 active:scale-95"
+            style={{ backgroundColor: colors.info + "25" }}
+            className="flex-1 rounded-xl py-3 active:scale-95"
           >
-            <Text className="text-blue-700 font-bold text-center text-sm">
+            <Text
+              style={{ color: colors.info }}
+              className="font-bold text-center text-sm"
+            >
               View Details
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
+            style={{ backgroundColor: colors.bg.tertiary }}
             onPress={() => onEdit(account._id)}
-            className="bg-gray-100 rounded-xl px-4 py-3 active:scale-95"
+            className="rounded-xl px-4 py-3 active:scale-95"
           >
-            <Ionicons name="create" size={18} color="#6b7280" />
+            <Ionicons name="create" size={18} color={colors.text.secondary} />
           </TouchableOpacity>
           <TouchableOpacity
+            style={{ backgroundColor: colors.error + "15" }}
             onPress={() => onDelete(account._id, account.name)}
-            className="bg-red-50 rounded-xl px-4 py-3 active:scale-95"
+            className="rounded-xl px-4 py-3 active:scale-95"
           >
-            <Ionicons name="trash" size={18} color="#ef4444" />
+            <Ionicons name="trash" size={18} color={colors.error} />
           </TouchableOpacity>
         </View>
       </View>
@@ -138,5 +192,5 @@ export const AccountCard = memo(
       prevProps.onEdit === nextProps.onEdit &&
       prevProps.onDelete === nextProps.onDelete
     );
-  }
+  },
 );

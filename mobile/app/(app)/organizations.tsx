@@ -14,6 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { ScreenHeader } from "@/components/screen-header";
 import { OrganizationFormModal } from "@/components/organization-form-modal";
 import { useOrganization } from "@/hooks/useOrganization";
+import { useTheme } from "@/hooks/useTheme";
 import { organizationsApi, type Organization } from "@/services/organizations";
 import { getApiErrorMessage } from "@/lib/api";
 import { toast } from "@/lib/toast";
@@ -65,10 +66,10 @@ export default function OrganizationsScreen() {
               deleteMutation.mutate(org._id);
             },
           },
-        ]
+        ],
       );
     },
-    [deleteMutation, activeOrganization, switchOrganization]
+    [deleteMutation, activeOrganization, switchOrganization],
   );
 
   const handleEdit = useCallback((org: Organization) => {
@@ -94,14 +95,14 @@ export default function OrganizationsScreen() {
         }
       });
     },
-    [queryClient, refetch, setOrganizations]
+    [queryClient, refetch, setOrganizations],
   );
 
   const handleViewDetails = useCallback(
     (org: Organization) => {
       router.push(`/organizations/${org._id}`);
     },
-    [router]
+    [router],
   );
 
   const getRoleColor = (role: string) => {
@@ -118,18 +119,21 @@ export default function OrganizationsScreen() {
   };
 
   if (isLoading) {
+    const { colors } = useTheme();
     return (
-      <View className="flex-1 bg-white">
+      <View className="flex-1" style={{ backgroundColor: colors.bg.primary }}>
         <ScreenHeader title="Organizations" showBack />
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#3B82F6" />
+          <ActivityIndicator size="large" color={colors.info} />
         </View>
       </View>
     );
   }
 
+  const { colors } = useTheme();
+
   return (
-    <View className="flex-1 bg-gray-50">
+    <View style={{ flex: 1, backgroundColor: colors.bg.primary }}>
       <ScreenHeader
         title="Organizations"
         showBack
@@ -142,7 +146,7 @@ export default function OrganizationsScreen() {
               setShowFormModal(true);
             }}
           >
-            <Ionicons name="add-circle" size={28} color="#3B82F6" />
+            <Ionicons name="add-circle" size={28} color={colors.info} />
           </TouchableOpacity>
         }
       />
@@ -154,14 +158,26 @@ export default function OrganizationsScreen() {
         }
       >
         {/* Info Card */}
-        <View className="m-4 p-4 bg-blue-50 rounded-xl border border-blue-100">
+        <View
+          className="m-4 p-4 rounded-xl border"
+          style={{
+            backgroundColor: colors.info + "15",
+            borderColor: colors.info + "40",
+          }}
+        >
           <View className="flex-row items-start">
-            <Ionicons name="information-circle" size={24} color="#3B82F6" />
+            <Ionicons name="information-circle" size={24} color={colors.info} />
             <View className="ml-3 flex-1">
-              <Text className="text-sm font-medium text-blue-800">
+              <Text
+                className="text-sm font-medium"
+                style={{ color: colors.info }}
+              >
                 Multi-User Business Management
               </Text>
-              <Text className="text-sm text-blue-600 mt-1">
+              <Text
+                className="text-sm mt-1"
+                style={{ color: colors.info + "CC" }}
+              >
                 Create organizations for your businesses. Invite team members
                 with different roles and permissions.
               </Text>
@@ -171,16 +187,27 @@ export default function OrganizationsScreen() {
 
         {organizations.length === 0 ? (
           <View className="p-8 items-center">
-            <Ionicons name="business-outline" size={64} color="#D1D5DB" />
-            <Text className="text-lg font-medium text-gray-500 mt-4">
+            <Ionicons
+              name="business-outline"
+              size={64}
+              color={colors.text.tertiary}
+            />
+            <Text
+              className="text-lg font-medium mt-4"
+              style={{ color: colors.text.secondary }}
+            >
               No Organizations Yet
             </Text>
-            <Text className="text-sm text-gray-400 text-center mt-2">
+            <Text
+              className="text-sm text-center mt-2"
+              style={{ color: colors.text.tertiary }}
+            >
               Create your first organization to start managing your business
               with multiple users.
             </Text>
             <TouchableOpacity
-              className="mt-6 bg-blue-500 px-6 py-3 rounded-lg"
+              className="mt-6 px-6 py-3 rounded-lg"
+              style={{ backgroundColor: colors.info }}
               onPress={() => {
                 setEditingOrg(null);
                 setShowFormModal(true);
@@ -221,7 +248,7 @@ export default function OrganizationsScreen() {
                   </View>
                   <View
                     className={`px-2 py-1 rounded-full ${getRoleColor(
-                      org.role || "owner"
+                      org.role || "owner",
                     )}`}
                   >
                     <Text className="text-xs font-medium capitalize">

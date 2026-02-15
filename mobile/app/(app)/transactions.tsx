@@ -27,6 +27,7 @@ import { fetchCategories } from "@/services/categories";
 import { fetchAccounts } from "@/services/accounts";
 import { queryKeys } from "@/lib/queryKeys";
 import { useOrganization } from "@/hooks/useOrganization";
+import { useTheme } from "@/hooks/useTheme";
 import type { SelectOption } from "@/components/searchable-select";
 import Toast from "react-native-toast-message";
 const defaultFilters: TransactionFilters = {
@@ -84,8 +85,8 @@ export default function TransactionsScreen() {
         prev.map((t) =>
           t._id === editingTransaction?._id
             ? { ...t, ...updatedTransaction }
-            : t
-        )
+            : t,
+        ),
       );
 
       await Promise.all([
@@ -198,7 +199,7 @@ export default function TransactionsScreen() {
       setAllTransactions((prev) => {
         const existingIds = new Set(prev.map((t) => t._id));
         const newTransactions = freshData.filter(
-          (t: any) => !existingIds.has(t._id)
+          (t: any) => !existingIds.has(t._id),
         );
         // console.log(
         //   "✅ Page",
@@ -381,7 +382,7 @@ export default function TransactionsScreen() {
       handleCounterpartyPress,
       handleEditTransaction,
       canEditTransactions,
-    ]
+    ],
   );
 
   // console.log("transactions", transactions, "query", transactionsQuery.data);
@@ -417,13 +418,21 @@ export default function TransactionsScreen() {
     );
   };
 
+  const { colors } = useTheme();
+
   const renderFooter = () => {
     if (!hasMorePages) {
       if (allTransactions.length > 0) {
         return (
           <View className="items-center py-6">
-            <View className="bg-gray-100 rounded-full px-4 py-2">
-              <Text className="text-gray-600 text-sm font-medium">
+            <View
+              className="rounded-full px-4 py-2"
+              style={{ backgroundColor: colors.bg.tertiary }}
+            >
+              <Text
+                className="text-sm font-medium"
+                style={{ color: colors.text.secondary }}
+              >
                 ✓ All transactions loaded ({allTransactions.length} total)
               </Text>
             </View>
@@ -436,8 +445,13 @@ export default function TransactionsScreen() {
     if (loadingMore || (transactionsQuery.isFetching && filters.page !== 1)) {
       return (
         <View className="items-center py-6">
-          <ActivityIndicator size="small" color="#3b82f6" />
-          <Text className="text-gray-500 text-sm mt-2">Loading more...</Text>
+          <ActivityIndicator size="small" color={colors.info} />
+          <Text
+            className="text-sm mt-2"
+            style={{ color: colors.text.secondary }}
+          >
+            Loading more...
+          </Text>
         </View>
       );
     }
@@ -446,9 +460,10 @@ export default function TransactionsScreen() {
       <View className="items-center py-6">
         <TouchableOpacity
           onPress={handleLoadMore}
-          className="bg-blue-500 rounded-xl px-6 py-3 shadow-sm active:scale-95"
+          className="rounded-xl px-6 py-3 shadow-sm active:scale-95"
           style={{
-            shadowColor: "#3b82f6",
+            backgroundColor: colors.info,
+            shadowColor: colors.info,
             shadowOffset: { width: 0, height: 2 },
             shadowOpacity: 0.1,
             shadowRadius: 4,
@@ -462,7 +477,7 @@ export default function TransactionsScreen() {
             </Text>
           </View>
         </TouchableOpacity>
-        <Text className="text-gray-400 text-xs mt-2">
+        <Text className="text-xs mt-2" style={{ color: colors.text.tertiary }}>
           Showing {allTransactions.length} transactions
         </Text>
       </View>
@@ -470,7 +485,7 @@ export default function TransactionsScreen() {
   };
 
   return (
-    <View className="flex-1 bg-gray-50">
+    <View style={{ flex: 1, backgroundColor: colors.bg.primary }}>
       <ScreenHeader
         title="Transactions"
         subtitle={accountId ? "Account transactions" : "All transactions"}

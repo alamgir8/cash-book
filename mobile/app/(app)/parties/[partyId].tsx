@@ -19,10 +19,12 @@ import {
 } from "@/components/parties";
 import { useParty, useDeleteParty } from "@/hooks/use-parties";
 import { formatPartyBalance, getPartyBalanceColor } from "@/lib/party-utils";
+import { useTheme } from "@/hooks/useTheme";
 
 export default function PartyDetailScreen() {
   const { partyId } = useLocalSearchParams<{ partyId: string }>();
   const router = useRouter();
+  const { colors } = useTheme();
 
   const { data: party, isLoading } = useParty(partyId!);
   const deleteMutation = useDeleteParty();
@@ -44,7 +46,7 @@ export default function PartyDetailScreen() {
             });
           },
         },
-      ]
+      ],
     );
   };
 
@@ -62,23 +64,23 @@ export default function PartyDetailScreen() {
 
   if (isLoading || !party) {
     return (
-      <View className="flex-1 bg-white">
+      <View className="flex-1" style={{ backgroundColor: colors.bg.primary }}>
         <ScreenHeader title="Party Details" showBack />
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#3B82F6" />
+          <ActivityIndicator size="large" color={colors.info} />
         </View>
       </View>
     );
   }
 
   return (
-    <View className="flex-1 bg-gray-50">
+    <View className="flex-1" style={{ backgroundColor: colors.bg.primary }}>
       <ScreenHeader
         title="Party Details"
         showBack
         rightAction={
           <TouchableOpacity className="p-2" onPress={handleEdit}>
-            <Ionicons name="pencil" size={22} color="#3B82F6" />
+            <Ionicons name="pencil" size={22} color={colors.info} />
           </TouchableOpacity>
         }
       />
@@ -88,7 +90,13 @@ export default function PartyDetailScreen() {
         <PartyHeaderCard party={party} onEdit={handleEdit} />
 
         {/* Balance */}
-        <View className="px-6 pb-6 bg-white border-b border-gray-100">
+        <View
+          className="px-6 pb-6 border-b"
+          style={{
+            backgroundColor: colors.bg.secondary,
+            borderColor: colors.border,
+          }}
+        >
           <PartyBalanceCard
             balance={party.current_balance}
             formatBalance={formatPartyBalance}
@@ -113,26 +121,62 @@ export default function PartyDetailScreen() {
 
         {/* Notes */}
         {party.notes && (
-          <View className="bg-white p-4 mt-3 border-y border-gray-100">
-            <Text className="text-sm font-semibold text-gray-900 mb-2">
+          <View
+            className="p-4 mt-3 border-y"
+            style={{
+              backgroundColor: colors.bg.secondary,
+              borderColor: colors.border,
+            }}
+          >
+            <Text
+              className="text-sm font-semibold mb-2"
+              style={{ color: colors.text.primary }}
+            >
               Notes
             </Text>
-            <Text className="text-base text-gray-600">{party.notes}</Text>
+            <Text
+              className="text-base"
+              style={{ color: colors.text.secondary }}
+            >
+              {party.notes}
+            </Text>
           </View>
         )}
 
         {/* Meta Info */}
-        <View className="bg-white p-4 mt-3 border-y border-gray-100">
+        <View
+          className="p-4 mt-3 border-y"
+          style={{
+            backgroundColor: colors.bg.secondary,
+            borderColor: colors.border,
+          }}
+        >
           <View className="flex-row">
             <View className="flex-1">
-              <Text className="text-sm text-gray-500">Created</Text>
-              <Text className="text-sm text-gray-700 mt-1">
+              <Text
+                className="text-sm"
+                style={{ color: colors.text.secondary }}
+              >
+                Created
+              </Text>
+              <Text
+                className="text-sm mt-1"
+                style={{ color: colors.text.primary }}
+              >
                 {new Date(party.createdAt).toLocaleDateString()}
               </Text>
             </View>
             <View className="flex-1">
-              <Text className="text-sm text-gray-500">Last Updated</Text>
-              <Text className="text-sm text-gray-700 mt-1">
+              <Text
+                className="text-sm"
+                style={{ color: colors.text.secondary }}
+              >
+                Last Updated
+              </Text>
+              <Text
+                className="text-sm mt-1"
+                style={{ color: colors.text.primary }}
+              >
                 {new Date(party.updatedAt).toLocaleDateString()}
               </Text>
             </View>

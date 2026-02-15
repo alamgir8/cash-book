@@ -6,6 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useBiometric } from "@/hooks/useBiometric";
 import { useOrganization } from "@/hooks/useOrganization";
+import { useTheme } from "@/hooks/useTheme";
 import {
   exportTransactionsPdf,
   exportTransactionsByCategoryPdf,
@@ -198,8 +199,10 @@ export default function SettingsScreen() {
   const userPhone = isAuthenticated ? state.user.phone : undefined;
   const userRole = activeOrganization?.role;
 
+  const { colors } = useTheme();
+
   return (
-    <View className="flex-1 bg-gradient-to-b from-purple-50 to-gray-50">
+    <View style={{ flex: 1, backgroundColor: colors.bg.primary }}>
       <ScreenHeader
         title="Settings"
         subtitle="Profile and app preferences"

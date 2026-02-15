@@ -19,6 +19,7 @@ import SearchableSelect, { type SelectOption } from "./searchable-select";
 import { PasswordInput } from "./password-input";
 import { ActionButton } from "./action-button";
 import { useAuth } from "../hooks/useAuth";
+import { useTheme } from "../hooks/useTheme";
 
 const pinValueSchema = z
   .union([
@@ -226,32 +227,51 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
     }
   };
 
+  const { colors } = useTheme();
+
   return (
     <Modal visible={visible} animationType="slide" transparent>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
       >
-        <View className="flex-1 bg-black/40 justify-end">
+        <View
+          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)" }}
+          className="justify-end"
+        >
           <View
-            className="bg-white rounded-t-3xl flex-1"
-            style={{ maxHeight: "92%" }}
+            style={{ backgroundColor: colors.bg.primary, maxHeight: "92%" }}
+            className="rounded-t-3xl flex-1"
           >
             {/* Header */}
-            <View className="flex-row justify-between items-center p-6 pb-4 border-b border-gray-100">
+            <View
+              style={{ borderColor: colors.border }}
+              className="flex-row justify-between items-center p-6 pb-4 border-b"
+            >
               <View>
-                <Text className="text-gray-900 text-xl font-bold">
+                <Text
+                  style={{ color: colors.text.primary }}
+                  className="text-xl font-bold"
+                >
                   Edit Profile
                 </Text>
-                <Text className="text-gray-500 text-sm">
+                <Text
+                  style={{ color: colors.text.secondary }}
+                  className="text-sm"
+                >
                   Update your profile information
                 </Text>
               </View>
               <TouchableOpacity
                 onPress={handleClose}
-                className="w-8 h-8 bg-gray-100 rounded-full items-center justify-center"
+                style={{ backgroundColor: colors.bg.tertiary }}
+                className="w-8 h-8 rounded-full items-center justify-center"
               >
-                <Ionicons name="close" size={20} color="#6b7280" />
+                <Ionicons
+                  name="close"
+                  size={20}
+                  color={colors.text.secondary}
+                />
               </TouchableOpacity>
             </View>
 
@@ -264,14 +284,26 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
             >
               <View className="gap-5 py-4">
                 {/* Personal Information Section */}
-                <View className="bg-gray-50 rounded-2xl p-4 border border-gray-200">
-                  <Text className="text-base font-semibold text-gray-900 mb-3">
+                <View
+                  style={{
+                    backgroundColor: colors.bg.secondary,
+                    borderColor: colors.border,
+                  }}
+                  className="rounded-2xl p-4 border"
+                >
+                  <Text
+                    style={{ color: colors.text.primary }}
+                    className="text-base font-semibold mb-3"
+                  >
                     Personal Information
                   </Text>
 
                   <View className="gap-4">
                     <View>
-                      <Text className="text-sm font-semibold text-gray-700 mb-2">
+                      <Text
+                        style={{ color: colors.text.primary }}
+                        className="text-sm font-semibold mb-2"
+                      >
                         Full name
                       </Text>
                       <Controller

@@ -1,6 +1,7 @@
 import { View, Text } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { usePreferences } from "../hooks/usePreferences";
+import { useTheme } from "../hooks/useTheme";
 import { useMemo } from "react";
 
 type StatCardProps = {
@@ -23,7 +24,7 @@ type StatCardProps = {
  */
 const calculateTrend = (
   current: number,
-  previous: number
+  previous: number,
 ): { value: string; isPositive: boolean } | null => {
   if (previous === 0) {
     // If previous is 0 but current has value, show as new
@@ -61,43 +62,69 @@ const StatCard = ({
   iconBgColor,
   valueColor,
   trend,
-}: StatCardProps) => (
-  <View className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex-1">
-    <View className="flex-row items-center justify-between mb-3">
-      <View
-        className={`w-12 h-12 ${iconBgColor} rounded-full items-center justify-center`}
-      >
-        <Ionicons name={icon} size={24} color={iconColor} />
-      </View>
-      {trend && (
+}: StatCardProps) => {
+  const { colors } = useTheme();
+  return (
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: colors.bg.secondary,
+        borderColor: colors.border,
+      }}
+      className="rounded-2xl p-5 border shadow-sm"
+    >
+      <View className="flex-row items-center justify-between mb-3">
         <View
-          className={`flex-row items-center gap-1 px-2 py-1 rounded-full ${
-            trend.isPositive ? "bg-green-50" : "bg-red-50"
-          }`}
+          style={{
+            backgroundColor: colors.bg.tertiary,
+          }}
+          className="w-12 h-12 rounded-full items-center justify-center"
         >
-          <Ionicons
-            name={trend.isPositive ? "trending-up" : "trending-down"}
-            size={12}
-            color={trend.isPositive ? "#10b981" : "#ef4444"}
-          />
-          <Text
-            className={`text-xs font-bold ${
-              trend.isPositive ? "text-green-700" : "text-red-700"
-            }`}
-          >
-            {trend.value}
-          </Text>
+          <Ionicons name={icon} size={24} color={iconColor} />
         </View>
-      )}
-    </View>
+        {trend && (
+          <View
+            style={{
+              backgroundColor: trend.isPositive
+                ? colors.success + "20"
+                : colors.error + "20",
+            }}
+            className="flex-row items-center gap-1 px-2 py-1 rounded-full"
+          >
+            <Ionicons
+              name={trend.isPositive ? "trending-up" : "trending-down"}
+              size={12}
+              color={trend.isPositive ? colors.success : colors.error}
+            />
+            <Text
+              style={{
+                color: trend.isPositive ? colors.success : colors.error,
+              }}
+              className="text-xs font-bold"
+            >
+              {trend.value}
+            </Text>
+          </View>
+        )}
+      </View>
 
-    <View>
-      <Text className="text-gray-600 text-sm font-medium">{title}</Text>
-      <Text className={`text-2xl font-bold ${valueColor} mt-1`}>{value}</Text>
-      <Text className="text-gray-500 text-xs mt-1">{subtitle}</Text>
+      <View>
+        <Text
+          style={{ color: colors.text.secondary }}
+          className="text-sm font-medium"
+        >
+          {title}
+        </Text>
+        <Text style={{ color: valueColor }} className="text-2xl font-bold mt-1">
+          {value}
+        </Text>
+        <Text style={{ color: colors.text.tertiary }} className="text-xs mt-1">
+          {subtitle}
+        </Text>
+      </View>
     </View>
-  </View>
-);
+  );
+};
 
 type StatsCardsProps = {
   totalDebit: number;
@@ -126,7 +153,7 @@ export const StatsCards = ({
   // Calculate trends
   const incomeTrend = useMemo(
     () => calculateTrend(totalCredit, previousCredit),
-    [totalCredit, previousCredit]
+    [totalCredit, previousCredit],
   );
 
   const expenseTrend = useMemo(() => {
@@ -141,29 +168,60 @@ export const StatsCards = ({
 
   const transactionTrend = useMemo(
     () => calculateTrend(transactionCount, previousTransactionCount),
-    [transactionCount, previousTransactionCount]
+    [transactionCount, previousTransactionCount],
   );
 
   if (isLoading) {
+    const { colors } = useTheme();
     return (
       <View className="gap-4">
         {/* Top Row Skeleton */}
         <View className="flex-row gap-4">
           {/* Income Skeleton - Green Theme */}
-          <View className="flex-1 h-32 bg-green-50 rounded-2xl border border-green-100" />
+          <View
+            style={{
+              backgroundColor: colors.success + "20",
+              borderColor: colors.success + "40",
+            }}
+            className="flex-1 h-32 rounded-2xl border"
+          />
           {/* Expense Skeleton - Red Theme */}
-          <View className="flex-1 h-32 bg-red-50 rounded-2xl border border-red-100" />
+          <View
+            style={{
+              backgroundColor: colors.error + "20",
+              borderColor: colors.error + "40",
+            }}
+            className="flex-1 h-32 rounded-2xl border"
+          />
         </View>
 
         {/* Net Balance Skeleton - Neutral Theme */}
-        <View className="h-32 bg-gray-50 rounded-2xl border border-gray-100" />
+        <View
+          style={{
+            backgroundColor: colors.bg.tertiary,
+            borderColor: colors.border,
+          }}
+          className="h-32 rounded-2xl border"
+        />
 
         {/* Bottom Row Skeleton */}
         <View className="flex-row gap-4">
           {/* Transactions Skeleton - Blue Theme */}
-          <View className="flex-1 h-32 bg-blue-50 rounded-2xl border border-blue-100" />
+          <View
+            style={{
+              backgroundColor: colors.info + "20",
+              borderColor: colors.info + "40",
+            }}
+            className="flex-1 h-32 rounded-2xl border"
+          />
           {/* Accounts Skeleton - Purple Theme */}
-          <View className="flex-1 h-32 bg-purple-50 rounded-2xl border border-purple-100" />
+          <View
+            style={{
+              backgroundColor: colors.warning + "20",
+              borderColor: colors.warning + "40",
+            }}
+            className="flex-1 h-32 rounded-2xl border"
+          />
         </View>
       </View>
     );
@@ -171,6 +229,7 @@ export const StatsCards = ({
 
   const netBalance = totalCredit - totalDebit;
   const isPositiveBalance = netBalance >= 0;
+  const { colors } = useTheme();
 
   return (
     <View className="gap-4">
@@ -181,9 +240,9 @@ export const StatsCards = ({
           value={formatAmount(totalCredit)}
           subtitle="Credit transactions"
           icon="trending-up"
-          iconColor="#10b981"
+          iconColor={colors.success}
           iconBgColor="bg-green-50"
-          valueColor="text-green-600"
+          valueColor={colors.success}
           trend={incomeTrend}
         />
         <StatCard
@@ -191,48 +250,62 @@ export const StatsCards = ({
           value={formatAmount(totalDebit)}
           subtitle="Debit transactions"
           icon="trending-down"
-          iconColor="#ef4444"
+          iconColor={colors.error}
           iconBgColor="bg-red-50"
-          valueColor="text-red-600"
+          valueColor={colors.error}
           trend={expenseTrend}
         />
       </View>
 
       {/* Net Balance Card */}
       <View
-        className={`rounded-2xl bg-white p-6 border shadow-sm ${
-          isPositiveBalance
-            ? "bg-gradient-to-r from-green-50 to-emerald-50 border-green-100"
-            : "bg-gradient-to-r from-red-50 to-rose-50 border-red-100"
-        }`}
+        style={{
+          backgroundColor: isPositiveBalance
+            ? colors.success + "15"
+            : colors.error + "15",
+          borderColor: isPositiveBalance
+            ? colors.success + "40"
+            : colors.error + "40",
+        }}
+        className="rounded-2xl p-6 border shadow-sm"
       >
         <View className="flex-row items-center justify-between">
           <View className="flex-1">
-            <Text className="text-gray-600 text-sm font-medium">
+            <Text
+              style={{ color: colors.text.secondary }}
+              className="text-sm font-medium"
+            >
               Net Balance
             </Text>
             <Text
-              className={`text-3xl font-bold ${
-                isPositiveBalance ? "text-green-700" : "text-red-700"
-              } mt-2`}
+              style={{
+                color: isPositiveBalance ? colors.success : colors.error,
+              }}
+              className="text-3xl font-bold mt-2"
             >
               {formatAmount(Math.abs(netBalance))}
             </Text>
-            <Text className="text-gray-500 text-sm mt-1">
+            <Text
+              style={{ color: colors.text.tertiary }}
+              className="text-sm mt-1"
+            >
               {isPositiveBalance
                 ? "Surplus this period"
                 : "Deficit this period"}
             </Text>
           </View>
           <View
-            className={`w-16 h-16 rounded-full items-center justify-center ${
-              isPositiveBalance ? "bg-green-100" : "bg-red-100"
-            }`}
+            style={{
+              backgroundColor: isPositiveBalance
+                ? colors.success + "25"
+                : colors.error + "25",
+            }}
+            className="w-16 h-16 rounded-full items-center justify-center"
           >
             <Ionicons
               name={isPositiveBalance ? "checkmark-circle" : "alert-circle"}
               size={32}
-              color={isPositiveBalance ? "#10b981" : "#ef4444"}
+              color={isPositiveBalance ? colors.success : colors.error}
             />
           </View>
         </View>
@@ -245,9 +318,9 @@ export const StatsCards = ({
           value={formatAmount(transactionCount, { showCurrency: false })}
           subtitle="This period"
           icon="receipt"
-          iconColor="#3b82f6"
+          iconColor={colors.info}
           iconBgColor="bg-blue-50"
-          valueColor="text-blue-600"
+          valueColor={colors.info}
           trend={transactionTrend}
         />
         <StatCard
@@ -255,9 +328,9 @@ export const StatsCards = ({
           value={formatAmount(accountCount, { showCurrency: false })}
           subtitle="Total accounts"
           icon="wallet"
-          iconColor="#8b5cf6"
+          iconColor={colors.warning}
           iconBgColor="bg-purple-50"
-          valueColor="text-purple-600"
+          valueColor={colors.warning}
         />
       </View>
     </View>

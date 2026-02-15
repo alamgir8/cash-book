@@ -29,6 +29,7 @@ import {
 } from "@/services/transactions";
 import { queryKeys } from "@/lib/queryKeys";
 import { usePreferences } from "@/hooks/usePreferences";
+import { useTheme } from "@/hooks/useTheme";
 import { useAccountDetail, useAccountTransactions } from "@/hooks/use-accounts";
 import { calculateAccountNetFlow } from "@/lib/account-utils";
 import type { SelectOption } from "@/components/searchable-select";
@@ -41,6 +42,7 @@ const defaultFilters: TransactionFilters = {
 export default function AccountDetailScreen() {
   const { formatAmount } = usePreferences();
   const router = useRouter();
+  const { colors } = useTheme();
   const params = useLocalSearchParams<{ accountId?: string }>();
   const accountId = Array.isArray(params.accountId)
     ? params.accountId[0]
@@ -108,7 +110,7 @@ export default function AccountDetailScreen() {
       setAllTransactions((prev) => {
         const existingIds = new Set(prev.map((t) => t._id));
         const newTransactions = freshData.filter(
-          (t: any) => !existingIds.has(t._id)
+          (t: any) => !existingIds.has(t._id),
         );
         return [...prev, ...newTransactions];
       });
@@ -125,7 +127,7 @@ export default function AccountDetailScreen() {
 
   const netFlow = useMemo(
     () => calculateAccountNetFlow(summary?.totalCredit, summary?.totalDebit),
-    [summary]
+    [summary],
   );
 
   const hasActiveFilters = useMemo(() => {
@@ -242,8 +244,11 @@ export default function AccountDetailScreen() {
 
   if (!accountId) {
     return (
-      <View className="flex-1 items-center justify-center bg-gray-50 px-6">
-        <Text className="text-gray-500 text-base">
+      <View
+        className="flex-1 items-center justify-center px-6"
+        style={{ backgroundColor: colors.bg.primary }}
+      >
+        <Text className="text-base" style={{ color: colors.text.secondary }}>
           Account not found. Please go back and try again.
         </Text>
       </View>
@@ -252,8 +257,11 @@ export default function AccountDetailScreen() {
 
   if (detailQuery.isLoading && !detailQuery.data) {
     return (
-      <View className="flex-1 items-center justify-center bg-gray-50">
-        <ActivityIndicator color="#3b82f6" size="large" />
+      <View
+        className="flex-1 items-center justify-center"
+        style={{ backgroundColor: colors.bg.primary }}
+      >
+        <ActivityIndicator color={colors.info} size="large" />
       </View>
     );
   }
@@ -262,60 +270,73 @@ export default function AccountDetailScreen() {
     ? dayjs(summary.lastTransactionDate).format("MMM D, YYYY")
     : "No activity yet";
 
-  const renderHeader = () => (
-    <View className="gap-4">
-      <View className="flex-row items-center gap-3">
-        <TouchableOpacity
-          onPress={() => router.back()}
-          className="w-10 h-10 rounded-full bg-white border border-slate-200 items-center justify-center"
-        >
-          <Ionicons name="chevron-back" size={20} color="#1f2937" />
-        </TouchableOpacity>
-        <Text className="text-2xl font-bold text-gray-900">
-          {account?.name ?? "Account"}
-        </Text>
-      </View>
+  const renderHeader = () => {
+    return (
+      <View className="gap-4">
+        <View className="flex-row items-center gap-3">
+          <TouchableOpacity
+            onPress={() => router.back()}
+            className="w-10 h-10 rounded-full border items-center justify-center"
+            style={{
+              backgroundColor: colors.bg.secondary,
+              borderColor: colors.border,
+            }}
+          >
+            <Ionicons
+              name="chevron-back"
+              size={20}
+              color={colors.text.primary}
+            />
+          </TouchableOpacity>
+          <Text
+            className="text-2xl font-bold"
+            style={{ color: colors.text.primary }}
+          >
+            {account?.name ?? "Account"}
+          </Text>
+        </View>
 
-      <AccountHeader
-        account={account!}
-        lastActivityLabel={lastActivityLabel}
-        formatAmount={formatAmount}
-      />
-
-      <AccountActions
-        onEdit={handleEdit}
-        onExport={handleExport}
-        exporting={exporting}
-      />
-
-      {summary && (
-        <AccountSummaryCard
-          summary={summary}
-          netFlow={netFlow}
+        <AccountHeader
+          account={account!}
+          lastActivityLabel={lastActivityLabel}
           formatAmount={formatAmount}
         />
-      )}
 
-      <FilterBar
-        filters={filters}
-        onChange={handleFilterChange}
-        hasActiveFilters={hasActiveFilters}
-        showAccountField={false}
-        showTypeToggle
-        showCategoryField
-        categories={categoryOptions}
-        showCounterpartyField
-        counterparties={counterpartyOptions}
-        onReset={handleResetFilters}
-        onApplyFilters={() => {
-          setAllTransactions([]);
-          setHasMorePages(true);
-          setFilters((prev) => ({ ...prev, page: 1 }));
-          transactionsQuery.refetch();
-        }}
-      />
-    </View>
-  );
+        <AccountActions
+          onEdit={handleEdit}
+          onExport={handleExport}
+          exporting={exporting}
+        />
+
+        {summary && (
+          <AccountSummaryCard
+            summary={summary}
+            netFlow={netFlow}
+            formatAmount={formatAmount}
+          />
+        )}
+
+        <FilterBar
+          filters={filters}
+          onChange={handleFilterChange}
+          hasActiveFilters={hasActiveFilters}
+          showAccountField={false}
+          showTypeToggle
+          showCategoryField
+          categories={categoryOptions}
+          showCounterpartyField
+          counterparties={counterpartyOptions}
+          onReset={handleResetFilters}
+          onApplyFilters={() => {
+            setAllTransactions([]);
+            setHasMorePages(true);
+            setFilters((prev) => ({ ...prev, page: 1 }));
+            transactionsQuery.refetch();
+          }}
+        />
+      </View>
+    );
+  };
 
   return (
     <View className="flex-1 bg-slate-50">

@@ -34,6 +34,7 @@ import {
 import { queryKeys } from "@/lib/queryKeys";
 import { usePreferences } from "@/hooks/usePreferences";
 import { useOrganization } from "@/hooks/useOrganization";
+import { useTheme } from "@/hooks/useTheme";
 
 const schema = z.object({
   name: z.string().min(2, "Account name is required"),
@@ -56,7 +57,7 @@ const parseVoiceForAccount = (transcript: string): Partial<FormValues> => {
   };
 
   const nameMatch = transcript.match(
-    /account (named|called)? ([a-zA-Z0-9 ]+)/i
+    /account (named|called)? ([a-zA-Z0-9 ]+)/i,
   );
   if (nameMatch) {
     parsed.name = nameMatch[2].trim();
@@ -76,6 +77,7 @@ const parseVoiceForAccount = (transcript: string): Partial<FormValues> => {
 export default function AccountsScreen() {
   const { formatAmount } = usePreferences();
   const { canManageAccounts } = useOrganization();
+  const { colors } = useTheme();
   const queryClient = useQueryClient();
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
@@ -98,13 +100,13 @@ export default function AccountsScreen() {
       tasks.push(
         queryClient.invalidateQueries({
           queryKey: queryKeys.accountDetail(accountId),
-        })
+        }),
       );
       tasks.push(
         queryClient.invalidateQueries({
           queryKey: ["account", accountId],
           exact: false,
-        })
+        }),
       );
     }
 
@@ -166,7 +168,7 @@ export default function AccountsScreen() {
       }
       setModalVisible(true);
     },
-    [reset]
+    [reset],
   );
 
   const onSubmit = async (values: FormValues) => {
@@ -207,7 +209,7 @@ export default function AccountsScreen() {
     }
 
     const target = accountsQuery.data.find(
-      (account) => account._id === accountParam
+      (account) => account._id === accountParam,
     );
     if (target) {
       openModal(target);
@@ -217,7 +219,7 @@ export default function AccountsScreen() {
 
   const accounts = useMemo(
     () => accountsQuery.data ?? [],
-    [accountsQuery.data]
+    [accountsQuery.data],
   );
 
   const totals = useMemo(() => {
@@ -258,93 +260,119 @@ export default function AccountsScreen() {
     : "No activity yet";
   const netPositive = totals.netBalance >= 0;
 
-  const renderHeader = () => (
-    <View className="gap-4 mb-2">
-      <View className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
-        <View className="flex-row items-center justify-between">
-          <Text className="text-gray-900 text-lg font-bold">
-            Portfolio Overview
-          </Text>
-          <View className="px-3 py-1 rounded-full bg-blue-50">
-            <Text className="text-blue-600 text-xs font-semibold">
-              {totals.totalAccounts} Accounts
+  const renderHeader = () => {
+    return (
+      <View className="gap-4 mb-2">
+        <View
+          className="rounded-2xl p-5 border shadow-sm"
+          style={{
+            backgroundColor: colors.bg.secondary,
+            borderColor: colors.border,
+          }}
+        >
+          <View className="flex-row items-center justify-between">
+            <Text
+              className="text-lg font-bold"
+              style={{ color: colors.text.primary }}
+            >
+              Portfolio Overview
             </Text>
+            <View
+              className="px-3 py-1 rounded-full"
+              style={{ backgroundColor: colors.info + "25" }}
+            >
+              <Text
+                className="text-xs font-semibold"
+                style={{ color: colors.info }}
+              >
+                {totals.totalAccounts} Accounts
+              </Text>
+            </View>
+          </View>
+
+          <View className="flex-row gap-3 mt-4">
+            <View className="flex-1 bg-green-50 rounded-xl p-4 border border-green-100">
+              <Text className="text-xs font-semibold text-green-700 uppercase">
+                Total Credit
+              </Text>
+              <Text className="text-2xl font-bold text-green-700 mt-2">
+                {formatAmount(totals.totalCredit)}
+              </Text>
+              <Text className="text-xs text-green-600 mt-1">
+                Across all accounts
+              </Text>
+            </View>
+            <View className="flex-1 bg-red-50 rounded-xl p-4 border border-red-100">
+              <Text className="text-xs font-semibold text-red-700 uppercase">
+                Total Debit
+              </Text>
+              <Text className="text-2xl font-bold text-red-700 mt-2">
+                {formatAmount(totals.totalDebit)}
+              </Text>
+              <Text className="text-xs text-red-600 mt-1">
+                Overall spending
+              </Text>
+            </View>
+          </View>
+
+          <View className="flex-row gap-3 mt-3">
+            <View
+              className={`flex-1 rounded-xl p-4 border ${
+                netPositive
+                  ? "bg-emerald-50 border-emerald-100"
+                  : "bg-rose-50 border-rose-100"
+              }`}
+            >
+              <Text
+                className={`text-xs font-semibold uppercase ${
+                  netPositive ? "text-emerald-700" : "text-rose-700"
+                }`}
+              >
+                Net Balance
+              </Text>
+              <Text
+                className={`text-2xl font-bold mt-2 ${
+                  netPositive ? "text-emerald-700" : "text-rose-700"
+                }`}
+              >
+                {formatAmount(Math.abs(totals.netBalance))}
+              </Text>
+              <Text
+                className="text-xs mt-1"
+                style={{ color: colors.text.secondary }}
+              >
+                {netPositive
+                  ? "Surplus across accounts"
+                  : "Outstanding balance"}
+              </Text>
+            </View>
+            <View className="flex-1 bg-indigo-50 rounded-xl p-4 border border-indigo-100">
+              <Text className="text-xs font-semibold text-indigo-700 uppercase">
+                Transactions
+              </Text>
+              <Text className="text-2xl font-bold text-indigo-700 mt-2">
+                {formatAmount(totals.totalTransactions, {
+                  showCurrency: false,
+                })}
+              </Text>
+              <Text className="text-xs text-indigo-600 mt-1">
+                Last activity: {lastActivityLabel}
+              </Text>
+            </View>
           </View>
         </View>
 
-        <View className="flex-row gap-3 mt-4">
-          <View className="flex-1 bg-green-50 rounded-xl p-4 border border-green-100">
-            <Text className="text-xs font-semibold text-green-700 uppercase">
-              Total Credit
-            </Text>
-            <Text className="text-2xl font-bold text-green-700 mt-2">
-              {formatAmount(totals.totalCredit)}
-            </Text>
-            <Text className="text-xs text-green-600 mt-1">
-              Across all accounts
-            </Text>
-          </View>
-          <View className="flex-1 bg-red-50 rounded-xl p-4 border border-red-100">
-            <Text className="text-xs font-semibold text-red-700 uppercase">
-              Total Debit
-            </Text>
-            <Text className="text-2xl font-bold text-red-700 mt-2">
-              {formatAmount(totals.totalDebit)}
-            </Text>
-            <Text className="text-xs text-red-600 mt-1">Overall spending</Text>
-          </View>
-        </View>
-
-        <View className="flex-row gap-3 mt-3">
-          <View
-            className={`flex-1 rounded-xl p-4 border ${
-              netPositive
-                ? "bg-emerald-50 border-emerald-100"
-                : "bg-rose-50 border-rose-100"
-            }`}
-          >
-            <Text
-              className={`text-xs font-semibold uppercase ${
-                netPositive ? "text-emerald-700" : "text-rose-700"
-              }`}
-            >
-              Net Balance
-            </Text>
-            <Text
-              className={`text-2xl font-bold mt-2 ${
-                netPositive ? "text-emerald-700" : "text-rose-700"
-              }`}
-            >
-              {formatAmount(Math.abs(totals.netBalance))}
-            </Text>
-            <Text className="text-xs text-gray-500 mt-1">
-              {netPositive ? "Surplus across accounts" : "Outstanding balance"}
-            </Text>
-          </View>
-          <View className="flex-1 bg-indigo-50 rounded-xl p-4 border border-indigo-100">
-            <Text className="text-xs font-semibold text-indigo-700 uppercase">
-              Transactions
-            </Text>
-            <Text className="text-2xl font-bold text-indigo-700 mt-2">
-              {formatAmount(totals.totalTransactions, { showCurrency: false })}
-            </Text>
-            <Text className="text-xs text-indigo-600 mt-1">
-              Last activity: {lastActivityLabel}
-            </Text>
-          </View>
-        </View>
+        <Text className="text-gray-500 text-sm font-semibold uppercase tracking-wide px-1">
+          Accounts
+        </Text>
       </View>
-
-      <Text className="text-gray-500 text-sm font-semibold uppercase tracking-wide px-1">
-        Accounts
-      </Text>
-    </View>
-  );
+    );
+  };
 
   // console.log("accounts", accounts);
 
   return (
-    <View className="flex-1 bg-slate-50">
+    <View style={{ flex: 1, backgroundColor: colors.bg.primary }}>
       <ScreenHeader
         title="Accounts"
         subtitle="Manage your financial accounts"
@@ -417,8 +445,10 @@ export default function AccountsScreen() {
 
           return (
             <View
-              className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm"
+              className="rounded-2xl p-4 border shadow-sm"
               style={{
+                backgroundColor: colors.bg.secondary,
+                borderColor: colors.border,
                 shadowColor: "#000",
                 shadowOffset: { width: 0, height: 3 },
                 shadowOpacity: 0.06,
@@ -428,17 +458,26 @@ export default function AccountsScreen() {
             >
               <View className="flex-row justify-between items-start">
                 <View className="flex-1 mr-4">
-                  <Text className="text-gray-900 text-xl font-bold">
+                  <Text
+                    className="text-xl font-bold"
+                    style={{ color: colors.text.primary }}
+                  >
                     {item.name}
                   </Text>
                   <View className="flex-row items-center gap-2 mt-2">
-                    <Text className="text-xs text-gray-500">
+                    <Text
+                      className="text-xs"
+                      style={{ color: colors.text.secondary }}
+                    >
                       Last activity: {lastActivity}
                     </Text>
                   </View>
                 </View>
                 <View className="items-end">
-                  <Text className="text-gray-500 text-xs font-medium uppercase">
+                  <Text
+                    className="text-xs font-medium uppercase"
+                    style={{ color: colors.text.secondary }}
+                  >
                     Balance
                   </Text>
                   <Text
@@ -452,7 +491,10 @@ export default function AccountsScreen() {
               </View>
 
               {item.description ? (
-                <Text className="text-gray-600 text-sm mt-4 leading-5">
+                <Text
+                  className="text-sm mt-4 leading-5"
+                  style={{ color: colors.text.secondary }}
+                >
                   {item.description}
                 </Text>
               ) : null}
@@ -477,11 +519,23 @@ export default function AccountsScreen() {
               </View>
 
               <View className="flex-row gap-3 mt-3">
-                <View className="flex-1 bg-gray-50 rounded-xl p-3 border border-gray-200">
-                  <Text className="text-xs font-semibold text-gray-500 uppercase">
+                <View
+                  className="flex-1 rounded-xl p-3 border"
+                  style={{
+                    backgroundColor: colors.bg.tertiary,
+                    borderColor: colors.border,
+                  }}
+                >
+                  <Text
+                    className="text-xs font-semibold uppercase"
+                    style={{ color: colors.text.secondary }}
+                  >
                     Transactions
                   </Text>
-                  <Text className="text-lg font-bold text-gray-700 mt-1">
+                  <Text
+                    className="text-lg font-bold mt-1"
+                    style={{ color: colors.text.primary }}
+                  >
                     {formatAmount(item.summary.totalTransactions ?? 0, {
                       showCurrency: false,
                     })}
@@ -527,10 +581,24 @@ export default function AccountsScreen() {
                 {canManageAccounts && (
                   <TouchableOpacity
                     onPress={() => openModal(item)}
-                    className="flex-1 flex-row items-center justify-center gap-2 border border-gray-200 rounded-xl py-2.5 bg-gray-50 active:bg-gray-100"
+                    className="flex-1 flex-row items-center justify-center gap-2 rounded-xl py-2.5"
+                    style={{
+                      backgroundColor: colors.bg.tertiary,
+                      borderColor: colors.border,
+                      borderWidth: 1,
+                    }}
                   >
-                    <Ionicons name="pencil" size={18} color="#334155" />
-                    <Text className="text-gray-700 font-semibold">Edit</Text>
+                    <Ionicons
+                      name="pencil"
+                      size={18}
+                      color={colors.text.secondary}
+                    />
+                    <Text
+                      className="font-semibold"
+                      style={{ color: colors.text.primary }}
+                    >
+                      Edit
+                    </Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -546,16 +614,28 @@ export default function AccountsScreen() {
         >
           <View className="flex-1 bg-black/40 justify-end">
             <View
-              className="bg-white rounded-t-3xl flex-1"
-              style={{ maxHeight: "90%" }}
+              className="rounded-t-3xl flex-1"
+              style={{
+                maxHeight: "90%",
+                backgroundColor: colors.bg.primary,
+              }}
             >
               {/* Header */}
-              <View className="flex-row justify-between items-center p-6 pb-4 border-b border-gray-100">
+              <View
+                className="flex-row justify-between items-center p-6 pb-4 border-b"
+                style={{ borderColor: colors.border }}
+              >
                 <View>
-                  <Text className="text-gray-900 text-xl font-bold">
+                  <Text
+                    className="text-xl font-bold"
+                    style={{ color: colors.text.primary }}
+                  >
                     {selectedAccount ? "Edit Account" : "New Account"}
                   </Text>
-                  <Text className="text-gray-500 text-sm">
+                  <Text
+                    className="text-sm"
+                    style={{ color: colors.text.secondary }}
+                  >
                     {selectedAccount
                       ? "Update account details"
                       : "Create a new account to track"}
@@ -563,9 +643,14 @@ export default function AccountsScreen() {
                 </View>
                 <TouchableOpacity
                   onPress={() => setModalVisible(false)}
-                  className="w-8 h-8 bg-gray-100 rounded-full items-center justify-center"
+                  className="w-8 h-8 rounded-full items-center justify-center"
+                  style={{ backgroundColor: colors.bg.tertiary }}
                 >
-                  <Ionicons name="close" size={20} color="#6b7280" />
+                  <Ionicons
+                    name="close"
+                    size={20}
+                    color={colors.text.secondary}
+                  />
                 </TouchableOpacity>
               </View>
 
@@ -579,7 +664,10 @@ export default function AccountsScreen() {
                 <View className="gap-5 py-4">
                   {/* Account Name */}
                   <View>
-                    <Text className="text-gray-700 text-sm font-semibold mb-2">
+                    <Text
+                      className="text-sm font-semibold mb-2"
+                      style={{ color: colors.text.primary }}
+                    >
                       Account Name
                     </Text>
                     <Controller
@@ -590,13 +678,21 @@ export default function AccountsScreen() {
                           value={value}
                           onChangeText={onChange}
                           placeholder="e.g. Business Checking, Savings Account"
-                          placeholderTextColor="#9ca3af"
-                          className="bg-gray-50 text-gray-900 px-4 py-2.5 rounded-xl border border-gray-200 text-base"
+                          placeholderTextColor={colors.text.tertiary}
+                          style={{
+                            backgroundColor: colors.bg.tertiary,
+                            color: colors.text.primary,
+                            borderColor: colors.border,
+                          }}
+                          className="px-4 py-2.5 rounded-xl border text-base"
                         />
                       )}
                     />
                     {errors.name ? (
-                      <Text className="text-red-500 text-sm mt-2">
+                      <Text
+                        className="text-sm mt-2"
+                        style={{ color: colors.error }}
+                      >
                         {errors.name.message}
                       </Text>
                     ) : null}
@@ -604,7 +700,10 @@ export default function AccountsScreen() {
 
                   {/* Description */}
                   <View>
-                    <Text className="text-gray-700 text-sm font-semibold mb-2">
+                    <Text
+                      className="text-sm font-semibold mb-2"
+                      style={{ color: colors.text.primary }}
+                    >
                       Description
                     </Text>
                     <Controller
@@ -615,8 +714,13 @@ export default function AccountsScreen() {
                           value={value || ""}
                           onChangeText={onChange}
                           placeholder="Optional details about this account..."
-                          placeholderTextColor="#9ca3af"
-                          className="bg-gray-50 text-gray-900 px-4 py-2.5 rounded-xl border border-gray-200 min-h-[80px]"
+                          placeholderTextColor={colors.text.tertiary}
+                          style={{
+                            backgroundColor: colors.bg.tertiary,
+                            color: colors.text.primary,
+                            borderColor: colors.border,
+                          }}
+                          className="px-4 py-2.5 rounded-xl border min-h-[80px]"
                           multiline
                           textAlignVertical="top"
                         />
@@ -630,7 +734,10 @@ export default function AccountsScreen() {
               </ScrollView>
 
               {/* Submit Button - Fixed at bottom */}
-              <View className="p-6 pt-4 pb-8 border-t border-gray-100">
+              <View
+                className="p-6 pt-4 pb-8 border-t"
+                style={{ borderColor: colors.border }}
+              >
                 <ActionButton
                   label={selectedAccount ? "Update Account" : "Create Account"}
                   onPress={handleSubmit(onSubmit)}

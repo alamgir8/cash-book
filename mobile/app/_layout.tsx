@@ -75,6 +75,7 @@ const RootContent = () => {
   const router = useRouter();
   const [isReady, setReady] = useState(false);
   const [isNavigationReady, setNavigationReady] = useState(false);
+  const { colors, isDark } = useTheme();
 
   useEffect(() => {
     async function prepare() {
@@ -130,8 +131,6 @@ const RootContent = () => {
   if (!isNavigationReady) {
     return <AuthLoading />;
   }
-
-  const { colors, isDark } = useTheme();
 
   return (
     <SafeAreaView

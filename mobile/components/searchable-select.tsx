@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTheme } from "../hooks/useTheme";
 
 export type SelectOption = {
   value: string;
@@ -44,12 +45,13 @@ export const SearchableSelect = ({
   allowCustomValue = false,
   customDisplayValue,
 }: SearchableSelectProps) => {
+  const { colors } = useTheme();
   const [visible, setVisible] = useState(false);
   const [search, setSearch] = useState("");
 
   const selectedOption = useMemo(
     () => options.find((option) => option.value === value),
-    [options, value]
+    [options, value],
   );
 
   const { filteredItems, hasMore, totalCount } = useMemo(() => {
@@ -121,7 +123,7 @@ export const SearchableSelect = ({
     const normalizedSearch = search.trim().toLowerCase();
     if (!normalizedSearch) return true;
     return options.some(
-      (option) => option.label.toLowerCase() === normalizedSearch
+      (option) => option.label.toLowerCase() === normalizedSearch,
     );
   }, [options, search]);
 
@@ -137,20 +139,32 @@ export const SearchableSelect = ({
   };
 
   return (
-    <View style={styles.container}>
-      {label ? <Text style={styles.label}>{label}</Text> : null}
+    <View>
+      {label ? (
+        <Text style={{ color: colors.text.primary, ...styles.label }}>
+          {label}
+        </Text>
+      ) : null}
       <TouchableOpacity
-        style={[styles.trigger, disabled && styles.triggerDisabled]}
+        style={{
+          backgroundColor: colors.bg.secondary,
+          borderColor: colors.border,
+          opacity: disabled ? 0.5 : 1,
+          ...styles.trigger,
+        }}
         onPress={() => !disabled && setVisible(true)}
         activeOpacity={0.85}
       >
         <Text
-          style={displayText ? styles.valueText : styles.placeholderText}
+          style={{
+            color: displayText ? colors.text.primary : colors.text.tertiary,
+            ...styles.valueText,
+          }}
           numberOfLines={1}
         >
           {displayText ?? placeholder}
         </Text>
-        <Ionicons name="chevron-down" size={18} color="#6b7280" />
+        <Ionicons name="chevron-down" size={18} color={colors.text.secondary} />
       </TouchableOpacity>
 
       <Modal
@@ -166,23 +180,34 @@ export const SearchableSelect = ({
         />
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={styles.sheet}
+          style={{ ...styles.sheet, backgroundColor: colors.bg.primary }}
         >
-          <View style={styles.sheetHeader}>
-            <Text style={styles.sheetTitle}>{label ?? placeholder}</Text>
+          <View style={{ ...styles.sheetHeader, borderColor: colors.border }}>
+            <Text style={{ color: colors.text.primary, ...styles.sheetTitle }}>
+              {label ?? placeholder}
+            </Text>
             <TouchableOpacity onPress={closeModal}>
-              <Ionicons name="close" size={22} color="#6b7280" />
+              <Ionicons name="close" size={22} color={colors.text.secondary} />
             </TouchableOpacity>
           </View>
 
-          <View style={styles.searchContainer}>
-            <Ionicons name="search" size={18} color="#6b7280" />
+          <View
+            style={{
+              backgroundColor: colors.bg.secondary,
+              borderColor: colors.border,
+              ...styles.searchContainer,
+            }}
+          >
+            <Ionicons name="search" size={18} color={colors.text.secondary} />
             <TextInput
               value={search}
               onChangeText={setSearch}
               placeholder="Search"
-              placeholderTextColor="#9ca3af"
-              style={styles.searchInput}
+              placeholderTextColor={colors.text.tertiary}
+              style={{
+                color: colors.text.primary,
+                ...styles.searchInput,
+              }}
               autoFocus
             />
           </View>
