@@ -15,6 +15,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
 import { useBiometric } from "../../hooks/useBiometric";
+import { useTheme } from "@/hooks/useTheme";
 
 interface BiometricSettingsModalProps {
   visible: boolean;
@@ -27,6 +28,7 @@ export function BiometricSettingsModal({
   onClose,
   userEmail,
 }: BiometricSettingsModalProps) {
+  const { colors } = useTheme();
   // Pass userEmail as userIdentifier for per-user biometric storage
   const {
     status,
@@ -50,7 +52,7 @@ export function BiometricSettingsModal({
       Alert.alert(
         "Disable Biometric Login",
         `Are you sure you want to disable ${getBiometricDisplayName(
-          status.biometricType
+          status.biometricType,
         )} login?`,
         [
           { text: "Cancel", style: "cancel" },
@@ -72,7 +74,7 @@ export function BiometricSettingsModal({
               }
             },
           },
-        ]
+        ],
       );
     } else {
       // Show password input to enable biometric
@@ -102,7 +104,7 @@ export function BiometricSettingsModal({
           type: "success",
           text1: "Biometric login enabled",
           text2: `You can now login using ${getBiometricDisplayName(
-            status?.biometricType || "none"
+            status?.biometricType || "none",
           )}`,
         });
         setShowPasswordInput(false);
@@ -143,53 +145,92 @@ export function BiometricSettingsModal({
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         className="flex-1"
       >
-        <View className="flex-1 bg-black/50 justify-end">
-          <View className="bg-white rounded-t-3xl p-6 max-h-[80%]">
+        <View
+          className="flex-1 justify-end"
+          style={{ backgroundColor: "rgba(0, 0, 0, 0.5)" }}
+        >
+          <View
+            className="rounded-t-3xl p-6 max-h-[80%]"
+            style={{ backgroundColor: colors.bg.primary }}
+          >
             {/* Header */}
             <View className="flex-row items-center justify-between mb-6">
               <View className="flex-row items-center gap-3">
-                <View className="w-12 h-12 bg-purple-100 rounded-full items-center justify-center">
-                  <Ionicons name={biometricIcon} size={24} color="#8b5cf6" />
+                <View
+                  className="w-12 h-12 rounded-full items-center justify-center"
+                  style={{ backgroundColor: colors.info + "15" }}
+                >
+                  <Ionicons
+                    name={biometricIcon}
+                    size={24}
+                    color={colors.info}
+                  />
                 </View>
                 <View>
-                  <Text className="text-xl font-bold text-gray-900">
+                  <Text
+                    className="text-xl font-bold"
+                    style={{ color: colors.text.primary }}
+                  >
                     {biometricName} Login
                   </Text>
-                  <Text className="text-gray-500 text-sm">
+                  <Text
+                    className="text-sm"
+                    style={{ color: colors.text.secondary }}
+                  >
                     Quick and secure access
                   </Text>
                 </View>
               </View>
               <TouchableOpacity
                 onPress={handleClose}
-                className="p-2 rounded-full bg-gray-100"
+                className="p-2 rounded-full"
+                style={{ backgroundColor: colors.bg.tertiary }}
               >
-                <Ionicons name="close" size={24} color="#6b7280" />
+                <Ionicons
+                  name="close"
+                  size={24}
+                  color={colors.text.secondary}
+                />
               </TouchableOpacity>
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false}>
               {isLoading ? (
                 <View className="items-center py-8">
-                  <ActivityIndicator size="large" color="#8b5cf6" />
-                  <Text className="text-gray-500 mt-4">
+                  <ActivityIndicator size="large" color={colors.info} />
+                  <Text
+                    className="mt-4"
+                    style={{ color: colors.text.secondary }}
+                  >
                     Checking biometric availability...
                   </Text>
                 </View>
               ) : !status?.isAvailable ? (
                 /* Biometric not available */
-                <View className="bg-amber-50 rounded-2xl p-6 items-center">
-                  <View className="w-16 h-16 bg-amber-100 rounded-full items-center justify-center mb-4">
+                <View
+                  className="rounded-2xl p-6 items-center"
+                  style={{ backgroundColor: colors.warning + "15" }}
+                >
+                  <View
+                    className="w-16 h-16 rounded-full items-center justify-center mb-4"
+                    style={{ backgroundColor: colors.warning + "30" }}
+                  >
                     <Ionicons
                       name="warning-outline"
                       size={32}
-                      color="#f59e0b"
+                      color={colors.warning}
                     />
                   </View>
-                  <Text className="text-lg font-bold text-gray-900 text-center mb-2">
+                  <Text
+                    className="text-lg font-bold text-center mb-2"
+                    style={{ color: colors.text.primary }}
+                  >
                     Biometric Not Available
                   </Text>
-                  <Text className="text-gray-600 text-center">
+                  <Text
+                    className="text-center"
+                    style={{ color: colors.text.secondary }}
+                  >
                     Your device does not support biometric authentication or no
                     biometrics are enrolled. Please set up fingerprint or Face
                     ID in your device settings.
@@ -198,14 +239,20 @@ export function BiometricSettingsModal({
               ) : showPasswordInput ? (
                 /* Password input for enabling biometric */
                 <View className="gap-4">
-                  <View className="bg-blue-50 rounded-2xl p-4">
+                  <View
+                    className="rounded-2xl p-4"
+                    style={{ backgroundColor: colors.info + "15" }}
+                  >
                     <View className="flex-row items-start gap-3">
                       <Ionicons
                         name="information-circle"
                         size={20}
-                        color="#3b82f6"
+                        color={colors.info}
                       />
-                      <Text className="text-blue-800 text-sm flex-1">
+                      <Text
+                        className="text-sm flex-1"
+                        style={{ color: colors.text.primary }}
+                      >
                         Enter your password to enable {biometricName} login.
                         Your credentials will be stored securely on this device.
                       </Text>
@@ -213,16 +260,27 @@ export function BiometricSettingsModal({
                   </View>
 
                   <View>
-                    <Text className="text-gray-700 font-medium mb-2">
+                    <Text
+                      className="font-medium mb-2"
+                      style={{ color: colors.text.primary }}
+                    >
                       Email
                     </Text>
-                    <View className="bg-gray-100 rounded-xl p-4">
-                      <Text className="text-gray-600">{userEmail}</Text>
+                    <View
+                      className="rounded-xl p-4"
+                      style={{ backgroundColor: colors.bg.tertiary }}
+                    >
+                      <Text style={{ color: colors.text.secondary }}>
+                        {userEmail}
+                      </Text>
                     </View>
                   </View>
 
                   <View>
-                    <Text className="text-gray-700 font-medium mb-2">
+                    <Text
+                      className="font-medium mb-2"
+                      style={{ color: colors.text.primary }}
+                    >
                       Password
                     </Text>
                     <TextInput
@@ -231,8 +289,12 @@ export function BiometricSettingsModal({
                       placeholder="Enter your password"
                       secureTextEntry
                       autoCapitalize="none"
-                      className="bg-gray-100 rounded-xl p-4 text-gray-900"
-                      placeholderTextColor="#9ca3af"
+                      className="rounded-xl p-4"
+                      style={{
+                        backgroundColor: colors.bg.tertiary,
+                        color: colors.text.primary,
+                      }}
+                      placeholderTextColor={colors.text.tertiary}
                     />
                   </View>
 
@@ -242,25 +304,33 @@ export function BiometricSettingsModal({
                         setShowPasswordInput(false);
                         setPassword("");
                       }}
-                      className="flex-1 bg-gray-100 rounded-xl py-4"
+                      className="flex-1 rounded-xl py-4"
+                      style={{ backgroundColor: colors.bg.tertiary }}
                       disabled={isSubmitting}
                     >
-                      <Text className="text-gray-700 font-bold text-center">
+                      <Text
+                        className="font-bold text-center"
+                        style={{ color: colors.text.primary }}
+                      >
                         Cancel
                       </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={handleEnableBiometric}
                       disabled={isSubmitting || !password.trim()}
-                      className="flex-1 bg-purple-600 rounded-xl py-4"
+                      className="flex-1 rounded-xl py-4"
                       style={{
+                        backgroundColor: colors.info,
                         opacity: isSubmitting || !password.trim() ? 0.6 : 1,
                       }}
                     >
                       {isSubmitting ? (
                         <ActivityIndicator size="small" color="white" />
                       ) : (
-                        <Text className="text-white font-bold text-center">
+                        <Text
+                          className="font-bold text-center"
+                          style={{ color: "#fff" }}
+                        >
                           Enable {biometricName}
                         </Text>
                       )}
@@ -272,28 +342,44 @@ export function BiometricSettingsModal({
                 <View className="gap-4">
                   {/* Status card */}
                   <View
-                    className={`rounded-2xl p-5 ${
-                      status.isEnabled ? "bg-green-50" : "bg-gray-50"
-                    }`}
+                    className="rounded-2xl p-5"
+                    style={{
+                      backgroundColor: status.isEnabled
+                        ? colors.success + "15"
+                        : colors.bg.tertiary,
+                    }}
                   >
                     <View className="flex-row items-center justify-between">
                       <View className="flex-row items-center gap-4 flex-1">
                         <View
-                          className={`w-14 h-14 rounded-full items-center justify-center ${
-                            status.isEnabled ? "bg-green-100" : "bg-gray-200"
-                          }`}
+                          className="w-14 h-14 rounded-full items-center justify-center"
+                          style={{
+                            backgroundColor: status.isEnabled
+                              ? colors.success + "30"
+                              : colors.bg.secondary,
+                          }}
                         >
                           <Ionicons
                             name={biometricIcon}
                             size={28}
-                            color={status.isEnabled ? "#16a34a" : "#6b7280"}
+                            color={
+                              status.isEnabled
+                                ? colors.success
+                                : colors.text.secondary
+                            }
                           />
                         </View>
                         <View className="flex-1">
-                          <Text className="text-gray-900 font-bold text-lg">
+                          <Text
+                            className="font-bold text-lg"
+                            style={{ color: colors.text.primary }}
+                          >
                             {biometricName}
                           </Text>
-                          <Text className="text-gray-600 text-sm">
+                          <Text
+                            className="text-sm"
+                            style={{ color: colors.text.secondary }}
+                          >
                             {status.isEnabled
                               ? "Enabled - Login with your biometric"
                               : "Disabled - Tap to enable"}
@@ -304,25 +390,37 @@ export function BiometricSettingsModal({
                         value={status.isEnabled}
                         onValueChange={handleToggleBiometric}
                         disabled={isEnabling}
-                        trackColor={{ false: "#d1d5db", true: "#86efac" }}
-                        thumbColor={status.isEnabled ? "#16a34a" : "#f4f4f5"}
+                        trackColor={{
+                          false: colors.border,
+                          true: colors.success,
+                        }}
+                        thumbColor={status.isEnabled ? "#fff" : "#f4f4f5"}
                       />
                     </View>
                   </View>
 
                   {/* Info section */}
-                  <View className="bg-purple-50 rounded-2xl p-4">
+                  <View
+                    className="rounded-2xl p-4"
+                    style={{ backgroundColor: colors.info + "15" }}
+                  >
                     <View className="flex-row items-start gap-3">
                       <Ionicons
                         name="shield-checkmark"
                         size={20}
-                        color="#8b5cf6"
+                        color={colors.info}
                       />
                       <View className="flex-1">
-                        <Text className="text-purple-800 font-medium mb-1">
+                        <Text
+                          className="font-medium mb-1"
+                          style={{ color: colors.text.primary }}
+                        >
                           Secure & Convenient
                         </Text>
-                        <Text className="text-purple-700 text-sm">
+                        <Text
+                          className="text-sm"
+                          style={{ color: colors.text.secondary }}
+                        >
                           Your credentials are stored securely on this device
                           using encrypted storage. Only your registered
                           biometrics can unlock them.
@@ -333,40 +431,63 @@ export function BiometricSettingsModal({
 
                   {/* Features list */}
                   <View className="gap-3 mt-2">
-                    <Text className="text-gray-700 font-bold">Benefits:</Text>
+                    <Text
+                      className="font-bold"
+                      style={{ color: colors.text.primary }}
+                    >
+                      Benefits:
+                    </Text>
                     <View className="flex-row items-center gap-3">
-                      <View className="w-8 h-8 bg-green-100 rounded-full items-center justify-center">
+                      <View
+                        className="w-8 h-8 rounded-full items-center justify-center"
+                        style={{ backgroundColor: colors.success + "15" }}
+                      >
                         <Ionicons
                           name="flash-outline"
                           size={16}
-                          color="#16a34a"
+                          color={colors.success}
                         />
                       </View>
-                      <Text className="text-gray-600 flex-1">
+                      <Text
+                        className="flex-1"
+                        style={{ color: colors.text.secondary }}
+                      >
                         Instant login without typing password
                       </Text>
                     </View>
                     <View className="flex-row items-center gap-3">
-                      <View className="w-8 h-8 bg-blue-100 rounded-full items-center justify-center">
+                      <View
+                        className="w-8 h-8 rounded-full items-center justify-center"
+                        style={{ backgroundColor: colors.info + "15" }}
+                      >
                         <Ionicons
                           name="lock-closed-outline"
                           size={16}
-                          color="#3b82f6"
+                          color={colors.info}
                         />
                       </View>
-                      <Text className="text-gray-600 flex-1">
+                      <Text
+                        className="flex-1"
+                        style={{ color: colors.text.secondary }}
+                      >
                         Credentials encrypted with device security
                       </Text>
                     </View>
                     <View className="flex-row items-center gap-3">
-                      <View className="w-8 h-8 bg-purple-100 rounded-full items-center justify-center">
+                      <View
+                        className="w-8 h-8 rounded-full items-center justify-center"
+                        style={{ backgroundColor: colors.info + "15" }}
+                      >
                         <Ionicons
                           name="people-outline"
                           size={16}
-                          color="#8b5cf6"
+                          color={colors.info}
                         />
                       </View>
-                      <Text className="text-gray-600 flex-1">
+                      <Text
+                        className="flex-1"
+                        style={{ color: colors.text.secondary }}
+                      >
                         Works with all enrolled fingerprints on your device
                       </Text>
                     </View>

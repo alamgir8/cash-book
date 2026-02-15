@@ -503,8 +503,17 @@ export const TransactionModal = ({
 
                 {/* Amount Preview */}
                 {currentAmount > 0 ? (
-                  <View className="bg-blue-50 rounded-xl p-3 border border-blue-100">
-                    <Text className="text-blue-700 text-sm font-medium text-center">
+                  <View
+                    className="rounded-xl p-3 border"
+                    style={{
+                      backgroundColor: colors.info + "15",
+                      borderColor: colors.info + "30",
+                    }}
+                  >
+                    <Text
+                      className="text-sm font-medium text-center"
+                      style={{ color: colors.info }}
+                    >
                       💰 Amount Preview: {formatAmount(currentAmount)}
                     </Text>
                   </View>

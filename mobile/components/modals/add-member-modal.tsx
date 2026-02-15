@@ -15,6 +15,7 @@ import { z } from "zod";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { PasswordInput } from "../password-input";
+import { useTheme } from "@/hooks/useTheme";
 
 const ROLES = [
   {
@@ -64,6 +65,7 @@ export function AddMemberModal({
   onSubmit,
   isLoading = false,
 }: AddMemberModalProps) {
+  const { colors } = useTheme();
   const {
     control,
     handleSubmit,
@@ -111,21 +113,38 @@ export function AddMemberModal({
         className="flex-1"
       >
         <View className="flex-1 bg-black/40 justify-end">
-          <View className="bg-white rounded-t-3xl flex-1 max-h-[90%]">
-            <View className="flex-row justify-between items-center p-6 pb-4 border-b border-gray-100">
+          <View
+            className="rounded-t-3xl flex-1 max-h-[90%]"
+            style={{ backgroundColor: colors.bg.primary }}
+          >
+            <View
+              className="flex-row justify-between items-center p-6 pb-4 border-b"
+              style={{ borderColor: colors.border }}
+            >
               <View>
-                <Text className="text-gray-900 text-xl font-bold">
+                <Text
+                  className="text-xl font-bold"
+                  style={{ color: colors.text.primary }}
+                >
                   Add Team Member
                 </Text>
-                <Text className="text-gray-500 text-sm">
+                <Text
+                  className="text-sm"
+                  style={{ color: colors.text.secondary }}
+                >
                   Invite someone to join your organization
                 </Text>
               </View>
               <TouchableOpacity
                 onPress={handleClose}
-                className="w-8 h-8 bg-gray-100 rounded-full items-center justify-center"
+                className="w-8 h-8 rounded-full items-center justify-center"
+                style={{ backgroundColor: colors.bg.tertiary }}
               >
-                <Ionicons name="close" size={20} color="#6b7280" />
+                <Ionicons
+                  name="close"
+                  size={20}
+                  color={colors.text.secondary}
+                />
               </TouchableOpacity>
             </View>
 
@@ -136,7 +155,10 @@ export function AddMemberModal({
             >
               <View className="gap-5">
                 <View>
-                  <Text className="text-gray-700 text-sm font-semibold mb-2">
+                  <Text
+                    className="text-sm font-semibold mb-2"
+                    style={{ color: colors.text.primary }}
+                  >
                     Display Name *
                   </Text>
                   <Controller
@@ -144,13 +166,16 @@ export function AddMemberModal({
                     name="display_name"
                     render={({ field: { onChange, onBlur, value } }) => (
                       <TextInput
-                        className={`bg-gray-50 text-gray-900 border rounded-xl px-4 py-3 ${
-                          errors.display_name
-                            ? "border-red-500"
-                            : "border-gray-200"
-                        }`}
+                        className="border rounded-xl px-4 py-3"
+                        style={{
+                          backgroundColor: colors.bg.tertiary,
+                          color: colors.text.primary,
+                          borderColor: errors.display_name
+                            ? colors.error
+                            : colors.border,
+                        }}
                         placeholder="Member's full name"
-                        placeholderTextColor="#9ca3af"
+                        placeholderTextColor={colors.text.tertiary}
                         value={value}
                         onChangeText={onChange}
                         onBlur={onBlur}
@@ -158,26 +183,37 @@ export function AddMemberModal({
                     )}
                   />
                   {errors.display_name && (
-                    <Text className="text-red-500 text-xs mt-1">
+                    <Text
+                      className="text-xs mt-1"
+                      style={{ color: colors.error }}
+                    >
                       {errors.display_name.message}
                     </Text>
                   )}
                 </View>
 
                 <View>
-                  <Text className="text-gray-700 text-sm font-semibold mb-2">
-                    Email Address <Text className="text-red-500">*</Text>
+                  <Text
+                    className="text-sm font-semibold mb-2"
+                    style={{ color: colors.text.primary }}
+                  >
+                    Email Address <Text style={{ color: colors.error }}>*</Text>
                   </Text>
                   <Controller
                     control={control}
                     name="email"
                     render={({ field: { onChange, onBlur, value } }) => (
                       <TextInput
-                        className={`bg-gray-50 text-gray-900 border rounded-xl px-4 py-3 ${
-                          errors.email ? "border-red-500" : "border-gray-200"
-                        }`}
+                        className="border rounded-xl px-4 py-3"
+                        style={{
+                          backgroundColor: colors.bg.tertiary,
+                          color: colors.text.primary,
+                          borderColor: errors.email
+                            ? colors.error
+                            : colors.border,
+                        }}
                         placeholder="member@example.com"
-                        placeholderTextColor="#9ca3af"
+                        placeholderTextColor={colors.text.tertiary}
                         value={value}
                         onChangeText={onChange}
                         onBlur={onBlur}
@@ -187,26 +223,37 @@ export function AddMemberModal({
                     )}
                   />
                   {errors.email && (
-                    <Text className="text-red-500 text-xs mt-1">
+                    <Text
+                      className="text-xs mt-1"
+                      style={{ color: colors.error }}
+                    >
                       {errors.email.message}
                     </Text>
                   )}
                 </View>
 
                 <View>
-                  <Text className="text-gray-700 text-sm font-semibold mb-2">
-                    Phone Number <Text className="text-red-500">*</Text>
+                  <Text
+                    className="text-sm font-semibold mb-2"
+                    style={{ color: colors.text.primary }}
+                  >
+                    Phone Number <Text style={{ color: colors.error }}>*</Text>
                   </Text>
                   <Controller
                     control={control}
                     name="phone"
                     render={({ field: { onChange, onBlur, value } }) => (
                       <TextInput
-                        className={`bg-gray-50 text-gray-900 border rounded-xl px-4 py-3 ${
-                          errors.phone ? "border-red-500" : "border-gray-200"
-                        }`}
+                        className="border rounded-xl px-4 py-3"
+                        style={{
+                          backgroundColor: colors.bg.tertiary,
+                          color: colors.text.primary,
+                          borderColor: errors.phone
+                            ? colors.error
+                            : colors.border,
+                        }}
                         placeholder="+1 234 567 8900"
-                        placeholderTextColor="#9ca3af"
+                        placeholderTextColor={colors.text.tertiary}
                         value={value}
                         onChangeText={onChange}
                         onBlur={onBlur}
@@ -215,14 +262,20 @@ export function AddMemberModal({
                     )}
                   />
                   {errors.phone && (
-                    <Text className="text-red-500 text-xs mt-1">
+                    <Text
+                      className="text-xs mt-1"
+                      style={{ color: colors.error }}
+                    >
                       {errors.phone.message}
                     </Text>
                   )}
                 </View>
 
                 <View>
-                  <Text className="text-gray-700 text-sm font-semibold mb-2">
+                  <Text
+                    className="text-sm font-semibold mb-2"
+                    style={{ color: colors.text.primary }}
+                  >
                     Password *
                   </Text>
                   <Controller
@@ -243,7 +296,10 @@ export function AddMemberModal({
                 </View>
 
                 <View>
-                  <Text className="text-gray-700 text-sm font-semibold mb-2">
+                  <Text
+                    className="text-sm font-semibold mb-2"
+                    style={{ color: colors.text.primary }}
+                  >
                     Role *
                   </Text>
                   <Controller
@@ -254,28 +310,38 @@ export function AddMemberModal({
                         {ROLES.map((role) => (
                           <TouchableOpacity
                             key={role.value}
-                            className={`p-3 rounded-xl border ${
-                              value === role.value
-                                ? "bg-blue-50 border-blue-500"
-                                : "bg-gray-50 border-gray-200"
-                            }`}
+                            className="p-3 rounded-xl border"
+                            style={{
+                              backgroundColor:
+                                value === role.value
+                                  ? colors.info + "15"
+                                  : colors.bg.tertiary,
+                              borderColor:
+                                value === role.value
+                                  ? colors.info
+                                  : colors.border,
+                            }}
                             onPress={() => onChange(role.value)}
                           >
                             <Text
-                              className={`text-base font-semibold ${
-                                value === role.value
-                                  ? "text-blue-900"
-                                  : "text-gray-700"
-                              }`}
+                              className="text-base font-semibold"
+                              style={{
+                                color:
+                                  value === role.value
+                                    ? colors.info
+                                    : colors.text.primary,
+                              }}
                             >
                               {role.label}
                             </Text>
                             <Text
-                              className={`text-sm mt-1 ${
-                                value === role.value
-                                  ? "text-blue-600"
-                                  : "text-gray-500"
-                              }`}
+                              className="text-sm mt-1"
+                              style={{
+                                color:
+                                  value === role.value
+                                    ? colors.info
+                                    : colors.text.secondary,
+                              }}
                             >
                               {role.description}
                             </Text>
@@ -286,13 +352,19 @@ export function AddMemberModal({
                   />
                 </View>
 
-                <View className="flex-row bg-blue-50 p-3 rounded-xl gap-2">
+                <View
+                  className="flex-row p-3 rounded-xl gap-2"
+                  style={{ backgroundColor: colors.info + "15" }}
+                >
                   <Ionicons
                     name="information-circle"
                     size={20}
-                    color="#3b82f6"
+                    color={colors.info}
                   />
-                  <Text className="flex-1 text-blue-900 text-xs">
+                  <Text
+                    className="flex-1 text-xs"
+                    style={{ color: colors.text.primary }}
+                  >
                     A new user account will be created. The member can log in
                     immediately with the provided email/phone and password.
                   </Text>
@@ -300,11 +372,15 @@ export function AddMemberModal({
               </View>
             </ScrollView>
 
-            <View className="p-6 pt-4 pb-8 border-t border-gray-100">
+            <View
+              className="p-6 pt-4 pb-8 border-t"
+              style={{ borderColor: colors.border }}
+            >
               <TouchableOpacity
-                className={`bg-blue-500 flex-row items-center justify-center py-3.5 rounded-xl gap-2 ${
+                className={`flex-row items-center justify-center py-3.5 rounded-xl gap-2 ${
                   isLoading ? "opacity-60" : ""
                 }`}
+                style={{ backgroundColor: colors.info }}
                 onPress={handleSubmit(handleFormSubmit)}
                 disabled={isLoading}
               >

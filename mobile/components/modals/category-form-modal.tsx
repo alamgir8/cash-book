@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useTheme } from "@/hooks/useTheme";
 import {
   createCategory,
   updateCategory,
@@ -78,6 +79,7 @@ export const CategoryFormModal = ({
   category,
   initialFlow = "debit",
 }: CategoryFormModalProps) => {
+  const { colors } = useTheme();
   const queryClient = useQueryClient();
   const isEditing = !!category;
 
@@ -171,21 +173,43 @@ export const CategoryFormModal = ({
         style={styles.keyboardView}
       >
         <View style={styles.overlay}>
-          <View style={styles.modalContainer}>
+          <View
+            style={[
+              styles.modalContainer,
+              { backgroundColor: colors.bg.primary },
+            ]}
+          >
             {/* Header */}
-            <View style={styles.header}>
+            <View style={[styles.header, { borderBottomColor: colors.border }]}>
               <View>
-                <Text style={styles.headerTitle}>
+                <Text
+                  style={[styles.headerTitle, { color: colors.text.primary }]}
+                >
                   {isEditing ? "Edit Category" : "New Category"}
                 </Text>
-                <Text style={styles.headerSubtitle}>
+                <Text
+                  style={[
+                    styles.headerSubtitle,
+                    { color: colors.text.secondary },
+                  ]}
+                >
                   {isEditing
                     ? "Update category details"
                     : "Create a new category"}
                 </Text>
               </View>
-              <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                <Ionicons name="close" size={20} color="#6b7280" />
+              <TouchableOpacity
+                onPress={onClose}
+                style={[
+                  styles.closeButton,
+                  { backgroundColor: colors.bg.tertiary },
+                ]}
+              >
+                <Ionicons
+                  name="close"
+                  size={20}
+                  color={colors.text.secondary}
+                />
               </TouchableOpacity>
             </View>
 
@@ -197,24 +221,48 @@ export const CategoryFormModal = ({
               <View style={styles.formContainer}>
                 {/* Error Message */}
                 {error && (
-                  <View style={styles.errorContainer}>
-                    <Ionicons name="alert-circle" size={20} color="#dc2626" />
-                    <Text style={styles.errorText}>{error}</Text>
+                  <View
+                    style={[
+                      styles.errorContainer,
+                      {
+                        backgroundColor: colors.error + "10",
+                        borderColor: colors.error + "30",
+                      },
+                    ]}
+                  >
+                    <Ionicons
+                      name="alert-circle"
+                      size={20}
+                      color={colors.error}
+                    />
+                    <Text style={[styles.errorText, { color: colors.error }]}>
+                      {error}
+                    </Text>
                     <TouchableOpacity onPress={() => setError(null)}>
-                      <Ionicons name="close" size={18} color="#dc2626" />
+                      <Ionicons name="close" size={18} color={colors.error} />
                     </TouchableOpacity>
                   </View>
                 )}
 
                 {/* Flow Selection */}
                 <View>
-                  <Text style={styles.label}>Category Flow</Text>
-                  <View style={styles.flowContainer}>
+                  <Text style={[styles.label, { color: colors.text.primary }]}>
+                    Category Flow
+                  </Text>
+                  <View
+                    style={[
+                      styles.flowContainer,
+                      { backgroundColor: colors.bg.tertiary },
+                    ]}
+                  >
                     <TouchableOpacity
                       onPress={() => handleFlowChange("credit")}
                       style={[
                         styles.flowButton,
-                        flow === "credit" && styles.flowButtonActive,
+                        flow === "credit" && {
+                          ...styles.flowButtonActive,
+                          backgroundColor: colors.bg.secondary,
+                        },
                       ]}
                     >
                       <Text
@@ -251,19 +299,30 @@ export const CategoryFormModal = ({
 
                 {/* Name Input */}
                 <View>
-                  <Text style={styles.label}>Category Name</Text>
+                  <Text style={[styles.label, { color: colors.text.primary }]}>
+                    Category Name
+                  </Text>
                   <TextInput
                     value={name}
                     onChangeText={setName}
                     placeholder="e.g., Groceries"
-                    placeholderTextColor="#9ca3af"
-                    style={styles.input}
+                    placeholderTextColor={colors.text.tertiary}
+                    style={[
+                      styles.input,
+                      {
+                        backgroundColor: colors.bg.tertiary,
+                        color: colors.text.primary,
+                        borderColor: colors.border,
+                      },
+                    ]}
                   />
                 </View>
 
                 {/* Type Selection */}
                 <View>
-                  <Text style={styles.label}>Category Type</Text>
+                  <Text style={[styles.label, { color: colors.text.primary }]}>
+                    Category Type
+                  </Text>
                   <View style={styles.typeContainer}>
                     {currentTypes.map((t) => (
                       <TouchableOpacity
@@ -272,16 +331,30 @@ export const CategoryFormModal = ({
                         style={[
                           styles.typeButton,
                           type === t.value
-                            ? styles.typeButtonActive
-                            : styles.typeButtonInactive,
+                            ? {
+                                ...styles.typeButtonActive,
+                                backgroundColor: colors.info + "15",
+                                borderColor: colors.info + "40",
+                              }
+                            : {
+                                ...styles.typeButtonInactive,
+                                backgroundColor: colors.bg.tertiary,
+                                borderColor: colors.border,
+                              },
                         ]}
                       >
                         <Text
                           style={[
                             styles.typeButtonText,
                             type === t.value
-                              ? styles.typeButtonTextActive
-                              : styles.typeButtonTextInactive,
+                              ? {
+                                  ...styles.typeButtonTextActive,
+                                  color: colors.info,
+                                }
+                              : {
+                                  ...styles.typeButtonTextInactive,
+                                  color: colors.text.secondary,
+                                },
                           ]}
                         >
                           {t.label}
@@ -293,7 +366,9 @@ export const CategoryFormModal = ({
 
                 {/* Color Selection */}
                 <View>
-                  <Text style={styles.label}>Color Tag</Text>
+                  <Text style={[styles.label, { color: colors.text.primary }]}>
+                    Color Tag
+                  </Text>
                   <View style={styles.colorContainer}>
                     {COLORS.map((c) => (
                       <TouchableOpacity
@@ -302,7 +377,10 @@ export const CategoryFormModal = ({
                         style={[
                           styles.colorButton,
                           { backgroundColor: c },
-                          color === c && styles.colorButtonActive,
+                          color === c && {
+                            ...styles.colorButtonActive,
+                            borderColor: colors.text.primary,
+                          },
                         ]}
                       >
                         {color === c && (
@@ -315,23 +393,32 @@ export const CategoryFormModal = ({
 
                 {/* Description Input */}
                 <View>
-                  <Text style={styles.label}>Description (Optional)</Text>
+                  <Text style={[styles.label, { color: colors.text.primary }]}>
+                    Description (Optional)
+                  </Text>
                   <TextInput
                     value={description}
                     onChangeText={setDescription}
                     placeholder="Add a note..."
-                    placeholderTextColor="#9ca3af"
+                    placeholderTextColor={colors.text.tertiary}
                     multiline
                     numberOfLines={3}
                     textAlignVertical="top"
-                    style={styles.textArea}
+                    style={[
+                      styles.textArea,
+                      {
+                        backgroundColor: colors.bg.tertiary,
+                        color: colors.text.primary,
+                        borderColor: colors.border,
+                      },
+                    ]}
                   />
                 </View>
               </View>
             </ScrollView>
 
             {/* Footer */}
-            <View style={styles.footer}>
+            <View style={[styles.footer, { borderTopColor: colors.border }]}>
               <ActionButton
                 label={isEditing ? "Update Category" : "Create Category"}
                 onPress={handleSubmit}
@@ -360,7 +447,6 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   modalContainer: {
-    backgroundColor: "white",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     flex: 1,
@@ -373,21 +459,17 @@ const styles = StyleSheet.create({
     padding: 24,
     paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "#f3f4f6",
   },
   headerTitle: {
-    color: "#111827",
     fontSize: 20,
     fontWeight: "bold",
   },
   headerSubtitle: {
-    color: "#6b7280",
     fontSize: 14,
   },
   closeButton: {
     width: 32,
     height: 32,
-    backgroundColor: "#f3f4f6",
     borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
@@ -404,29 +486,24 @@ const styles = StyleSheet.create({
     gap: 20,
   },
   errorContainer: {
-    backgroundColor: "#fef2f2",
     padding: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#fecaca",
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
   },
   errorText: {
-    color: "#dc2626",
     fontSize: 14,
     flex: 1,
   },
   label: {
-    color: "#374151",
     fontSize: 14,
     fontWeight: "600",
     marginBottom: 8,
   },
   flowContainer: {
     flexDirection: "row",
-    backgroundColor: "#f3f4f6",
     padding: 4,
     borderRadius: 12,
   },
@@ -437,7 +514,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   flowButtonActive: {
-    backgroundColor: "white",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
@@ -457,13 +533,10 @@ const styles = StyleSheet.create({
     color: "#6b7280",
   },
   input: {
-    backgroundColor: "#f9fafb",
-    color: "#111827",
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#e5e7eb",
     fontSize: 16,
   },
   typeContainer: {
@@ -477,23 +550,13 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
   },
-  typeButtonActive: {
-    backgroundColor: "#eff6ff",
-    borderColor: "#bfdbfe",
-  },
-  typeButtonInactive: {
-    backgroundColor: "white",
-    borderColor: "#e5e7eb",
-  },
+  typeButtonActive: {},
+  typeButtonInactive: {},
   typeButtonText: {
     fontSize: 14,
   },
-  typeButtonTextActive: {
-    color: "#1d4ed8",
-  },
-  typeButtonTextInactive: {
-    color: "#4b5563",
-  },
+  typeButtonTextActive: {},
+  typeButtonTextInactive: {},
   colorContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -508,16 +571,12 @@ const styles = StyleSheet.create({
   },
   colorButtonActive: {
     borderWidth: 2,
-    borderColor: "#9ca3af",
   },
   textArea: {
-    backgroundColor: "#f9fafb",
-    color: "#111827",
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#e5e7eb",
     minHeight: 96,
   },
   footer: {
@@ -525,6 +584,5 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 32,
     borderTopWidth: 1,
-    borderTopColor: "#f3f4f6",
   },
 });
