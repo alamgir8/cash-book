@@ -15,6 +15,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/hooks/useTheme";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useOrganization } from "@/hooks/useOrganization";
+import { createAccount } from "@/services/accounts";
+import { queryKeys } from "@/lib/queryKeys";
+import { useQueryClient } from "@tanstack/react-query";
+import Toast from "react-native-toast-message";
 import {
   useImportList,
   useImportDetail,
@@ -321,6 +325,8 @@ function AccountColumnMapper({
   accountColumns,
   onAccountColumnChange,
   accountOptions,
+  onAutoCreateAccounts,
+  isAutoCreating,
   colors,
 }: {
   accountColumns: AccountColumnMapping[];
@@ -329,75 +335,180 @@ function AccountColumnMapper({
     accountId: string | undefined,
   ) => void;
   accountOptions: { value: string; label: string; subtitle?: string }[];
+  onAutoCreateAccounts: () => void;
+  isAutoCreating: boolean;
   colors: any;
 }) {
+  const [expanded, setExpanded] = useState(false);
+  const mappedCount = accountColumns.filter((ac) => ac.account_id).length;
+  const totalCount = accountColumns.length;
+
   return (
-    <View className="px-4 pt-3 pb-2">
-      <Text
-        style={{ color: colors.text.primary }}
-        className="text-sm font-bold mb-1"
+    <View className="mx-4 mt-1.5 mb-1">
+      {/* Compact header row: Ledger badge + account count + auto-create */}
+      <View
+        className="flex-row items-center rounded-xl px-3 py-2 gap-2"
+        style={{
+          backgroundColor: colors.bg.secondary,
+          borderWidth: 1,
+          borderColor: mappedCount > 0 ? colors.success + "40" : colors.border,
+        }}
       >
-        Map Account Columns
-      </Text>
-      <Text style={{ color: colors.text.secondary }} className="text-xs mb-3">
-        Each column from your file represents an account. Map them to your
-        existing accounts.
-      </Text>
+        {/* Ledger badge */}
+        <View
+          className="px-2 py-0.5 rounded-md"
+          style={{ backgroundColor: colors.info + "15" }}
+        >
+          <Text
+            style={{ color: colors.info }}
+            className="text-[10px] font-bold"
+          >
+            LEDGER
+          </Text>
+        </View>
 
-      {accountColumns.map((ac, index) => {
-        const matchedAccount = accountOptions.find(
-          (opt) => opt.value === ac.account_id,
-        );
+        {/* Account count */}
+        <TouchableOpacity
+          onPress={() => setExpanded(!expanded)}
+          className="flex-row items-center gap-1 flex-1"
+        >
+          <Text
+            style={{ color: colors.text.primary }}
+            className="text-xs font-bold"
+          >
+            {totalCount} cols
+          </Text>
+          <Text
+            style={{
+              color: mappedCount > 0 ? colors.success : colors.text.tertiary,
+            }}
+            className="text-[11px]"
+          >
+            • {mappedCount > 0 ? `${mappedCount} mapped` : "unmapped"}
+          </Text>
+          <Ionicons
+            name={expanded ? "chevron-up" : "chevron-down"}
+            size={14}
+            color={colors.text.tertiary}
+          />
+        </TouchableOpacity>
 
-        return (
-          <View key={`${ac.column_name}-${index}`} className="mb-3">
-            <View className="flex-row items-center gap-2 mb-1.5">
-              <View
-                className="px-2.5 py-1 rounded-lg"
-                style={{ backgroundColor: colors.info + "15" }}
-              >
-                <Text
-                  style={{ color: colors.info }}
-                  className="text-xs font-bold"
-                >
-                  {ac.column_name}
-                </Text>
-              </View>
-              <Ionicons
-                name="arrow-forward"
-                size={14}
-                color={colors.text.tertiary}
-              />
-              {matchedAccount ? (
-                <View
-                  className="px-2.5 py-1 rounded-lg"
-                  style={{ backgroundColor: colors.success + "15" }}
-                >
-                  <Text
-                    style={{ color: colors.success }}
-                    className="text-xs font-bold"
-                  >
-                    ✓ {matchedAccount.label}
-                  </Text>
-                </View>
-              ) : (
-                <Text style={{ color: colors.warning }} className="text-xs">
-                  Not mapped
-                </Text>
-              )}
-            </View>
-            <SearchableSelect
-              value={ac.account_id || ""}
-              placeholder={`Select account for "${ac.column_name}"`}
-              options={accountOptions}
-              onSelect={(value) =>
-                onAccountColumnChange(ac.column_name, value || undefined)
-              }
-              label={ac.column_name}
+        {/* Auto-create compact button */}
+        {mappedCount < totalCount && (
+          <TouchableOpacity
+            onPress={onAutoCreateAccounts}
+            disabled={isAutoCreating}
+            className="flex-row items-center gap-1 px-2.5 py-1.5 rounded-lg"
+            style={{ backgroundColor: colors.success + "15" }}
+          >
+            {isAutoCreating ? (
+              <ActivityIndicator size={12} color={colors.success} />
+            ) : (
+              <Ionicons name="flash" size={13} color={colors.success} />
+            )}
+            <Text
+              style={{ color: colors.success }}
+              className="text-[11px] font-bold"
+            >
+              {isAutoCreating ? "Creating..." : "Auto-Map"}
+            </Text>
+          </TouchableOpacity>
+        )}
+        {mappedCount === totalCount && mappedCount > 0 && (
+          <View
+            className="flex-row items-center gap-1 px-2 py-1 rounded-lg"
+            style={{ backgroundColor: colors.success + "12" }}
+          >
+            <Ionicons
+              name="checkmark-circle"
+              size={13}
+              color={colors.success}
             />
+            <Text
+              style={{ color: colors.success }}
+              className="text-[11px] font-bold"
+            >
+              All mapped
+            </Text>
           </View>
-        );
-      })}
+        )}
+      </View>
+
+      {/* Expanded: scrollable list of account columns */}
+      {expanded && (
+        <ScrollView
+          style={{
+            maxHeight: 350,
+            backgroundColor: colors.bg.secondary,
+            borderColor: colors.border,
+            borderWidth: 1,
+            borderRadius: 12,
+            paddingHorizontal: 12,
+            paddingTop: 8,
+            paddingBottom: 4,
+          }}
+          className="mt-2"
+          showsVerticalScrollIndicator={true}
+          nestedScrollEnabled={true}
+        >
+          {accountColumns.map((ac, index) => {
+            const matchedAccount = accountOptions.find(
+              (opt) => opt.value === ac.account_id,
+            );
+
+            return (
+              <View key={`${ac.column_name}-${index}`} className="mb-3">
+                <View className="flex-row items-center gap-2 mb-1.5">
+                  <View
+                    className="px-2.5 py-1 rounded-lg flex-shrink-1"
+                    style={{ backgroundColor: colors.info + "15" }}
+                  >
+                    <Text
+                      style={{ color: colors.info }}
+                      className="text-xs font-bold"
+                      numberOfLines={1}
+                    >
+                      {ac.column_name}
+                    </Text>
+                  </View>
+                  <Ionicons
+                    name="arrow-forward"
+                    size={14}
+                    color={colors.text.tertiary}
+                  />
+                  {matchedAccount ? (
+                    <View
+                      className="px-2.5 py-1 rounded-lg flex-shrink-1"
+                      style={{ backgroundColor: colors.success + "15" }}
+                    >
+                      <Text
+                        style={{ color: colors.success }}
+                        className="text-xs font-bold"
+                        numberOfLines={1}
+                      >
+                        ✓ {matchedAccount.label}
+                      </Text>
+                    </View>
+                  ) : (
+                    <Text style={{ color: colors.warning }} className="text-xs">
+                      Not mapped
+                    </Text>
+                  )}
+                </View>
+                <SearchableSelect
+                  value={ac.account_id || ""}
+                  placeholder={`Select account for "${ac.column_name}"`}
+                  options={accountOptions}
+                  onSelect={(value) =>
+                    onAccountColumnChange(ac.column_name, value || undefined)
+                  }
+                  label={ac.column_name}
+                />
+              </View>
+            );
+          })}
+        </ScrollView>
+      )}
     </View>
   );
 }
@@ -649,6 +760,8 @@ function MapAndReviewStep({
   isUpdating,
   parseWarnings,
   onTryAgain,
+  onAutoCreateAccounts,
+  isAutoCreating,
   colors,
 }: {
   importData: ImportRecord;
@@ -666,6 +779,8 @@ function MapAndReviewStep({
   isUpdating: boolean;
   parseWarnings: ParseWarning[];
   onTryAgain: () => void;
+  onAutoCreateAccounts: () => void;
+  isAutoCreating: boolean;
   colors: any;
 }) {
   const [showMapping, setShowMapping] = useState(false);
@@ -702,27 +817,6 @@ function MapAndReviewStep({
           onTryAgain={onTryAgain}
         />
       )}
-      {/* Ledger Mode Badge */}
-      {isLedger && (
-        <View
-          className="mx-4 mt-2 mb-1 px-3 py-2 rounded-xl flex-row items-center gap-2"
-          style={{ backgroundColor: colors.info + "12" }}
-        >
-          <Ionicons name="grid-outline" size={16} color={colors.info} />
-          <Text
-            style={{ color: colors.info }}
-            className="text-xs font-semibold"
-          >
-            Ledger Mode
-          </Text>
-          <Text
-            style={{ color: colors.text.secondary }}
-            className="text-xs flex-1"
-          >
-            — Each column is mapped to an account
-          </Text>
-        </View>
-      )}
 
       {/* Standard Mode: Single Account Selector */}
       {!isLedger && (
@@ -749,6 +843,8 @@ function MapAndReviewStep({
           accountColumns={accountColumns}
           onAccountColumnChange={onAccountColumnChange}
           accountOptions={accountOptions}
+          onAutoCreateAccounts={onAutoCreateAccounts}
+          isAutoCreating={isAutoCreating}
           colors={colors}
         />
       )}
@@ -1121,8 +1217,10 @@ export default function ImportScreen() {
   >([]);
   const [showHistory, setShowHistory] = useState(false);
   const [parseWarnings, setParseWarnings] = useState<ParseWarning[]>([]);
+  const [isAutoCreating, setIsAutoCreating] = useState(false);
 
   // Hooks
+  const queryClient = useQueryClient();
   const accountsQuery = useAccounts();
   const importListQuery = useImportList();
   const importDetailQuery = useImportDetail(activeImportId || "");
@@ -1203,6 +1301,101 @@ export default function ImportScreen() {
     },
     [activeImportId, updateMappingMutation],
   );
+
+  const handleAutoCreateAccounts = useCallback(async () => {
+    if (isAutoCreating || localAccountColumns.length === 0) return;
+    setIsAutoCreating(true);
+
+    try {
+      // Get current accounts to avoid duplicates
+      const existingAccounts = accountsQuery.data || [];
+      const existingNames = new Set(
+        existingAccounts.map((a: any) =>
+          (a.name || a.label || "").toLowerCase().trim(),
+        ),
+      );
+
+      const unmappedColumns = localAccountColumns.filter(
+        (ac) => !ac.account_id,
+      );
+
+      const newAccountMap: Record<string, string> = {};
+
+      // Create accounts sequentially to avoid race conditions
+      for (const col of unmappedColumns) {
+        const colName = col.column_name.trim();
+        if (!colName || existingNames.has(colName.toLowerCase())) {
+          // Find existing account by name and map it
+          const existing = existingAccounts.find(
+            (a: any) =>
+              (a.name || a.label || "").toLowerCase().trim() ===
+              colName.toLowerCase(),
+          );
+          if (existing) {
+            newAccountMap[col.column_name] =
+              (existing as any)._id || (existing as any).id;
+          }
+          continue;
+        }
+
+        try {
+          const newAccount = await createAccount({
+            name: colName,
+            kind: "cash",
+          });
+          newAccountMap[col.column_name] =
+            (newAccount as any)._id || (newAccount as any).id;
+          existingNames.add(colName.toLowerCase());
+        } catch (err: any) {
+          // If account already exists error, try to find it
+          console.warn(`Failed to create account "${colName}":`, err?.message);
+        }
+      }
+
+      // Invalidate accounts cache to refresh the list
+      await queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.accountsOverview,
+      });
+
+      // Update local account columns with new mappings
+      const updated = localAccountColumns.map((ac) => ({
+        ...ac,
+        account_id: newAccountMap[ac.column_name] || ac.account_id,
+      }));
+      setLocalAccountColumns(updated);
+
+      // Save to backend
+      if (activeImportId) {
+        updateMappingMutation.mutate({
+          importId: activeImportId,
+          account_columns: updated,
+        });
+      }
+
+      const createdCount = Object.keys(newAccountMap).length;
+      Toast.show({
+        type: "success",
+        text1: `Created ${createdCount} accounts`,
+        text2: "All columns have been auto-mapped.",
+      });
+    } catch (err: any) {
+      Toast.show({
+        type: "error",
+        text1: "Auto-create failed",
+        text2: err?.message || "Something went wrong",
+      });
+    } finally {
+      setIsAutoCreating(false);
+    }
+  }, [
+    isAutoCreating,
+    localAccountColumns,
+    accountsQuery.data,
+    activeImportId,
+    updateMappingMutation,
+    queryClient,
+  ]);
 
   const handleUpdateItems = useCallback(
     (items: ItemUpdatePayload[]) => {
@@ -1429,6 +1622,8 @@ export default function ImportScreen() {
               isUpdating={updateItemsMutation.isPending}
               parseWarnings={parseWarnings}
               onTryAgain={handleNewImport}
+              onAutoCreateAccounts={handleAutoCreateAccounts}
+              isAutoCreating={isAutoCreating}
               colors={colors}
             />
           )}

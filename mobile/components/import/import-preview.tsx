@@ -862,136 +862,168 @@ export function ImportPreview({
         colors={colors}
       />
 
-      {/* Summary Stats */}
-      <View className="px-4 pt-3 pb-2">
-        <View className="flex-row gap-2 mb-3">
-          <View
-            className="flex-1 rounded-xl p-3"
-            style={{ backgroundColor: colors.info + "15" }}
-          >
-            <Text style={{ color: colors.text.secondary }} className="text-xs">
-              Total Rows
-            </Text>
-            <Text style={{ color: colors.info }} className="text-lg font-bold">
-              {importData.total_rows}
-            </Text>
-          </View>
-          <View
-            className="flex-1 rounded-xl p-3"
-            style={{ backgroundColor: colors.success + "15" }}
-          >
-            <Text style={{ color: colors.text.secondary }} className="text-xs">
-              Ready
-            </Text>
-            <Text
-              style={{ color: colors.success }}
-              className="text-lg font-bold"
-            >
-              {stats.pending}
-            </Text>
-          </View>
-          <View
-            className="flex-1 rounded-xl p-3"
-            style={{ backgroundColor: colors.warning + "15" }}
-          >
-            <Text style={{ color: colors.text.secondary }} className="text-xs">
-              Skipped
-            </Text>
-            <Text
-              style={{ color: colors.warning }}
-              className="text-lg font-bold"
-            >
-              {stats.skipped}
-            </Text>
-          </View>
-        </View>
-
-        {/* Debit/Credit Summary */}
-        <View className="flex-row gap-2 mb-2">
-          <View
-            className="flex-1 rounded-xl p-3"
-            style={{ backgroundColor: colors.error + "15" }}
-          >
-            <Text style={{ color: colors.text.secondary }} className="text-xs">
-              Total Debit
-            </Text>
-            <Text
-              style={{ color: colors.error }}
-              className="text-base font-bold"
-            >
-              {stats.totalDebit.toLocaleString("en-US", {
-                minimumFractionDigits: 2,
-              })}
-            </Text>
-          </View>
-          <View
-            className="flex-1 rounded-xl p-3"
-            style={{ backgroundColor: colors.success + "15" }}
-          >
-            <Text style={{ color: colors.text.secondary }} className="text-xs">
-              Total Credit
-            </Text>
-            <Text
-              style={{ color: colors.success }}
-              className="text-base font-bold"
-            >
-              {stats.totalCredit.toLocaleString("en-US", {
-                minimumFractionDigits: 2,
-              })}
-            </Text>
-          </View>
-        </View>
-
-        {/* Import result stats */}
-        {(stats.imported > 0 || stats.failed > 0) && (
-          <View className="flex-row gap-2 mb-2">
-            <View
-              className="flex-1 rounded-xl p-3"
-              style={{ backgroundColor: colors.success + "15" }}
-            >
-              <Text
-                style={{ color: colors.text.secondary }}
-                className="text-xs"
-              >
-                Imported
-              </Text>
-              <Text
-                style={{ color: colors.success }}
-                className="text-lg font-bold"
-              >
-                {stats.imported}
-              </Text>
-            </View>
-            {stats.failed > 0 && (
-              <View
-                className="flex-1 rounded-xl p-3"
-                style={{ backgroundColor: colors.error + "15" }}
-              >
-                <Text
-                  style={{ color: colors.text.secondary }}
-                  className="text-xs"
-                >
-                  Failed
-                </Text>
-                <Text
-                  style={{ color: colors.error }}
-                  className="text-lg font-bold"
-                >
-                  {stats.failed}
-                </Text>
-              </View>
-            )}
-          </View>
-        )}
-      </View>
-
-      {/* Items List */}
+      {/* Items List with inline stats header */}
       {importData.items.length > 0 ? (
         <FlatList
           data={importData.items}
           keyExtractor={(item) => item._id}
           renderItem={renderItem}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 120 }}
+          ListHeaderComponent={
+            <View className="pb-2">
+              {/* Compact Stats Row */}
+              <View
+                className="flex-row items-center rounded-xl px-3 py-2.5 mb-2"
+                style={{ backgroundColor: colors.bg.secondary }}
+              >
+                <View className="flex-row items-center gap-1 flex-1">
+                  <Text
+                    style={{ color: colors.info }}
+                    className="text-sm font-bold"
+                  >
+                    {importData.total_rows}
+                  </Text>
+                  <Text
+                    style={{ color: colors.text.tertiary }}
+                    className="text-[11px]"
+                  >
+                    rows
+                  </Text>
+                </View>
+                <View
+                  style={{
+                    width: 1,
+                    height: 16,
+                    backgroundColor: colors.border,
+                  }}
+                />
+                <View className="flex-row items-center gap-1 flex-1 justify-center">
+                  <Text
+                    style={{ color: colors.success }}
+                    className="text-sm font-bold"
+                  >
+                    {stats.pending}
+                  </Text>
+                  <Text
+                    style={{ color: colors.text.tertiary }}
+                    className="text-[11px]"
+                  >
+                    ready
+                  </Text>
+                </View>
+                {stats.skipped > 0 && (
+                  <>
+                    <View
+                      style={{
+                        width: 1,
+                        height: 16,
+                        backgroundColor: colors.border,
+                      }}
+                    />
+                    <View className="flex-row items-center gap-1 flex-1 justify-center">
+                      <Text
+                        style={{ color: colors.warning }}
+                        className="text-sm font-bold"
+                      >
+                        {stats.skipped}
+                      </Text>
+                      <Text
+                        style={{ color: colors.text.tertiary }}
+                        className="text-[11px]"
+                      >
+                        skip
+                      </Text>
+                    </View>
+                  </>
+                )}
+                <View
+                  style={{
+                    width: 1,
+                    height: 16,
+                    backgroundColor: colors.border,
+                  }}
+                />
+                <View className="flex-row items-center gap-1 flex-1 justify-end">
+                  <Ionicons name="arrow-down" size={10} color={colors.error} />
+                  <Text
+                    style={{ color: colors.error }}
+                    className="text-[11px] font-bold"
+                  >
+                    {stats.totalDebit > 0
+                      ? (stats.totalDebit / 1000).toFixed(0) + "k"
+                      : "0"}
+                  </Text>
+                  <Text
+                    style={{ color: colors.text.tertiary }}
+                    className="text-[10px]"
+                  >
+                    /
+                  </Text>
+                  <Ionicons name="arrow-up" size={10} color={colors.success} />
+                  <Text
+                    style={{ color: colors.success }}
+                    className="text-[11px] font-bold"
+                  >
+                    {stats.totalCredit > 0
+                      ? (stats.totalCredit / 1000).toFixed(0) + "k"
+                      : "0"}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Import result stats (only after import) */}
+              {(stats.imported > 0 || stats.failed > 0) && (
+                <View className="flex-row gap-2 mb-2">
+                  <View
+                    className="flex-1 flex-row items-center gap-1.5 rounded-lg px-3 py-2"
+                    style={{ backgroundColor: colors.success + "12" }}
+                  >
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={14}
+                      color={colors.success}
+                    />
+                    <Text
+                      style={{ color: colors.success }}
+                      className="text-sm font-bold"
+                    >
+                      {stats.imported}
+                    </Text>
+                    <Text
+                      style={{ color: colors.text.secondary }}
+                      className="text-xs"
+                    >
+                      imported
+                    </Text>
+                  </View>
+                  {stats.failed > 0 && (
+                    <View
+                      className="flex-1 flex-row items-center gap-1.5 rounded-lg px-3 py-2"
+                      style={{ backgroundColor: colors.error + "12" }}
+                    >
+                      <Ionicons
+                        name="close-circle"
+                        size={14}
+                        color={colors.error}
+                      />
+                      <Text
+                        style={{ color: colors.error }}
+                        className="text-sm font-bold"
+                      >
+                        {stats.failed}
+                      </Text>
+                      <Text
+                        style={{ color: colors.text.secondary }}
+                        className="text-xs"
+                      >
+                        failed
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              )}
+            </View>
+          }
+          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16 }}
           showsVerticalScrollIndicator={false}
           initialNumToRender={15}
           maxToRenderPerBatch={10}
