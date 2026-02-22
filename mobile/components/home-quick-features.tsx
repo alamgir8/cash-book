@@ -159,6 +159,15 @@ export const HomeQuickFeatures = ({
       onPress: () => router.push("/(app)/invoices"),
       permission: canViewInvoices, // View invoices
     },
+    {
+      id: "import",
+      icon: "cloud-upload" as const,
+      label: "Import",
+      color: "#0891b2",
+      bgColor: "bg-cyan-50",
+      onPress: () => router.push("/(app)/import"),
+      permission: canCreateTransactions,
+    },
   ];
 
   // More features - shown when "See More" is pressed

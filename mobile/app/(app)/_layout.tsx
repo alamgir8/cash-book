@@ -58,7 +58,7 @@ export default function AppLayout() {
           backgroundColor: colors.bg.primary,
           borderTopWidth: 1,
           borderTopColor: colors.border,
-          height: 50 + insets.bottom,
+          height: 40 + insets.bottom,
           paddingBottom: insets.bottom + 5,
           paddingTop: 5,
           elevation: 0,
@@ -204,6 +204,12 @@ export default function AppLayout() {
       />
       <Tabs.Screen
         name="invoices/[invoiceId]"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="import"
         options={{
           href: null,
         }}

@@ -9,7 +9,7 @@ export const queryKeys = {
   accountDetail: (accountId: string) => ["account", accountId, "detail"],
   accountTransactions: (
     accountId: string,
-    filters: Record<string, unknown>
+    filters: Record<string, unknown>,
   ) => ["account", accountId, "transactions", filters],
   transactions: (filters: Record<string, unknown>) => ["transactions", filters],
   summary: ["summary"],
@@ -17,6 +17,7 @@ export const queryKeys = {
   organizations: ["organizations"],
   parties: ["parties"],
   invoices: ["invoices"],
+  imports: ["imports"],
 };
 
 // Alias for QUERY_KEYS (uppercase naming convention)
