@@ -1,8 +1,467 @@
-import React, { useMemo, useCallback } from "react";
-import { View, Text, TouchableOpacity, FlatList } from "react-native";
+import React, { useMemo, useCallback, useState } from "react";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  FlatList,
+  Modal,
+  TextInput,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/useTheme";
 import type { ImportItem, ImportRecord } from "@/services/imports";
+
+// ─── Item Update Payload ──────────────────────────────────────────────────────
+
+export type ItemUpdatePayload = {
+  itemId: string;
+  type?: "debit" | "credit";
+  status?: "pending" | "skipped";
+  amount?: number;
+  date?: string;
+  description?: string;
+  counterparty?: string;
+};
+
+// ─── Edit Item Modal ──────────────────────────────────────────────────────────
+
+function EditItemModal({
+  item,
+  visible,
+  onClose,
+  onSave,
+  colors,
+}: {
+  item: ImportItem | null;
+  visible: boolean;
+  onClose: () => void;
+  onSave: (updates: ItemUpdatePayload) => void;
+  colors: any;
+}) {
+  const [editAmount, setEditAmount] = useState("");
+  const [editDate, setEditDate] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editCounterparty, setEditCounterparty] = useState("");
+  const [editType, setEditType] = useState<"debit" | "credit">("debit");
+
+  // Sync local state when item changes
+  React.useEffect(() => {
+    if (item) {
+      setEditAmount(item.amount?.toString() || "");
+      setEditDate(
+        item.date
+          ? new Date(item.date).toLocaleDateString("en-GB", {
+              day: "2-digit",
+              month: "2-digit",
+              year: "numeric",
+            })
+          : item.raw_date || "",
+      );
+      setEditDescription(item.description || item.raw_description || "");
+      setEditCounterparty(item.counterparty || item.raw_counterparty || "");
+      setEditType(item.type || "debit");
+    }
+  }, [item]);
+
+  if (!item) return null;
+
+  const handleSave = () => {
+    const updates: ItemUpdatePayload = { itemId: item._id };
+    let hasChanges = false;
+
+    // Amount
+    const newAmount = parseFloat(editAmount);
+    if (!isNaN(newAmount) && newAmount !== item.amount) {
+      updates.amount = newAmount;
+      hasChanges = true;
+    }
+
+    // Type
+    if (editType !== item.type) {
+      updates.type = editType;
+      hasChanges = true;
+    }
+
+    // Description
+    const origDesc = item.description || item.raw_description || "";
+    if (editDescription.trim() !== origDesc) {
+      updates.description = editDescription.trim();
+      hasChanges = true;
+    }
+
+    // Counterparty
+    const origCp = item.counterparty || item.raw_counterparty || "";
+    if (editCounterparty.trim() !== origCp) {
+      updates.counterparty = editCounterparty.trim();
+      hasChanges = true;
+    }
+
+    // Date — try to parse DD/MM/YYYY
+    if (editDate.trim()) {
+      const parts = editDate.trim().split(/[\/\-\.]/);
+      if (parts.length === 3) {
+        const d = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10);
+        const y = parseInt(parts[2], 10);
+        if (d > 0 && m > 0 && y > 0) {
+          const fullYear = y < 100 ? 2000 + y : y;
+          const dateObj = new Date(fullYear, m - 1, d);
+          if (!isNaN(dateObj.getTime())) {
+            const origDate = item.date
+              ? new Date(item.date).toISOString()
+              : null;
+            const newDateISO = dateObj.toISOString();
+            if (newDateISO !== origDate) {
+              updates.date = newDateISO;
+              hasChanges = true;
+            }
+          }
+        }
+      }
+    }
+
+    if (hasChanges) {
+      onSave(updates);
+    }
+    onClose();
+  };
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <Pressable
+        onPress={onClose}
+        style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)" }}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ flex: 1, justifyContent: "flex-end" }}
+        >
+          <Pressable
+            onPress={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: colors.bg.primary,
+              borderTopLeftRadius: 24,
+              borderTopRightRadius: 24,
+              maxHeight: "85%",
+            }}
+          >
+            {/* Handle bar */}
+            <View className="items-center pt-3 pb-1">
+              <View
+                className="w-10 h-1 rounded-full"
+                style={{ backgroundColor: colors.border }}
+              />
+            </View>
+
+            {/* Header */}
+            <View className="flex-row items-center justify-between px-5 pb-3">
+              <Text
+                style={{ color: colors.text.primary }}
+                className="text-lg font-bold"
+              >
+                Edit Transaction
+              </Text>
+              <TouchableOpacity
+                onPress={onClose}
+                className="w-8 h-8 rounded-full items-center justify-center"
+                style={{ backgroundColor: colors.bg.tertiary }}
+              >
+                <Ionicons
+                  name="close"
+                  size={18}
+                  color={colors.text.secondary}
+                />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView className="px-5" showsVerticalScrollIndicator={false}>
+              {/* Row info */}
+              <View
+                className="flex-row items-center gap-2 mb-4 px-3 py-2 rounded-lg"
+                style={{ backgroundColor: colors.info + "10" }}
+              >
+                <Ionicons
+                  name="document-text-outline"
+                  size={14}
+                  color={colors.info}
+                />
+                <Text
+                  style={{ color: colors.info }}
+                  className="text-xs font-medium"
+                >
+                  Row {item.row_index + 1}
+                </Text>
+                {item.account_name && (
+                  <>
+                    <Text
+                      style={{ color: colors.text.tertiary }}
+                      className="text-xs"
+                    >
+                      •
+                    </Text>
+                    <Text
+                      style={{ color: colors.info }}
+                      className="text-xs font-medium"
+                    >
+                      {item.account_name}
+                    </Text>
+                  </>
+                )}
+              </View>
+
+              {/* Amount */}
+              <View className="mb-4">
+                <Text
+                  style={{ color: colors.text.secondary }}
+                  className="text-xs font-semibold mb-1.5 uppercase tracking-wider"
+                >
+                  Amount
+                </Text>
+                <TextInput
+                  value={editAmount}
+                  onChangeText={setEditAmount}
+                  keyboardType="decimal-pad"
+                  placeholder="0.00"
+                  placeholderTextColor={colors.text.tertiary}
+                  style={{
+                    backgroundColor: colors.input,
+                    color: colors.text.primary,
+                    borderColor: colors.border,
+                    borderWidth: 1,
+                    borderRadius: 12,
+                    paddingHorizontal: 16,
+                    paddingVertical: 12,
+                    fontSize: 16,
+                    fontWeight: "600",
+                  }}
+                />
+                {item.raw_amount && (
+                  <Text
+                    style={{ color: colors.text.tertiary }}
+                    className="text-xs mt-1"
+                  >
+                    Original: {item.raw_amount}
+                  </Text>
+                )}
+              </View>
+
+              {/* Type */}
+              <View className="mb-4">
+                <Text
+                  style={{ color: colors.text.secondary }}
+                  className="text-xs font-semibold mb-1.5 uppercase tracking-wider"
+                >
+                  Type
+                </Text>
+                <View className="flex-row gap-3">
+                  <TouchableOpacity
+                    onPress={() => setEditType("debit")}
+                    className="flex-1 flex-row items-center justify-center gap-2 py-3 rounded-xl"
+                    style={{
+                      backgroundColor:
+                        editType === "debit"
+                          ? colors.error + "15"
+                          : "transparent",
+                      borderWidth: 1.5,
+                      borderColor:
+                        editType === "debit" ? colors.error : colors.border,
+                    }}
+                  >
+                    <Ionicons
+                      name="arrow-down"
+                      size={16}
+                      color={
+                        editType === "debit"
+                          ? colors.error
+                          : colors.text.tertiary
+                      }
+                    />
+                    <Text
+                      style={{
+                        color:
+                          editType === "debit"
+                            ? colors.error
+                            : colors.text.tertiary,
+                      }}
+                      className="text-sm font-bold"
+                    >
+                      Debit (Expense)
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => setEditType("credit")}
+                    className="flex-1 flex-row items-center justify-center gap-2 py-3 rounded-xl"
+                    style={{
+                      backgroundColor:
+                        editType === "credit"
+                          ? colors.success + "15"
+                          : "transparent",
+                      borderWidth: 1.5,
+                      borderColor:
+                        editType === "credit" ? colors.success : colors.border,
+                    }}
+                  >
+                    <Ionicons
+                      name="arrow-up"
+                      size={16}
+                      color={
+                        editType === "credit"
+                          ? colors.success
+                          : colors.text.tertiary
+                      }
+                    />
+                    <Text
+                      style={{
+                        color:
+                          editType === "credit"
+                            ? colors.success
+                            : colors.text.tertiary,
+                      }}
+                      className="text-sm font-bold"
+                    >
+                      Credit (Income)
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Date */}
+              <View className="mb-4">
+                <Text
+                  style={{ color: colors.text.secondary }}
+                  className="text-xs font-semibold mb-1.5 uppercase tracking-wider"
+                >
+                  Date (DD/MM/YYYY)
+                </Text>
+                <TextInput
+                  value={editDate}
+                  onChangeText={setEditDate}
+                  placeholder="DD/MM/YYYY"
+                  placeholderTextColor={colors.text.tertiary}
+                  style={{
+                    backgroundColor: colors.input,
+                    color: colors.text.primary,
+                    borderColor: colors.border,
+                    borderWidth: 1,
+                    borderRadius: 12,
+                    paddingHorizontal: 16,
+                    paddingVertical: 12,
+                    fontSize: 15,
+                  }}
+                />
+                {item.raw_date && (
+                  <Text
+                    style={{ color: colors.text.tertiary }}
+                    className="text-xs mt-1"
+                  >
+                    Original: {item.raw_date}
+                  </Text>
+                )}
+              </View>
+
+              {/* Description */}
+              <View className="mb-4">
+                <Text
+                  style={{ color: colors.text.secondary }}
+                  className="text-xs font-semibold mb-1.5 uppercase tracking-wider"
+                >
+                  Description
+                </Text>
+                <TextInput
+                  value={editDescription}
+                  onChangeText={setEditDescription}
+                  placeholder="Transaction description"
+                  placeholderTextColor={colors.text.tertiary}
+                  multiline
+                  numberOfLines={2}
+                  style={{
+                    backgroundColor: colors.input,
+                    color: colors.text.primary,
+                    borderColor: colors.border,
+                    borderWidth: 1,
+                    borderRadius: 12,
+                    paddingHorizontal: 16,
+                    paddingVertical: 12,
+                    fontSize: 15,
+                    minHeight: 56,
+                    textAlignVertical: "top",
+                  }}
+                />
+              </View>
+
+              {/* Counterparty */}
+              <View className="mb-6">
+                <Text
+                  style={{ color: colors.text.secondary }}
+                  className="text-xs font-semibold mb-1.5 uppercase tracking-wider"
+                >
+                  Counterparty / Party
+                </Text>
+                <TextInput
+                  value={editCounterparty}
+                  onChangeText={setEditCounterparty}
+                  placeholder="Person or company name"
+                  placeholderTextColor={colors.text.tertiary}
+                  style={{
+                    backgroundColor: colors.input,
+                    color: colors.text.primary,
+                    borderColor: colors.border,
+                    borderWidth: 1,
+                    borderRadius: 12,
+                    paddingHorizontal: 16,
+                    paddingVertical: 12,
+                    fontSize: 15,
+                  }}
+                />
+              </View>
+
+              {/* Buttons */}
+              <View className="flex-row gap-3 mb-8">
+                <TouchableOpacity
+                  onPress={onClose}
+                  className="flex-1 py-3.5 rounded-xl items-center"
+                  style={{
+                    backgroundColor: colors.bg.tertiary,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                  }}
+                >
+                  <Text
+                    style={{ color: colors.text.secondary }}
+                    className="text-sm font-semibold"
+                  >
+                    Cancel
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={handleSave}
+                  className="flex-1 py-3.5 rounded-xl items-center"
+                  style={{ backgroundColor: colors.info }}
+                >
+                  <Text
+                    style={{ color: "#FFFFFF" }}
+                    className="text-sm font-bold"
+                  >
+                    Save Changes
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </Pressable>
+        </KeyboardAvoidingView>
+      </Pressable>
+    </Modal>
+  );
+}
 
 // ─── Import Item Card ─────────────────────────────────────────────────────────
 
@@ -12,12 +471,14 @@ function ImportItemCard({
   colors,
   onToggleSkip,
   onEditType,
+  onEdit,
 }: {
   item: ImportItem;
   index: number;
   colors: any;
   onToggleSkip: (itemId: string) => void;
   onEditType: (itemId: string, type: "debit" | "credit") => void;
+  onEdit: (item: ImportItem) => void;
 }) {
   const isSkipped = item.status === "skipped";
   const isImported = item.status === "imported";
@@ -40,7 +501,9 @@ function ImportItemCard({
         : "ellipse-outline";
 
   return (
-    <View
+    <TouchableOpacity
+      activeOpacity={0.7}
+      onPress={() => !isImported && onEdit(item)}
       style={{
         backgroundColor: isSkipped
           ? colors.bg.tertiary + "40"
@@ -274,7 +737,24 @@ function ImportItemCard({
           </Text>
         </View>
       )}
-    </View>
+
+      {/* Edit hint for non-imported items */}
+      {!isImported && !isFailed && (
+        <View className="flex-row items-center justify-end mt-1.5">
+          <Ionicons
+            name="create-outline"
+            size={11}
+            color={colors.text.tertiary + "80"}
+          />
+          <Text
+            style={{ color: colors.text.tertiary + "80" }}
+            className="text-[10px] ml-1"
+          >
+            Tap to edit
+          </Text>
+        </View>
+      )}
+    </TouchableOpacity>
   );
 }
 
@@ -282,13 +762,7 @@ function ImportItemCard({
 
 type ImportPreviewProps = {
   importData: ImportRecord;
-  onUpdateItems: (
-    items: {
-      itemId: string;
-      type?: "debit" | "credit";
-      status?: "pending" | "skipped";
-    }[],
-  ) => void;
+  onUpdateItems: (items: ItemUpdatePayload[]) => void;
   isUpdating?: boolean;
 };
 
@@ -298,6 +772,8 @@ export function ImportPreview({
   isUpdating,
 }: ImportPreviewProps) {
   const { colors } = useTheme();
+  const [editingItem, setEditingItem] = useState<ImportItem | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
 
   // Summary stats
   const stats = useMemo(() => {
@@ -346,6 +822,18 @@ export function ImportPreview({
     [onUpdateItems],
   );
 
+  const handleEditItem = useCallback((item: ImportItem) => {
+    setEditingItem(item);
+    setShowEditModal(true);
+  }, []);
+
+  const handleSaveEdit = useCallback(
+    (updates: ItemUpdatePayload) => {
+      onUpdateItems([updates]);
+    },
+    [onUpdateItems],
+  );
+
   const renderItem = useCallback(
     ({ item, index }: { item: ImportItem; index: number }) => (
       <ImportItemCard
@@ -354,13 +842,26 @@ export function ImportPreview({
         colors={colors}
         onToggleSkip={handleToggleSkip}
         onEditType={handleEditType}
+        onEdit={handleEditItem}
       />
     ),
-    [colors, handleToggleSkip, handleEditType],
+    [colors, handleToggleSkip, handleEditType, handleEditItem],
   );
 
   return (
     <View className="flex-1">
+      {/* Edit Item Modal */}
+      <EditItemModal
+        item={editingItem}
+        visible={showEditModal}
+        onClose={() => {
+          setShowEditModal(false);
+          setEditingItem(null);
+        }}
+        onSave={handleSaveEdit}
+        colors={colors}
+      />
+
       {/* Summary Stats */}
       <View className="px-4 pt-3 pb-2">
         <View className="flex-row gap-2 mb-3">

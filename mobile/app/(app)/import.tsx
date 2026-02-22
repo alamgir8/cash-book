@@ -26,6 +26,7 @@ import {
 } from "@/hooks/use-imports";
 import { ScreenHeader } from "@/components/screen-header";
 import { ImportPreview } from "@/components/import/import-preview";
+import type { ItemUpdatePayload } from "@/components/import/import-preview";
 import { ColumnMappingEditor } from "@/components/import/column-mapping-editor";
 import { ImportHistoryCard } from "@/components/import/import-history-card";
 import { SearchableSelect } from "@/components/searchable-select";
@@ -661,13 +662,7 @@ function MapAndReviewStep({
     accountId: string | undefined,
   ) => void;
   accountOptions: { value: string; label: string; subtitle?: string }[];
-  onUpdateItems: (
-    items: {
-      itemId: string;
-      type?: "debit" | "credit";
-      status?: "pending" | "skipped";
-    }[],
-  ) => void;
+  onUpdateItems: (items: ItemUpdatePayload[]) => void;
   isUpdating: boolean;
   parseWarnings: ParseWarning[];
   onTryAgain: () => void;
@@ -1210,13 +1205,7 @@ export default function ImportScreen() {
   );
 
   const handleUpdateItems = useCallback(
-    (
-      items: {
-        itemId: string;
-        type?: "debit" | "credit";
-        status?: "pending" | "skipped";
-      }[],
-    ) => {
+    (items: ItemUpdatePayload[]) => {
       if (!activeImportId) return;
       updateItemsMutation.mutate({ importId: activeImportId, items });
     },
