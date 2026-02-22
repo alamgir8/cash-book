@@ -458,7 +458,9 @@ export const processLedgerSheet = (rawData, headers, options = {}) => {
   const NOTES_HEADER = /note|remark|comment|মন্তব্য|কথায়/i;
   const SERIAL_HEADER = /sl|serial|no|#|ক্রম/i;
   const DEBIT_SECTION_HINT =
-    /খরচ|expense|debit|ব্যয়|কেনা|বাবদ|mistri|rong|tails|glass|doroja|rod|cement|বালু|ইট|সিমেন্ট|রড|মিস্ত্রি|ওয়ারিং|বেতন|গ্রীল|জানালা/i;
+    /খরচ|expense|debit|ব্যয়|কেনা|mistri|rod|cement|বালু|ইট|সিমেন্ট|রড|মিস্ত্রি|ওয়ারিং|গ্রীল|জানালা|মিস্ত্রিদের|পরিবহন|ভাড়া|মজুরী/i;
+  const CREDIT_SECTION_HINT =
+    /income|credit|আয়|দান|চাঁদা|donation|salary|ঋণ|জমা|collection|টাকা/i;
 
   // Detect date columns, description columns, and account columns
   const dateCols = [];
@@ -498,12 +500,36 @@ export const processLedgerSheet = (rawData, headers, options = {}) => {
         (n) => n >= sectionStart && n < sectionEnd,
       );
 
-      // Determine type for this section: check if any account col names hint at debit/expense
+      // Determine type for this section using scoring:
+      // Count how many account-like columns match debit vs credit hints
       const sectionHeaders = headers.slice(sectionStart, sectionEnd);
-      const hasDebitHint = sectionHeaders.some((h) =>
-        DEBIT_SECTION_HINT.test(h || ""),
-      );
-      const sectionType = hasDebitHint ? "debit" : "credit";
+      const sectionAccountHeaders = sectionHeaders.filter((h) => {
+        const ht = String(h || "").trim();
+        if (!ht) return false;
+        // Exclude known non-account columns
+        if (DATE_HEADER.test(ht)) return false;
+        if (DESC_HEADER.test(ht)) return false;
+        if (TOTAL_HEADER.test(ht)) return false;
+        if (NOTES_HEADER.test(ht)) return false;
+        if (SERIAL_HEADER.test(ht)) return false;
+        return true;
+      });
+      let debitScore = 0;
+      let creditScore = 0;
+      for (const h of sectionAccountHeaders) {
+        if (DEBIT_SECTION_HINT.test(h || "")) debitScore++;
+        if (CREDIT_SECTION_HINT.test(h || "")) creditScore++;
+      }
+      // If majority of account columns hint at expense → debit, otherwise credit
+      const sectionType =
+        debitScore > creditScore &&
+        debitScore > sectionAccountHeaders.length * 0.3
+          ? "debit"
+          : creditScore > debitScore
+            ? "credit"
+            : s === 0
+              ? "credit" // First section defaults to credit (income)
+              : "debit"; // Later sections default to debit (expense)
 
       sections.push({
         dateCol: sectionStart,
