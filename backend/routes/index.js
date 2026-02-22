@@ -8,6 +8,7 @@ import backupRoutes from "./backup.routes.js";
 import organizationRoutes from "./organization.routes.js";
 import partyRoutes from "./party.routes.js";
 import invoiceRoutes from "./invoice.routes.js";
+import importRoutes from "./import.routes.js";
 
 const router = Router();
 
@@ -20,5 +21,6 @@ router.use("/backup", backupRoutes);
 router.use("/organizations", organizationRoutes);
 router.use("/parties", partyRoutes);
 router.use("/invoices", invoiceRoutes);
+router.use("/imports", importRoutes);
 
 export default router;
