@@ -9,11 +9,14 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  Keyboard,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { z } from "zod";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useTheme } from "@/hooks/useTheme";
 import type { Organization } from "@/services/organizations";
 
 const CURRENCIES = [
@@ -63,6 +66,8 @@ export function OrganizationSettingsModal({
   onSubmit,
   isLoading = false,
 }: OrganizationSettingsModalProps) {
+  const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const { control, handleSubmit, reset, watch } = useForm<SettingsFormData>({
     resolver: zodResolver(settingsSchema),
     defaultValues: {
@@ -102,7 +107,7 @@ export function OrganizationSettingsModal({
               });
             },
           },
-        ]
+        ],
       );
     } else {
       onSubmit({
@@ -119,42 +124,71 @@ export function OrganizationSettingsModal({
       transparent={true}
       onRequestClose={onClose}
     >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={{ flex: 1 }}
+      <View
+        className="flex-1 justify-end"
+        style={{ backgroundColor: "rgba(0,0,0,0.4)" }}
       >
-        <View className="flex-1 bg-black/40 justify-end">
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={() => {
+            Keyboard.dismiss();
+            onClose();
+          }}
+          style={{ flex: 1 }}
+        />
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
           <View
-            className="bg-white rounded-t-3xl flex-1"
-            style={{ maxHeight: "92%" }}
+            className="rounded-t-3xl"
+            style={{ backgroundColor: colors.bg.primary }}
           >
             {/* Header */}
-            <View className="flex-row justify-between items-center p-6 pb-4 border-b border-gray-100">
+            <View
+              className="flex-row justify-between items-center p-6 pb-4 border-b"
+              style={{ borderColor: colors.border }}
+            >
               <View>
-                <Text className="text-gray-900 text-xl font-bold">
+                <Text
+                  className="text-xl font-bold"
+                  style={{ color: colors.text.primary }}
+                >
                   Organization Settings
                 </Text>
-                <Text className="text-gray-500 text-sm">
+                <Text
+                  className="text-sm"
+                  style={{ color: colors.text.secondary }}
+                >
                   Update currency and status
                 </Text>
               </View>
               <TouchableOpacity
                 onPress={onClose}
-                className="w-8 h-8 bg-gray-100 rounded-full items-center justify-center"
+                className="w-8 h-8 rounded-full items-center justify-center"
+                style={{ backgroundColor: colors.bg.tertiary }}
               >
-                <Ionicons name="close" size={20} color="#6b7280" />
+                <Ionicons
+                  name="close"
+                  size={20}
+                  color={colors.text.secondary}
+                />
               </TouchableOpacity>
             </View>
 
             <ScrollView
-              className="flex-1 px-6 py-4"
+              className="px-6 py-4"
               showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
               contentContainerStyle={{ paddingBottom: 20 }}
+              style={{ maxHeight: 500 }}
             >
               <View className="gap-6">
                 {/* Currency Selection */}
                 <View>
-                  <Text className="text-slate-700 mb-3 text-sm font-semibold">
+                  <Text
+                    className="mb-3 text-sm font-semibold"
+                    style={{ color: colors.text.primary }}
+                  >
                     Currency
                   </Text>
                   <Controller
@@ -264,11 +298,18 @@ export function OrganizationSettingsModal({
             </ScrollView>
 
             {/* Footer */}
-            <View className="p-6 pt-4 pb-8 border-t border-gray-100">
+            <View
+              className="p-6 pt-4 border-t"
+              style={{
+                borderColor: colors.border,
+                paddingBottom: insets.bottom > 0 ? insets.bottom : 16,
+              }}
+            >
               <TouchableOpacity
-                className={`bg-blue-500 flex-row items-center justify-center py-3.5 rounded-xl ${
+                className={`flex-row items-center justify-center py-3.5 rounded-xl ${
                   isLoading ? "opacity-60" : ""
                 }`}
+                style={{ backgroundColor: colors.info }}
                 onPress={handleSubmit(handleFormSubmit)}
                 disabled={isLoading}
               >
@@ -285,8 +326,8 @@ export function OrganizationSettingsModal({
               </TouchableOpacity>
             </View>
           </View>
-        </View>
-      </KeyboardAvoidingView>
+        </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }

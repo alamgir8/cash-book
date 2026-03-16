@@ -9,9 +9,11 @@ import {
   Platform,
   TouchableOpacity,
   StyleSheet,
+  Keyboard,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/hooks/useTheme";
 import {
   createCategory,
@@ -80,6 +82,7 @@ export const CategoryFormModal = ({
   initialFlow = "debit",
 }: CategoryFormModalProps) => {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const isEditing = !!category;
 
@@ -168,11 +171,18 @@ export const CategoryFormModal = ({
       transparent={true}
       onRequestClose={onClose}
     >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.keyboardView}
-      >
-        <View style={styles.overlay}>
+      <View style={styles.overlay}>
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={() => {
+            Keyboard.dismiss();
+            onClose();
+          }}
+          style={{ flex: 1 }}
+        />
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
           <View
             style={[
               styles.modalContainer,
@@ -216,6 +226,8 @@ export const CategoryFormModal = ({
             <ScrollView
               style={styles.scrollView}
               showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="interactive"
               contentContainerStyle={styles.scrollContent}
             >
               <View style={styles.formContainer}>
@@ -418,7 +430,15 @@ export const CategoryFormModal = ({
             </ScrollView>
 
             {/* Footer */}
-            <View style={[styles.footer, { borderTopColor: colors.border }]}>
+            <View
+              style={[
+                styles.footer,
+                {
+                  borderTopColor: colors.border,
+                  paddingBottom: insets.bottom > 0 ? insets.bottom : 16,
+                },
+              ]}
+            >
               <ActionButton
                 label={isEditing ? "Update Category" : "Create Category"}
                 onPress={handleSubmit}
@@ -431,16 +451,13 @@ export const CategoryFormModal = ({
               />
             </View>
           </View>
-        </View>
-      </KeyboardAvoidingView>
+        </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 };
 
 const styles = StyleSheet.create({
-  keyboardView: {
-    flex: 1,
-  },
   overlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.4)",
@@ -449,7 +466,6 @@ const styles = StyleSheet.create({
   modalContainer: {
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    flex: 1,
     maxHeight: "90%",
   },
   header: {
@@ -582,7 +598,6 @@ const styles = StyleSheet.create({
   footer: {
     padding: 24,
     paddingTop: 16,
-    paddingBottom: 32,
     borderTopWidth: 1,
   },
 });

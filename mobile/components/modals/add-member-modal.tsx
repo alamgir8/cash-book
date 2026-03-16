@@ -9,12 +9,14 @@ import {
   Modal,
   KeyboardAvoidingView,
   Platform,
+  Keyboard,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { z } from "zod";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { PasswordInput } from "../password-input";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/hooks/useTheme";
 
 const ROLES = [
@@ -66,6 +68,7 @@ export function AddMemberModal({
   isLoading = false,
 }: AddMemberModalProps) {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const {
     control,
     handleSubmit,
@@ -108,14 +111,24 @@ export function AddMemberModal({
       transparent={true}
       onRequestClose={handleClose}
     >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        className="flex-1"
-      >
-        <View className="flex-1 bg-black/40 justify-end">
+      <View className="flex-1 bg-black/40 justify-end">
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={() => {
+            Keyboard.dismiss();
+            handleClose();
+          }}
+          style={{ flex: 1 }}
+        />
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
           <View
-            className="rounded-t-3xl flex-1 max-h-[90%]"
-            style={{ backgroundColor: colors.bg.primary }}
+            className="rounded-t-3xl"
+            style={{
+              maxHeight: "100%",
+              backgroundColor: colors.bg.primary,
+            }}
           >
             <View
               className="flex-row justify-between items-center p-6 pb-4 border-b"
@@ -149,9 +162,12 @@ export function AddMemberModal({
             </View>
 
             <ScrollView
-              className="flex-1 px-6 py-4"
+              className="px-6 py-4"
               showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="interactive"
               contentContainerClassName="pb-5"
+              style={{ maxHeight: 500 }}
             >
               <View className="gap-5">
                 <View>
@@ -373,8 +389,11 @@ export function AddMemberModal({
             </ScrollView>
 
             <View
-              className="p-6 pt-4 pb-8 border-t"
-              style={{ borderColor: colors.border }}
+              className="p-6 pt-4 border-t"
+              style={{
+                borderColor: colors.border,
+                paddingBottom: insets.bottom > 0 ? insets.bottom : 16,
+              }}
             >
               <TouchableOpacity
                 className={`flex-row items-center justify-center py-3.5 rounded-xl gap-2 ${
@@ -397,8 +416,8 @@ export function AddMemberModal({
               </TouchableOpacity>
             </View>
           </View>
-        </View>
-      </KeyboardAvoidingView>
+        </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }

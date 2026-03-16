@@ -9,8 +9,10 @@ import {
   StyleSheet,
   Platform,
   KeyboardAvoidingView,
+  Keyboard,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "../hooks/useTheme";
 
 export type SelectOption = {
@@ -46,6 +48,7 @@ export const SearchableSelect = ({
   customDisplayValue,
 }: SearchableSelectProps) => {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const [visible, setVisible] = useState(false);
   const [search, setSearch] = useState("");
 
@@ -173,178 +176,216 @@ export const SearchableSelect = ({
         transparent
         onRequestClose={closeModal}
       >
-        <TouchableOpacity
-          style={styles.overlay}
-          activeOpacity={1}
-          onPress={closeModal}
-        />
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={{ ...styles.sheet, backgroundColor: colors.bg.primary }}
+          style={styles.modalContainer}
         >
-          <View style={{ ...styles.sheetHeader, borderColor: colors.border }}>
-            <Text style={{ color: colors.text.primary, ...styles.sheetTitle }}>
-              {label ?? placeholder}
-            </Text>
-            <TouchableOpacity onPress={closeModal}>
-              <Ionicons name="close" size={22} color={colors.text.secondary} />
-            </TouchableOpacity>
-          </View>
+          {/* Backdrop */}
+          <TouchableOpacity
+            style={styles.backdrop}
+            activeOpacity={1}
+            onPress={() => {
+              Keyboard.dismiss();
+              closeModal();
+            }}
+          />
 
+          {/* Bottom Sheet */}
           <View
             style={{
-              backgroundColor: colors.bg.secondary,
-              borderColor: colors.border,
-              ...styles.searchContainer,
+              ...styles.sheet,
+              backgroundColor: colors.bg.primary,
+              paddingBottom: insets.bottom || 16,
             }}
           >
-            <Ionicons name="search" size={18} color={colors.text.secondary} />
-            <TextInput
-              value={search}
-              onChangeText={setSearch}
-              placeholder="Search"
-              placeholderTextColor={colors.text.tertiary}
-              style={{
-                color: colors.text.primary,
-                ...styles.searchInput,
-              }}
-              autoFocus
-            />
-          </View>
+            <View style={{ ...styles.sheetHeader, borderColor: colors.border }}>
+              <Text
+                style={{ color: colors.text.primary, ...styles.sheetTitle }}
+              >
+                {label ?? placeholder}
+              </Text>
+              <TouchableOpacity onPress={closeModal}>
+                <Ionicons
+                  name="close"
+                  size={22}
+                  color={colors.text.secondary}
+                />
+              </TouchableOpacity>
+            </View>
 
-          <FlatList
-            data={filteredItems}
-            keyExtractor={(item) => item.id}
-            ListHeaderComponent={
-              allowCustomValue && search.trim() && !searchMatchesExisting ? (
-                <TouchableOpacity
-                  style={{
-                    ...styles.addNewRow,
-                    backgroundColor: colors.info + "15",
-                    borderBottomColor: colors.border,
-                  }}
-                  onPress={handleAddCustom}
-                >
-                  <Ionicons name="add-circle" size={20} color={colors.info} />
-                  <Text style={{ ...styles.addNewText, color: colors.info }}>
-                    Add &quot;{search.trim()}&quot;
-                  </Text>
+            <View
+              style={{
+                backgroundColor: colors.bg.secondary,
+                borderColor: colors.border,
+                ...styles.searchContainer,
+              }}
+            >
+              <Ionicons name="search" size={18} color={colors.text.secondary} />
+              <TextInput
+                value={search}
+                onChangeText={setSearch}
+                placeholder="Search"
+                placeholderTextColor={colors.text.tertiary}
+                style={{
+                  color: colors.text.primary,
+                  ...styles.searchInput,
+                }}
+                autoFocus
+              />
+              {search.length > 0 && (
+                <TouchableOpacity onPress={() => setSearch("")}>
+                  <Ionicons
+                    name="close-circle"
+                    size={18}
+                    color={colors.text.tertiary}
+                  />
                 </TouchableOpacity>
-              ) : null
-            }
-            ListFooterComponent={
-              hasMore ? (
-                <View
-                  style={{
-                    ...styles.moreHint,
-                    backgroundColor: colors.bg.tertiary,
-                  }}
-                >
-                  <Ionicons
-                    name="information-circle-outline"
-                    size={16}
-                    color={colors.text.secondary}
-                  />
-                  <Text
+              )}
+            </View>
+
+            <FlatList
+              data={filteredItems}
+              keyExtractor={(item) => item.id}
+              style={styles.list}
+              ListHeaderComponent={
+                allowCustomValue && search.trim() && !searchMatchesExisting ? (
+                  <TouchableOpacity
                     style={{
-                      ...styles.moreHintText,
-                      color: colors.text.secondary,
-                    }}
-                  >
-                    Showing 50 of {totalCount}. Type to search for more.
-                  </Text>
-                </View>
-              ) : null
-            }
-            ListEmptyComponent={
-              allowCustomValue && !search.trim() ? (
-                <View style={styles.emptyState}>
-                  <Ionicons
-                    name="search-outline"
-                    size={32}
-                    color={colors.text.tertiary}
-                  />
-                  <Text
-                    style={{
-                      ...styles.emptyStateText,
-                      color: colors.text.secondary,
-                    }}
-                  >
-                    Type to search or add new
-                  </Text>
-                </View>
-              ) : !allowCustomValue && filteredItems.length === 0 ? (
-                <View style={styles.emptyState}>
-                  <Ionicons
-                    name="folder-open-outline"
-                    size={32}
-                    color={colors.text.tertiary}
-                  />
-                  <Text
-                    style={{
-                      ...styles.emptyStateText,
-                      color: colors.text.secondary,
-                    }}
-                  >
-                    No options available
-                  </Text>
-                </View>
-              ) : null
-            }
-            renderItem={({ item }) => {
-              if (item.type === "GROUP") {
-                return (
-                  <Text
-                    style={{
-                      ...styles.groupLabel,
-                      color: colors.text.secondary,
-                    }}
-                  >
-                    {item.title}
-                  </Text>
-                );
-              }
-              const isSelected = item.option.value === value;
-              return (
-                <TouchableOpacity
-                  style={[
-                    { ...styles.optionRow, borderBottomColor: colors.border },
-                    isSelected && {
-                      ...styles.optionSelected,
+                      ...styles.addNewRow,
                       backgroundColor: colors.info + "15",
-                    },
-                  ]}
-                  onPress={() => handleSelect(item.option)}
-                >
-                  <View>
+                      borderBottomColor: colors.border,
+                    }}
+                    onPress={handleAddCustom}
+                  >
+                    <Ionicons name="add-circle" size={20} color={colors.info} />
+                    <Text style={{ ...styles.addNewText, color: colors.info }}>
+                      Add &quot;{search.trim()}&quot;
+                    </Text>
+                  </TouchableOpacity>
+                ) : null
+              }
+              ListFooterComponent={
+                hasMore ? (
+                  <View
+                    style={{
+                      ...styles.moreHint,
+                      backgroundColor: colors.bg.tertiary,
+                    }}
+                  >
+                    <Ionicons
+                      name="information-circle-outline"
+                      size={16}
+                      color={colors.text.secondary}
+                    />
                     <Text
                       style={{
-                        ...styles.optionLabel,
-                        color: colors.text.primary,
+                        ...styles.moreHintText,
+                        color: colors.text.secondary,
                       }}
                     >
-                      {item.option.label}
+                      Showing 50 of {totalCount}. Type to search for more.
                     </Text>
-                    {item.option.subtitle ? (
+                  </View>
+                ) : null
+              }
+              ListEmptyComponent={
+                allowCustomValue && !search.trim() ? (
+                  <View style={styles.emptyState}>
+                    <Ionicons
+                      name="search-outline"
+                      size={32}
+                      color={colors.text.tertiary}
+                    />
+                    <Text
+                      style={{
+                        ...styles.emptyStateText,
+                        color: colors.text.secondary,
+                      }}
+                    >
+                      Type to search or add new
+                    </Text>
+                  </View>
+                ) : !allowCustomValue && filteredItems.length === 0 ? (
+                  <View style={styles.emptyState}>
+                    <Ionicons
+                      name="folder-open-outline"
+                      size={32}
+                      color={colors.text.tertiary}
+                    />
+                    <Text
+                      style={{
+                        ...styles.emptyStateText,
+                        color: colors.text.secondary,
+                      }}
+                    >
+                      No options available
+                    </Text>
+                  </View>
+                ) : null
+              }
+              renderItem={({ item }) => {
+                if (item.type === "GROUP") {
+                  return (
+                    <Text
+                      style={{
+                        ...styles.groupLabel,
+                        color: colors.text.secondary,
+                      }}
+                    >
+                      {item.title}
+                    </Text>
+                  );
+                }
+                const isSelected = item.option.value === value;
+                return (
+                  <TouchableOpacity
+                    style={[
+                      {
+                        ...styles.optionRow,
+                        borderBottomColor: colors.border,
+                      },
+                      isSelected && {
+                        ...styles.optionSelected,
+                        backgroundColor: colors.info + "15",
+                      },
+                    ]}
+                    onPress={() => handleSelect(item.option)}
+                  >
+                    <View style={{ flex: 1 }}>
                       <Text
                         style={{
-                          ...styles.optionSubtitle,
-                          color: colors.text.secondary,
+                          ...styles.optionLabel,
+                          color: colors.text.primary,
                         }}
                       >
-                        {item.option.subtitle}
+                        {item.option.label}
                       </Text>
+                      {item.option.subtitle ? (
+                        <Text
+                          style={{
+                            ...styles.optionSubtitle,
+                            color: colors.text.secondary,
+                          }}
+                        >
+                          {item.option.subtitle}
+                        </Text>
+                      ) : null}
+                    </View>
+                    {isSelected ? (
+                      <Ionicons
+                        name="checkmark"
+                        size={18}
+                        color={colors.info}
+                      />
                     ) : null}
-                  </View>
-                  {isSelected ? (
-                    <Ionicons name="checkmark" size={18} color={colors.info} />
-                  ) : null}
-                </TouchableOpacity>
-              );
-            }}
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ paddingBottom: 100 }}
-          />
+                  </TouchableOpacity>
+                );
+              }}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="interactive"
+              contentContainerStyle={{ paddingBottom: 16 }}
+            />
+          </View>
         </KeyboardAvoidingView>
       </Modal>
     </View>
@@ -383,24 +424,23 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 12,
   },
-  overlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+  modalContainer: {
+    flex: 1,
+    justifyContent: "flex-end",
     backgroundColor: "rgba(17, 24, 39, 0.35)",
   },
+  backdrop: {
+    flex: 1,
+  },
   sheet: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
     maxHeight: "80%",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingTop: 16,
     paddingHorizontal: 16,
+  },
+  list: {
+    flexGrow: 0,
   },
   sheetHeader: {
     flexDirection: "row",

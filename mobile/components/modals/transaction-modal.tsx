@@ -9,12 +9,14 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Keyboard,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Ionicons } from "@expo/vector-icons";
 import dayjs from "dayjs";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SearchableSelect } from "../searchable-select";
 import { usePreferences } from "@/hooks/usePreferences";
 import { useTheme } from "@/hooks/useTheme";
@@ -52,6 +54,7 @@ export const TransactionModal = ({
 }: TransactionModalProps) => {
   const { formatAmount } = usePreferences();
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
 
@@ -152,17 +155,28 @@ export const TransactionModal = ({
 
   return (
     <Modal visible={visible} transparent animationType="slide">
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={{ flex: 1 }}
+      <View
+        className="flex-1 justify-end"
+        style={{ backgroundColor: "rgba(0,0,0,0.4)" }}
       >
-        <View
-          className="flex-1 justify-end"
-          style={{ backgroundColor: "rgba(0,0,0,0.4)" }}
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={() => {
+            Keyboard.dismiss();
+            closeModal();
+          }}
+          style={{ flex: 1 }}
+        />
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
         >
           <View
-            className="rounded-t-3xl flex-1"
-            style={{ maxHeight: "92%", backgroundColor: colors.bg.primary }}
+            className="rounded-t-3xl"
+            style={{
+              maxHeight: "100%",
+              backgroundColor: colors.bg.primary,
+            }}
           >
             {/* Header */}
             <View
@@ -200,10 +214,12 @@ export const TransactionModal = ({
 
             {/* Form Content */}
             <ScrollView
-              className="flex-1 px-6 py-4"
+              className="px-6 py-4"
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="interactive"
               contentContainerStyle={{ paddingBottom: 20 }}
+              style={{ maxHeight: 500 }}
             >
               <View className="gap-5">
                 {/* Account Selection */}
@@ -523,8 +539,11 @@ export const TransactionModal = ({
 
             {/* Submit Button - Fixed at bottom */}
             <View
-              className="p-6 pt-4 pb-8 border-t"
-              style={{ borderColor: colors.border }}
+              className="p-6 pt-4 border-t"
+              style={{
+                borderColor: colors.border,
+                paddingBottom: insets.bottom > 0 ? insets.bottom : 16,
+              }}
             >
               <TouchableOpacity
                 onPress={handleSubmit(handleFormSubmit)}
@@ -547,8 +566,8 @@ export const TransactionModal = ({
               </TouchableOpacity>
             </View>
           </View>
-        </View>
-      </KeyboardAvoidingView>
+        </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 };

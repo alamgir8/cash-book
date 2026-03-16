@@ -9,6 +9,7 @@ import {
   StyleSheet,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useTheme } from "../hooks/useTheme";
 
 type KeyboardAwareModalProps = {
   visible: boolean;
@@ -24,8 +25,7 @@ export function KeyboardAwareModal({
   height = "90%",
 }: KeyboardAwareModalProps) {
   const insets = useSafeAreaInsets();
-
-  const heightValue = height === "85%" ? 0.85 : height === "95%" ? 0.95 : 0.9;
+  const { colors } = useTheme();
 
   return (
     <Modal
@@ -47,17 +47,24 @@ export function KeyboardAwareModal({
 
         {/* Modal Content */}
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "padding"}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
           keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
           style={[
             styles.container,
             {
-              maxHeight: `${heightValue * 100}%`,
-              paddingBottom: Platform.OS === "android" ? insets.bottom : 0,
+              maxHeight: height,
             },
           ]}
         >
-          <View style={[styles.content, { paddingBottom: insets.bottom }]}>
+          <View
+            style={[
+              styles.content,
+              {
+                backgroundColor: colors.bg.primary,
+                paddingBottom: insets.bottom > 0 ? insets.bottom : 16,
+              },
+            ]}
+          >
             {children}
           </View>
         </KeyboardAvoidingView>
@@ -73,13 +80,12 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    flex: 1,
   },
   container: {
     width: "100%",
   },
   content: {
-    backgroundColor: "white",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     maxHeight: "100%",

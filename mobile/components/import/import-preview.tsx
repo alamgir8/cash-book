@@ -137,13 +137,10 @@ function EditItemModal({
       animationType="slide"
       onRequestClose={onClose}
     >
-      <Pressable
-        onPress={onClose}
-        style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)" }}
-      >
+      <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)" }}>
+        <Pressable onPress={onClose} style={{ flex: 1 }} />
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={{ flex: 1, justifyContent: "flex-end" }}
         >
           <Pressable
             onPress={(e) => e.stopPropagation()}
@@ -151,7 +148,6 @@ function EditItemModal({
               backgroundColor: colors.bg.primary,
               borderTopLeftRadius: 24,
               borderTopRightRadius: 24,
-              maxHeight: "85%",
             }}
           >
             {/* Handle bar */}
@@ -183,7 +179,13 @@ function EditItemModal({
               </TouchableOpacity>
             </View>
 
-            <ScrollView className="px-5" showsVerticalScrollIndicator={false}>
+            <ScrollView
+              className="px-5"
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="interactive"
+              style={{ maxHeight: 500 }}
+            >
               {/* Row info */}
               <View
                 className="flex-row items-center gap-2 mb-4 px-3 py-2 rounded-lg"
@@ -458,7 +460,7 @@ function EditItemModal({
             </ScrollView>
           </Pressable>
         </KeyboardAvoidingView>
-      </Pressable>
+      </View>
     </Modal>
   );
 }

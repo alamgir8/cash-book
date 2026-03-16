@@ -7,6 +7,7 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Keyboard,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { organizationsApi, type Organization } from "../services/organizations";
@@ -17,6 +18,7 @@ import { useForm, Controller } from "react-hook-form";
 import { CustomInput } from "./custom-input";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ActionButton } from "./action-button";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "../hooks/useTheme";
 
 const BUSINESS_TYPES = [
@@ -71,6 +73,7 @@ export function OrganizationFormModal({
 }: OrganizationFormModalProps) {
   const isEditing = !!organization;
   const [isLoading, setIsLoading] = React.useState(false);
+  const insets = useSafeAreaInsets();
 
   const {
     control,
@@ -173,17 +176,24 @@ export function OrganizationFormModal({
       transparent
       onRequestClose={onClose}
     >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        className="flex-1"
+      <View
+        style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)" }}
+        className="justify-end"
       >
-        <View
-          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)" }}
-          className="justify-end"
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={() => {
+            Keyboard.dismiss();
+            onClose();
+          }}
+          style={{ flex: 1 }}
+        />
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
         >
           <View
-            style={{ backgroundColor: colors.bg.primary, maxHeight: "90%" }}
-            className="rounded-t-3xl flex-1"
+            style={{ backgroundColor: colors.bg.primary }}
+            className="rounded-t-3xl"
           >
             {/* Header */}
             <View
@@ -220,9 +230,12 @@ export function OrganizationFormModal({
             </View>
 
             <ScrollView
-              className="flex-1 px-6 py-4"
+              className="px-6 py-4"
               showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="interactive"
               contentContainerStyle={{ paddingBottom: 20 }}
+              style={{ maxHeight: 500 }}
             >
               {/* Business Name */}
               <Controller
@@ -456,7 +469,13 @@ export function OrganizationFormModal({
             </ScrollView>
 
             {/* Footer */}
-            <View className="p-6 pt-4 pb-8 border-t border-gray-100">
+            <View
+              className="p-6 pt-4 border-t"
+              style={{
+                borderColor: colors.border,
+                paddingBottom: insets.bottom > 0 ? insets.bottom : 16,
+              }}
+            >
               <ActionButton
                 label={isEditing ? "Save Changes" : "Create Organization"}
                 onPress={handleSubmit(onSubmit)}
@@ -467,8 +486,8 @@ export function OrganizationFormModal({
               />
             </View>
           </View>
-        </View>
-      </KeyboardAvoidingView>
+        </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }

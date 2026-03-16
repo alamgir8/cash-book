@@ -9,6 +9,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Keyboard,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Controller, useForm } from "react-hook-form";
@@ -19,6 +20,7 @@ import SearchableSelect, { type SelectOption } from "./searchable-select";
 import { PasswordInput } from "./password-input";
 import { ActionButton } from "./action-button";
 import { useAuth } from "../hooks/useAuth";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "../hooks/useTheme";
 
 const pinValueSchema = z
@@ -228,20 +230,28 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
   };
 
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
 
   return (
     <Modal visible={visible} animationType="slide" transparent>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={{ flex: 1 }}
+      <View
+        style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)" }}
+        className="justify-end"
       >
-        <View
-          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)" }}
-          className="justify-end"
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={() => {
+            Keyboard.dismiss();
+            handleClose();
+          }}
+          style={{ flex: 1 }}
+        />
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
         >
           <View
-            style={{ backgroundColor: colors.bg.primary, maxHeight: "92%" }}
-            className="rounded-t-3xl flex-1"
+            style={{ backgroundColor: colors.bg.primary }}
+            className="rounded-t-3xl"
           >
             {/* Header */}
             <View
@@ -277,7 +287,11 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
 
             {/* Form Content */}
             <ScrollView
-              className="flex-1 px-6"
+              className="px-6"
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="interactive"
+              style={{ maxHeight: 500 }}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
               contentContainerStyle={{ paddingBottom: 20 }}
@@ -544,10 +558,11 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
 
             {/* Submit Button - Fixed at bottom */}
             <View
-              className="p-6 pb-8 border-t"
+              className="p-6 border-t"
               style={{
                 backgroundColor: colors.bg.primary,
                 borderColor: colors.border,
+                paddingBottom: insets.bottom > 0 ? insets.bottom : 16,
               }}
             >
               <ActionButton
@@ -562,8 +577,8 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
               />
             </View>
           </View>
-        </View>
-      </KeyboardAvoidingView>
+        </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }

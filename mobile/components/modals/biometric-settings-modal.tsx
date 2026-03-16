@@ -11,9 +11,11 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Keyboard,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBiometric } from "../../hooks/useBiometric";
 import { useTheme } from "@/hooks/useTheme";
 
@@ -29,6 +31,7 @@ export function BiometricSettingsModal({
   userEmail,
 }: BiometricSettingsModalProps) {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   // Pass userEmail as userIdentifier for per-user biometric storage
   const {
     status,
@@ -141,17 +144,27 @@ export function BiometricSettingsModal({
       transparent
       onRequestClose={handleClose}
     >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        className="flex-1"
+      <View
+        className="flex-1 justify-end"
+        style={{ backgroundColor: "rgba(0, 0, 0, 0.5)" }}
       >
-        <View
-          className="flex-1 justify-end"
-          style={{ backgroundColor: "rgba(0, 0, 0, 0.5)" }}
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={() => {
+            Keyboard.dismiss();
+            handleClose();
+          }}
+          style={{ flex: 1 }}
+        />
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
         >
           <View
-            className="rounded-t-3xl p-6 max-h-[80%]"
-            style={{ backgroundColor: colors.bg.primary }}
+            className="rounded-t-3xl p-6"
+            style={{
+              backgroundColor: colors.bg.primary,
+              paddingBottom: insets.bottom > 0 ? insets.bottom : 16,
+            }}
           >
             {/* Header */}
             <View className="flex-row items-center justify-between mb-6">
@@ -496,8 +509,8 @@ export function BiometricSettingsModal({
               )}
             </ScrollView>
           </View>
-        </View>
-      </KeyboardAvoidingView>
+        </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }
