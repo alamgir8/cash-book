@@ -42,7 +42,7 @@ type Totals = {
 
 const toStringValue = (
   value: unknown,
-  fallbackKeys: string[] = []
+  fallbackKeys: string[] = [],
 ): string | undefined => {
   if (typeof value === "string" && value.trim().length > 0) {
     return value.trim();
@@ -206,7 +206,7 @@ const generatePdfFilename = (prefix: string): string => {
 
 const saveAndSharePdf = async (
   html: string,
-  filename: string
+  filename: string,
 ): Promise<string> => {
   const { uri } = await Print.printToFileAsync({ html });
 
@@ -252,7 +252,7 @@ const capitalize = (value?: string): string | undefined => {
 
 const formatAmount = (
   amount: number | undefined,
-  currencySymbol?: string
+  currencySymbol?: string,
 ): string => {
   if (amount === undefined || amount === null || Number.isNaN(amount)) {
     return "—";
@@ -280,7 +280,7 @@ const computeTotals = (transactions: Transaction[]): Totals => {
       }
       return acc;
     },
-    { debit: 0, credit: 0 }
+    { debit: 0, credit: 0 },
   );
   return {
     ...totals,
@@ -289,7 +289,7 @@ const computeTotals = (transactions: Transaction[]): Totals => {
 };
 
 const collectTransactions = async (
-  baseFilters: TransactionFilters
+  baseFilters: TransactionFilters,
 ): Promise<{ transactions: Transaction[]; total: number }> => {
   const transactions: Transaction[] = [];
   let currentPage = 1;
@@ -375,7 +375,7 @@ const collectTransactions = async (
 
 const buildFiltersSection = (
   display: DisplayFilters,
-  currencySymbol?: string
+  currencySymbol?: string,
 ): string => {
   const chips: string[] = [];
 
@@ -401,7 +401,7 @@ const buildFiltersSection = (
     chips.push(
       `Categories: ${display.categoryNames
         .map((name) => name || "Unknown")
-        .join(", ")}`
+        .join(", ")}`,
     );
   } else if (display.categoryId) {
     chips.push(`Category ID: ${display.categoryId}`);
@@ -508,8 +508,8 @@ const buildReportHtml = ({
             if (txn.keyword) {
               descriptionParts.push(
                 `<span class="text-muted">Tag: ${escapeHtml(
-                  txn.keyword
-                )}</span>`
+                  txn.keyword,
+                )}</span>`,
               );
             }
             const descriptionCell =
@@ -531,19 +531,19 @@ const buildReportHtml = ({
                 <td class="col-account">${escapeHtml(accountLabel)}</td>
                 <td class="col-category">${escapeHtml(categoryLabel)}</td>
                 <td class="col-counterparty">${escapeHtml(
-                  counterpartyLabel
+                  counterpartyLabel,
                 )}</td>
                 <td class="col-type"><span class="${typeBadgeClass}">${escapeHtml(
-              capitalize(txn.type) ?? txn.type
-            )}</span></td>
+                  capitalize(txn.type) ?? txn.type,
+                )}</span></td>
                 <td class="col-desc">${descriptionCell}</td>
                 <td class="${amountClass} col-amt">${escapeHtml(
-              formatAmount(txn.amount, currencySymbol)
-            )}</td>
+                  formatAmount(txn.amount, currencySymbol),
+                )}</td>
                 ${
                   showBalanceColumn
                     ? `<td class="amount balance col-bal">${escapeHtml(
-                        formatAmount(balanceAfter, currencySymbol)
+                        formatAmount(balanceAfter, currencySymbol),
                       )}</td>`
                     : ""
                 }
@@ -563,19 +563,19 @@ const buildReportHtml = ({
         <div class="kpi">
           <div class="kpi-label">Total Transactions</div>
           <div class="kpi-value">${escapeHtml(
-            String(transactions.length)
+            String(transactions.length),
           )}</div>
         </div>
         <div class="kpi">
           <div class="kpi-label">Total Credit</div>
           <div class="kpi-value positive">${escapeHtml(
-            formatAmount(totals.credit, currencySymbol)
+            formatAmount(totals.credit, currencySymbol),
           )}</div>
         </div>
         <div class="kpi">
           <div class="kpi-label">Total Debit</div>
           <div class="kpi-value negative">${escapeHtml(
-            formatAmount(totals.debit, currencySymbol)
+            formatAmount(totals.debit, currencySymbol),
           )}</div>
         </div>
       </div>
@@ -584,7 +584,7 @@ const buildReportHtml = ({
         <div class="banner-text">
           <div class="banner-title">Net Position</div>
           <div class="banner-value">${escapeHtml(
-            formatAmount(totals.net, currencySymbol)
+            formatAmount(totals.net, currencySymbol),
           )}</div>
         </div>
       </div>
@@ -838,10 +838,10 @@ const buildReportHtml = ({
       <div class="hero-meta">
         <div>Generated: ${escapeHtml(generatedAt)}</div>
         <div>Total in report: ${escapeHtml(String(transactions.length))}${
-    totalCount > transactions.length
-      ? ` of ${escapeHtml(String(totalCount))} records`
-      : ""
-  }</div>
+          totalCount > transactions.length
+            ? ` of ${escapeHtml(String(totalCount))} records`
+            : ""
+        }</div>
       </div>
     </section>
 
@@ -849,7 +849,7 @@ const buildReportHtml = ({
 
     ${filtersSection.replace(
       '<div class="filters">',
-      '<div class="filters"><h2>Applied Filters</h2>'
+      '<div class="filters"><h2>Applied Filters</h2>',
     )}
 
     <div class="table-wrap">
@@ -894,7 +894,7 @@ const buildReportHtml = ({
 };
 
 export const exportTransactionsPdf = async (
-  rawFilters: RawFilters = {}
+  rawFilters: RawFilters = {},
 ): Promise<string> => {
   const { filters, display } = parseFilters(rawFilters);
 
@@ -919,8 +919,8 @@ export const exportTransactionsPdf = async (
       new Set(
         transactions
           .map((txn) => txn.account?.name?.trim())
-          .filter((name): name is string => Boolean(name))
-      )
+          .filter((name): name is string => Boolean(name)),
+      ),
     );
     if (accountNames.length > 0) {
       display.accounts = accountNames;
@@ -932,8 +932,8 @@ export const exportTransactionsPdf = async (
       new Set(
         transactions
           .map((txn) => txn.category?.name?.trim())
-          .filter((name): name is string => Boolean(name))
-      )
+          .filter((name): name is string => Boolean(name)),
+      ),
     );
     if (categoryNames.length > 0) {
       display.categoryNames = categoryNames;
@@ -974,6 +974,8 @@ const buildGroupedReportHtml = ({
   currencySymbol,
   groupByLabel,
   totalTransactions,
+  accountName,
+  displayFilters,
 }: {
   groups: GroupedData[];
   grandTotals: Totals;
@@ -981,8 +983,16 @@ const buildGroupedReportHtml = ({
   currencySymbol?: string;
   groupByLabel: string;
   totalTransactions: number;
+  accountName?: string;
+  displayFilters?: DisplayFilters;
 }): string => {
-  const title = `Transactions by ${groupByLabel}`;
+  const title = accountName
+    ? `${accountName} · Transactions by ${groupByLabel}`
+    : `Transactions by ${groupByLabel}`;
+
+  const filtersSection = displayFilters
+    ? buildFiltersSection(displayFilters, currencySymbol)
+    : "";
 
   const groupSections = groups
     .map((group) => {
@@ -1012,12 +1022,12 @@ const buildGroupedReportHtml = ({
               <td class="col-category">${escapeHtml(categoryLabel)}</td>
               <td class="col-counterparty">${escapeHtml(counterpartyLabel)}</td>
               <td class="col-type"><span class="${typeBadgeClass}">${escapeHtml(
-            capitalize(txn.type) ?? txn.type
-          )}</span></td>
+                capitalize(txn.type) ?? txn.type,
+              )}</span></td>
               <td class="col-desc">${escapeHtml(descriptionCell)}</td>
               <td class="${amountClass} col-amt">${escapeHtml(
-            formatAmount(txn.amount, currencySymbol)
-          )}</td>
+                formatAmount(txn.amount, currencySymbol),
+              )}</td>
             </tr>
           `;
         })
@@ -1034,14 +1044,14 @@ const buildGroupedReportHtml = ({
             <h3>${escapeHtml(group.name)}</h3>
             <div class="group-stats">
               <span class="stat credit">Credit: ${escapeHtml(
-                formatAmount(group.totals.credit, currencySymbol)
+                formatAmount(group.totals.credit, currencySymbol),
               )}</span>
               <span class="stat debit">Debit: ${escapeHtml(
-                formatAmount(group.totals.debit, currencySymbol)
+                formatAmount(group.totals.debit, currencySymbol),
               )}</span>
               <span class="${groupBannerClass}">Net: ${escapeHtml(
-        formatAmount(group.totals.net, currencySymbol)
-      )}</span>
+                formatAmount(group.totals.net, currencySymbol),
+              )}</span>
             </div>
           </div>
           <div class="table-wrap">
@@ -1064,8 +1074,8 @@ const buildGroupedReportHtml = ({
             </table>
           </div>
           <div class="group-count">${group.transactions.length} transaction${
-        group.transactions.length === 1 ? "" : "s"
-      }</div>
+            group.transactions.length === 1 ? "" : "s"
+          }</div>
         </div>
       `;
     })
@@ -1181,6 +1191,11 @@ const buildGroupedReportHtml = ({
     .amount.positive { color: #047857; }
     .amount.negative { color: #dc2626; }
 
+    .filters { margin: 14px 2px 14px; }
+    .filters h2 { font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: #475569; margin: 0 0 8px 0; }
+    .filters .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip { padding: 6px 12px; border-radius: 999px; background: #eef2ff; border: 1px solid #c7d2fe; color: #3730a3; font-size: 12px; font-weight: 700; white-space: nowrap; }
+
     footer { text-align: center; font-size: 11px; color: #94a3b8; margin-top: 24px; padding-bottom: 16px; }
   </style>
 </head>
@@ -1189,17 +1204,23 @@ const buildGroupedReportHtml = ({
     <header class="hero">
       <div>
         <h1 class="hero-title">${escapeHtml(title)}</h1>
-        <div class="hero-sub">${escapeHtml(
-          String(totalTransactions)
-        )} transactions in ${escapeHtml(
-    String(groups.length)
-  )} ${groupByLabel.toLowerCase()}${groups.length === 1 ? "" : "s"}</div>
+        ${
+          accountName
+            ? `<div class="hero-sub">Account: ${escapeHtml(accountName)}</div>`
+            : `<div class="hero-sub">${escapeHtml(
+                String(totalTransactions),
+              )} transactions in ${escapeHtml(
+                String(groups.length),
+              )} ${groupByLabel.toLowerCase()}${groups.length === 1 ? "" : "s"}</div>`
+        }
       </div>
       <div class="hero-meta">
         <div>Generated</div>
         <div>${escapeHtml(generatedAt)}</div>
       </div>
     </header>
+
+    ${filtersSection}
 
     <section class="kpis">
       <div class="kpi-grid">
@@ -1210,13 +1231,13 @@ const buildGroupedReportHtml = ({
         <div class="kpi">
           <div class="kpi-label">Total Credit</div>
           <div class="kpi-value positive">${escapeHtml(
-            formatAmount(grandTotals.credit, currencySymbol)
+            formatAmount(grandTotals.credit, currencySymbol),
           )}</div>
         </div>
         <div class="kpi">
           <div class="kpi-label">Total Debit</div>
           <div class="kpi-value negative">${escapeHtml(
-            formatAmount(grandTotals.debit, currencySymbol)
+            formatAmount(grandTotals.debit, currencySymbol),
           )}</div>
         </div>
       </div>
@@ -1225,7 +1246,7 @@ const buildGroupedReportHtml = ({
         <div class="banner-text">
           <div class="banner-title">Net Position</div>
           <div class="banner-value">${escapeHtml(
-            formatAmount(grandTotals.net, currencySymbol)
+            formatAmount(grandTotals.net, currencySymbol),
           )}</div>
         </div>
       </div>
@@ -1254,8 +1275,26 @@ const buildGroupedReportHtml = ({
   `;
 };
 
-export const exportTransactionsByCategoryPdf = async (): Promise<string> => {
-  const { transactions } = await collectTransactions({});
+export const exportTransactionsByCategoryPdf = async (
+  rawFilters: RawFilters = {},
+): Promise<string> => {
+  const { filters, display } = parseFilters(rawFilters);
+
+  let accountName: string | undefined;
+  let currencySymbol: string | undefined;
+
+  if (filters.accountId) {
+    try {
+      const detail = await fetchAccountDetail(filters.accountId);
+      accountName = detail.account?.name;
+      currencySymbol = detail.account?.currency_symbol;
+      display.accountName = accountName ?? display.accountName;
+    } catch (error) {
+      console.warn("Failed to load account detail for report:", error);
+    }
+  }
+
+  const { transactions } = await collectTransactions(filters);
   const generatedAt = dayjs().format("MMM D, YYYY h:mm A");
 
   // Group by category
@@ -1282,53 +1321,97 @@ export const exportTransactionsByCategoryPdf = async (): Promise<string> => {
     groups,
     grandTotals,
     generatedAt,
+    currencySymbol,
     groupByLabel: "Category",
     totalTransactions: transactions.length,
+    accountName,
+    displayFilters: display,
   });
 
-  const filename = generatePdfFilename("CashBook_By_Category");
+  const prefix = accountName
+    ? `CashBook_${accountName.replace(/[^a-zA-Z0-9]/g, "_")}_By_Category`
+    : "CashBook_By_Category";
+  const filename = generatePdfFilename(prefix);
   return saveAndSharePdf(html, filename);
 };
 
-export const exportTransactionsByCounterpartyPdf =
-  async (): Promise<string> => {
-    const { transactions } = await collectTransactions({});
-    const generatedAt = dayjs().format("MMM D, YYYY h:mm A");
+export const exportTransactionsByCounterpartyPdf = async (
+  rawFilters: RawFilters = {},
+): Promise<string> => {
+  const { filters, display } = parseFilters(rawFilters);
 
-    // Group by counterparty
-    const groupMap = new Map<string, Transaction[]>();
-    transactions.forEach((txn) => {
-      const counterparty = txn.counterparty?.trim() || "No Counterparty";
-      if (!groupMap.has(counterparty)) {
-        groupMap.set(counterparty, []);
-      }
-      groupMap.get(counterparty)!.push(txn);
-    });
+  let accountName: string | undefined;
+  let currencySymbol: string | undefined;
 
-    const groups: GroupedData[] = Array.from(groupMap.entries())
-      .map(([name, txns]) => ({
-        name,
-        transactions: txns,
-        totals: computeTotals(txns),
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name));
+  if (filters.accountId) {
+    try {
+      const detail = await fetchAccountDetail(filters.accountId);
+      accountName = detail.account?.name;
+      currencySymbol = detail.account?.currency_symbol;
+      display.accountName = accountName ?? display.accountName;
+    } catch (error) {
+      console.warn("Failed to load account detail for report:", error);
+    }
+  }
 
-    const grandTotals = computeTotals(transactions);
+  const { transactions } = await collectTransactions(filters);
+  const generatedAt = dayjs().format("MMM D, YYYY h:mm A");
 
-    const html = buildGroupedReportHtml({
-      groups,
-      grandTotals,
-      generatedAt,
-      groupByLabel: "Counterparty",
-      totalTransactions: transactions.length,
-    });
+  // Group by counterparty
+  const groupMap = new Map<string, Transaction[]>();
+  transactions.forEach((txn) => {
+    const counterparty = txn.counterparty?.trim() || "No Counterparty";
+    if (!groupMap.has(counterparty)) {
+      groupMap.set(counterparty, []);
+    }
+    groupMap.get(counterparty)!.push(txn);
+  });
 
-    const filename = generatePdfFilename("CashBook_By_Counterparty");
-    return saveAndSharePdf(html, filename);
-  };
+  const groups: GroupedData[] = Array.from(groupMap.entries())
+    .map(([name, txns]) => ({
+      name,
+      transactions: txns,
+      totals: computeTotals(txns),
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 
-export const exportTransactionsByAccountPdf = async (): Promise<string> => {
-  const { transactions } = await collectTransactions({});
+  const grandTotals = computeTotals(transactions);
+
+  const html = buildGroupedReportHtml({
+    groups,
+    grandTotals,
+    generatedAt,
+    currencySymbol,
+    groupByLabel: "Counterparty",
+    totalTransactions: transactions.length,
+    accountName,
+    displayFilters: display,
+  });
+
+  const prefix = accountName
+    ? `CashBook_${accountName.replace(/[^a-zA-Z0-9]/g, "_")}_By_Counterparty`
+    : "CashBook_By_Counterparty";
+  const filename = generatePdfFilename(prefix);
+  return saveAndSharePdf(html, filename);
+};
+
+export const exportTransactionsByAccountPdf = async (
+  rawFilters: RawFilters = {},
+): Promise<string> => {
+  const { filters, display } = parseFilters(rawFilters);
+
+  let currencySymbol: string | undefined;
+
+  if (filters.accountId) {
+    try {
+      const detail = await fetchAccountDetail(filters.accountId);
+      currencySymbol = detail.account?.currency_symbol;
+    } catch (error) {
+      console.warn("Failed to load account detail for report:", error);
+    }
+  }
+
+  const { transactions } = await collectTransactions(filters);
   const generatedAt = dayjs().format("MMM D, YYYY h:mm A");
 
   // Group by account
@@ -1355,8 +1438,10 @@ export const exportTransactionsByAccountPdf = async (): Promise<string> => {
     groups,
     grandTotals,
     generatedAt,
+    currencySymbol,
     groupByLabel: "Account",
     totalTransactions: transactions.length,
+    displayFilters: display,
   });
 
   const filename = generatePdfFilename("CashBook_By_Account");
@@ -1367,7 +1452,7 @@ export const exportTransactionsByAccountPdf = async (): Promise<string> => {
 
 export const exportPartyLedgerPdf = async (
   partyId: string,
-  partyName: string
+  partyName: string,
 ): Promise<string> => {
   try {
     const { partiesApi } = await import("./parties");
@@ -1446,8 +1531,8 @@ export const exportPartyLedgerPdf = async (
               entry.running_balance > 0
                 ? "#059669"
                 : entry.running_balance < 0
-                ? "#dc2626"
-                : "#4b5563"
+                  ? "#dc2626"
+                  : "#4b5563"
             }; text-align: right; border-bottom: 1px solid #e5e7eb;">
               ${balance}
             </td>
@@ -1562,8 +1647,8 @@ export const exportPartyLedgerPdf = async (
                 summary.closing_balance > 0
                   ? "#059669"
                   : summary.closing_balance < 0
-                  ? "#dc2626"
-                  : "#374151"
+                    ? "#dc2626"
+                    : "#374151"
               };
             }
             table {
@@ -1650,7 +1735,7 @@ export const exportPartyLedgerPdf = async (
     `;
 
     const filename = generatePdfFilename(
-      `Ledger_${partyName.replace(/[^a-zA-Z0-9]/g, "_")}`
+      `Ledger_${partyName.replace(/[^a-zA-Z0-9]/g, "_")}`,
     );
     return saveAndSharePdf(html, filename);
   } catch (error) {
@@ -1702,12 +1787,12 @@ export const exportInvoicePdf = async (invoiceId: string): Promise<string> => {
             </td>
             <td style="padding: 12px 8px; font-size: 11px; color: #111827; border-bottom: 1px solid #e5e7eb;">
               <div style="font-weight: 600;">${escapeHtml(
-                item.description
+                item.description,
               )}</div>
               ${
                 item.notes
                   ? `<div style="font-size: 10px; color: #6b7280; margin-top: 2px;">${escapeHtml(
-                      item.notes
+                      item.notes,
                     )}</div>`
                   : ""
               }
@@ -1909,7 +1994,7 @@ export const exportInvoicePdf = async (invoiceId: string): Promise<string> => {
             <div class="header-left">
               <h1>${invoice.type === "sale" ? "INVOICE" : "BILL"}</h1>
               <div class="invoice-number">#${escapeHtml(
-                invoice.invoice_number || ""
+                invoice.invoice_number || "",
               )}</div>
             </div>
             <div class="header-right">
@@ -1926,7 +2011,7 @@ export const exportInvoicePdf = async (invoiceId: string): Promise<string> => {
               <div class="info-row">
                 <span class="label">Party:</span>
                 <span class="value">${escapeHtml(
-                  invoice.party?.name || "N/A"
+                  invoice.party?.name || "N/A",
                 )}</span>
               </div>
               ${
@@ -1952,13 +2037,13 @@ export const exportInvoicePdf = async (invoiceId: string): Promise<string> => {
               <div class="info-row">
                 <span class="label">Invoice Date:</span>
                 <span class="value">${dayjs(invoice.invoice_date).format(
-                  "MMM D, YYYY"
+                  "MMM D, YYYY",
                 )}</span>
               </div>
               <div class="info-row">
                 <span class="label">Due Date:</span>
                 <span class="value">${dayjs(invoice.due_date).format(
-                  "MMM D, YYYY"
+                  "MMM D, YYYY",
                 )}</span>
               </div>
               ${
@@ -2005,7 +2090,7 @@ export const exportInvoicePdf = async (invoiceId: string): Promise<string> => {
                 ? `<div class="total-row">
               <span class="label">Discount:</span>
               <span class="value">-${formatAmount(
-                invoice.discount_amount
+                invoice.discount_amount,
               )}</span>
             </div>`
                 : ""
@@ -2020,7 +2105,7 @@ export const exportInvoicePdf = async (invoiceId: string): Promise<string> => {
               <div class="total-row" style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #e5e7eb;">
                 <span class="label">Paid:</span>
                 <span class="value" style="color: #10b981;">${formatAmount(
-                  invoice.paid_amount
+                  invoice.paid_amount,
                 )}</span>
               </div>
               <div class="total-row">
@@ -2050,7 +2135,7 @@ export const exportInvoicePdf = async (invoiceId: string): Promise<string> => {
           <div class="footer">
             <div>Generated on ${generatedAt}</div>
             <div style="margin-top: 4px;">CashBook - Invoice #${escapeHtml(
-              invoice.invoice_number || ""
+              invoice.invoice_number || "",
             )}</div>
           </div>
         </body>
@@ -2060,7 +2145,7 @@ export const exportInvoicePdf = async (invoiceId: string): Promise<string> => {
     const filename = generatePdfFilename(
       `Invoice_${
         invoice.invoice_number?.replace(/[^a-zA-Z0-9]/g, "_") || invoiceId
-      }`
+      }`,
     );
     return saveAndSharePdf(html, filename);
   } catch (error) {

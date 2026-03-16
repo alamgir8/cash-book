@@ -5,14 +5,9 @@ import { useTheme } from "@/hooks/useTheme";
 type AccountActionsProps = {
   onEdit: () => void;
   onExport: () => void;
-  exporting: boolean;
 };
 
-export function AccountActions({
-  onEdit,
-  onExport,
-  exporting,
-}: AccountActionsProps) {
+export function AccountActions({ onEdit, onExport }: AccountActionsProps) {
   const { colors } = useTheme();
 
   return (
@@ -32,18 +27,12 @@ export function AccountActions({
       </TouchableOpacity>
       <TouchableOpacity
         onPress={onExport}
-        disabled={exporting}
         className="flex-1 flex-row items-center justify-center gap-2 rounded-xl py-2.5"
-        style={{ backgroundColor: colors.info, opacity: exporting ? 0.7 : 1 }}
+        style={{ backgroundColor: colors.info }}
       >
-        <Ionicons
-          name={exporting ? "cloud-download" : "document-text-outline"}
-          size={18}
-          color="#fff"
-        />
-        <Text className="text-white font-semibold">
-          {exporting ? "Exporting..." : "Export PDF"}
-        </Text>
+        <Ionicons name="download-outline" size={18} color="#fff" />
+        <Text className="text-white font-semibold">Export</Text>
+        <Ionicons name="chevron-down" size={14} color="#fff" />
       </TouchableOpacity>
     </View>
   );

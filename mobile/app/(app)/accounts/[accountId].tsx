@@ -20,8 +20,14 @@ import {
   AccountSummaryCard,
   AccountLoadMoreFooter,
   AccountEmptyState,
+  ExportOptionsModal,
 } from "@/components/accounts";
-import { exportTransactionsPdf } from "@/services/reports";
+import type { ExportType } from "@/components/accounts";
+import {
+  exportTransactionsPdf,
+  exportTransactionsByCategoryPdf,
+  exportTransactionsByCounterpartyPdf,
+} from "@/services/reports";
 import { fetchCategories } from "@/services/categories";
 import {
   fetchCounterparties,
@@ -53,6 +59,8 @@ export default function AccountDetailScreen() {
     ...(accountId ? { accountId } : {}),
   });
   const [exporting, setExporting] = useState(false);
+  const [exportModalVisible, setExportModalVisible] = useState(false);
+  const [exportingType, setExportingType] = useState<ExportType | null>(null);
   const [allTransactions, setAllTransactions] = useState<any[]>([]);
   const [hasMorePages, setHasMorePages] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -214,16 +222,32 @@ export default function AccountDetailScreen() {
     }));
   }, []);
 
-  const handleExport = async () => {
+  const handleExport = async (type: ExportType) => {
     if (!accountId) return;
     try {
       setExporting(true);
-      await exportTransactionsPdf({ ...filters, accountId });
+      setExportingType(type);
+      const exportFilters = { ...filters, accountId };
+
+      switch (type) {
+        case "pdf":
+          await exportTransactionsPdf(exportFilters);
+          break;
+        case "by-category":
+          await exportTransactionsByCategoryPdf(exportFilters);
+          break;
+        case "by-counterparty":
+          await exportTransactionsByCounterpartyPdf(exportFilters);
+          break;
+      }
+
       Toast.show({ type: "success", text1: "PDF exported successfully" });
+      setExportModalVisible(false);
     } catch (error) {
       Toast.show({ type: "error", text1: "Failed to export PDF" });
     } finally {
       setExporting(false);
+      setExportingType(null);
     }
   };
 
@@ -304,8 +328,7 @@ export default function AccountDetailScreen() {
 
         <AccountActions
           onEdit={handleEdit}
-          onExport={handleExport}
-          exporting={exporting}
+          onExport={() => setExportModalVisible(true)}
         />
 
         {summary && (
@@ -376,6 +399,18 @@ export default function AccountDetailScreen() {
             tintColor="#3b82f6"
           />
         }
+      />
+
+      <ExportOptionsModal
+        visible={exportModalVisible}
+        onClose={() => setExportModalVisible(false)}
+        onExport={handleExport}
+        exporting={exporting}
+        exportingType={exportingType}
+        accountName={account?.name}
+        hasDateFilter={Boolean(
+          filters.from || filters.to || filters.startDate || filters.endDate,
+        )}
       />
     </View>
   );
