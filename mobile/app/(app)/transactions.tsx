@@ -427,6 +427,7 @@ export default function TransactionsScreen() {
           }}
           hasActiveFilters={hasActiveFilters}
           showAccountField={!accountId}
+          accounts={accountOptions}
           showTypeToggle={true}
           showCategoryField
           categories={categoryOptions}

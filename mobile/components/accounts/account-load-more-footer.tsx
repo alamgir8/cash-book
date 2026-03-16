@@ -1,5 +1,6 @@
 import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTheme } from "@/hooks/useTheme";
 
 type AccountLoadMoreFooterProps = {
   hasMorePages: boolean;
@@ -16,12 +17,20 @@ export function AccountLoadMoreFooter({
   totalTransactions,
   onLoadMore,
 }: AccountLoadMoreFooterProps) {
+  const { colors } = useTheme();
+
   if (!hasMorePages) {
     if (totalTransactions > 0) {
       return (
         <View className="items-center py-6">
-          <View className="bg-gray-100 rounded-full px-4 py-2">
-            <Text className="text-gray-600 text-sm font-medium">
+          <View
+            className="rounded-full px-4 py-2"
+            style={{ backgroundColor: colors.bg.tertiary }}
+          >
+            <Text
+              className="text-sm font-medium"
+              style={{ color: colors.text.secondary }}
+            >
               ✓ All transactions loaded ({totalTransactions} total)
             </Text>
           </View>
@@ -34,8 +43,10 @@ export function AccountLoadMoreFooter({
   if (loadingMore || isFetching) {
     return (
       <View className="items-center py-6">
-        <ActivityIndicator size="small" color="#3b82f6" />
-        <Text className="text-gray-500 text-sm mt-2">Loading more...</Text>
+        <ActivityIndicator size="small" color={colors.info} />
+        <Text className="text-sm mt-2" style={{ color: colors.text.tertiary }}>
+          Loading more...
+        </Text>
       </View>
     );
   }
@@ -44,14 +55,8 @@ export function AccountLoadMoreFooter({
     <View className="items-center py-6">
       <TouchableOpacity
         onPress={onLoadMore}
-        className="bg-blue-500 rounded-xl px-6 py-3 shadow-sm active:scale-95"
-        style={{
-          shadowColor: "#3b82f6",
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 4,
-          elevation: 2,
-        }}
+        className="rounded-xl px-6 py-3"
+        style={{ backgroundColor: colors.info }}
       >
         <View className="flex-row items-center gap-2">
           <Ionicons name="arrow-down-circle" size={20} color="white" />
@@ -60,7 +65,7 @@ export function AccountLoadMoreFooter({
           </Text>
         </View>
       </TouchableOpacity>
-      <Text className="text-gray-400 text-xs mt-2">
+      <Text className="text-xs mt-2" style={{ color: colors.text.tertiary }}>
         Showing {totalTransactions} transactions
       </Text>
     </View>

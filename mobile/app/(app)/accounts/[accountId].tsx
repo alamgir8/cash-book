@@ -339,7 +339,7 @@ export default function AccountDetailScreen() {
   };
 
   return (
-    <View className="flex-1 bg-slate-50">
+    <View className="flex-1" style={{ backgroundColor: colors.bg.primary }}>
       <FlatList
         data={allTransactions}
         keyExtractor={(item) => item._id}

@@ -75,6 +75,7 @@ type Props = {
   filters: TransactionFilters;
   onChange: (filters: TransactionFilters) => void;
   showAccountField?: boolean;
+  accounts?: SelectOption[];
   showTypeToggle?: boolean;
   showCategoryField?: boolean;
   categories?: SelectOption[];
@@ -88,13 +89,13 @@ type Props = {
 // Internal state for form inputs
 type FilterForm = TransactionFilters & {
   searchInput?: string;
-  accountNameInput?: string;
 };
 
 export const FilterBar = ({
   filters,
   onChange,
   showAccountField = true,
+  accounts,
   showTypeToggle = false,
   showCategoryField = false,
   categories,
@@ -111,14 +112,12 @@ export const FilterBar = ({
   const [formFilters, setFormFilters] = useState<FilterForm>({
     ...filters,
     searchInput: filters.search || "",
-    accountNameInput: filters.accountName || "",
   });
 
   useEffect(() => {
     setFormFilters({
       ...filters,
       searchInput: filters.search ?? "",
-      accountNameInput: filters.accountName ?? "",
     });
   }, [filters]);
 
@@ -452,32 +451,29 @@ export const FilterBar = ({
             />
           )}
 
-          <View className="flex-row gap-3">
-            {showAccountField ? (
-              <View className="flex-1">
-                <Text
-                  style={{ color: colors.text.primary }}
-                  className="text-sm font-semibold mb-1.5"
-                >
-                  Account Name
-                </Text>
-                <TextInput
-                  value={formFilters.accountNameInput ?? ""}
-                  onChangeText={(value) =>
-                    setFormFilters({ ...formFilters, accountNameInput: value })
-                  }
-                  placeholder="Search account..."
-                  placeholderTextColor={colors.text.tertiary}
-                  style={{
-                    backgroundColor: colors.bg.tertiary,
-                    color: colors.text.primary,
-                    borderColor: colors.border,
-                  }}
-                  className="px-3 py-2.5 rounded-xl border"
-                />
-              </View>
-            ) : null}
-          </View>
+          {showAccountField && accounts ? (
+            <View>
+              <SearchableSelect
+                label="Account"
+                placeholder={
+                  accounts.length === 0 ? "No accounts" : "Filter by account"
+                }
+                value={formFilters.accountId ?? ""}
+                options={
+                  accounts.length > 0
+                    ? [{ value: "", label: "All accounts" }, ...accounts]
+                    : [{ value: "", label: "All accounts" }]
+                }
+                onSelect={(val) =>
+                  setFormFilters({
+                    ...formFilters,
+                    accountId: val || undefined,
+                  })
+                }
+                disabled={accounts.length === 0}
+              />
+            </View>
+          ) : null}
 
           {showCategoryField && categories ? (
             <View>
@@ -615,18 +611,22 @@ export const FilterBar = ({
             <ActionButton
               label="Apply Filters"
               onPress={() => {
-                const { searchInput, accountNameInput, ...rest } = formFilters;
+                const { searchInput, ...rest } = formFilters;
                 const {
                   categoryId,
                   counterparty,
+                  accountId: selectedAccountId,
                   search: _ignoredSearch,
-                  accountName: _ignoredAccountName,
                   ...other
                 } = rest;
                 const updatedFilters: TransactionFilters = {
                   ...other,
                   page: 1,
                 };
+
+                if (selectedAccountId) {
+                  updatedFilters.accountId = selectedAccountId;
+                }
 
                 if (categoryId) {
                   updatedFilters.categoryId = categoryId;
@@ -638,10 +638,6 @@ export const FilterBar = ({
 
                 if (searchInput && searchInput.trim().length > 0) {
                   updatedFilters.search = searchInput.trim();
-                }
-
-                if (accountNameInput && accountNameInput.trim().length > 0) {
-                  updatedFilters.accountName = accountNameInput.trim();
                 }
                 onChange(updatedFilters);
                 onApplyFilters?.();

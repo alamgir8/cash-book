@@ -456,6 +456,7 @@ export default function DashboardScreen() {
           filters={filters}
           onChange={(next) => setFilters((prev) => ({ ...prev, ...next }))}
           hasActiveFilters={hasActiveFilters}
+          accounts={accountOptions}
           onApplyFilters={() => transactionsQuery.refetch()}
           onReset={() => {
             setFilters({ ...defaultFilters });

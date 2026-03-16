@@ -1,5 +1,6 @@
 import { Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTheme } from "@/hooks/useTheme";
 
 type AccountActionsProps = {
   onEdit: () => void;
@@ -12,19 +13,28 @@ export function AccountActions({
   onExport,
   exporting,
 }: AccountActionsProps) {
+  const { colors } = useTheme();
+
   return (
     <View className="flex-row gap-3">
       <TouchableOpacity
         onPress={onEdit}
-        className="flex-1 flex-row items-center justify-center gap-2 border border-gray-200 rounded-xl py-2.5 bg-gray-50 active:bg-gray-100"
+        className="flex-1 flex-row items-center justify-center gap-2 rounded-xl py-2.5 border"
+        style={{
+          backgroundColor: colors.bg.secondary,
+          borderColor: colors.border,
+        }}
       >
-        <Ionicons name="pencil" size={18} color="#334155" />
-        <Text className="text-gray-700 font-semibold">Edit Account</Text>
+        <Ionicons name="pencil" size={18} color={colors.text.primary} />
+        <Text className="font-semibold" style={{ color: colors.text.primary }}>
+          Edit Account
+        </Text>
       </TouchableOpacity>
       <TouchableOpacity
         onPress={onExport}
         disabled={exporting}
-        className="flex-1 flex-row items-center justify-center gap-2 bg-blue-500 rounded-xl py-2.5 active:opacity-90"
+        className="flex-1 flex-row items-center justify-center gap-2 rounded-xl py-2.5"
+        style={{ backgroundColor: colors.info, opacity: exporting ? 0.7 : 1 }}
       >
         <Ionicons
           name={exporting ? "cloud-download" : "document-text-outline"}
