@@ -47,7 +47,7 @@ export function KeyboardAwareModal({
 
         {/* Modal Content */}
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          behavior={Platform.OS === "ios" ? "padding" : "padding"}
           keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
           style={[
             styles.container,
@@ -61,7 +61,7 @@ export function KeyboardAwareModal({
               styles.content,
               {
                 backgroundColor: colors.bg.primary,
-                paddingBottom: insets.bottom > 0 ? insets.bottom : 16,
+                paddingBottom: Math.max(insets.bottom, 16),
               },
             ]}
           >

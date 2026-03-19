@@ -10,6 +10,7 @@ import {
   Platform,
   Alert,
   Keyboard,
+  Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { z } from "zod";
@@ -137,11 +138,14 @@ export function OrganizationSettingsModal({
           style={{ flex: 1 }}
         />
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          behavior={Platform.OS === "ios" ? "padding" : "padding"}
         >
           <View
             className="rounded-t-3xl"
-            style={{ backgroundColor: colors.bg.primary }}
+            style={{
+              backgroundColor: colors.bg.primary,
+              maxHeight: Dimensions.get("window").height * 0.85,
+            }}
           >
             {/* Header */}
             <View
@@ -180,7 +184,6 @@ export function OrganizationSettingsModal({
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
               contentContainerStyle={{ paddingBottom: 20 }}
-              style={{ maxHeight: 500 }}
             >
               <View className="gap-6">
                 {/* Currency Selection */}
@@ -299,10 +302,10 @@ export function OrganizationSettingsModal({
 
             {/* Footer */}
             <View
-              className="p-6 pt-4 border-t"
+              className="px-6 pt-4 border-t"
               style={{
                 borderColor: colors.border,
-                paddingBottom: insets.bottom > 0 ? insets.bottom : 16,
+                paddingBottom: Math.max(insets.bottom, 16),
               }}
             >
               <TouchableOpacity

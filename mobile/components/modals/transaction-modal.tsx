@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   View,
   Keyboard,
+  Dimensions,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useForm, Controller } from "react-hook-form";
@@ -153,6 +154,16 @@ export const TransactionModal = ({
     onClose();
   };
 
+  const scrollViewRef = useRef<ScrollView>(null);
+  const screenHeight = Dimensions.get("window").height;
+
+  // Scroll to focused input when keyboard opens
+  const handleInputFocus = () => {
+    setTimeout(() => {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    }, 300);
+  };
+
   return (
     <Modal visible={visible} transparent animationType="slide">
       <View
@@ -168,13 +179,13 @@ export const TransactionModal = ({
           style={{ flex: 1 }}
         />
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          behavior={Platform.OS === "ios" ? "padding" : "padding"}
           keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
         >
           <View
             className="rounded-t-3xl"
             style={{
-              maxHeight: "100%",
+              maxHeight: screenHeight * 0.85,
               backgroundColor: colors.bg.primary,
             }}
           >
@@ -214,12 +225,12 @@ export const TransactionModal = ({
 
             {/* Form Content */}
             <ScrollView
+              ref={scrollViewRef}
               className="px-6 py-4"
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode="interactive"
               contentContainerStyle={{ paddingBottom: 20 }}
-              style={{ maxHeight: 500 }}
             >
               <View className="gap-5">
                 {/* Account Selection */}
@@ -450,6 +461,7 @@ export const TransactionModal = ({
                       <TextInput
                         value={value || ""}
                         onChangeText={onChange}
+                        onFocus={handleInputFocus}
                         placeholder="What is this transaction about?"
                         placeholderTextColor={colors.text.tertiary}
                         style={{
@@ -502,6 +514,7 @@ export const TransactionModal = ({
                       <TextInput
                         value={value || ""}
                         onChangeText={onChange}
+                        onFocus={handleInputFocus}
                         placeholder="Any additional details..."
                         placeholderTextColor={colors.text.tertiary}
                         style={{
@@ -539,10 +552,10 @@ export const TransactionModal = ({
 
             {/* Submit Button - Fixed at bottom */}
             <View
-              className="p-6 pt-4 border-t"
+              className="px-6 pt-4 border-t"
               style={{
                 borderColor: colors.border,
-                paddingBottom: insets.bottom > 0 ? insets.bottom : 16,
+                paddingBottom: Math.max(insets.bottom, 16),
               }}
             >
               <TouchableOpacity

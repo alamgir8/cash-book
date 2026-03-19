@@ -177,7 +177,7 @@ export const SearchableSelect = ({
         onRequestClose={closeModal}
       >
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          behavior={Platform.OS === "ios" ? "padding" : "padding"}
           style={styles.modalContainer}
         >
           {/* Backdrop */}
@@ -195,7 +195,7 @@ export const SearchableSelect = ({
             style={{
               ...styles.sheet,
               backgroundColor: colors.bg.primary,
-              paddingBottom: insets.bottom || 16,
+              paddingBottom: Math.max(insets.bottom, 16),
             }}
           >
             <View style={{ ...styles.sheetHeader, borderColor: colors.border }}>

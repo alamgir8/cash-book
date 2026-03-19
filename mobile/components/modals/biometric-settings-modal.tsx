@@ -12,6 +12,7 @@ import {
   Platform,
   ScrollView,
   Keyboard,
+  Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
@@ -157,13 +158,14 @@ export function BiometricSettingsModal({
           style={{ flex: 1 }}
         />
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          behavior={Platform.OS === "ios" ? "padding" : "padding"}
         >
           <View
             className="rounded-t-3xl p-6"
             style={{
               backgroundColor: colors.bg.primary,
-              paddingBottom: insets.bottom > 0 ? insets.bottom : 16,
+              maxHeight: Dimensions.get("window").height * 0.85,
+              paddingBottom: Math.max(insets.bottom, 16),
             }}
           >
             {/* Header */}

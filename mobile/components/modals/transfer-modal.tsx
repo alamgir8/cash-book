@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   View,
   Keyboard,
+  Dimensions,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useForm, Controller } from "react-hook-form";
@@ -123,12 +124,12 @@ export const TransferModal = ({
           style={{ flex: 1 }}
         />
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          behavior={Platform.OS === "ios" ? "padding" : "padding"}
         >
           <View
             className="rounded-t-3xl"
             style={{
-              maxHeight: "100%",
+              maxHeight: Dimensions.get("window").height * 0.85,
               backgroundColor: colors.bg.primary,
             }}
           >
@@ -171,7 +172,6 @@ export const TransferModal = ({
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode="interactive"
               contentContainerStyle={{ paddingBottom: 20 }}
-              style={{ maxHeight: 500 }}
             >
               <View className="gap-5">
                 {/* From Account */}
@@ -432,10 +432,10 @@ export const TransferModal = ({
 
             {/* Submit Button */}
             <View
-              className="p-6 pt-4 border-t"
+              className="px-6 pt-4 border-t"
               style={{
                 borderColor: colors.border,
-                paddingBottom: insets.bottom > 0 ? insets.bottom : 16,
+                paddingBottom: Math.max(insets.bottom, 16),
               }}
             >
               <TouchableOpacity

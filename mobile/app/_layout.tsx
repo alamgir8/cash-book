@@ -134,7 +134,7 @@ const RootContent = () => {
 
   return (
     <SafeAreaView
-      edges={["top", "bottom"]}
+      edges={["top"]}
       style={{ flex: 1, backgroundColor: colors.bg.primary }}
     >
       <StatusBar

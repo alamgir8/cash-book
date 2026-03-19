@@ -8,6 +8,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Keyboard,
+  Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { organizationsApi, type Organization } from "../services/organizations";
@@ -189,10 +190,13 @@ export function OrganizationFormModal({
           style={{ flex: 1 }}
         />
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          behavior={Platform.OS === "ios" ? "padding" : "padding"}
         >
           <View
-            style={{ backgroundColor: colors.bg.primary }}
+            style={{
+              backgroundColor: colors.bg.primary,
+              maxHeight: Dimensions.get("window").height * 0.85,
+            }}
             className="rounded-t-3xl"
           >
             {/* Header */}
@@ -235,7 +239,6 @@ export function OrganizationFormModal({
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode="interactive"
               contentContainerStyle={{ paddingBottom: 20 }}
-              style={{ maxHeight: 500 }}
             >
               {/* Business Name */}
               <Controller
@@ -470,10 +473,10 @@ export function OrganizationFormModal({
 
             {/* Footer */}
             <View
-              className="p-6 pt-4 border-t"
+              className="px-6 pt-4 border-t"
               style={{
                 borderColor: colors.border,
-                paddingBottom: insets.bottom > 0 ? insets.bottom : 16,
+                paddingBottom: Math.max(insets.bottom, 16),
               }}
             >
               <ActionButton

@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Keyboard,
+  Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { z } from "zod";
@@ -121,12 +122,12 @@ export function AddMemberModal({
           style={{ flex: 1 }}
         />
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          behavior={Platform.OS === "ios" ? "padding" : "padding"}
         >
           <View
             className="rounded-t-3xl"
             style={{
-              maxHeight: "100%",
+              maxHeight: Dimensions.get("window").height * 0.85,
               backgroundColor: colors.bg.primary,
             }}
           >
@@ -167,7 +168,6 @@ export function AddMemberModal({
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode="interactive"
               contentContainerClassName="pb-5"
-              style={{ maxHeight: 500 }}
             >
               <View className="gap-5">
                 <View>
@@ -389,10 +389,10 @@ export function AddMemberModal({
             </ScrollView>
 
             <View
-              className="p-6 pt-4 border-t"
+              className="px-6 pt-4 border-t"
               style={{
                 borderColor: colors.border,
-                paddingBottom: insets.bottom > 0 ? insets.bottom : 16,
+                paddingBottom: Math.max(insets.bottom, 16),
               }}
             >
               <TouchableOpacity

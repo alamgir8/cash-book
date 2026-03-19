@@ -140,7 +140,7 @@ function EditItemModal({
       <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)" }}>
         <Pressable onPress={onClose} style={{ flex: 1 }} />
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          behavior={Platform.OS === "ios" ? "padding" : "padding"}
         >
           <Pressable
             onPress={(e) => e.stopPropagation()}

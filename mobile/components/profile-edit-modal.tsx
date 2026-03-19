@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   View,
   Keyboard,
+  Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Controller, useForm } from "react-hook-form";
@@ -247,10 +248,13 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
           style={{ flex: 1 }}
         />
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          behavior={Platform.OS === "ios" ? "padding" : "padding"}
         >
           <View
-            style={{ backgroundColor: colors.bg.primary }}
+            style={{
+              backgroundColor: colors.bg.primary,
+              maxHeight: Dimensions.get("window").height * 0.85,
+            }}
             className="rounded-t-3xl"
           >
             {/* Header */}
@@ -291,9 +295,6 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode="interactive"
-              style={{ maxHeight: 500 }}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
               contentContainerStyle={{ paddingBottom: 20 }}
             >
               <View className="gap-5 py-4">
@@ -558,11 +559,11 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
 
             {/* Submit Button - Fixed at bottom */}
             <View
-              className="p-6 border-t"
+              className="px-6 pt-4 border-t"
               style={{
                 backgroundColor: colors.bg.primary,
                 borderColor: colors.border,
-                paddingBottom: insets.bottom > 0 ? insets.bottom : 16,
+                paddingBottom: Math.max(insets.bottom, 16),
               }}
             >
               <ActionButton
