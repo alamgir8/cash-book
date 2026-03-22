@@ -26,17 +26,31 @@ const parseTransactionDate = (value) => {
   return parsed.toDate();
 };
 
-const adjustAccountBalance = async ({
-  account,
+/**
+ * Atomic balance update using findOneAndUpdate + $inc to prevent race conditions.
+ * Returns the *new* balance after the update.
+ */
+const adjustAccountBalanceAtomic = async ({
+  accountId,
   amount,
   type,
   direction = "apply",
+  session = null,
 }) => {
   const delta = type === "credit" ? amount : -amount;
-  const nextDelta = direction === "revert" ? -delta : delta;
-  account.current_balance = (account.current_balance ?? 0) + nextDelta;
-  await account.save();
-  return account.current_balance;
+  const finalDelta = direction === "revert" ? -delta : delta;
+  const opts = { new: true, ...(session ? { session } : {}) };
+  const updated = await Account.findByIdAndUpdate(
+    accountId,
+    { $inc: { current_balance: finalDelta } },
+    opts,
+  );
+  if (!updated) {
+    throw Object.assign(new Error("Account not found for balance update"), {
+      statusCode: 404,
+    });
+  }
+  return updated.current_balance;
 };
 
 const loadAccount = async ({ adminId, accountId, organizationId }) => {
@@ -139,8 +153,8 @@ const extractAccountBalanceMap = async ({
           }
           return null;
         })
-        .filter(Boolean)
-    )
+        .filter(Boolean),
+    ),
   );
 
   if (accountIds.length === 0) {
@@ -159,7 +173,7 @@ const extractAccountBalanceMap = async ({
     accounts.map((account) => [
       account._id.toString(),
       Number(account.current_balance ?? 0),
-    ])
+    ]),
   );
 };
 
@@ -172,7 +186,7 @@ export const listTransactions = async (req, res, next) => {
       const access = await checkOrgAccess(
         req.user.id,
         organizationId,
-        "view_transactions"
+        "view_transactions",
       );
       if (!access.hasAccess) {
         return res.status(403).json({ message: access.error });
@@ -201,50 +215,93 @@ export const listTransactions = async (req, res, next) => {
     const limit = Math.min(Number(req.query.limit) || 50, 200);
     const skip = (page - 1) * limit;
 
-    const upperLimit = skip + limit;
-
-    const [baseTransactions, total] = await Promise.all([
+    // ── SINGLE query with populate — eliminates the double-query pattern ──
+    const [transactions, total] = await Promise.all([
       Transaction.find(filter)
+        .populate("account", "name kind")
+        .populate("category_id", "name type")
+        .populate("party", "name code type")
         .sort({ date: -1, createdAt: -1, _id: -1 })
-        .limit(upperLimit)
-        .select("_id account amount type createdAt")
+        .skip(skip)
+        .limit(limit)
         .lean(),
       Transaction.countDocuments(filter),
     ]);
 
-    const balanceMap = new Map();
-
-    if (baseTransactions.length > 0) {
+    // Compute running balances only for the current page
+    if (transactions.length > 0) {
       const accountBalances = await extractAccountBalanceMap({
         adminId: req.user.id,
         organizationId,
-        transactions: baseTransactions,
+        transactions,
       });
-      recomputeDescendingBalances({
-        transactions: baseTransactions,
-        accountBalances,
-      });
-      baseTransactions.forEach((txn) => {
-        balanceMap.set(txn._id.toString(), txn.balance_after_transaction);
-      });
-    }
 
-    const transactions = await Transaction.find(filter)
-      .populate("account", "name kind")
-      .populate("category_id", "name type")
-      .populate("party", "name code type")
-      .sort({ date: -1, createdAt: -1, _id: -1 })
-      .skip(skip)
-      .limit(limit)
-      .lean();
+      // We need all transactions from page 1 to current page to compute balances
+      // but for performance, fetch only minimal fields for balance computation
+      if (skip > 0) {
+        const priorTransactions = await Transaction.find(filter)
+          .sort({ date: -1, createdAt: -1, _id: -1 })
+          .limit(skip)
+          .select("_id account amount type")
+          .lean();
 
-    if (transactions.length > 0 && balanceMap.size > 0) {
-      transactions.forEach((txn) => {
-        const computed = balanceMap.get(txn._id.toString());
-        if (typeof computed === "number") {
-          txn.balance_after_transaction = computed;
+        // Apply prior transactions to account balances first
+        recomputeDescendingBalances({
+          transactions: priorTransactions,
+          accountBalances,
+        });
+
+        // Now compute balances for current page starting from adjusted balances
+        const adjustedBalances = new Map();
+        priorTransactions.forEach((txn) => {
+          const accountId =
+            typeof txn.account === "object" && txn.account?._id
+              ? txn.account._id.toString()
+              : txn.account?.toString();
+          if (accountId && typeof txn.balance_after_transaction === "number") {
+            // The last balance in the prior set is the starting point
+          }
+        });
+
+        // Reconstruct running balances after prior deductions
+        for (const [accId, bal] of accountBalances) {
+          adjustedBalances.set(accId, bal);
         }
-      });
+
+        // Recompute through prior transactions to find where each account's balance is
+        const priorRunning = new Map();
+        for (const txn of priorTransactions) {
+          const accountId =
+            typeof txn.account === "string"
+              ? txn.account
+              : txn.account?.toString();
+          if (!accountId) continue;
+
+          let currentBal = priorRunning.get(accountId);
+          if (currentBal === undefined) {
+            currentBal = accountBalances.get(accountId) ?? 0;
+          }
+
+          // After this txn, the balance changes
+          if (txn.type === "credit") {
+            currentBal -= Number(txn.amount ?? 0);
+          } else {
+            currentBal += Number(txn.amount ?? 0);
+          }
+          priorRunning.set(accountId, currentBal);
+        }
+
+        // Use the end-of-prior-page balances as starting point for current page
+        const currentPageBalances =
+          priorRunning.size > 0 ? priorRunning : accountBalances;
+
+        recomputeDescendingBalances({
+          transactions,
+          accountBalances: currentPageBalances,
+        });
+      } else {
+        recomputeDescendingBalances({ transactions, accountBalances });
+      }
     }
 
     res.json({
@@ -280,7 +337,7 @@ export const getTransaction = async (req, res, next) => {
       const access = await checkOrgAccess(
         req.user.id,
         transaction.organization,
-        "view_transactions"
+        "view_transactions",
       );
       if (!access.hasAccess) {
         return res.status(403).json({ message: access.error });
@@ -318,7 +375,7 @@ export const createTransaction = async (req, res, next) => {
       const access = await checkOrgAccess(
         req.user.id,
         organization,
-        "create_transactions"
+        "create_transactions",
       );
       if (!access.hasAccess) {
         return res.status(403).json({ message: access.error });
@@ -392,8 +449,8 @@ export const createTransaction = async (req, res, next) => {
 
     const transaction = await Transaction.create(transactionPayload);
 
-    const balanceAfter = await adjustAccountBalance({
-      account,
+    const balanceAfter = await adjustAccountBalanceAtomic({
+      accountId: account._id,
       amount,
       type,
       direction: "apply",
@@ -434,7 +491,7 @@ export const createTransfer = async (req, res, next) => {
       const access = await checkOrgAccess(
         req.user.id,
         organization,
-        "create_transactions"
+        "create_transactions",
       );
       if (!access.hasAccess) {
         return res.status(403).json({ message: access.error });
@@ -504,118 +561,94 @@ export const createTransfer = async (req, res, next) => {
     const outgoingCounterparty = counterparty ?? destinationAccount.name;
     const incomingCounterparty = counterparty ?? sourceAccount.name;
 
-    const debitTransaction = new Transaction({
-      admin: req.user.id,
-      organization,
-      account: sourceAccount._id,
-      type: "debit",
-      amount,
-      date: transferDate,
-      description: outgoingDescription,
-      keyword,
-      counterparty: outgoingCounterparty,
-      meta_data: metaData,
-      transfer_id: transferId,
-      transfer_direction: "outgoing",
-      client_request_id: `transfer:${transferId.toString()}:outgoing`,
-    });
-
-    const creditTransaction = new Transaction({
-      admin: req.user.id,
-      organization,
-      account: destinationAccount._id,
-      type: "credit",
-      amount,
-      date: transferDate,
-      description: incomingDescription,
-      keyword,
-      counterparty: incomingCounterparty,
-      meta_data: metaData,
-      transfer_id: transferId,
-      transfer_direction: "incoming",
-      client_request_id: `transfer:${transferId.toString()}:incoming`,
-    });
-
-    let sourceBalanceAdjusted = false;
-    let destinationBalanceAdjusted = false;
-    let debitTransactionSaved = false;
-    let creditTransactionSaved = false;
-
+    // ── Atomic transfer using MongoDB session ───────────────
+    const session = await mongoose.startSession();
     try {
-      const sourceBalanceAfter = await adjustAccountBalance({
-        account: sourceAccount,
-        amount,
-        type: "debit",
-        direction: "apply",
-      });
-      sourceBalanceAdjusted = true;
-      debitTransaction.balance_after_transaction = sourceBalanceAfter;
-      await debitTransaction.save();
-      debitTransactionSaved = true;
-
-      const destinationBalanceAfter = await adjustAccountBalance({
-        account: destinationAccount,
-        amount,
-        type: "credit",
-        direction: "apply",
-      });
-      destinationBalanceAdjusted = true;
-      creditTransaction.balance_after_transaction = destinationBalanceAfter;
-      await creditTransaction.save();
-      creditTransactionSaved = true;
-
-      const transferDocument = new Transfer({
-        _id: transferId,
-        admin: req.user.id,
-        organization,
-        from_account: sourceAccount._id,
-        to_account: destinationAccount._id,
-        amount,
-        date: transferDate,
-        description,
-        keyword,
-        counterparty,
-        meta_data: metaData,
-        debit_transaction: debitTransaction._id,
-        credit_transaction: creditTransaction._id,
-      });
-
-      if (idempotencyKey) {
-        transferDocument.client_request_id = idempotencyKey;
-      }
-
-      await transferDocument.save();
-
-      const populatedTransfer = await populateTransfer({
-        filter: { _id: transferDocument._id },
-      });
-
-      return res.status(201).json({ transfer: populatedTransfer });
-    } catch (error) {
-      if (creditTransactionSaved) {
-        await Transaction.deleteOne({ _id: creditTransaction._id });
-      }
-      if (destinationBalanceAdjusted) {
-        await adjustAccountBalance({
-          account: destinationAccount,
+      await session.withTransaction(async () => {
+        const debitTransaction = new Transaction({
+          admin: req.user.id,
+          organization,
+          account: sourceAccount._id,
+          type: "debit",
           amount,
-          type: "credit",
-          direction: "revert",
+          date: transferDate,
+          description: outgoingDescription,
+          keyword,
+          counterparty: outgoingCounterparty,
+          meta_data: metaData,
+          transfer_id: transferId,
+          transfer_direction: "outgoing",
+          client_request_id: `transfer:${transferId.toString()}:outgoing`,
         });
-      }
-      if (debitTransactionSaved) {
-        await Transaction.deleteOne({ _id: debitTransaction._id });
-      }
-      if (sourceBalanceAdjusted) {
-        await adjustAccountBalance({
-          account: sourceAccount,
+
+        const creditTransaction = new Transaction({
+          admin: req.user.id,
+          organization,
+          account: destinationAccount._id,
+          type: "credit",
+          amount,
+          date: transferDate,
+          description: incomingDescription,
+          keyword,
+          counterparty: incomingCounterparty,
+          meta_data: metaData,
+          transfer_id: transferId,
+          transfer_direction: "incoming",
+          client_request_id: `transfer:${transferId.toString()}:incoming`,
+        });
+
+        // Atomic balance updates
+        const sourceBalanceAfter = await adjustAccountBalanceAtomic({
+          accountId: sourceAccount._id,
           amount,
           type: "debit",
-          direction: "revert",
+          direction: "apply",
+          session,
         });
-      }
-      throw error;
+        debitTransaction.balance_after_transaction = sourceBalanceAfter;
+        await debitTransaction.save({ session });
+
+        const destinationBalanceAfter = await adjustAccountBalanceAtomic({
+          accountId: destinationAccount._id,
+          amount,
+          type: "credit",
+          direction: "apply",
+          session,
+        });
+        creditTransaction.balance_after_transaction = destinationBalanceAfter;
+        await creditTransaction.save({ session });
+
+        const transferDocument = new Transfer({
+          _id: transferId,
+          admin: req.user.id,
+          organization,
+          from_account: sourceAccount._id,
+          to_account: destinationAccount._id,
+          amount,
+          date: transferDate,
+          description,
+          keyword,
+          counterparty,
+          meta_data: metaData,
+          debit_transaction: debitTransaction._id,
+          credit_transaction: creditTransaction._id,
+        });
+
+        if (idempotencyKey) {
+          transferDocument.client_request_id = idempotencyKey;
+        }
+
+        await transferDocument.save({ session });
+      });
+    } finally {
+      await session.endSession();
     }
+
+    const populatedTransfer = await populateTransfer({
+      filter: { _id: transferId },
+    });
+
+    return res.status(201).json({ transfer: populatedTransfer });
   } catch (error) {
     next(error);
   }
@@ -649,7 +682,7 @@ export const updateTransaction = async (req, res, next) => {
       const access = await checkOrgAccess(
         req.user.id,
         transaction.organization,
-        "edit_transactions"
+        "edit_transactions",
       );
       if (!access.hasAccess) {
         return res.status(403).json({ message: access.error });
@@ -699,8 +732,8 @@ export const updateTransaction = async (req, res, next) => {
       }
     }
 
-    await adjustAccountBalance({
-      account: originalAccount,
+    await adjustAccountBalanceAtomic({
+      accountId: originalAccount._id,
       amount: transaction.amount,
       type: transaction.type,
       direction: "revert",
@@ -737,35 +770,27 @@ export const updateTransaction = async (req, res, next) => {
 
           const otherTxn = await Transaction.findById(otherTxnId);
           if (otherTxn) {
-            const otherAccount = await loadAccount({
-              adminId: req.user.id,
+            // Revert old amount on other account atomically
+            await adjustAccountBalanceAtomic({
               accountId: otherTxn.account,
-              organizationId,
+              amount: otherTxn.amount,
+              type: otherTxn.type,
+              direction: "revert",
             });
 
-            if (otherAccount) {
-              // Revert old amount on other account
-              await adjustAccountBalance({
-                account: otherAccount,
-                amount: otherTxn.amount,
-                type: otherTxn.type,
-                direction: "revert",
-              });
+            // Update other transaction amount
+            otherTxn.amount = amount;
 
-              // Update other transaction amount
-              otherTxn.amount = amount;
+            // Apply new amount on other account atomically
+            const otherBalance = await adjustAccountBalanceAtomic({
+              accountId: otherTxn.account,
+              amount: otherTxn.amount,
+              type: otherTxn.type,
+              direction: "apply",
+            });
 
-              // Apply new amount on other account
-              const otherBalance = await adjustAccountBalance({
-                account: otherAccount,
-                amount: otherTxn.amount,
-                type: otherTxn.type,
-                direction: "apply",
-              });
-
-              otherTxn.balance_after_transaction = otherBalance;
-              await otherTxn.save();
-            }
+            otherTxn.balance_after_transaction = otherBalance;
+            await otherTxn.save();
           }
         }
 
@@ -845,8 +870,8 @@ export const updateTransaction = async (req, res, next) => {
       transaction.client_request_id = undefined;
     }
 
-    const balanceAfter = await adjustAccountBalance({
-      account: targetAccount,
+    const balanceAfter = await adjustAccountBalanceAtomic({
+      accountId: targetAccount._id,
       amount: transaction.amount,
       type: transaction.type,
       direction: "apply",
@@ -881,7 +906,7 @@ export const deleteTransaction = async (req, res, next) => {
       const access = await checkOrgAccess(
         req.user.id,
         transaction.organization,
-        "delete_transactions"
+        "delete_transactions",
       );
       if (!access.hasAccess) {
         return res.status(403).json({ message: access.error });
@@ -899,8 +924,8 @@ export const deleteTransaction = async (req, res, next) => {
     });
 
     if (account) {
-      await adjustAccountBalance({
-        account,
+      await adjustAccountBalanceAtomic({
+        accountId: account._id,
         amount: transaction.amount,
         type: transaction.type,
         direction: "revert",
@@ -924,20 +949,12 @@ export const deleteTransaction = async (req, res, next) => {
         const otherTxn = await Transaction.findById(otherTxnId);
 
         if (otherTxn && !otherTxn.is_deleted) {
-          const otherAccount = await loadAccount({
-            adminId: req.user.id,
+          await adjustAccountBalanceAtomic({
             accountId: otherTxn.account,
-            organizationId,
+            amount: otherTxn.amount,
+            type: otherTxn.type,
+            direction: "revert",
           });
-
-          if (otherAccount) {
-            await adjustAccountBalance({
-              account: otherAccount,
-              amount: otherTxn.amount,
-              type: otherTxn.type,
-              direction: "revert",
-            });
-          }
 
           otherTxn.softDelete();
           await otherTxn.save();
@@ -975,7 +992,7 @@ export const restoreTransaction = async (req, res, next) => {
       const access = await checkOrgAccess(
         req.user.id,
         transaction.organization,
-        "edit_transactions"
+        "edit_transactions",
       );
       if (!access.hasAccess) {
         return res.status(403).json({ message: access.error });
@@ -998,8 +1015,8 @@ export const restoreTransaction = async (req, res, next) => {
 
     transaction.restore();
 
-    const balanceAfter = await adjustAccountBalance({
-      account,
+    const balanceAfter = await adjustAccountBalanceAtomic({
+      accountId: account._id,
       amount: transaction.amount,
       type: transaction.type,
       direction: "apply",
@@ -1022,9 +1039,14 @@ export const restoreTransaction = async (req, res, next) => {
 export const recalculateBalances = async (req, res, next) => {
   try {
     const adminId = req.user.id;
+    const organizationId = getOrgFromRequest(req);
 
-    // Get all accounts for this admin
-    const accounts = await Account.find({ admin: adminId })
+    // Build account filter for org or personal context
+    const accountFilter = organizationId
+      ? { organization: organizationId }
+      : { admin: adminId, organization: { $exists: false } };
+
+    const accounts = await Account.find(accountFilter)
       .select("_id name opening_balance")
       .lean();
 
@@ -1037,57 +1059,75 @@ export const recalculateBalances = async (req, res, next) => {
     }
 
     let totalTransactionsUpdated = 0;
+    const BATCH_SIZE = 500;
 
     // Process each account separately
     for (const account of accounts) {
-      // Get all non-deleted transactions for this account, sorted chronologically
-      const transactions = await Transaction.find({
-        admin: adminId,
-        account: account._id,
-        is_deleted: { $ne: true },
-      })
-        .sort({ date: 1, createdAt: 1, _id: 1 })
-        .select("_id type amount balance_after_transaction")
-        .lean();
+      const txnFilter = organizationId
+        ? {
+            organization: organizationId,
+            account: account._id,
+            is_deleted: { $ne: true },
+          }
+        : {
+            admin: adminId,
+            account: account._id,
+            is_deleted: { $ne: true },
+          };
 
-      if (transactions.length === 0) {
-        continue;
-      }
+      // Stream transactions in batches to avoid OOM
+      let runningBalance = Number(account.opening_balance ?? 0);
+      let skip = 0;
+      let hasMore = true;
 
-      // Start with the account's opening balance
-      const accountDoc = await Account.findById(account._id);
-      let runningBalance = Number(accountDoc.opening_balance ?? 0);
+      while (hasMore) {
+        const transactions = await Transaction.find(txnFilter)
+          .sort({ date: 1, createdAt: 1, _id: 1 })
+          .skip(skip)
+          .limit(BATCH_SIZE)
+          .select("_id type amount balance_after_transaction")
+          .lean();
 
-      // Recalculate balance for each transaction
-      const bulkOps = [];
-      for (const txn of transactions) {
-        // Apply the transaction to the running balance
-        if (txn.type === "credit") {
-          runningBalance += Number(txn.amount ?? 0);
-        } else {
-          runningBalance -= Number(txn.amount ?? 0);
+        if (transactions.length === 0) {
+          hasMore = false;
+          break;
         }
 
-        // Only update if the balance has changed
-        if (txn.balance_after_transaction !== runningBalance) {
-          bulkOps.push({
-            updateOne: {
-              filter: { _id: txn._id },
-              update: { $set: { balance_after_transaction: runningBalance } },
-            },
-          });
-          totalTransactionsUpdated++;
+        const bulkOps = [];
+        for (const txn of transactions) {
+          if (txn.type === "credit") {
+            runningBalance += Number(txn.amount ?? 0);
+          } else {
+            runningBalance -= Number(txn.amount ?? 0);
+          }
+
+          if (txn.balance_after_transaction !== runningBalance) {
+            bulkOps.push({
+              updateOne: {
+                filter: { _id: txn._id },
+                update: {
+                  $set: { balance_after_transaction: runningBalance },
+                },
+              },
+            });
+            totalTransactionsUpdated++;
+          }
+        }
+
+        if (bulkOps.length > 0) {
+          await Transaction.bulkWrite(bulkOps, { ordered: false });
+        }
+
+        skip += BATCH_SIZE;
+        if (transactions.length < BATCH_SIZE) {
+          hasMore = false;
         }
       }
 
-      // Execute bulk updates if there are any
-      if (bulkOps.length > 0) {
-        await Transaction.bulkWrite(bulkOps);
-      }
-
-      // Update account's current balance
-      accountDoc.current_balance = runningBalance;
-      await accountDoc.save();
+      // Update account's current balance atomically
+      await Account.findByIdAndUpdate(account._id, {
+        $set: { current_balance: runningBalance },
+      });
     }
 
     res.json({
@@ -1096,49 +1136,63 @@ export const recalculateBalances = async (req, res, next) => {
       transactionsUpdated: totalTransactionsUpdated,
     });
   } catch (error) {
-    console.error("Balance recalculation error:", error);
     next(error);
   }
 };
 
 /**
  * Get all unique counterparties for the authenticated admin
- */
-/**
- * Get all unique counterparties for the authenticated admin
- * Supports optional search query parameter
+ * Supports optional search query parameter and organization context
  */
 export const listCounterparties = async (req, res, next) => {
   try {
     const adminId = req.user.id;
+    const organizationId = getOrgFromRequest(req);
     const searchQuery = req.query.search?.trim().toLowerCase() || "";
 
-    // Get all distinct counterparties
-    const counterparties = await Transaction.distinct("counterparty", {
-      admin: adminId,
-      is_deleted: { $ne: true },
-    });
+    // Build filter for org or personal context
+    const distinctFilter = organizationId
+      ? {
+          organization: new mongoose.Types.ObjectId(organizationId),
+          is_deleted: { $ne: true },
+        }
+      : {
+          admin: new mongoose.Types.ObjectId(adminId),
+          is_deleted: { $ne: true },
+        };
 
-    // Filter out empty/null values
-    let filteredCounterparties = counterparties
-      .filter((cp) => cp && typeof cp === "string" && cp.trim())
-      .map((cp) => cp.trim());
+    // Use aggregation pipeline for better performance on large datasets
+    const pipeline = [
+      { $match: distinctFilter },
+      { $match: { counterparty: { $exists: true, $ne: null, $ne: "" } } },
+      {
+        $group: {
+          _id: { $toLower: { $trim: { input: "$counterparty" } } },
+          name: { $first: { $trim: { input: "$counterparty" } } },
+        },
+      },
+      ...(searchQuery
+        ? [
+            {
+              $match: {
+                _id: {
+                  $regex: searchQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+                  $options: "i",
+                },
+              },
+            },
+          ]
+        : []),
+      { $sort: { _id: 1 } },
+      { $limit: 200 },
+      { $project: { _id: 0, name: 1 } },
+    ];
 
-    // Apply search filter if provided
-    if (searchQuery) {
-      filteredCounterparties = filteredCounterparties.filter((cp) =>
-        cp.toLowerCase().includes(searchQuery)
-      );
-    }
-
-    // Sort alphabetically
-    const sortedCounterparties = filteredCounterparties.sort((a, b) =>
-      a.toLowerCase().localeCompare(b.toLowerCase())
-    );
+    const results = await Transaction.aggregate(pipeline);
+    const sortedCounterparties = results.map((r) => r.name);
 
     res.json(sortedCounterparties);
   } catch (error) {
-    console.error("List counterparties error:", error);
     next(error);
   }
 };

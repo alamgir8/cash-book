@@ -13,17 +13,14 @@ export const queryKeys = {
   ) => ["account", accountId, "transactions", filters],
   transactions: (filters: Record<string, unknown>) => ["transactions", filters],
   summary: ["summary"],
-  // Organization, Parties, Invoices
   organizations: ["organizations"],
   parties: ["parties"],
   invoices: ["invoices"],
   imports: ["imports"],
-};
+} as const;
 
-// Alias for QUERY_KEYS (uppercase naming convention)
-export const QUERY_KEYS = {
-  PARTIES: ["parties"],
-  INVOICES: ["invoices"],
-  ORGANIZATIONS: ["organizations"],
-  ...queryKeys,
-};
+/**
+ * Unified QUERY_KEYS — single source of truth.
+ * Use `QUERY_KEYS` everywhere for consistency.
+ */
+export const QUERY_KEYS = queryKeys;

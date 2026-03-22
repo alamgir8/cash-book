@@ -319,43 +319,38 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
               console.warn("Session expired, clearing", refreshError);
               await clearSessionRef.current();
             } else {
-              // Network error during refresh - keep session
+              // Network error during refresh - keep session only if we have a cached user
               console.warn(
                 "Bootstrap refresh failed (network) but keeping session",
                 refreshError,
               );
-              if (isMountedRef.current) {
+              if (cachedUser) {
                 setState({
                   status: "authenticated",
                   tokens,
-                  user: cachedUser || {
-                    _id: "",
-                    email: "",
-                    phone: "",
-                    name: "",
-                  },
+                  user: cachedUser,
                 });
+              } else {
+                // No cached user and can't reach server — stay unauthenticated
+                await clearSessionRef.current();
               }
             }
           }
         } else {
-          // Network error or server error - keep session alive
+          // Network error or server error - keep session alive only if cached user exists
           console.warn(
             "Bootstrap profile fetch failed (network/server) but keeping session",
             profileError,
           );
-          // Use cached user if available, otherwise create minimal user object
-          if (isMountedRef.current) {
+          if (cachedUser) {
             setState({
               status: "authenticated",
               tokens,
-              user: cachedUser || {
-                _id: "",
-                email: "",
-                phone: "",
-                name: "",
-              },
+              user: cachedUser,
             });
+          } else {
+            // No cached user, can't verify session — stay unauthenticated
+            await clearSessionRef.current();
           }
         }
       }

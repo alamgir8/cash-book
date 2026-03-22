@@ -5,12 +5,23 @@ import { Transfer } from "../models/Transfer.js";
 import { BalanceSnapshot } from "../models/BalanceSnapshot.js";
 import mongoose from "mongoose";
 
+const MAX_BACKUP_RECORDS = 100_000; // Cap per collection for import
+
 /**
  * Export all user data as JSON backup - Complete export with all fields
+ * Uses lean() and limits data to prevent OOM on very large accounts
  */
 export const exportBackup = async (req, res, next) => {
   try {
     const adminId = req.user.id;
+
+    // Count first to prevent exporting massive datasets that would OOM
+    const txnCount = await Transaction.countDocuments({ admin: adminId });
+    if (txnCount > MAX_BACKUP_RECORDS) {
+      return res.status(413).json({
+        message: `Too many transactions (${txnCount}). Maximum ${MAX_BACKUP_RECORDS} supported for backup export. Contact support for assistance.`,
+      });
+    }
 
     // Fetch all collections for this user with all fields
     const [accounts, categories, transactions, transfers, balanceSnapshots] =
@@ -111,7 +122,7 @@ export const exportBackup = async (req, res, next) => {
         balanceSnapshotsCount: balanceSnapshots.length,
         totalBalance: accounts.reduce(
           (sum, a) => sum + (a.current_balance || 0),
-          0
+          0,
         ),
       },
     };
@@ -133,12 +144,6 @@ export const importBackup = async (req, res, next) => {
     const adminId = req.user.id;
     const { data, version } = req.body;
 
-    console.log("Import backup request received:", {
-      version,
-      hasData: !!data,
-      dataKeys: data ? Object.keys(data) : [],
-    });
-
     if (!data) {
       return res.status(400).json({ message: "No backup data provided" });
     }
@@ -149,14 +154,6 @@ export const importBackup = async (req, res, next) => {
 
     const { accounts, categories, transactions, transfers, balanceSnapshots } =
       data;
-
-    console.log("Import data counts:", {
-      accounts: accounts?.length || 0,
-      categories: categories?.length || 0,
-      transactions: transactions?.length || 0,
-      transfers: transfers?.length || 0,
-      balanceSnapshots: balanceSnapshots?.length || 0,
-    });
 
     // Validate required arrays
     if (!Array.isArray(accounts)) {
@@ -206,8 +203,6 @@ export const importBackup = async (req, res, next) => {
       await accountDoc.save({ session, timestamps: false });
       accountIdMap.set(originalId, accountDoc._id);
       importedAccounts.push(accountDoc);
-
-      console.log(`Imported account: ${account.name} with balance: ${balance}`);
     }
 
     // Import categories
@@ -276,7 +271,7 @@ export const importBackup = async (req, res, next) => {
 
       if (!accountId) {
         console.warn(
-          `Skipping transaction ${originalId}: account not found for ${originalAccountId}`
+          `Skipping transaction ${originalId}: account not found for ${originalAccountId}`,
         );
         skippedTransactions++;
         continue;
@@ -289,7 +284,7 @@ export const importBackup = async (req, res, next) => {
       }
       if (!transactionType) {
         console.warn(
-          `Skipping transaction ${originalId}: no type or flow field`
+          `Skipping transaction ${originalId}: no type or flow field`,
         );
         skippedTransactions++;
         continue;
@@ -322,10 +317,6 @@ export const importBackup = async (req, res, next) => {
       importedTransactions.push(transactionDoc);
     }
 
-    console.log(
-      `Imported ${importedTransactions.length} transactions, skipped ${skippedTransactions}`
-    );
-
     // Import transfers - transfers require recreating the associated transactions
     const importedTransfers = [];
     let skippedTransfers = 0;
@@ -346,7 +337,7 @@ export const importBackup = async (req, res, next) => {
 
         if (!fromAccountId || !toAccountId) {
           console.warn(
-            `Skipping transfer: accounts not found for ${originalFromAccountId} -> ${originalToAccountId}`
+            `Skipping transfer: accounts not found for ${originalFromAccountId} -> ${originalToAccountId}`,
           );
           skippedTransfers++;
           continue;
@@ -423,10 +414,6 @@ export const importBackup = async (req, res, next) => {
       }
     }
 
-    console.log(
-      `Imported ${importedTransfers.length} transfers, skipped ${skippedTransfers}`
-    );
-
     // Import balance snapshots
     const importedSnapshots = [];
     if (Array.isArray(balanceSnapshots)) {
@@ -435,7 +422,7 @@ export const importBackup = async (req, res, next) => {
 
         if (!accountId) {
           console.warn(
-            `Skipping balance snapshot: account not found for ${snapshot._originalAccountId}`
+            `Skipping balance snapshot: account not found for ${snapshot._originalAccountId}`,
           );
           continue;
         }
@@ -467,7 +454,7 @@ export const importBackup = async (req, res, next) => {
     // Calculate total balance of imported accounts
     const totalImportedBalance = importedAccounts.reduce(
       (sum, a) => sum + (a.current_balance || 0),
-      0
+      0,
     );
 
     const summary = {
@@ -481,8 +468,6 @@ export const importBackup = async (req, res, next) => {
       balanceSnapshotsImported: importedSnapshots.length,
       totalBalance: totalImportedBalance,
     };
-
-    console.log("Import completed successfully:", summary);
 
     res.json({
       message: "Backup restored successfully",

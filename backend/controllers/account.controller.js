@@ -133,7 +133,7 @@ const decorateWithSummary = async ({ adminId, accounts, organizationId }) => {
         net: (item.total_credit ?? 0) - (item.total_debit ?? 0),
         last_transaction_date: item.last_transaction_date,
       },
-    ])
+    ]),
   );
 
   return accounts.map((account) => ({
@@ -157,7 +157,7 @@ export const listAccounts = async (req, res, next) => {
       const access = await checkOrgAccess(
         req.user.id,
         organizationId,
-        "view_transactions"
+        "view_transactions",
       );
       if (!access.hasAccess) {
         return res.status(403).json({ message: access.error });
@@ -202,7 +202,7 @@ export const createAccount = async (req, res, next) => {
       const access = await checkOrgAccess(
         req.user.id,
         organization,
-        "manage_accounts"
+        "manage_accounts",
       );
       if (!access.hasAccess) {
         return res.status(403).json({ message: access.error });
@@ -273,7 +273,7 @@ export const updateAccount = async (req, res, next) => {
       const access = await checkOrgAccess(
         req.user.id,
         existingAccount.organization,
-        "manage_accounts"
+        "manage_accounts",
       );
       if (!access.hasAccess) {
         return res.status(403).json({ message: access.error });
@@ -309,7 +309,7 @@ export const archiveAccount = async (req, res, next) => {
       const access = await checkOrgAccess(
         req.user.id,
         account.organization,
-        "manage_accounts"
+        "manage_accounts",
       );
       if (!access.hasAccess) {
         return res.status(403).json({ message: access.error });
@@ -346,7 +346,7 @@ export const getAccountSummary = async (req, res, next) => {
       const access = await checkOrgAccess(
         req.user.id,
         account.organization,
-        "view_transactions"
+        "view_transactions",
       );
       if (!access.hasAccess) {
         return res.status(403).json({ message: access.error });
@@ -388,7 +388,7 @@ export const getAccountDetail = async (req, res, next) => {
       const access = await checkOrgAccess(
         req.user.id,
         account.organization,
-        "view_transactions"
+        "view_transactions",
       );
       if (!access.hasAccess) {
         return res.status(403).json({ message: access.error });
@@ -458,7 +458,7 @@ export const getAccountTransactions = async (req, res, next) => {
       const access = await checkOrgAccess(
         req.user.id,
         account.organization,
-        "view_transactions"
+        "view_transactions",
       );
       if (!access.hasAccess) {
         return res.status(403).json({ message: access.error });
@@ -492,47 +492,56 @@ export const getAccountTransactions = async (req, res, next) => {
     const limit = Math.min(Number(req.query.limit) || 20, 100);
     const skip = (page - 1) * limit;
 
-    const upperLimit = skip + limit;
-
-    const [baseTransactions, total] = await Promise.all([
+    // ── SINGLE query with populate — eliminates double-query ──
+    const [transactions, total] = await Promise.all([
       Transaction.find(filter)
+        .populate("account", "name kind")
+        .populate("category_id", "name type")
         .sort({ date: -1, createdAt: -1, _id: -1 })
-        .limit(upperLimit)
-        .select("_id account amount type createdAt")
+        .skip(skip)
+        .limit(limit)
         .lean(),
       Transaction.countDocuments(filter),
     ]);
 
-    const balanceMap = new Map();
-
-    if (baseTransactions.length > 0) {
+    // Compute running balances for the current page
+    if (transactions.length > 0) {
       const accountBalances = new Map([
         [account._id.toString(), Number(account.current_balance ?? 0)],
       ]);
-      recomputeDescendingBalances({
-        transactions: baseTransactions,
-        accountBalances,
-      });
-      baseTransactions.forEach((txn) => {
-        balanceMap.set(txn._id.toString(), txn.balance_after_transaction);
-      });
-    }
 
-    const transactions = await Transaction.find(filter)
-      .populate("account", "name kind")
-      .populate("category_id", "name type")
-      .sort({ date: -1, createdAt: -1, _id: -1 })
-      .skip(skip)
-      .limit(limit)
-      .lean();
+      if (skip > 0) {
+        // Fetch minimal prior transactions for balance computation
+        const priorTransactions = await Transaction.find(filter)
+          .sort({ date: -1, createdAt: -1, _id: -1 })
+          .limit(skip)
+          .select("_id account amount type")
+          .lean();
 
-    if (transactions.length > 0 && balanceMap.size > 0) {
-      transactions.forEach((txn) => {
-        const computed = balanceMap.get(txn._id.toString());
-        if (typeof computed === "number") {
-          txn.balance_after_transaction = computed;
+        // Walk through prior transactions to find the balance at start of current page
+        const running = new Map();
+        for (const txn of priorTransactions) {
+          const accId = txn.account?.toString();
+          if (!accId) continue;
+          let bal = running.get(accId);
+          if (bal === undefined) {
+            bal = accountBalances.get(accId) ?? 0;
+          }
+          if (txn.type === "credit") {
+            bal -= Number(txn.amount ?? 0);
+          } else {
+            bal += Number(txn.amount ?? 0);
+          }
+          running.set(accId, bal);
         }
-      });
+
+        recomputeDescendingBalances({
+          transactions,
+          accountBalances: running.size > 0 ? running : accountBalances,
+        });
+      } else {
+        recomputeDescendingBalances({ transactions, accountBalances });
+      }
     }
 
     res.json({

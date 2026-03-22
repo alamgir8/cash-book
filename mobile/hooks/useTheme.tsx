@@ -1,11 +1,13 @@
 import {
   createContext,
+  useCallback,
   useContext,
+  useMemo,
   useState,
   useEffect,
   type ReactNode,
 } from "react";
-import * as SecureStore from "expo-secure-store";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColorScheme } from "react-native";
 
 export type ColorScheme = "light" | "dark" | "system";
@@ -120,7 +122,7 @@ export const ThemeProvider = ({ children }: ThemeProviderProps) => {
   useEffect(() => {
     const loadTheme = async () => {
       try {
-        const saved = await SecureStore.getItemAsync(THEME_STORAGE_KEY);
+        const saved = await AsyncStorage.getItem(THEME_STORAGE_KEY);
         if (saved) {
           setColorSchemeState(saved as ColorScheme);
         }
@@ -134,14 +136,14 @@ export const ThemeProvider = ({ children }: ThemeProviderProps) => {
     loadTheme();
   }, []);
 
-  const setColorScheme = async (scheme: ColorScheme) => {
+  const setColorScheme = useCallback(async (scheme: ColorScheme) => {
     try {
-      await SecureStore.setItemAsync(THEME_STORAGE_KEY, scheme);
+      await AsyncStorage.setItem(THEME_STORAGE_KEY, scheme);
       setColorSchemeState(scheme);
     } catch (error) {
       console.warn("Failed to save theme preference:", error);
     }
-  };
+  }, []);
 
   // Determine effective color scheme
   const effectiveScheme =
@@ -149,12 +151,10 @@ export const ThemeProvider = ({ children }: ThemeProviderProps) => {
   const isDark = effectiveScheme === "dark";
   const colors = isDark ? darkColors : lightColors;
 
-  const value: ThemeContextType = {
-    colorScheme,
-    isDark,
-    colors,
-    setColorScheme,
-  };
+  const value = useMemo<ThemeContextType>(
+    () => ({ colorScheme, isDark, colors, setColorScheme }),
+    [colorScheme, isDark, colors, setColorScheme],
+  );
 
   if (!isLoaded) {
     return null; // Or return a loading screen

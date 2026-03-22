@@ -4,8 +4,6 @@ import { StatusBar } from "expo-status-bar";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import Toast from "react-native-toast-message";
-import ToastManager from "toastify-react-native";
-import * as Font from "expo-font";
 import * as SplashScreen from "expo-splash-screen";
 import { AuthProvider, useAuth } from "../hooks/useAuth";
 import { PreferencesProvider } from "../hooks/usePreferences";
@@ -21,7 +19,6 @@ import { organizationsApi } from "../services/organizations";
 import type { OrganizationSummary } from "../services/organizations";
 import "../global.css";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { View } from "react-native";
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync().catch(() => {
@@ -78,20 +75,8 @@ const RootContent = () => {
   const { colors, isDark } = useTheme();
 
   useEffect(() => {
-    async function prepare() {
-      try {
-        // Pre-load fonts, make any API calls you need to do here
-        await Font.loadAsync({
-          // Add any custom fonts here if needed
-        });
-      } catch (e) {
-        console.warn(e);
-      } finally {
-        setReady(true);
-      }
-    }
-
-    prepare();
+    // Mark as ready immediately — add Font.loadAsync here if custom fonts are needed later
+    setReady(true);
   }, []);
 
   useEffect(() => {
@@ -141,7 +126,6 @@ const RootContent = () => {
         style={isDark ? "light" : "dark"}
         backgroundColor={colors.bg.primary}
       />
-      <ToastManager />
       <Slot />
       <Toast />
     </SafeAreaView>

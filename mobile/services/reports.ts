@@ -1739,7 +1739,7 @@ export const exportPartyLedgerPdf = async (
     );
     return saveAndSharePdf(html, filename);
   } catch (error) {
-    console.error("Error exporting party ledger PDF:", error);
+    console.warn("Error exporting party ledger PDF:", error);
     throw error;
   }
 };
@@ -2149,7 +2149,7 @@ export const exportInvoicePdf = async (invoiceId: string): Promise<string> => {
     );
     return saveAndSharePdf(html, filename);
   } catch (error) {
-    console.error("Error exporting invoice PDF:", error);
+    console.warn("Error exporting invoice PDF:", error);
     throw error;
   }
 };

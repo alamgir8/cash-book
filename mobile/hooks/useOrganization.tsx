@@ -41,7 +41,7 @@ interface OrganizationContextValue {
 }
 
 const OrganizationContext = createContext<OrganizationContextValue | null>(
-  null
+  null,
 );
 
 interface OrganizationProviderProps {
@@ -107,7 +107,7 @@ export function OrganizationProvider({
         throw error;
       }
     },
-    [organizations]
+    [organizations],
   );
 
   const hasPermission = useCallback(
@@ -126,16 +126,15 @@ export function OrganizationProvider({
       const perms = activeOrganization.permissions;
       if (!perms) {
         console.warn(
-          `No permissions found for org: ${activeOrganization.name}`
+          `No permissions found for org: ${activeOrganization.name}`,
         );
         return false;
       }
 
       const hasIt = perms[permission] === true;
-      console.log(`Permission check: ${permission} = ${hasIt}`, perms);
       return hasIt;
     },
-    [activeOrganization]
+    [activeOrganization],
   );
 
   // Determine if user is in personal mode (no active organization)
@@ -180,7 +179,7 @@ export function OrganizationProvider({
       setOrganizations,
       switchOrganization,
       hasPermission,
-    ]
+    ],
   );
 
   return (
@@ -194,7 +193,7 @@ export function useOrganization() {
   const context = useContext(OrganizationContext);
   if (!context) {
     throw new Error(
-      "useOrganization must be used within an OrganizationProvider"
+      "useOrganization must be used within an OrganizationProvider",
     );
   }
   return context;

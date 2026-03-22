@@ -1,6 +1,14 @@
 import { Party, PARTY_TYPE_OPTIONS } from "../models/Party.js";
 import { OrganizationMember } from "../models/OrganizationMember.js";
 import { Transaction } from "../models/Transaction.js";
+import mongoose from "mongoose";
+
+/**
+ * Escape regex special characters to prevent ReDoS attacks
+ */
+const escapeRegex = (value) => {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+};
 
 /**
  * Check organization access and permission
@@ -139,11 +147,12 @@ export const getParties = async (req, res, next) => {
     }
 
     if (search) {
+      const escapedSearch = escapeRegex(search);
       query.$or = [
-        { name: { $regex: search, $options: "i" } },
-        { phone: { $regex: search, $options: "i" } },
-        { email: { $regex: search, $options: "i" } },
-        { code: { $regex: search, $options: "i" } },
+        { name: { $regex: escapedSearch, $options: "i" } },
+        { phone: { $regex: escapedSearch, $options: "i" } },
+        { email: { $regex: escapedSearch, $options: "i" } },
+        { code: { $regex: escapedSearch, $options: "i" } },
       ];
     }
 
@@ -153,7 +162,7 @@ export const getParties = async (req, res, next) => {
     sortObj[sortField] = sort.startsWith("-") ? -1 : 1;
 
     const [parties, total] = await Promise.all([
-      Party.find(query).sort(sortObj).skip(skip).limit(parseInt(limit)),
+      Party.find(query).sort(sortObj).skip(skip).limit(parseInt(limit)).lean(),
       Party.countDocuments(query),
     ]);
 
@@ -223,7 +232,7 @@ export const updateParty = async (req, res, next) => {
       const access = await checkOrgAccess(
         userId,
         party.organization,
-        permission
+        permission,
       );
       if (!access.hasAccess) {
         return res.status(403).json({ message: access.error });
@@ -285,7 +294,7 @@ export const archiveParty = async (req, res, next) => {
       const access = await checkOrgAccess(
         userId,
         party.organization,
-        permission
+        permission,
       );
       if (!access.hasAccess) {
         return res.status(403).json({ message: access.error });
@@ -329,7 +338,7 @@ export const getPartyLedger = async (req, res, next) => {
       const access = await checkOrgAccess(
         userId,
         party.organization,
-        "view_transactions"
+        "view_transactions",
       );
       if (!access.hasAccess) {
         return res.status(403).json({ message: access.error });
@@ -358,7 +367,8 @@ export const getPartyLedger = async (req, res, next) => {
         .populate("category_id", "name type")
         .sort({ date: -1, createdAt: -1 })
         .skip(skip)
-        .limit(parseInt(limit)),
+        .limit(parseInt(limit))
+        .lean(),
       Transaction.countDocuments(query),
     ]);
 
@@ -373,7 +383,7 @@ export const getPartyLedger = async (req, res, next) => {
         runningBalance += txn.type === "debit" ? txn.amount : -txn.amount;
       }
       return {
-        ...txn.toObject(),
+        ...txn,
         running_balance: runningBalance,
       };
     });
@@ -394,7 +404,7 @@ export const getPartyLedger = async (req, res, next) => {
 };
 
 /**
- * Get party summary/stats
+ * Get party summary/stats — uses aggregation pipeline for efficiency
  */
 export const getPartySummary = async (req, res, next) => {
   try {
@@ -402,52 +412,109 @@ export const getPartySummary = async (req, res, next) => {
     const { organization, type } = req.query;
 
     // Build query
-    const query = {};
+    const matchFilter = {};
 
     if (organization) {
       const access = await checkOrgAccess(userId, organization);
       if (!access.hasAccess) {
         return res.status(403).json({ message: access.error });
       }
-      query.organization = organization;
+      matchFilter.organization = new mongoose.Types.ObjectId(organization);
     } else {
-      query.admin = userId;
-      query.organization = { $exists: false };
+      matchFilter.admin = new mongoose.Types.ObjectId(userId);
+      matchFilter.organization = { $exists: false };
     }
 
-    query.archived = { $ne: true };
+    matchFilter.archived = { $ne: true };
 
     if (type && PARTY_TYPE_OPTIONS.includes(type)) {
-      query.type = type;
+      matchFilter.type = type;
     }
 
-    const parties = await Party.find(query);
+    const results = await Party.aggregate([
+      { $match: matchFilter },
+      {
+        $group: {
+          _id: null,
+          total_customers: {
+            $sum: {
+              $cond: [{ $in: ["$type", ["customer", "both"]] }, 1, 0],
+            },
+          },
+          total_suppliers: {
+            $sum: {
+              $cond: [{ $in: ["$type", ["supplier", "both"]] }, 1, 0],
+            },
+          },
+          total_receivable: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $in: ["$type", ["customer", "both"]] },
+                    { $gt: ["$current_balance", 0] },
+                  ],
+                },
+                "$current_balance",
+                0,
+              ],
+            },
+          },
+          total_payable: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $in: ["$type", ["supplier", "both"]] },
+                    { $gt: ["$current_balance", 0] },
+                  ],
+                },
+                "$current_balance",
+                0,
+              ],
+            },
+          },
+          customers_with_balance: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $in: ["$type", ["customer", "both"]] },
+                    { $gt: ["$current_balance", 0] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+          suppliers_with_balance: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $in: ["$type", ["supplier", "both"]] },
+                    { $gt: ["$current_balance", 0] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+        },
+      },
+    ]);
 
-    const summary = {
+    const summary = results[0] ?? {
       total_customers: 0,
       total_suppliers: 0,
-      total_receivable: 0, // Customers owe us
-      total_payable: 0, // We owe suppliers
+      total_receivable: 0,
+      total_payable: 0,
       customers_with_balance: 0,
       suppliers_with_balance: 0,
     };
-
-    for (const party of parties) {
-      if (party.type === "customer" || party.type === "both") {
-        summary.total_customers++;
-        if (party.current_balance > 0) {
-          summary.total_receivable += party.current_balance;
-          summary.customers_with_balance++;
-        }
-      }
-      if (party.type === "supplier" || party.type === "both") {
-        summary.total_suppliers++;
-        if (party.current_balance > 0) {
-          summary.total_payable += party.current_balance;
-          summary.suppliers_with_balance++;
-        }
-      }
-    }
+    delete summary._id;
 
     res.json({ summary });
   } catch (error) {

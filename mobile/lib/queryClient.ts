@@ -3,15 +3,17 @@ import { QueryClient } from "@tanstack/react-query";
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      retry: 1,
-      staleTime: 10 * 60 * 1000, // 10 minutes
-      gcTime: 30 * 60 * 1000, // 30 minutes (formerly cacheTime)
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      refetchOnMount: false,
+      retry: 2,
+      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
+      staleTime: 60 * 1000, // 1 minute — financial data should be reasonably fresh
+      gcTime: 15 * 60 * 1000, // 15 minutes garbage collection
+      refetchOnWindowFocus: false, // React Native: no window focus
+      refetchOnReconnect: true, // Refetch when network reconnects
+      refetchOnMount: "always", // Always check staleness on mount
     },
     mutations: {
       retry: 1,
+      retryDelay: 1000,
     },
   },
 });

@@ -26,7 +26,7 @@ export const listCategories = async (req, res, next) => {
       const access = await checkOrgAccess(
         req.user.id,
         organizationId,
-        "view_transactions"
+        "view_transactions",
       );
       if (!access.hasAccess) {
         return res.status(403).json({ message: access.error });
@@ -41,10 +41,12 @@ export const listCategories = async (req, res, next) => {
       ...(includeArchived ? {} : { archived: false }),
     });
 
-    let categories = await Category.find(filter).sort({
-      type: 1,
-      name: 1,
-    });
+    let categories = await Category.find(filter)
+      .sort({
+        type: 1,
+        name: 1,
+      })
+      .lean();
 
     // Seed default categories for new users/orgs
     if (categories.length === 0 && DEFAULT_CATEGORIES.length > 0) {
@@ -55,10 +57,12 @@ export const listCategories = async (req, res, next) => {
           ...category,
         }));
         await Category.insertMany(seedData, { ordered: false });
-        categories = await Category.find(filter).sort({
-          type: 1,
-          name: 1,
-        });
+        categories = await Category.find(filter)
+          .sort({
+            type: 1,
+            name: 1,
+          })
+          .lean();
       } catch (seedError) {
         if (seedError.code !== 11000) {
           console.warn("Failed to seed default categories", seedError);
@@ -67,7 +71,7 @@ export const listCategories = async (req, res, next) => {
     } else {
       // Ensure "Adjustment" categories exist for existing users
       const adjustmentCategories = DEFAULT_CATEGORIES.filter((c) =>
-        ["adjustment_in", "adjustment_out"].includes(c.type)
+        ["adjustment_in", "adjustment_out"].includes(c.type),
       );
 
       const missingAdjustments = [];
@@ -85,10 +89,12 @@ export const listCategories = async (req, res, next) => {
         try {
           await Category.insertMany(missingAdjustments, { ordered: false });
           // Re-fetch categories to include the new ones
-          categories = await Category.find(filter).sort({
-            type: 1,
-            name: 1,
-          });
+          categories = await Category.find(filter)
+            .sort({
+              type: 1,
+              name: 1,
+            })
+            .lean();
         } catch (err) {
           console.warn("Failed to seed adjustment categories", err);
         }
@@ -117,8 +123,8 @@ export const listCategories = async (req, res, next) => {
           legacyUpdates.push(
             Category.updateOne(
               { _id: category._id },
-              { $set: { type: nextType, flow: nextFlow } }
-            )
+              { $set: { type: nextType, flow: nextFlow } },
+            ),
           );
           category.type = nextType;
           category.flow = nextFlow;
@@ -127,8 +133,8 @@ export const listCategories = async (req, res, next) => {
         legacyUpdates.push(
           Category.updateOne(
             { _id: category._id },
-            { $set: { flow: expectedFlow } }
-          )
+            { $set: { flow: expectedFlow } },
+          ),
         );
         category.flow = expectedFlow;
       }
@@ -140,7 +146,9 @@ export const listCategories = async (req, res, next) => {
       } catch (legacyError) {
         console.warn("Failed to update legacy categories", legacyError);
       }
-      categories = await Category.find(filter).sort({ type: 1, name: 1 });
+      categories = await Category.find(filter)
+        .sort({ type: 1, name: 1 })
+        .lean();
     }
 
     res.json({ categories });
@@ -158,7 +166,7 @@ export const createCategory = async (req, res, next) => {
       const access = await checkOrgAccess(
         req.user.id,
         organization,
-        "manage_categories"
+        "manage_categories",
       );
       if (!access.hasAccess) {
         return res.status(403).json({ message: access.error });
@@ -206,7 +214,7 @@ export const updateCategory = async (req, res, next) => {
       const access = await checkOrgAccess(
         req.user.id,
         existingCategory.organization,
-        "manage_categories"
+        "manage_categories",
       );
       if (!access.hasAccess) {
         return res.status(403).json({ message: access.error });
@@ -255,7 +263,7 @@ export const archiveCategory = async (req, res, next) => {
       const access = await checkOrgAccess(
         req.user.id,
         category.organization,
-        "manage_categories"
+        "manage_categories",
       );
       if (!access.hasAccess) {
         return res.status(403).json({ message: access.error });
@@ -291,7 +299,7 @@ export const deleteCategory = async (req, res, next) => {
       const access = await checkOrgAccess(
         req.user.id,
         category.organization,
-        "manage_categories"
+        "manage_categories",
       );
       if (!access.hasAccess) {
         return res.status(403).json({ message: access.error });

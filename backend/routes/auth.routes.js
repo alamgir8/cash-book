@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
+import rateLimit from "express-rate-limit";
 import {
   register,
   login,
@@ -17,6 +18,28 @@ import {
 } from "../models/Admin.js";
 
 const router = Router();
+
+// ── Auth-specific rate limiters ─────────────────────────────
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 15, // 15 attempts per window
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    message: "Too many authentication attempts. Please try again later.",
+  },
+  skipSuccessfulRequests: true, // Only count failed attempts
+});
+
+const registerLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5, // 5 registrations per IP per hour
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    message: "Too many accounts created from this IP. Try again later.",
+  },
+});
 
 const registerSchema = z.object({
   body: z.object({
@@ -127,12 +150,17 @@ const updateProfileSchema = z.object({
   query: z.object({}).optional(),
 });
 
-router.post("/register", validate(registerSchema), register);
-router.post("/signup", validate(registerSchema), register);
-router.post("/login", validate(loginSchema), login);
-router.post("/refresh", validate(refreshSchema), refreshSession);
+router.post("/register", registerLimiter, validate(registerSchema), register);
+router.post("/signup", registerLimiter, validate(registerSchema), register);
+router.post("/login", authLimiter, validate(loginSchema), login);
+router.post("/refresh", authLimiter, validate(refreshSchema), refreshSession);
 router.post("/logout", authenticate, validate(logoutSchema), logout);
 router.get("/me", authenticate, getProfile);
-router.put("/me/profile", authenticate, validate(updateProfileSchema), updateProfile);
+router.put(
+  "/me/profile",
+  authenticate,
+  validate(updateProfileSchema),
+  updateProfile,
+);
 
 export default router;

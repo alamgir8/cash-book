@@ -29,7 +29,7 @@ export function OrganizationSwitcher({
       await switchOrganization(orgId);
       setModalVisible(false);
     } catch (error) {
-      console.error("Failed to switch organization:", error);
+      console.warn("Failed to switch organization:", error);
     } finally {
       setSwitching(false);
     }

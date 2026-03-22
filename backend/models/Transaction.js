@@ -113,17 +113,21 @@ const transactionSchema = new Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 transactionSchema.index({ admin: 1, date: -1 });
 transactionSchema.index({ admin: 1, account: 1, date: -1 });
 transactionSchema.index({ admin: 1, type: 1, date: -1 });
 transactionSchema.index({ admin: 1, category_id: 1, date: -1 });
+transactionSchema.index({ admin: 1, is_deleted: 1, date: -1 }); // for filtered listing
+transactionSchema.index({ admin: 1, counterparty: 1 }); // for counterparty aggregation
 transactionSchema.index({ organization: 1, date: -1 });
 transactionSchema.index({ organization: 1, account: 1, date: -1 });
 transactionSchema.index({ organization: 1, party: 1, date: -1 });
 transactionSchema.index({ organization: 1, invoice: 1 });
+transactionSchema.index({ organization: 1, is_deleted: 1, date: -1 }); // for org filtered listing
+transactionSchema.index({ party: 1, is_deleted: 1, date: -1 }); // for party ledger queries
 transactionSchema.index(
   { admin: 1, client_request_id: 1, is_deleted: 1 },
   {
@@ -132,7 +136,7 @@ transactionSchema.index(
       is_deleted: false,
       client_request_id: { $type: "string", $ne: "" },
     },
-  }
+  },
 );
 
 transactionSchema.index({
@@ -155,7 +159,7 @@ transactionSchema.methods.restore = function () {
 export const Transaction = mongoose.model(
   "Transaction",
   transactionSchema,
-  "transactions"
+  "transactions",
 );
 
 export const TRANSACTION_TYPE_OPTIONS = TRANSACTION_TYPES;

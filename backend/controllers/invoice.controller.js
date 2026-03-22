@@ -75,7 +75,7 @@ export const createInvoice = async (req, res, next) => {
     const access = await checkOrgAccess(
       userId,
       organization,
-      "create_invoices"
+      "create_invoices",
     );
     if (!access.hasAccess) {
       return res.status(403).json({ message: access.error });
@@ -163,7 +163,7 @@ export const getInvoices = async (req, res, next) => {
       const access = await checkOrgAccess(
         userId,
         organization,
-        "view_invoices"
+        "view_invoices",
       );
       if (!access.hasAccess) {
         return res.status(403).json({ message: access.error });
@@ -193,9 +193,10 @@ export const getInvoices = async (req, res, next) => {
     }
 
     if (search) {
+      const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       query.$or = [
-        { invoice_number: { $regex: search, $options: "i" } },
-        { party_name: { $regex: search, $options: "i" } },
+        { invoice_number: { $regex: escapedSearch, $options: "i" } },
+        { party_name: { $regex: escapedSearch, $options: "i" } },
       ];
     }
 
@@ -209,7 +210,8 @@ export const getInvoices = async (req, res, next) => {
         .populate("party", "name phone code type")
         .sort(sortObj)
         .skip(skip)
-        .limit(parseInt(limit)),
+        .limit(parseInt(limit))
+        .lean(),
       Invoice.countDocuments(query),
     ]);
 
@@ -237,13 +239,8 @@ export const getInvoice = async (req, res, next) => {
 
     // Handle "new" or other non-ObjectId strings gracefully
     if (!mongoose.Types.ObjectId.isValid(invoiceId)) {
-      console.log(`[getInvoice] Invalid invoiceId: ${invoiceId}`);
       return res.status(400).json({ message: "Invalid invoice ID" });
     }
-
-    console.log(
-      `[getInvoice] Fetching invoice ${invoiceId} for user ${userId}`
-    );
 
     const invoice = await Invoice.findById(invoiceId)
       .populate("party", "name phone email address code type current_balance")
@@ -251,35 +248,29 @@ export const getInvoice = async (req, res, next) => {
       .populate("payments.recorded_by", "name")
       .populate("created_by", "name email")
       .populate("updated_by", "name email")
-      .populate("organization", "name settings");
+      .populate("organization", "name settings")
+      .lean();
 
     if (!invoice) {
-      console.log(`[getInvoice] Invoice ${invoiceId} not found`);
       return res.status(404).json({ message: "Invoice not found" });
     }
 
     // Check access
     if (invoice.organization) {
-      console.log(
-        `[getInvoice] Checking org access for ${invoice.organization._id}`
-      );
       const access = await checkOrgAccess(
         userId,
         invoice.organization._id,
-        "view_invoices"
+        "view_invoices",
       );
       if (!access.hasAccess) {
-        console.log(`[getInvoice] Access denied: ${access.error}`);
         return res.status(403).json({ message: access.error });
       }
     } else if (invoice.admin.toString() !== userId) {
-      console.log(`[getInvoice] Access denied (personal invoice)`);
       return res.status(403).json({ message: "Access denied" });
     }
 
     res.json({ invoice });
   } catch (error) {
-    console.error(`[getInvoice] Error:`, error);
     next(error);
   }
 };
@@ -304,7 +295,7 @@ export const updateInvoice = async (req, res, next) => {
       const access = await checkOrgAccess(
         userId,
         invoice.organization,
-        "edit_invoices"
+        "edit_invoices",
       );
       if (!access.hasAccess) {
         return res.status(403).json({ message: access.error });
@@ -394,7 +385,7 @@ export const recordPayment = async (req, res, next) => {
       const access = await checkOrgAccess(
         userId,
         invoice.organization,
-        "create_transactions"
+        "create_transactions",
       );
       if (!access.hasAccess) {
         await session.abortTransaction();
@@ -450,7 +441,7 @@ export const recordPayment = async (req, res, next) => {
             created_by: userId,
           },
         ],
-        { session }
+        { session },
       );
 
       // Update account balance
@@ -531,7 +522,7 @@ export const cancelInvoice = async (req, res, next) => {
       const access = await checkOrgAccess(
         userId,
         invoice.organization,
-        "delete_invoices"
+        "delete_invoices",
       );
       if (!access.hasAccess) {
         return res.status(403).json({ message: access.error });

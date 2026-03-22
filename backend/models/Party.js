@@ -17,7 +17,7 @@ const addressSchema = new Schema(
     postal_code: { type: String, trim: true },
     country: { type: String, trim: true },
   },
-  { _id: false }
+  { _id: false },
 );
 
 const partySchema = new Schema(
@@ -135,14 +135,15 @@ const partySchema = new Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 // Indexes
 partySchema.index({ organization: 1, type: 1, archived: 1 });
 partySchema.index({ organization: 1, name: 1 });
-// partySchema.index({ organization: 1, code: 1 }, { sparse: true }); // Removed duplicate index
 partySchema.index({ organization: 1, phone: 1 }, { sparse: true });
+partySchema.index({ admin: 1, type: 1, archived: 1 }); // Personal party queries
+partySchema.index({ admin: 1, name: 1 }); // Personal party search by name
 partySchema.index({ name: "text", phone: "text", email: "text", code: "text" });
 
 // Unique constraint for code within organization
@@ -151,7 +152,7 @@ partySchema.index(
   {
     unique: true,
     partialFilterExpression: { code: { $type: "string", $ne: "" } },
-  }
+  },
 );
 
 // Virtual for display balance with direction

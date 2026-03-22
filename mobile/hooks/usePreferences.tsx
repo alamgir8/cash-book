@@ -1,9 +1,10 @@
 import {
   createContext,
+  useCallback,
   useContext,
+  useMemo,
   useState,
   useEffect,
-  useRef,
   ReactNode,
 } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -104,137 +105,157 @@ const languageMap: Record<string, string> = {
 };
 
 const PreferencesContext = createContext<PreferencesContextType | undefined>(
-  undefined
+  undefined,
 );
 
 export function PreferencesProvider({ children }: { children: ReactNode }) {
   const { state, updateProfile } = useAuth();
   const [preferences, setPreferences] =
     useState<UserPreferences>(defaultPreferences);
-  const isMountedRef = useRef(true);
 
   // Load preferences from auth user or storage on mount
   useEffect(() => {
     if (state.status === "authenticated" && state.user?.settings) {
-      // Load from authenticated user
       const userSettings = state.user.settings;
-      if (isMountedRef.current) {
-        setPreferences({
-          currency: userSettings.currency,
-          currency_symbol: currencyMap[userSettings.currency]?.symbol || "$",
-          locale: currencyMap[userSettings.currency]?.locale || "en-US",
-          date_format: "MMM D, YYYY", // Could be extended to userSettings.date_format
-          time_format: "12h", // Could be extended to userSettings.time_format
-          language: userSettings.language,
-          language_label: languageMap[userSettings.language] || "English",
+      setPreferences({
+        currency: userSettings.currency,
+        currency_symbol: currencyMap[userSettings.currency]?.symbol || "$",
+        locale: currencyMap[userSettings.currency]?.locale || "en-US",
+        date_format: "MMM D, YYYY",
+        time_format: "12h",
+        language: userSettings.language,
+        language_label: languageMap[userSettings.language] || "English",
+      });
+    } else if (state.status !== "authenticated") {
+      // Fallback to local storage only when not authenticated
+      AsyncStorage.getItem(PREFERENCES_STORAGE_KEY)
+        .then((stored) => {
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            setPreferences({
+              ...parsed,
+              currency_symbol: currencyMap[parsed.currency]?.symbol || "$",
+              locale: currencyMap[parsed.currency]?.locale || "en-US",
+              date_format: "MMM D, YYYY",
+              time_format: "12h",
+              language_label: languageMap[parsed.language] || "English",
+            });
+          }
+        })
+        .catch((error) => {
+          console.warn("Failed to load preferences:", error);
         });
-      }
-    } else {
-      // Fallback to local storage
-      loadPreferences();
     }
-  }, [state]);
+  }, [
+    state.status,
+    state.user?.settings?.currency,
+    state.user?.settings?.language,
+  ]);
 
-  const loadPreferences = async () => {
-    try {
-      const stored = await AsyncStorage.getItem(PREFERENCES_STORAGE_KEY);
-      if (stored && isMountedRef.current) {
-        const parsed = JSON.parse(stored);
-        setPreferences({
-          ...parsed,
-          currency_symbol: currencyMap[parsed.currency]?.symbol || "$",
-          locale: currencyMap[parsed.currency]?.locale || "en-US",
-          date_format: "MMM D, YYYY", // Could be extended to userSettings.date_format
-          time_format: "12h", // Could be extended to userSettings.time_format
-          language_label: languageMap[parsed.language] || "English",
-        });
-      }
-    } catch (error) {
-      console.error("Failed to load preferences:", error);
-    }
-  };
+  const updatePreferences = useCallback(
+    async (newPrefs: Partial<UserPreferences>) => {
+      try {
+        const updatedPrefs = {
+          ...preferences,
+          ...newPrefs,
+          currency_symbol:
+            currencyMap[newPrefs.currency || preferences.currency]?.symbol ||
+            "$",
+          language_label:
+            languageMap[newPrefs.language || preferences.language] || "English",
+        };
 
-  const updatePreferences = async (newPrefs: Partial<UserPreferences>) => {
-    try {
-      const updatedPrefs = {
-        ...preferences,
-        ...newPrefs,
-        currency_symbol:
-          currencyMap[newPrefs.currency || preferences.currency]?.symbol || "$",
-        language_label:
-          languageMap[newPrefs.language || preferences.language] || "English",
-      };
-
-      if (isMountedRef.current) {
         setPreferences(updatedPrefs);
-      }
 
-      // If user is authenticated, sync with backend
-      if (state.status === "authenticated") {
-        await updateProfile({
-          settings: {
-            currency: updatedPrefs.currency,
-            language: updatedPrefs.language,
-          },
-        });
-      } else {
-        // Otherwise save to local storage
-        await AsyncStorage.setItem(
-          PREFERENCES_STORAGE_KEY,
-          JSON.stringify(updatedPrefs)
-        );
+        if (state.status === "authenticated") {
+          await updateProfile({
+            settings: {
+              currency: updatedPrefs.currency,
+              language: updatedPrefs.language,
+            },
+          });
+        } else {
+          await AsyncStorage.setItem(
+            PREFERENCES_STORAGE_KEY,
+            JSON.stringify(updatedPrefs),
+          );
+        }
+      } catch (error) {
+        console.warn("Failed to save preferences:", error);
+        throw error;
       }
-    } catch (error) {
-      console.error("Failed to save preferences:", error);
-      throw error;
-    }
-  };
+    },
+    [preferences, state.status, updateProfile],
+  );
 
-  const formatAmount = (
-    amount: number,
-    options: FormatAmountOptions = {}
-  ): string => {
+  // Cache Intl.NumberFormat instances to avoid re-creation on every render
+  const numberFormatters = useMemo(() => {
     const currency = preferences.currency || "USD";
     const locale = preferences.locale || "en-US";
-
-    const { showCurrency = true, ...numberOptions } = options;
-
-    const baseOptions: Intl.NumberFormatOptions = {
-      maximumFractionDigits: 0,
-      minimumFractionDigits: 0,
-      ...numberOptions,
+    return {
+      currency: new Intl.NumberFormat(locale, {
+        style: "currency",
+        currency,
+        maximumFractionDigits: 0,
+        minimumFractionDigits: 0,
+      }),
+      decimal: new Intl.NumberFormat(locale, {
+        style: "decimal",
+        maximumFractionDigits: 0,
+        minimumFractionDigits: 0,
+      }),
     };
+  }, [preferences.currency, preferences.locale]);
 
-    if (showCurrency) {
-      baseOptions.style = "currency";
-      baseOptions.currency = currency;
-    } else {
-      baseOptions.style = "decimal";
-    }
+  const formatAmount = useCallback(
+    (amount: number, options: FormatAmountOptions = {}): string => {
+      const { showCurrency = true, ...numberOptions } = options;
 
-    return new Intl.NumberFormat(locale, baseOptions).format(amount);
-  };
+      // Use cached formatters for the common case (no custom options)
+      const hasCustomOptions = Object.keys(numberOptions).length > 0;
+      if (!hasCustomOptions) {
+        return showCurrency
+          ? numberFormatters.currency.format(amount)
+          : numberFormatters.decimal.format(amount);
+      }
 
-  const getCurrencySymbol = (): string => {
+      // Fall back to creating a new formatter for custom options
+      const currency = preferences.currency || "USD";
+      const locale = preferences.locale || "en-US";
+      const baseOptions: Intl.NumberFormatOptions = {
+        maximumFractionDigits: 0,
+        minimumFractionDigits: 0,
+        ...numberOptions,
+      };
+
+      if (showCurrency) {
+        baseOptions.style = "currency";
+        baseOptions.currency = currency;
+      } else {
+        baseOptions.style = "decimal";
+      }
+
+      return new Intl.NumberFormat(locale, baseOptions).format(amount);
+    },
+    [numberFormatters, preferences.currency, preferences.locale],
+  );
+
+  const getCurrencySymbol = useCallback((): string => {
     return preferences.currency_symbol;
-  };
+  }, [preferences.currency_symbol]);
 
-  useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
+  const value = useMemo<PreferencesContextType>(
+    () => ({
+      preferences,
+      updatePreferences,
+      formatAmount,
+      getCurrencySymbol,
+    }),
+    [preferences, updatePreferences, formatAmount, getCurrencySymbol],
+  );
 
   return (
-    <PreferencesContext.Provider
-      value={{
-        preferences,
-        updatePreferences,
-        formatAmount,
-        getCurrencySymbol,
-      }}
-    >
+    <PreferencesContext.Provider value={value}>
       {children}
     </PreferencesContext.Provider>
   );
