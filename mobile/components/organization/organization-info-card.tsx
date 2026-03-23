@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTheme } from "@/hooks/useTheme";
 import type { Organization } from "@/services/organizations";
 
 interface OrganizationInfoCardProps {
@@ -12,6 +13,8 @@ export function OrganizationInfoCard({
   organization,
   onPressSettings,
 }: OrganizationInfoCardProps) {
+  const { colors } = useTheme();
+
   const getStatusColor = (status?: string) => {
     switch (status) {
       case "active":
@@ -28,45 +31,70 @@ export function OrganizationInfoCard({
   const statusColors = getStatusColor(organization.status);
 
   return (
-    <View style={styles.container}>
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: colors.card, borderColor: colors.border },
+      ]}
+    >
       <View style={styles.header}>
-        <View style={styles.iconContainer}>
-          <Ionicons name="business" size={28} color="#3b82f6" />
+        <View
+          style={[
+            styles.iconContainer,
+            { backgroundColor: colors.primary + "10" },
+          ]}
+        >
+          <Ionicons name="business" size={28} color={colors.primary} />
         </View>
         <View style={styles.headerInfo}>
-          <Text style={styles.organizationName}>{organization.name}</Text>
-          <Text style={styles.businessType}>
+          <Text style={[styles.organizationName, { color: colors.text.primary }]}>
+            {organization.name}
+          </Text>
+          <Text style={[styles.businessType, { color: colors.text.secondary }]}>
             {organization.business_type?.replace("_", " ")}
           </Text>
         </View>
         <TouchableOpacity
-          style={styles.settingsButton}
+          style={[
+            styles.settingsButton,
+            { backgroundColor: colors.bg.secondary },
+          ]}
           onPress={onPressSettings}
         >
-          <Ionicons name="settings-outline" size={20} color="#6b7280" />
+          <Ionicons name="settings-outline" size={20} color={colors.text.secondary} />
         </TouchableOpacity>
       </View>
 
       {organization.description && (
-        <Text style={styles.description}>{organization.description}</Text>
+        <Text style={[styles.description, { color: colors.text.secondary }]}>
+          {organization.description}
+        </Text>
       )}
 
       <View style={styles.tagsContainer}>
         {organization.contact?.phone && (
-          <View style={styles.tag}>
-            <Ionicons name="call" size={14} color="#6b7280" />
-            <Text style={styles.tagText}>{organization.contact.phone}</Text>
+          <View
+            style={[styles.tag, { backgroundColor: colors.bg.secondary }]}
+          >
+            <Ionicons name="call" size={14} color={colors.text.secondary} />
+            <Text style={[styles.tagText, { color: colors.text.secondary }]}>
+              {organization.contact.phone}
+            </Text>
           </View>
         )}
         {organization.contact?.email && (
-          <View style={styles.tag}>
-            <Ionicons name="mail" size={14} color="#6b7280" />
-            <Text style={styles.tagText}>{organization.contact.email}</Text>
+          <View
+            style={[styles.tag, { backgroundColor: colors.bg.secondary }]}
+          >
+            <Ionicons name="mail" size={14} color={colors.text.secondary} />
+            <Text style={[styles.tagText, { color: colors.text.secondary }]}>
+              {organization.contact.email}
+            </Text>
           </View>
         )}
-        <View style={styles.tag}>
-          <Ionicons name="cash" size={14} color="#6b7280" />
-          <Text style={styles.tagText}>
+        <View style={[styles.tag, { backgroundColor: colors.bg.secondary }]}>
+          <Ionicons name="cash" size={14} color={colors.text.secondary} />
+          <Text style={[styles.tagText, { color: colors.text.secondary }]}>
             {organization.settings?.currency_code ||
               organization.settings?.currency ||
               "USD"}
@@ -96,11 +124,9 @@ export function OrganizationInfoCard({
 const styles = StyleSheet.create({
   container: {
     margin: 16,
-    backgroundColor: "white",
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: "#f3f4f6",
   },
   header: {
     flexDirection: "row",
@@ -111,7 +137,6 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 12,
-    backgroundColor: "#eff6ff",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -122,24 +147,20 @@ const styles = StyleSheet.create({
   organizationName: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#111827",
   },
   businessType: {
     fontSize: 14,
-    color: "#6b7280",
     textTransform: "capitalize",
   },
   settingsButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "#f9fafb",
     alignItems: "center",
     justifyContent: "center",
   },
   description: {
     fontSize: 14,
-    color: "#6b7280",
     marginBottom: 12,
   },
   tagsContainer: {
@@ -150,7 +171,6 @@ const styles = StyleSheet.create({
   tag: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#f9fafb",
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
@@ -158,7 +178,6 @@ const styles = StyleSheet.create({
   },
   tagText: {
     fontSize: 14,
-    color: "#6b7280",
   },
   statusTag: {
     flexDirection: "row",

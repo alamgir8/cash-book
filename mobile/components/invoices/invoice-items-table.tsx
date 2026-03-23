@@ -1,12 +1,15 @@
 import React from "react";
 import { View, Text } from "react-native";
 import type { InvoiceLineItem } from "@/types/invoice";
+import { useTheme } from "@/hooks/useTheme";
 
 interface InvoiceItemsTableProps {
   items: InvoiceLineItem[];
 }
 
 export function InvoiceItemsTable({ items }: InvoiceItemsTableProps) {
+  const { colors } = useTheme();
+
   const formatAmount = (amount: number | undefined) => {
     if (amount === null || amount === undefined) return "0.00";
     return amount.toLocaleString(undefined, {
@@ -16,10 +19,10 @@ export function InvoiceItemsTable({ items }: InvoiceItemsTableProps) {
   };
 
   return (
-    <View className="bg-white rounded-lg shadow-sm mb-4">
+    <View className="rounded-lg shadow-sm mb-4" style={{ backgroundColor: colors.card }}>
       {/* Table Header */}
-      <View className="bg-gray-50 p-3 rounded-t-lg border-b border-gray-200">
-        <Text className="text-xs font-semibold text-gray-600 uppercase">
+      <View className="p-3 rounded-t-lg border-b" style={{ backgroundColor: colors.bg.secondary, borderColor: colors.border }}>
+        <Text className="text-xs font-semibold uppercase" style={{ color: colors.text.secondary }}>
           Items
         </Text>
       </View>
@@ -29,12 +32,11 @@ export function InvoiceItemsTable({ items }: InvoiceItemsTableProps) {
         {items.map((item, index) => (
           <View
             key={item._id || index}
-            className={`py-3 ${
-              index < items.length - 1 ? "border-b border-gray-100" : ""
-            }`}
+            className="py-3"
+            style={index < items.length - 1 ? { borderBottomWidth: 1, borderBottomColor: colors.border } : undefined}
           >
             {/* Item Description */}
-            <Text className="text-sm font-medium text-gray-900 mb-1">
+            <Text className="text-sm font-medium mb-1" style={{ color: colors.text.primary }}>
               {item.description}
             </Text>
 
@@ -42,21 +44,21 @@ export function InvoiceItemsTable({ items }: InvoiceItemsTableProps) {
             <View className="flex-row justify-between items-center mt-2">
               <View className="flex-row space-x-4">
                 <View>
-                  <Text className="text-xs text-gray-500">Qty</Text>
-                  <Text className="text-sm text-gray-700">
+                  <Text className="text-xs" style={{ color: colors.text.tertiary }}>Qty</Text>
+                  <Text className="text-sm" style={{ color: colors.text.secondary }}>
                     {item.quantity} {item.unit || ""}
                   </Text>
                 </View>
                 <View>
-                  <Text className="text-xs text-gray-500">Price</Text>
-                  <Text className="text-sm text-gray-700">
-                    ৳{formatAmount(item.unit_price)}
+                  <Text className="text-xs" style={{ color: colors.text.tertiary }}>Price</Text>
+                  <Text className="text-sm" style={{ color: colors.text.secondary }}>
+                    \u09f3{formatAmount(item.unit_price)}
                   </Text>
                 </View>
                 {item.tax_rate > 0 && (
                   <View>
-                    <Text className="text-xs text-gray-500">Tax</Text>
-                    <Text className="text-sm text-gray-700">
+                    <Text className="text-xs" style={{ color: colors.text.tertiary }}>Tax</Text>
+                    <Text className="text-sm" style={{ color: colors.text.secondary }}>
                       {item.tax_rate}%
                     </Text>
                   </View>
@@ -65,16 +67,16 @@ export function InvoiceItemsTable({ items }: InvoiceItemsTableProps) {
 
               {/* Item Total */}
               <View className="items-end">
-                <Text className="text-xs text-gray-500">Total</Text>
-                <Text className="text-base font-semibold text-gray-900">
-                  ৳{formatAmount(item.total)}
+                <Text className="text-xs" style={{ color: colors.text.tertiary }}>Total</Text>
+                <Text className="text-base font-semibold" style={{ color: colors.text.primary }}>
+                  \u09f3{formatAmount(item.total)}
                 </Text>
               </View>
             </View>
 
             {/* Item Notes if available */}
             {item.notes && (
-              <Text className="text-xs text-gray-600 mt-2 italic">
+              <Text className="text-xs mt-2 italic" style={{ color: colors.text.secondary }}>
                 {item.notes}
               </Text>
             )}

@@ -1,6 +1,7 @@
 import { Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { Party, PartyType } from "@/types/party";
+import { useTheme } from "@/hooks/useTheme";
 
 type PartyHeaderCardProps = {
   party: Party;
@@ -8,6 +9,8 @@ type PartyHeaderCardProps = {
 };
 
 export function PartyHeaderCard({ party, onEdit }: PartyHeaderCardProps) {
+  const { colors } = useTheme();
+
   const getTypeColor = (type: PartyType) => {
     if (type === "customer")
       return { bg: "bg-green-100", text: "text-green-700", icon: "#10B981" };
@@ -19,7 +22,7 @@ export function PartyHeaderCard({ party, onEdit }: PartyHeaderCardProps) {
   const typeColors = getTypeColor(party.type);
 
   return (
-    <View className="bg-white p-6 border-b border-gray-100">
+    <View className="p-6 border-b" style={{ backgroundColor: colors.card, borderColor: colors.border }}>
       <View className="flex-row items-center">
         <View
           className={`w-16 h-16 rounded-2xl items-center justify-center ${typeColors.bg}`}
@@ -32,7 +35,7 @@ export function PartyHeaderCard({ party, onEdit }: PartyHeaderCardProps) {
         </View>
         <View className="flex-1 ml-4">
           <View className="flex-row items-center">
-            <Text className="text-xl font-bold text-gray-900 flex-1">
+            <Text className="text-xl font-bold flex-1" style={{ color: colors.text.primary }}>
               {party.name}
             </Text>
             <View className={`px-3 py-1 rounded-full ${typeColors.bg}`}>
@@ -43,7 +46,7 @@ export function PartyHeaderCard({ party, onEdit }: PartyHeaderCardProps) {
               </Text>
             </View>
           </View>
-          <Text className="text-sm text-gray-500 mt-1">{party.code}</Text>
+          <Text className="text-sm mt-1" style={{ color: colors.text.tertiary }}>{party.code}</Text>
         </View>
       </View>
     </View>

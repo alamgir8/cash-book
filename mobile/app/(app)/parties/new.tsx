@@ -18,6 +18,7 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useActiveOrgId, useOrganization } from "@/hooks/useOrganization";
 import { getApiErrorMessage } from "@/lib/api";
+import { useTheme } from "@/hooks/useTheme";
 
 // Zod validation schema
 const partySchema = z.object({
@@ -50,6 +51,7 @@ export default function PartyScreen() {
   const organizationId = useActiveOrgId();
   const { canManageCustomers, canManageSuppliers } = useOrganization();
   const params = useLocalSearchParams<{ type?: PartyType }>();
+  const { colors } = useTheme();
 
   // Determine default type based on permissions and query param
   const getDefaultType = (): PartyType => {
@@ -162,20 +164,25 @@ export default function PartyScreen() {
   });
 
   return (
-    <View className="flex-1 bg-slate-50">
+    <View className="flex-1" style={{ backgroundColor: colors.bg.secondary }}>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         className="flex-1"
       >
         {/* Header */}
-        <View className="flex-row items-center justify-between px-5 py-3 bg-white border-b border-slate-100">
+        <View
+          className="flex-row items-center justify-between px-5 py-3 border-b"
+          style={{ backgroundColor: colors.bg.primary, borderColor: colors.border }}
+        >
           <TouchableOpacity
             onPress={() => router.back()}
             className="w-10 h-10 items-center justify-center"
           >
-            <Ionicons name="arrow-back" size={24} color="#374151" />
+            <Ionicons name="arrow-back" size={24} color={colors.text.primary} />
           </TouchableOpacity>
-          <Text className="text-lg font-bold text-slate-900">New Party</Text>
+          <Text className="text-lg font-bold" style={{ color: colors.text.primary }}>
+            New Party
+          </Text>
           <View className="w-10" />
         </View>
 
@@ -185,44 +192,46 @@ export default function PartyScreen() {
           showsVerticalScrollIndicator={false}
         >
           {/* Party Type Selection */}
-          <View className="bg-white mx-4 mt-4 rounded-2xl p-5 shadow-sm">
-            <Text className="text-base font-semibold text-slate-800 mb-4">
-              Party Type <Text className="text-red-500">*</Text>
+          <View
+            className="mx-4 mt-4 rounded-2xl p-5 shadow-sm"
+            style={{ backgroundColor: colors.card }}
+          >
+            <Text className="text-base font-semibold mb-4" style={{ color: colors.text.primary }}>
+              Party Type <Text style={{ color: colors.error }}>*</Text>
             </Text>
             <View className="flex-row gap-3">
               {partyTypes.map((type) => (
                 <TouchableOpacity
                   key={type.value}
                   onPress={() => setValue("type", type.value)}
-                  className={`flex-1 p-4 rounded-xl border-2 items-center ${
-                    selectedType === type.value
-                      ? "border-indigo-500 bg-indigo-50"
-                      : "border-slate-200 bg-slate-50"
-                  }`}
+                  className="flex-1 p-4 rounded-xl border-2 items-center"
+                  style={{
+                    borderColor: selectedType === type.value ? colors.primary : colors.border,
+                    backgroundColor: selectedType === type.value ? colors.primary + '10' : colors.bg.secondary,
+                  }}
                 >
                   <View
-                    className={`w-12 h-12 rounded-full items-center justify-center mb-2`}
+                    className="w-12 h-12 rounded-full items-center justify-center mb-2"
                     style={{
                       backgroundColor:
                         selectedType === type.value
                           ? type.color + "20"
-                          : "#F1F5F9",
+                          : colors.bg.tertiary,
                     }}
                   >
                     <Ionicons
                       name={type.icon as any}
                       size={24}
                       color={
-                        selectedType === type.value ? type.color : "#94A3B8"
+                        selectedType === type.value ? type.color : colors.text.tertiary
                       }
                     />
                   </View>
                   <Text
-                    className={`text-sm font-medium ${
-                      selectedType === type.value
-                        ? "text-indigo-600"
-                        : "text-slate-500"
-                    }`}
+                    className="text-sm font-medium"
+                    style={{
+                      color: selectedType === type.value ? colors.primary : colors.text.tertiary,
+                    }}
                   >
                     {type.label}
                   </Text>
@@ -232,15 +241,18 @@ export default function PartyScreen() {
           </View>
 
           {/* Basic Information */}
-          <View className="bg-white mx-4 mt-4 rounded-2xl p-5 shadow-sm">
-            <Text className="text-base font-semibold text-slate-800 mb-4">
+          <View
+            className="mx-4 mt-4 rounded-2xl p-5 shadow-sm"
+            style={{ backgroundColor: colors.card }}
+          >
+            <Text className="text-base font-semibold mb-4" style={{ color: colors.text.primary }}>
               Basic Information
             </Text>
 
             {/* Name */}
             <View className="mb-4">
-              <Text className="text-sm font-medium text-slate-600 mb-2">
-                Name <Text className="text-red-500">*</Text>
+              <Text className="text-sm font-medium mb-2" style={{ color: colors.text.secondary }}>
+                Name <Text style={{ color: colors.error }}>*</Text>
               </Text>
               <Controller
                 control={control}
@@ -251,15 +263,18 @@ export default function PartyScreen() {
                     onChangeText={onChange}
                     onBlur={onBlur}
                     placeholder="Enter party name"
-                    placeholderTextColor="#94A3B8"
-                    className={`bg-slate-50 border rounded-xl px-4 py-3.5 text-slate-800 text-base ${
-                      errors.name ? "border-red-400" : "border-slate-200"
-                    }`}
+                    placeholderTextColor={colors.inputPlaceholder}
+                    className="border rounded-xl px-4 py-3.5 text-base"
+                    style={{
+                      backgroundColor: colors.bg.secondary,
+                      borderColor: errors.name ? colors.error : colors.inputBorder,
+                      color: colors.text.primary,
+                    }}
                   />
                 )}
               />
               {errors.name && (
-                <Text className="text-red-500 text-sm mt-1">
+                <Text className="text-sm mt-1" style={{ color: colors.error }}>
                   {errors.name.message}
                 </Text>
               )}
@@ -267,7 +282,7 @@ export default function PartyScreen() {
 
             {/* Code */}
             <View className="mb-4">
-              <Text className="text-sm font-medium text-slate-600 mb-2">
+              <Text className="text-sm font-medium mb-2" style={{ color: colors.text.secondary }}>
                 Code
               </Text>
               <Controller
@@ -279,8 +294,13 @@ export default function PartyScreen() {
                     onChangeText={onChange}
                     onBlur={onBlur}
                     placeholder="Enter party code (optional)"
-                    placeholderTextColor="#94A3B8"
-                    className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3.5 text-slate-800 text-base"
+                    placeholderTextColor={colors.inputPlaceholder}
+                    className="border rounded-xl px-4 py-3.5 text-base"
+                    style={{
+                      backgroundColor: colors.bg.secondary,
+                      borderColor: colors.inputBorder,
+                      color: colors.text.primary,
+                    }}
                   />
                 )}
               />
@@ -288,7 +308,7 @@ export default function PartyScreen() {
 
             {/* Phone */}
             <View className="mb-4">
-              <Text className="text-sm font-medium text-slate-600 mb-2">
+              <Text className="text-sm font-medium mb-2" style={{ color: colors.text.secondary }}>
                 Phone
               </Text>
               <Controller
@@ -300,9 +320,14 @@ export default function PartyScreen() {
                     onChangeText={onChange}
                     onBlur={onBlur}
                     placeholder="Enter phone number"
-                    placeholderTextColor="#94A3B8"
+                    placeholderTextColor={colors.inputPlaceholder}
                     keyboardType="phone-pad"
-                    className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3.5 text-slate-800 text-base"
+                    className="border rounded-xl px-4 py-3.5 text-base"
+                    style={{
+                      backgroundColor: colors.bg.secondary,
+                      borderColor: colors.inputBorder,
+                      color: colors.text.primary,
+                    }}
                   />
                 )}
               />
@@ -310,7 +335,7 @@ export default function PartyScreen() {
 
             {/* Email */}
             <View className="mb-0">
-              <Text className="text-sm font-medium text-slate-600 mb-2">
+              <Text className="text-sm font-medium mb-2" style={{ color: colors.text.secondary }}>
                 Email
               </Text>
               <Controller
@@ -322,17 +347,20 @@ export default function PartyScreen() {
                     onChangeText={onChange}
                     onBlur={onBlur}
                     placeholder="Enter email address"
-                    placeholderTextColor="#94A3B8"
+                    placeholderTextColor={colors.inputPlaceholder}
                     keyboardType="email-address"
                     autoCapitalize="none"
-                    className={`bg-slate-50 border rounded-xl px-4 py-3.5 text-slate-800 text-base ${
-                      errors.email ? "border-red-400" : "border-slate-200"
-                    }`}
+                    className="border rounded-xl px-4 py-3.5 text-base"
+                    style={{
+                      backgroundColor: colors.bg.secondary,
+                      borderColor: errors.email ? colors.error : colors.inputBorder,
+                      color: colors.text.primary,
+                    }}
                   />
                 )}
               />
               {errors.email && (
-                <Text className="text-red-500 text-sm mt-1">
+                <Text className="text-sm mt-1" style={{ color: colors.error }}>
                   {errors.email.message}
                 </Text>
               )}
@@ -340,14 +368,17 @@ export default function PartyScreen() {
           </View>
 
           {/* Address & Tax */}
-          <View className="bg-white mx-4 mt-4 rounded-2xl p-5 shadow-sm">
-            <Text className="text-base font-semibold text-slate-800 mb-4">
+          <View
+            className="mx-4 mt-4 rounded-2xl p-5 shadow-sm"
+            style={{ backgroundColor: colors.card }}
+          >
+            <Text className="text-base font-semibold mb-4" style={{ color: colors.text.primary }}>
               Address & Tax
             </Text>
 
             {/* Street */}
             <View className="mb-4">
-              <Text className="text-sm font-medium text-slate-600 mb-2">
+              <Text className="text-sm font-medium mb-2" style={{ color: colors.text.secondary }}>
                 Street Address
               </Text>
               <Controller
@@ -359,8 +390,13 @@ export default function PartyScreen() {
                     onChangeText={onChange}
                     onBlur={onBlur}
                     placeholder="Enter street address"
-                    placeholderTextColor="#94A3B8"
-                    className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3.5 text-slate-800 text-base"
+                    placeholderTextColor={colors.inputPlaceholder}
+                    className="border rounded-xl px-4 py-3.5 text-base"
+                    style={{
+                      backgroundColor: colors.bg.secondary,
+                      borderColor: colors.inputBorder,
+                      color: colors.text.primary,
+                    }}
                   />
                 )}
               />
@@ -369,7 +405,7 @@ export default function PartyScreen() {
             {/* City & State Row */}
             <View className="flex-row gap-3 mb-4">
               <View className="flex-1">
-                <Text className="text-sm font-medium text-slate-600 mb-2">
+                <Text className="text-sm font-medium mb-2" style={{ color: colors.text.secondary }}>
                   City
                 </Text>
                 <Controller
@@ -381,14 +417,19 @@ export default function PartyScreen() {
                       onChangeText={onChange}
                       onBlur={onBlur}
                       placeholder="City"
-                      placeholderTextColor="#94A3B8"
-                      className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3.5 text-slate-800 text-base"
+                      placeholderTextColor={colors.inputPlaceholder}
+                      className="border rounded-xl px-4 py-3.5 text-base"
+                      style={{
+                        backgroundColor: colors.bg.secondary,
+                        borderColor: colors.inputBorder,
+                        color: colors.text.primary,
+                      }}
                     />
                   )}
                 />
               </View>
               <View className="flex-1">
-                <Text className="text-sm font-medium text-slate-600 mb-2">
+                <Text className="text-sm font-medium mb-2" style={{ color: colors.text.secondary }}>
                   State
                 </Text>
                 <Controller
@@ -400,8 +441,13 @@ export default function PartyScreen() {
                       onChangeText={onChange}
                       onBlur={onBlur}
                       placeholder="State"
-                      placeholderTextColor="#94A3B8"
-                      className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3.5 text-slate-800 text-base"
+                      placeholderTextColor={colors.inputPlaceholder}
+                      className="border rounded-xl px-4 py-3.5 text-base"
+                      style={{
+                        backgroundColor: colors.bg.secondary,
+                        borderColor: colors.inputBorder,
+                        color: colors.text.primary,
+                      }}
                     />
                   )}
                 />
@@ -411,7 +457,7 @@ export default function PartyScreen() {
             {/* Country & Postal Code Row */}
             <View className="flex-row gap-3 mb-4">
               <View className="flex-1">
-                <Text className="text-sm font-medium text-slate-600 mb-2">
+                <Text className="text-sm font-medium mb-2" style={{ color: colors.text.secondary }}>
                   Country
                 </Text>
                 <Controller
@@ -423,14 +469,19 @@ export default function PartyScreen() {
                       onChangeText={onChange}
                       onBlur={onBlur}
                       placeholder="Country"
-                      placeholderTextColor="#94A3B8"
-                      className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3.5 text-slate-800 text-base"
+                      placeholderTextColor={colors.inputPlaceholder}
+                      className="border rounded-xl px-4 py-3.5 text-base"
+                      style={{
+                        backgroundColor: colors.bg.secondary,
+                        borderColor: colors.inputBorder,
+                        color: colors.text.primary,
+                      }}
                     />
                   )}
                 />
               </View>
               <View className="flex-1">
-                <Text className="text-sm font-medium text-slate-600 mb-2">
+                <Text className="text-sm font-medium mb-2" style={{ color: colors.text.secondary }}>
                   Postal Code
                 </Text>
                 <Controller
@@ -442,8 +493,13 @@ export default function PartyScreen() {
                       onChangeText={onChange}
                       onBlur={onBlur}
                       placeholder="Postal"
-                      placeholderTextColor="#94A3B8"
-                      className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3.5 text-slate-800 text-base"
+                      placeholderTextColor={colors.inputPlaceholder}
+                      className="border rounded-xl px-4 py-3.5 text-base"
+                      style={{
+                        backgroundColor: colors.bg.secondary,
+                        borderColor: colors.inputBorder,
+                        color: colors.text.primary,
+                      }}
                     />
                   )}
                 />
@@ -452,7 +508,7 @@ export default function PartyScreen() {
 
             {/* Tax ID */}
             <View className="mb-0">
-              <Text className="text-sm font-medium text-slate-600 mb-2">
+              <Text className="text-sm font-medium mb-2" style={{ color: colors.text.secondary }}>
                 Tax ID / GST Number
               </Text>
               <Controller
@@ -464,8 +520,13 @@ export default function PartyScreen() {
                     onChangeText={onChange}
                     onBlur={onBlur}
                     placeholder="Enter Tax ID or GST Number"
-                    placeholderTextColor="#94A3B8"
-                    className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3.5 text-slate-800 text-base"
+                    placeholderTextColor={colors.inputPlaceholder}
+                    className="border rounded-xl px-4 py-3.5 text-base"
+                    style={{
+                      backgroundColor: colors.bg.secondary,
+                      borderColor: colors.inputBorder,
+                      color: colors.text.primary,
+                    }}
                   />
                 )}
               />
@@ -473,14 +534,17 @@ export default function PartyScreen() {
           </View>
 
           {/* Credit Settings */}
-          <View className="bg-white mx-4 mt-4 rounded-2xl p-5 shadow-sm">
-            <Text className="text-base font-semibold text-slate-800 mb-4">
+          <View
+            className="mx-4 mt-4 rounded-2xl p-5 shadow-sm"
+            style={{ backgroundColor: colors.card }}
+          >
+            <Text className="text-base font-semibold mb-4" style={{ color: colors.text.primary }}>
               Credit Settings
             </Text>
 
             <View className="flex-row gap-3">
               <View className="flex-1">
-                <Text className="text-sm font-medium text-slate-600 mb-2">
+                <Text className="text-sm font-medium mb-2" style={{ color: colors.text.secondary }}>
                   Credit Limit
                 </Text>
                 <Controller
@@ -492,15 +556,20 @@ export default function PartyScreen() {
                       onChangeText={onChange}
                       onBlur={onBlur}
                       placeholder="0.00"
-                      placeholderTextColor="#94A3B8"
+                      placeholderTextColor={colors.inputPlaceholder}
                       keyboardType="decimal-pad"
-                      className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3.5 text-slate-800 text-base"
+                      className="border rounded-xl px-4 py-3.5 text-base"
+                      style={{
+                        backgroundColor: colors.bg.secondary,
+                        borderColor: colors.inputBorder,
+                        color: colors.text.primary,
+                      }}
                     />
                   )}
                 />
               </View>
               <View className="flex-1">
-                <Text className="text-sm font-medium text-slate-600 mb-2">
+                <Text className="text-sm font-medium mb-2" style={{ color: colors.text.secondary }}>
                   Payment Terms (Days)
                 </Text>
                 <Controller
@@ -512,9 +581,14 @@ export default function PartyScreen() {
                       onChangeText={onChange}
                       onBlur={onBlur}
                       placeholder="30"
-                      placeholderTextColor="#94A3B8"
+                      placeholderTextColor={colors.inputPlaceholder}
                       keyboardType="number-pad"
-                      className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3.5 text-slate-800 text-base"
+                      className="border rounded-xl px-4 py-3.5 text-base"
+                      style={{
+                        backgroundColor: colors.bg.secondary,
+                        borderColor: colors.inputBorder,
+                        color: colors.text.primary,
+                      }}
                     />
                   )}
                 />
@@ -523,23 +597,26 @@ export default function PartyScreen() {
           </View>
 
           {/* Opening Balance */}
-          <View className="bg-white mx-4 mt-4 rounded-2xl p-5 shadow-sm">
-            <Text className="text-base font-semibold text-slate-800 mb-4">
+          <View
+            className="mx-4 mt-4 rounded-2xl p-5 shadow-sm"
+            style={{ backgroundColor: colors.card }}
+          >
+            <Text className="text-base font-semibold mb-4" style={{ color: colors.text.primary }}>
               Opening Balance
             </Text>
 
             <View className="mb-4">
-              <Text className="text-sm font-medium text-slate-600 mb-2">
+              <Text className="text-sm font-medium mb-2" style={{ color: colors.text.secondary }}>
                 Balance Type
               </Text>
               <View className="flex-row gap-3">
                 <TouchableOpacity
                   onPress={() => setValue("opening_balance_type", "receivable")}
-                  className={`flex-1 p-3 rounded-xl border-2 items-center ${
-                    selectedBalanceType === "receivable"
-                      ? "border-green-500 bg-green-50"
-                      : "border-slate-200 bg-slate-50"
-                  }`}
+                  className="flex-1 p-3 rounded-xl border-2 items-center"
+                  style={{
+                    borderColor: selectedBalanceType === "receivable" ? "#10B981" : colors.border,
+                    backgroundColor: selectedBalanceType === "receivable" ? "#10B98110" : colors.bg.secondary,
+                  }}
                 >
                   <Ionicons
                     name="arrow-down-outline"
@@ -547,40 +624,42 @@ export default function PartyScreen() {
                     color={
                       selectedBalanceType === "receivable"
                         ? "#10B981"
-                        : "#94A3B8"
+                        : colors.text.tertiary
                     }
                   />
                   <Text
-                    className={`text-sm font-medium mt-1 ${
-                      selectedBalanceType === "receivable"
-                        ? "text-green-600"
-                        : "text-slate-500"
-                    }`}
+                    className="text-sm font-medium mt-1"
+                    style={{
+                      color: selectedBalanceType === "receivable"
+                        ? "#10B981"
+                        : colors.text.tertiary,
+                    }}
                   >
                     Receivable
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={() => setValue("opening_balance_type", "payable")}
-                  className={`flex-1 p-3 rounded-xl border-2 items-center ${
-                    selectedBalanceType === "payable"
-                      ? "border-red-500 bg-red-50"
-                      : "border-slate-200 bg-slate-50"
-                  }`}
+                  className="flex-1 p-3 rounded-xl border-2 items-center"
+                  style={{
+                    borderColor: selectedBalanceType === "payable" ? "#EF4444" : colors.border,
+                    backgroundColor: selectedBalanceType === "payable" ? "#EF444410" : colors.bg.secondary,
+                  }}
                 >
                   <Ionicons
                     name="arrow-up-outline"
                     size={20}
                     color={
-                      selectedBalanceType === "payable" ? "#EF4444" : "#94A3B8"
+                      selectedBalanceType === "payable" ? "#EF4444" : colors.text.tertiary
                     }
                   />
                   <Text
-                    className={`text-sm font-medium mt-1 ${
-                      selectedBalanceType === "payable"
-                        ? "text-red-600"
-                        : "text-slate-500"
-                    }`}
+                    className="text-sm font-medium mt-1"
+                    style={{
+                      color: selectedBalanceType === "payable"
+                        ? "#EF4444"
+                        : colors.text.tertiary,
+                    }}
                   >
                     Payable
                   </Text>
@@ -589,7 +668,7 @@ export default function PartyScreen() {
             </View>
 
             <View>
-              <Text className="text-sm font-medium text-slate-600 mb-2">
+              <Text className="text-sm font-medium mb-2" style={{ color: colors.text.secondary }}>
                 Amount
               </Text>
               <Controller
@@ -601,9 +680,14 @@ export default function PartyScreen() {
                     onChangeText={onChange}
                     onBlur={onBlur}
                     placeholder="0.00"
-                    placeholderTextColor="#94A3B8"
+                    placeholderTextColor={colors.inputPlaceholder}
                     keyboardType="decimal-pad"
-                    className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3.5 text-slate-800 text-base"
+                    className="border rounded-xl px-4 py-3.5 text-base"
+                    style={{
+                      backgroundColor: colors.bg.secondary,
+                      borderColor: colors.inputBorder,
+                      color: colors.text.primary,
+                    }}
                   />
                 )}
               />
@@ -611,8 +695,11 @@ export default function PartyScreen() {
           </View>
 
           {/* Notes */}
-          <View className="bg-white mx-4 mt-4 rounded-2xl p-5 shadow-sm">
-            <Text className="text-base font-semibold text-slate-800 mb-4">
+          <View
+            className="mx-4 mt-4 rounded-2xl p-5 shadow-sm"
+            style={{ backgroundColor: colors.card }}
+          >
+            <Text className="text-base font-semibold mb-4" style={{ color: colors.text.primary }}>
               Notes
             </Text>
             <Controller
@@ -624,11 +711,16 @@ export default function PartyScreen() {
                   onChangeText={onChange}
                   onBlur={onBlur}
                   placeholder="Add any additional notes..."
-                  placeholderTextColor="#94A3B8"
+                  placeholderTextColor={colors.inputPlaceholder}
                   multiline
                   numberOfLines={4}
                   textAlignVertical="top"
-                  className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3.5 text-slate-800 text-base min-h-[100px]"
+                  className="border rounded-xl px-4 py-3.5 text-base min-h-[100px]"
+                  style={{
+                    backgroundColor: colors.bg.secondary,
+                    borderColor: colors.inputBorder,
+                    color: colors.text.primary,
+                  }}
                 />
               )}
             />
@@ -636,15 +728,19 @@ export default function PartyScreen() {
         </ScrollView>
 
         {/* Submit Button */}
-        <View className="absolute bottom-0 left-0 right-0 bg-white px-5 py-4 border-t border-slate-100">
+        <View
+          className="absolute bottom-0 left-0 right-0 px-5 py-4 border-t"
+          style={{ backgroundColor: colors.bg.primary, borderColor: colors.border }}
+        >
           <TouchableOpacity
             onPress={handleSubmit(onSubmit)}
             disabled={createMutation.isPending || isSubmitting}
-            className={`rounded-xl py-4 items-center ${
-              createMutation.isPending || isSubmitting
-                ? "bg-indigo-300"
-                : "bg-indigo-600"
-            }`}
+            className="rounded-xl py-4 items-center"
+            style={{
+              backgroundColor: createMutation.isPending || isSubmitting
+                ? colors.primary + '60'
+                : colors.primary,
+            }}
           >
             {createMutation.isPending ? (
               <Text className="text-white font-semibold text-base">

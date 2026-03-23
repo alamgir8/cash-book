@@ -172,7 +172,8 @@ export default function InvoiceDetailScreen() {
         showBack
         rightAction={
           <TouchableOpacity
-            className="flex-row items-center bg-blue-500 px-3 py-1.5 rounded-lg"
+            className="flex-row items-center px-3 py-1.5 rounded-lg"
+            style={{ backgroundColor: colors.primary }}
             onPress={handleExportPdf}
             disabled={exportingPdf}
           >
@@ -181,7 +182,7 @@ export default function InvoiceDetailScreen() {
             ) : (
               <>
                 <Ionicons name="download-outline" size={18} color="#ffffff" />
-                <Text className="ml-1.5 text-sm font-semibold text-white">
+                <Text className="ml-1.5 text-sm font-semibold" style={{ color: colors.buttonText }}>
                   Export
                 </Text>
               </>
@@ -196,17 +197,24 @@ export default function InvoiceDetailScreen() {
           <View className="flex-row items-center justify-between mb-4">
             <View className="flex-row items-center">
               <View
-                className={`w-12 h-12 rounded-xl items-center justify-center ${
-                  invoice.type === "sale" ? "bg-green-100" : "bg-orange-100"
-                }`}
+                className="w-12 h-12 rounded-xl items-center justify-center"
+                style={{
+                  backgroundColor:
+                    invoice.type === "sale"
+                      ? colors.success + "20"
+                      : colors.warning + "20",
+                }}
               >
                 <Ionicons
                   name={invoice.type === "sale" ? "arrow-up" : "arrow-down"}
                   size={24}
-                  color={invoice.type === "sale" ? "#10B981" : "#F97316"}
+                  color={invoice.type === "sale" ? colors.success : colors.warning}
                 />
               </View>
-              <Text className="ml-3 text-sm text-gray-600 capitalize">
+              <Text
+                className="ml-3 text-sm capitalize"
+                style={{ color: colors.text.secondary }}
+              >
                 {invoice.type} Invoice
               </Text>
             </View>
@@ -217,30 +225,56 @@ export default function InvoiceDetailScreen() {
           <InvoiceHeader invoice={invoice} />
 
           {/* Amount Summary Card */}
-          <View className="bg-white p-4 rounded-lg shadow-sm mb-4">
+          <View
+            className="p-4 rounded-lg shadow-sm mb-4"
+            style={{ backgroundColor: colors.card }}
+          >
             <View className="flex-row justify-around">
               <View className="items-center">
-                <Text className="text-xs text-gray-500 mb-1">Total</Text>
-                <Text className="text-lg font-bold text-gray-900">
+                <Text
+                  className="text-xs mb-1"
+                  style={{ color: colors.text.tertiary }}
+                >
+                  Total
+                </Text>
+                <Text
+                  className="text-lg font-bold"
+                  style={{ color: colors.text.primary }}
+                >
                   ৳{formatAmount(invoice.grand_total)}
                 </Text>
               </View>
-              <View className="w-px bg-gray-200" />
+              <View style={{ width: 1, backgroundColor: colors.border }} />
               <View className="items-center">
-                <Text className="text-xs text-gray-500 mb-1">Paid</Text>
-                <Text className="text-lg font-bold text-green-600">
+                <Text
+                  className="text-xs mb-1"
+                  style={{ color: colors.text.tertiary }}
+                >
+                  Paid
+                </Text>
+                <Text
+                  className="text-lg font-bold"
+                  style={{ color: colors.success }}
+                >
                   ৳{formatAmount(invoice.amount_paid)}
                 </Text>
               </View>
-              <View className="w-px bg-gray-200" />
+              <View style={{ width: 1, backgroundColor: colors.border }} />
               <View className="items-center">
-                <Text className="text-xs text-gray-500 mb-1">Balance</Text>
                 <Text
-                  className={`text-lg font-bold ${
-                    invoice.balance_due > 0
-                      ? "text-orange-600"
-                      : "text-gray-600"
-                  }`}
+                  className="text-xs mb-1"
+                  style={{ color: colors.text.tertiary }}
+                >
+                  Balance
+                </Text>
+                <Text
+                  className="text-lg font-bold"
+                  style={{
+                    color:
+                      invoice.balance_due > 0
+                        ? colors.warning
+                        : colors.text.secondary,
+                  }}
                 >
                   ৳{formatAmount(invoice.balance_due)}
                 </Text>
@@ -250,11 +284,15 @@ export default function InvoiceDetailScreen() {
             {/* Record Payment Button */}
             {invoice.balance_due > 0 && invoice.status !== "cancelled" && (
               <TouchableOpacity
-                className="mt-4 py-3 bg-blue-500 rounded-lg flex-row items-center justify-center"
+                className="mt-4 py-3 rounded-lg flex-row items-center justify-center"
+                style={{ backgroundColor: colors.primary }}
                 onPress={() => setPaymentModalVisible(true)}
               >
-                <Ionicons name="wallet-outline" size={20} color="white" />
-                <Text className="ml-2 text-white font-semibold">
+                <Ionicons name="wallet-outline" size={20} color={colors.buttonText} />
+                <Text
+                  className="ml-2 font-semibold"
+                  style={{ color: colors.buttonText }}
+                >
                   Record Payment
                 </Text>
               </TouchableOpacity>
@@ -274,47 +312,83 @@ export default function InvoiceDetailScreen() {
 
           {/* Notes */}
           {invoice.notes && (
-            <View className="bg-white p-4 rounded-lg shadow-sm mb-4">
-              <Text className="text-xs font-semibold text-gray-600 uppercase mb-2">
+            <View
+              className="p-4 rounded-lg shadow-sm mb-4"
+              style={{ backgroundColor: colors.card }}
+            >
+              <Text
+                className="text-xs font-semibold uppercase mb-2"
+                style={{ color: colors.text.secondary }}
+              >
                 Notes
               </Text>
-              <Text className="text-sm text-gray-700">{invoice.notes}</Text>
+              <Text
+                className="text-sm"
+                style={{ color: colors.text.secondary }}
+              >
+                {invoice.notes}
+              </Text>
             </View>
           )}
 
           {/* Terms */}
           {invoice.terms && (
-            <View className="bg-white p-4 rounded-lg shadow-sm mb-4">
-              <Text className="text-xs font-semibold text-gray-600 uppercase mb-2">
+            <View
+              className="p-4 rounded-lg shadow-sm mb-4"
+              style={{ backgroundColor: colors.card }}
+            >
+              <Text
+                className="text-xs font-semibold uppercase mb-2"
+                style={{ color: colors.text.secondary }}
+              >
                 Terms & Conditions
               </Text>
-              <Text className="text-sm text-gray-700">{invoice.terms}</Text>
+              <Text
+                className="text-sm"
+                style={{ color: colors.text.secondary }}
+              >
+                {invoice.terms}
+              </Text>
             </View>
           )}
 
           {/* Status Change Actions */}
           {availableTransitions.length > 0 && (
-            <View className="bg-white p-4 rounded-lg shadow-sm mb-4">
-              <Text className="text-xs font-semibold text-gray-600 uppercase mb-3">
+            <View
+              className="p-4 rounded-lg shadow-sm mb-4"
+              style={{ backgroundColor: colors.card }}
+            >
+              <Text
+                className="text-xs font-semibold uppercase mb-3"
+                style={{ color: colors.text.secondary }}
+              >
                 Change Status
               </Text>
               <View className="flex-row flex-wrap gap-2">
                 {availableTransitions.map((status) => (
                   <TouchableOpacity
                     key={status}
-                    className={`px-4 py-2 rounded-lg border ${
-                      status === "cancelled"
-                        ? "border-red-200 bg-red-50"
-                        : "border-blue-200 bg-blue-50"
-                    }`}
+                    className="px-4 py-2 rounded-lg border"
+                    style={{
+                      borderColor:
+                        status === "cancelled"
+                          ? colors.error + "30"
+                          : colors.primary + "30",
+                      backgroundColor:
+                        status === "cancelled"
+                          ? colors.error + "10"
+                          : colors.primary + "10",
+                    }}
                     onPress={() => handleStatusChange(status)}
                   >
                     <Text
-                      className={`font-medium capitalize ${
-                        status === "cancelled"
-                          ? "text-red-600"
-                          : "text-blue-600"
-                      }`}
+                      className="font-medium capitalize"
+                      style={{
+                        color:
+                          status === "cancelled"
+                            ? colors.error
+                            : colors.primary,
+                      }}
                     >
                       {status === "paid" ? "Mark as Paid" : status}
                     </Text>
@@ -327,10 +401,17 @@ export default function InvoiceDetailScreen() {
           {/* Delete Invoice */}
           {invoice.status === "draft" && (
             <TouchableOpacity
-              className="py-4 bg-red-50 rounded-lg border border-red-200"
+              className="py-4 rounded-lg border"
+              style={{
+                backgroundColor: colors.error + "10",
+                borderColor: colors.error + "30",
+              }}
               onPress={handleDelete}
             >
-              <Text className="text-center text-red-600 font-medium">
+              <Text
+                className="text-center font-medium"
+                style={{ color: colors.error }}
+              >
                 Delete Invoice
               </Text>
             </TouchableOpacity>

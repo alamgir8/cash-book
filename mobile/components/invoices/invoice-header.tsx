@@ -2,25 +2,28 @@ import React from "react";
 import { View, Text } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { Invoice } from "@/types/invoice";
+import { useTheme } from "@/hooks/useTheme";
 
 interface InvoiceHeaderProps {
   invoice: Invoice;
 }
 
 export function InvoiceHeader({ invoice }: InvoiceHeaderProps) {
+  const { colors } = useTheme();
+
   return (
-    <View className="bg-white p-4 rounded-lg shadow-sm mb-4">
+    <View className="p-4 rounded-lg shadow-sm mb-4" style={{ backgroundColor: colors.card }}>
       {/* Invoice Number and Date */}
       <View className="flex-row justify-between items-start mb-4">
         <View>
-          <Text className="text-xs text-gray-500 mb-1">Invoice Number</Text>
-          <Text className="text-lg font-bold text-gray-900">
+          <Text className="text-xs mb-1" style={{ color: colors.text.tertiary }}>Invoice Number</Text>
+          <Text className="text-lg font-bold" style={{ color: colors.text.primary }}>
             {invoice.invoice_number}
           </Text>
         </View>
         <View className="items-end">
-          <Text className="text-xs text-gray-500 mb-1">Date</Text>
-          <Text className="text-sm font-medium text-gray-700">
+          <Text className="text-xs mb-1" style={{ color: colors.text.tertiary }}>Date</Text>
+          <Text className="text-sm font-medium" style={{ color: colors.text.secondary }}>
             {new Date(invoice.date).toLocaleDateString()}
           </Text>
         </View>
@@ -28,25 +31,25 @@ export function InvoiceHeader({ invoice }: InvoiceHeaderProps) {
 
       {/* Party Information */}
       {invoice.party && (
-        <View className="border-t border-gray-100 pt-4">
+        <View className="border-t pt-4" style={{ borderColor: colors.border }}>
           <View className="flex-row items-center mb-2">
-            <Ionicons name="business-outline" size={16} color="#6B7280" />
-            <Text className="text-xs text-gray-500 ml-2">
+            <Ionicons name="business-outline" size={16} color={colors.text.tertiary} />
+            <Text className="text-xs ml-2" style={{ color: colors.text.tertiary }}>
               {invoice.type === "sale" ? "Customer" : "Supplier"}
             </Text>
           </View>
-          <Text className="text-base font-semibold text-gray-900 mb-1">
+          <Text className="text-base font-semibold mb-1" style={{ color: colors.text.primary }}>
             {invoice.party.name}
           </Text>
           {invoice.party.code && (
-            <Text className="text-sm text-gray-600">
+            <Text className="text-sm" style={{ color: colors.text.secondary }}>
               Code: {invoice.party.code}
             </Text>
           )}
           {invoice.party.phone && (
             <View className="flex-row items-center mt-1">
-              <Ionicons name="call-outline" size={14} color="#6B7280" />
-              <Text className="text-sm text-gray-600 ml-1">
+              <Ionicons name="call-outline" size={14} color={colors.text.tertiary} />
+              <Text className="text-sm ml-1" style={{ color: colors.text.secondary }}>
                 {invoice.party.phone}
               </Text>
             </View>
@@ -56,12 +59,12 @@ export function InvoiceHeader({ invoice }: InvoiceHeaderProps) {
 
       {/* Due Date if exists */}
       {invoice.due_date && (
-        <View className="border-t border-gray-100 pt-4 mt-4">
+        <View className="border-t pt-4 mt-4" style={{ borderColor: colors.border }}>
           <View className="flex-row items-center">
-            <Ionicons name="calendar-outline" size={16} color="#6B7280" />
-            <Text className="text-xs text-gray-500 ml-2">Due Date</Text>
+            <Ionicons name="calendar-outline" size={16} color={colors.text.tertiary} />
+            <Text className="text-xs ml-2" style={{ color: colors.text.tertiary }}>Due Date</Text>
           </View>
-          <Text className="text-sm font-medium text-gray-700 mt-1">
+          <Text className="text-sm font-medium mt-1" style={{ color: colors.text.secondary }}>
             {new Date(invoice.due_date).toLocaleDateString()}
           </Text>
         </View>

@@ -178,7 +178,7 @@ export function OrganizationFormModal({
       onRequestClose={onClose}
     >
       <View
-        style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)" }}
+        style={{ flex: 1, backgroundColor: colors.modalOverlay }}
         className="justify-end"
       >
         <TouchableOpacity
@@ -260,18 +260,27 @@ export function OrganizationFormModal({
 
               {/* Business Type */}
               <View className="mb-5">
-                <Text className="text-slate-700 mb-3 text-base font-medium">
+                <Text
+                  className="mb-3 text-base font-medium"
+                  style={{ color: colors.text.primary }}
+                >
                   Business Type
                 </Text>
                 <View className="flex-row flex-wrap gap-2">
                   {BUSINESS_TYPES.map((type) => (
                     <TouchableOpacity
                       key={type.value}
-                      className={`flex-row items-center px-4 py-3 rounded-xl border-2 ${
-                        selectedBusinessType === type.value
-                          ? "bg-blue-50 border-blue-500"
-                          : "bg-slate-50 border-slate-200"
-                      }`}
+                      className="flex-row items-center px-4 py-3 rounded-xl border-2"
+                      style={{
+                        backgroundColor:
+                          selectedBusinessType === type.value
+                            ? colors.primary + "15"
+                            : colors.bg.secondary,
+                        borderColor:
+                          selectedBusinessType === type.value
+                            ? colors.primary
+                            : colors.border,
+                      }}
                       onPress={() => setValue("business_type", type.value)}
                     >
                       <Ionicons
@@ -279,16 +288,18 @@ export function OrganizationFormModal({
                         size={18}
                         color={
                           selectedBusinessType === type.value
-                            ? "#2563EB"
-                            : "#64748B"
+                            ? colors.primary
+                            : colors.text.tertiary
                         }
                       />
                       <Text
-                        className={`ml-2 text-sm font-medium ${
-                          selectedBusinessType === type.value
-                            ? "text-blue-600"
-                            : "text-slate-600"
-                        }`}
+                        className="ml-2 text-sm font-medium"
+                        style={{
+                          color:
+                            selectedBusinessType === type.value
+                              ? colors.primary
+                              : colors.text.secondary,
+                        }}
                       >
                         {type.label}
                       </Text>
@@ -319,7 +330,10 @@ export function OrganizationFormModal({
 
               {/* Contact Section */}
               <View className="mb-5">
-                <Text className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">
+                <Text
+                  className="text-xs font-bold uppercase tracking-wider mb-4"
+                  style={{ color: colors.text.tertiary }}
+                >
                   Contact Information
                 </Text>
 
@@ -377,41 +391,57 @@ export function OrganizationFormModal({
 
               {/* Settings Section */}
               <View className="mb-5">
-                <Text className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">
+                <Text
+                  className="text-xs font-bold uppercase tracking-wider mb-4"
+                  style={{ color: colors.text.tertiary }}
+                >
                   Settings
                 </Text>
 
                 {/* Currency */}
                 <View className="mb-4">
-                  <Text className="text-slate-700 mb-2 text-sm font-medium">
+                  <Text
+                    className="mb-2 text-sm font-medium"
+                    style={{ color: colors.text.primary }}
+                  >
                     Currency
                   </Text>
                   <View className="flex-row flex-wrap gap-2">
                     {CURRENCIES.map((curr) => (
                       <TouchableOpacity
                         key={curr.code}
-                        className={`px-4 py-3 rounded-xl border-2 flex-row items-center ${
-                          selectedCurrency === curr.code
-                            ? "bg-blue-50 border-blue-500"
-                            : "bg-slate-50 border-slate-200"
-                        }`}
+                        className="px-4 py-3 rounded-xl border-2 flex-row items-center"
+                        style={{
+                          backgroundColor:
+                            selectedCurrency === curr.code
+                              ? colors.primary + "15"
+                              : colors.bg.secondary,
+                          borderColor:
+                            selectedCurrency === curr.code
+                              ? colors.primary
+                              : colors.border,
+                        }}
                         onPress={() => setValue("currency", curr.code)}
                       >
                         <Text
-                          className={`text-lg font-bold mr-2 ${
-                            selectedCurrency === curr.code
-                              ? "text-blue-600"
-                              : "text-slate-500"
-                          }`}
+                          className="text-lg font-bold mr-2"
+                          style={{
+                            color:
+                              selectedCurrency === curr.code
+                                ? colors.primary
+                                : colors.text.tertiary,
+                          }}
                         >
                           {curr.symbol}
                         </Text>
                         <Text
-                          className={`text-sm font-semibold ${
-                            selectedCurrency === curr.code
-                              ? "text-blue-700"
-                              : "text-slate-600"
-                          }`}
+                          className="text-sm font-semibold"
+                          style={{
+                            color:
+                              selectedCurrency === curr.code
+                                ? colors.primary
+                                : colors.text.secondary,
+                          }}
                         >
                           {curr.code}
                         </Text>
@@ -423,18 +453,27 @@ export function OrganizationFormModal({
                 {/* Status */}
                 {isEditing && (
                   <View>
-                    <Text className="text-slate-700 mb-2 text-sm font-medium">
+                    <Text
+                      className="mb-2 text-sm font-medium"
+                      style={{ color: colors.text.primary }}
+                    >
                       Status
                     </Text>
                     <View className="flex-row flex-wrap gap-2">
                       {STATUS_OPTIONS.map((status) => (
                         <TouchableOpacity
                           key={status.value}
-                          className={`flex-1 min-w-[100px] px-4 py-3 rounded-xl border-2 flex-row items-center justify-center ${
-                            selectedStatus === status.value
-                              ? "bg-blue-50 border-blue-500"
-                              : "bg-slate-50 border-slate-200"
-                          }`}
+                          className="flex-1 min-w-[100px] px-4 py-3 rounded-xl border-2 flex-row items-center justify-center"
+                          style={{
+                            backgroundColor:
+                              selectedStatus === status.value
+                                ? colors.primary + "15"
+                                : colors.bg.secondary,
+                            borderColor:
+                              selectedStatus === status.value
+                                ? colors.primary
+                                : colors.border,
+                          }}
                           onPress={() => setValue("status", status.value)}
                         >
                           <View
@@ -443,7 +482,7 @@ export function OrganizationFormModal({
                               backgroundColor:
                                 selectedStatus === status.value
                                   ? status.color
-                                  : "#94a3b8",
+                                  : colors.text.tertiary,
                             }}
                           >
                             {selectedStatus === status.value && (
@@ -455,11 +494,13 @@ export function OrganizationFormModal({
                             )}
                           </View>
                           <Text
-                            className={`text-sm font-semibold ${
-                              selectedStatus === status.value
-                                ? "text-blue-700"
-                                : "text-slate-600"
-                            }`}
+                            className="text-sm font-semibold"
+                            style={{
+                              color:
+                                selectedStatus === status.value
+                                  ? colors.primary
+                                  : colors.text.secondary,
+                            }}
                           >
                             {status.label}
                           </Text>

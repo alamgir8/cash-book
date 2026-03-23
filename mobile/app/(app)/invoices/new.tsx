@@ -31,6 +31,7 @@ import {
   calculateInvoiceTotals,
   transformInvoiceFormData,
 } from "@/lib/invoice-utils";
+import { useTheme } from "@/hooks/useTheme";
 
 export default function InvoiceScreen() {
   const { type: typeParam, partyId: partyIdParam } = useLocalSearchParams<{
@@ -38,6 +39,7 @@ export default function InvoiceScreen() {
     partyId?: string;
   }>();
   const organizationId = useActiveOrgId();
+  const { colors } = useTheme();
 
   const invoiceType: InvoiceType =
     typeParam === "purchase" ? "purchase" : "sale";
@@ -45,7 +47,6 @@ export default function InvoiceScreen() {
   const [selectedParty, setSelectedParty] = useState<Party | null>(null);
   const [partyModalVisible, setPartyModalVisible] = useState(false);
 
-  // Use custom hook for creating invoice
   const mutation = useCreateInvoice({
     onSuccess: () => router.back(),
   });
@@ -81,14 +82,12 @@ export default function InvoiceScreen() {
   const watchDiscountType = watch("discount_type");
   const watchDiscountValue = watch("discount_value");
 
-  // Load party if partyId is provided
   const { data: preSelectedParty } = useQuery({
     queryKey: ["party", partyIdParam],
     queryFn: () => partiesApi.get(partyIdParam!),
     enabled: !!partyIdParam,
   });
 
-  // Set party when preselected party loads
   useEffect(() => {
     if (preSelectedParty && !selectedParty) {
       setSelectedParty(preSelectedParty);
@@ -96,7 +95,6 @@ export default function InvoiceScreen() {
     }
   }, [preSelectedParty, selectedParty, setValue]);
 
-  // Load parties for selection
   const { data: partiesData } = useQuery({
     queryKey: [
       "parties",
@@ -112,7 +110,6 @@ export default function InvoiceScreen() {
 
   const parties = partiesData?.parties || [];
 
-  // Calculate totals using utility function
   const totals = calculateInvoiceTotals(
     watchItems,
     watchDiscountType,
@@ -146,20 +143,23 @@ export default function InvoiceScreen() {
   };
 
   return (
-    <View className="flex-1 bg-slate-50">
+    <View className="flex-1" style={{ backgroundColor: colors.bg.secondary }}>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         className="flex-1"
       >
         {/* Header */}
-        <View className="flex-row items-center justify-between px-5 py-3 bg-white border-b border-slate-100">
+        <View
+          className="flex-row items-center justify-between px-5 py-3 border-b"
+          style={{ backgroundColor: colors.bg.primary, borderColor: colors.border }}
+        >
           <TouchableOpacity
             onPress={() => router.back()}
             className="w-10 h-10 items-center justify-center"
           >
-            <Ionicons name="arrow-back" size={24} color="#374151" />
+            <Ionicons name="arrow-back" size={24} color={colors.text.primary} />
           </TouchableOpacity>
-          <Text className="text-lg font-bold text-slate-900">
+          <Text className="text-lg font-bold" style={{ color: colors.text.primary }}>
             New {invoiceType === "sale" ? "Sales" : "Purchase"} Invoice
           </Text>
           <View className="w-10" />
@@ -170,21 +170,23 @@ export default function InvoiceScreen() {
           contentContainerStyle={{ paddingBottom: 120 }}
           showsVerticalScrollIndicator={false}
         >
-          {/* Invoice Type Header */}
           <InvoiceTypeHeader type={invoiceType} />
 
           {/* Party Selection */}
-          <View className="bg-white mx-4 mt-4 rounded-2xl p-5 shadow-sm">
-            <Text className="text-base font-semibold text-slate-800 mb-3">
+          <View
+            className="mx-4 mt-4 rounded-2xl p-5 shadow-sm"
+            style={{ backgroundColor: colors.card }}
+          >
+            <Text className="text-base font-semibold mb-3" style={{ color: colors.text.primary }}>
               {invoiceType === "sale" ? "Customer" : "Supplier"}{" "}
-              <Text className="text-red-500">*</Text>
+              <Text style={{ color: colors.error }}>*</Text>
             </Text>
             <TouchableOpacity
-              className={`flex-row items-center p-4 rounded-xl border-2 ${
-                errors.party_id
-                  ? "border-red-400 bg-red-50"
-                  : "border-slate-200 bg-slate-50"
-              }`}
+              className="flex-row items-center p-4 rounded-xl border-2"
+              style={{
+                borderColor: errors.party_id ? colors.error : colors.border,
+                backgroundColor: errors.party_id ? (colors.error + '10') : colors.bg.secondary,
+              }}
               onPress={() => setPartyModalVisible(true)}
             >
               {selectedParty ? (
@@ -201,31 +203,34 @@ export default function InvoiceScreen() {
                     />
                   </View>
                   <View className="flex-1 ml-3">
-                    <Text className="text-base font-semibold text-slate-800">
+                    <Text className="text-base font-semibold" style={{ color: colors.text.primary }}>
                       {selectedParty.name}
                     </Text>
                     {selectedParty.code && (
-                      <Text className="text-sm text-slate-500">
+                      <Text className="text-sm" style={{ color: colors.text.secondary }}>
                         {selectedParty.code}
                       </Text>
                     )}
                   </View>
-                  <Ionicons name="chevron-forward" size={22} color="#94A3B8" />
+                  <Ionicons name="chevron-forward" size={22} color={colors.text.tertiary} />
                 </>
               ) : (
                 <>
-                  <View className="w-12 h-12 rounded-xl items-center justify-center bg-slate-200">
-                    <Ionicons name="person-add" size={24} color="#94A3B8" />
+                  <View
+                    className="w-12 h-12 rounded-xl items-center justify-center"
+                    style={{ backgroundColor: colors.bg.tertiary }}
+                  >
+                    <Ionicons name="person-add" size={24} color={colors.text.tertiary} />
                   </View>
-                  <Text className="flex-1 ml-3 text-slate-400 text-base">
+                  <Text className="flex-1 ml-3 text-base" style={{ color: colors.text.tertiary }}>
                     Select {invoiceType === "sale" ? "customer" : "supplier"}...
                   </Text>
-                  <Ionicons name="chevron-forward" size={22} color="#94A3B8" />
+                  <Ionicons name="chevron-forward" size={22} color={colors.text.tertiary} />
                 </>
               )}
             </TouchableOpacity>
             {errors.party_id && (
-              <Text className="text-red-500 text-sm mt-2">
+              <Text className="text-sm mt-2" style={{ color: colors.error }}>
                 {errors.party_id.message}
               </Text>
             )}
@@ -233,15 +238,18 @@ export default function InvoiceScreen() {
           </View>
 
           {/* Dates & Reference */}
-          <View className="bg-white mx-4 mt-4 rounded-2xl p-5 shadow-sm">
-            <Text className="text-base font-semibold text-slate-800 mb-4">
+          <View
+            className="mx-4 mt-4 rounded-2xl p-5 shadow-sm"
+            style={{ backgroundColor: colors.card }}
+          >
+            <Text className="text-base font-semibold mb-4" style={{ color: colors.text.primary }}>
               Invoice Details
             </Text>
 
             <View className="flex-row gap-3 mb-4">
               <View className="flex-1">
-                <Text className="text-sm font-medium text-slate-600 mb-2">
-                  Date <Text className="text-red-500">*</Text>
+                <Text className="text-sm font-medium mb-2" style={{ color: colors.text.secondary }}>
+                  Date <Text style={{ color: colors.error }}>*</Text>
                 </Text>
                 <Controller
                   control={control}
@@ -252,21 +260,24 @@ export default function InvoiceScreen() {
                       onChangeText={onChange}
                       onBlur={onBlur}
                       placeholder="YYYY-MM-DD"
-                      placeholderTextColor="#94A3B8"
-                      className={`bg-slate-50 border rounded-xl px-4 py-3.5 text-slate-800 text-base ${
-                        errors.date ? "border-red-400" : "border-slate-200"
-                      }`}
+                      placeholderTextColor={colors.inputPlaceholder}
+                      className="border rounded-xl px-4 py-3.5 text-base"
+                      style={{
+                        backgroundColor: colors.bg.secondary,
+                        borderColor: errors.date ? colors.error : colors.inputBorder,
+                        color: colors.text.primary,
+                      }}
                     />
                   )}
                 />
                 {errors.date && (
-                  <Text className="text-red-500 text-sm mt-1">
+                  <Text className="text-sm mt-1" style={{ color: colors.error }}>
                     {errors.date.message}
                   </Text>
                 )}
               </View>
               <View className="flex-1">
-                <Text className="text-sm font-medium text-slate-600 mb-2">
+                <Text className="text-sm font-medium mb-2" style={{ color: colors.text.secondary }}>
                   Due Date
                 </Text>
                 <Controller
@@ -278,8 +289,13 @@ export default function InvoiceScreen() {
                       onChangeText={onChange}
                       onBlur={onBlur}
                       placeholder="YYYY-MM-DD"
-                      placeholderTextColor="#94A3B8"
-                      className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3.5 text-slate-800 text-base"
+                      placeholderTextColor={colors.inputPlaceholder}
+                      className="border rounded-xl px-4 py-3.5 text-base"
+                      style={{
+                        backgroundColor: colors.bg.secondary,
+                        borderColor: colors.inputBorder,
+                        color: colors.text.primary,
+                      }}
                     />
                   )}
                 />
@@ -287,7 +303,7 @@ export default function InvoiceScreen() {
             </View>
 
             <View>
-              <Text className="text-sm font-medium text-slate-600 mb-2">
+              <Text className="text-sm font-medium mb-2" style={{ color: colors.text.secondary }}>
                 Reference
               </Text>
               <Controller
@@ -299,8 +315,13 @@ export default function InvoiceScreen() {
                     onChangeText={onChange}
                     onBlur={onBlur}
                     placeholder="PO number, order ref, etc."
-                    placeholderTextColor="#94A3B8"
-                    className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3.5 text-slate-800 text-base"
+                    placeholderTextColor={colors.inputPlaceholder}
+                    className="border rounded-xl px-4 py-3.5 text-base"
+                    style={{
+                      backgroundColor: colors.bg.secondary,
+                      borderColor: colors.inputBorder,
+                      color: colors.text.primary,
+                    }}
                   />
                 )}
               />
@@ -308,13 +329,17 @@ export default function InvoiceScreen() {
           </View>
 
           {/* Line Items */}
-          <View className="bg-white mx-4 mt-4 rounded-2xl p-5 shadow-sm">
+          <View
+            className="mx-4 mt-4 rounded-2xl p-5 shadow-sm"
+            style={{ backgroundColor: colors.card }}
+          >
             <View className="flex-row items-center justify-between mb-4">
-              <Text className="text-base font-semibold text-slate-800">
-                Line Items <Text className="text-red-500">*</Text>
+              <Text className="text-base font-semibold" style={{ color: colors.text.primary }}>
+                Line Items <Text style={{ color: colors.error }}>*</Text>
               </Text>
               <TouchableOpacity
-                className="flex-row items-center bg-indigo-50 px-3 py-2 rounded-lg"
+                className="flex-row items-center px-3 py-2 rounded-lg"
+                style={{ backgroundColor: colors.primary + '15' }}
                 onPress={() =>
                   append({
                     description: "",
@@ -324,8 +349,8 @@ export default function InvoiceScreen() {
                   })
                 }
               >
-                <Ionicons name="add-circle" size={20} color="#6366F1" />
-                <Text className="ml-1 text-sm text-indigo-600 font-medium">
+                <Ionicons name="add-circle" size={20} color={colors.primary} />
+                <Text className="ml-1 text-sm font-medium" style={{ color: colors.primary }}>
                   Add Item
                 </Text>
               </TouchableOpacity>
@@ -334,7 +359,7 @@ export default function InvoiceScreen() {
             {errors.items &&
               typeof errors.items === "object" &&
               "message" in errors.items && (
-                <Text className="text-red-500 text-sm mb-3">
+                <Text className="text-sm mb-3" style={{ color: colors.error }}>
                   {errors.items.message}
                 </Text>
               )}
@@ -353,8 +378,11 @@ export default function InvoiceScreen() {
           </View>
 
           {/* Discount */}
-          <View className="bg-white mx-4 mt-4 rounded-2xl p-5 shadow-sm">
-            <Text className="text-base font-semibold text-slate-800 mb-4">
+          <View
+            className="mx-4 mt-4 rounded-2xl p-5 shadow-sm"
+            style={{ backgroundColor: colors.card }}
+          >
+            <Text className="text-base font-semibold mb-4" style={{ color: colors.text.primary }}>
               Discount (Optional)
             </Text>
 
@@ -365,37 +393,31 @@ export default function InvoiceScreen() {
                 render={({ field: { onChange, value } }) => (
                   <View className="flex-row gap-2">
                     <TouchableOpacity
-                      className={`px-4 py-2 rounded-lg border ${
-                        value === "percentage"
-                          ? "border-indigo-500 bg-indigo-50"
-                          : "border-slate-200 bg-white"
-                      }`}
+                      className="px-4 py-2 rounded-lg border"
+                      style={{
+                        borderColor: value === "percentage" ? colors.primary : colors.border,
+                        backgroundColor: value === "percentage" ? (colors.primary + '15') : colors.bg.primary,
+                      }}
                       onPress={() => onChange("percentage")}
                     >
                       <Text
-                        className={
-                          value === "percentage"
-                            ? "text-indigo-600 font-medium"
-                            : "text-slate-600"
-                        }
+                        className="font-medium"
+                        style={{ color: value === "percentage" ? colors.primary : colors.text.secondary }}
                       >
                         %
                       </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                      className={`px-4 py-2 rounded-lg border ${
-                        value === "fixed"
-                          ? "border-indigo-500 bg-indigo-50"
-                          : "border-slate-200 bg-white"
-                      }`}
+                      className="px-4 py-2 rounded-lg border"
+                      style={{
+                        borderColor: value === "fixed" ? colors.primary : colors.border,
+                        backgroundColor: value === "fixed" ? (colors.primary + '15') : colors.bg.primary,
+                      }}
                       onPress={() => onChange("fixed")}
                     >
                       <Text
-                        className={
-                          value === "fixed"
-                            ? "text-indigo-600 font-medium"
-                            : "text-slate-600"
-                        }
+                        className="font-medium"
+                        style={{ color: value === "fixed" ? colors.primary : colors.text.secondary }}
                       >
                         ৳
                       </Text>
@@ -413,21 +435,28 @@ export default function InvoiceScreen() {
                     onChangeText={onChange}
                     onBlur={onBlur}
                     placeholder="0"
-                    placeholderTextColor="#94A3B8"
+                    placeholderTextColor={colors.inputPlaceholder}
                     keyboardType="decimal-pad"
-                    className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-800 text-base"
+                    className="flex-1 border rounded-xl px-4 py-3 text-base"
+                    style={{
+                      backgroundColor: colors.bg.secondary,
+                      borderColor: colors.inputBorder,
+                      color: colors.text.primary,
+                    }}
                   />
                 )}
               />
             </View>
           </View>
 
-          {/* Invoice Summary */}
           <InvoiceTotalsSummary totals={totals} />
 
           {/* Notes */}
-          <View className="bg-white mx-4 mt-4 rounded-2xl p-5 shadow-sm">
-            <Text className="text-base font-semibold text-slate-800 mb-3">
+          <View
+            className="mx-4 mt-4 rounded-2xl p-5 shadow-sm"
+            style={{ backgroundColor: colors.card }}
+          >
+            <Text className="text-base font-semibold mb-3" style={{ color: colors.text.primary }}>
               Notes
             </Text>
             <Controller
@@ -439,11 +468,16 @@ export default function InvoiceScreen() {
                   onChangeText={onChange}
                   onBlur={onBlur}
                   placeholder="Additional notes or terms..."
-                  placeholderTextColor="#94A3B8"
+                  placeholderTextColor={colors.inputPlaceholder}
                   multiline
                   numberOfLines={4}
                   textAlignVertical="top"
-                  className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3.5 text-slate-800 text-base min-h-[100px]"
+                  className="border rounded-xl px-4 py-3.5 text-base min-h-[100px]"
+                  style={{
+                    backgroundColor: colors.bg.secondary,
+                    borderColor: colors.inputBorder,
+                    color: colors.text.primary,
+                  }}
                 />
               )}
             />
@@ -451,13 +485,15 @@ export default function InvoiceScreen() {
         </ScrollView>
 
         {/* Submit Button */}
-        <View className="absolute bottom-0 left-0 right-0 bg-white px-5 py-4 border-t border-slate-100">
+        <View
+          className="absolute bottom-0 left-0 right-0 px-5 py-4 border-t"
+          style={{ backgroundColor: colors.bg.primary, borderColor: colors.border }}
+        >
           <TouchableOpacity
             onPress={handleSubmit(onSubmit)}
             disabled={mutation.isPending}
-            className={`rounded-xl py-4 items-center ${
-              mutation.isPending ? "bg-indigo-300" : "bg-indigo-600"
-            }`}
+            className="rounded-xl py-4 items-center"
+            style={{ backgroundColor: mutation.isPending ? (colors.primary + '60') : colors.primary }}
           >
             {mutation.isPending ? (
               <ActivityIndicator color="white" size="small" />
@@ -473,7 +509,6 @@ export default function InvoiceScreen() {
         </View>
       </KeyboardAvoidingView>
 
-      {/* Party Selection Modal */}
       <PartySelectionModal
         visible={partyModalVisible}
         onClose={() => setPartyModalVisible(false)}

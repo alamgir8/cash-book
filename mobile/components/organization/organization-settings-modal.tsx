@@ -202,28 +202,38 @@ export function OrganizationSettingsModal({
                         {CURRENCIES.map((currency) => (
                           <TouchableOpacity
                             key={currency.code}
-                            className={`px-4 py-3 rounded-xl border-2 flex-row items-center ${
-                              value === currency.code
-                                ? "bg-blue-50 border-blue-500"
-                                : "bg-slate-50 border-slate-200"
-                            }`}
+                            className="px-4 py-3 rounded-xl border-2 flex-row items-center"
+                            style={{
+                              backgroundColor:
+                                value === currency.code
+                                  ? colors.primary + "15"
+                                  : colors.bg.secondary,
+                              borderColor:
+                                value === currency.code
+                                  ? colors.primary
+                                  : colors.border,
+                            }}
                             onPress={() => onChange(currency.code)}
                           >
                             <Text
-                              className={`text-lg font-bold mr-2 ${
-                                value === currency.code
-                                  ? "text-blue-600"
-                                  : "text-slate-500"
-                              }`}
+                              className="text-lg font-bold mr-2"
+                              style={{
+                                color:
+                                  value === currency.code
+                                    ? colors.primary
+                                    : colors.text.tertiary,
+                              }}
                             >
                               {currency.symbol}
                             </Text>
                             <Text
-                              className={`text-sm font-semibold ${
-                                value === currency.code
-                                  ? "text-blue-700"
-                                  : "text-slate-600"
-                              }`}
+                              className="text-sm font-semibold"
+                              style={{
+                                color:
+                                  value === currency.code
+                                    ? colors.primary
+                                    : colors.text.secondary,
+                              }}
                             >
                               {currency.code}
                             </Text>
@@ -236,7 +246,10 @@ export function OrganizationSettingsModal({
 
                 {/* Status Selection */}
                 <View>
-                  <Text className="text-slate-700 mb-3 text-sm font-semibold">
+                  <Text
+                    className="mb-3 text-sm font-semibold"
+                    style={{ color: colors.text.primary }}
+                  >
                     Organization Status
                   </Text>
                   <Controller
@@ -247,11 +260,17 @@ export function OrganizationSettingsModal({
                         {STATUS_OPTIONS.map((status) => (
                           <TouchableOpacity
                             key={status.value}
-                            className={`flex-1 min-w-[100px] px-4 py-3 rounded-xl border-2 flex-row items-center justify-center ${
-                              value === status.value
-                                ? "bg-blue-50 border-blue-500"
-                                : "bg-slate-50 border-slate-200"
-                            }`}
+                            className="flex-1 min-w-[100px] px-4 py-3 rounded-xl border-2 flex-row items-center justify-center"
+                            style={{
+                              backgroundColor:
+                                value === status.value
+                                  ? colors.primary + "15"
+                                  : colors.bg.secondary,
+                              borderColor:
+                                value === status.value
+                                  ? colors.primary
+                                  : colors.border,
+                            }}
                             onPress={() => onChange(status.value)}
                           >
                             <View
@@ -260,7 +279,7 @@ export function OrganizationSettingsModal({
                                 backgroundColor:
                                   value === status.value
                                     ? status.color
-                                    : "#94a3b8",
+                                    : colors.text.tertiary,
                               }}
                             >
                               {value === status.value && (
@@ -272,11 +291,13 @@ export function OrganizationSettingsModal({
                               )}
                             </View>
                             <Text
-                              className={`text-sm font-semibold ${
-                                value === status.value
-                                  ? "text-blue-700"
-                                  : "text-slate-600"
-                              }`}
+                              className="text-sm font-semibold"
+                              style={{
+                                color:
+                                  value === status.value
+                                    ? colors.primary
+                                    : colors.text.secondary,
+                              }}
                             >
                               {status.label}
                             </Text>
@@ -289,9 +310,18 @@ export function OrganizationSettingsModal({
 
                 {/* Warning for archived status */}
                 {selectedStatus === "archived" && (
-                  <View className="flex-row bg-amber-50 p-3 rounded-xl border border-amber-200 gap-2">
-                    <Ionicons name="warning" size={20} color="#f59e0b" />
-                    <Text className="flex-1 text-amber-900 text-sm">
+                  <View
+                    className="flex-row p-3 rounded-xl border gap-2"
+                    style={{
+                      backgroundColor: colors.warning + "15",
+                      borderColor: colors.warning + "40",
+                    }}
+                  >
+                    <Ionicons name="warning" size={20} color={colors.warning} />
+                    <Text
+                      className="flex-1 text-sm"
+                      style={{ color: colors.text.primary }}
+                    >
                       Archiving will disable access for all members. This action
                       can be reversed by reactivating the organization.
                     </Text>

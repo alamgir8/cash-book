@@ -19,10 +19,12 @@ import {
   formatLedgerBalance,
 } from "@/lib/party-utils";
 import { exportPartyLedgerPdf } from "@/services/reports";
+import { useTheme } from "@/hooks/useTheme";
 
 export default function PartyLedgerScreen() {
   const { partyId } = useLocalSearchParams<{ partyId: string }>();
   const router = useRouter();
+  const { colors } = useTheme();
 
   const [page, setPage] = useState(1);
   const [exportingPdf, setExportingPdf] = useState(false);
@@ -56,25 +58,27 @@ export default function PartyLedgerScreen() {
 
   if (isLoading) {
     return (
-      <View className="flex-1 bg-gray-50">
+      <View className="flex-1" style={{ backgroundColor: colors.bg.secondary }}>
         <ScreenHeader title="Party Ledger" showBack />
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#3B82F6" />
+          <ActivityIndicator size="large" color={colors.primary} />
         </View>
       </View>
     );
   }
 
   return (
-    <View className="flex-1 bg-gray-50">
+    <View className="flex-1" style={{ backgroundColor: colors.bg.secondary }}>
       <ScreenHeader
         title={party?.name || "Party Ledger"}
         showBack
         rightAction={
           <TouchableOpacity
-            className={`flex-row items-center px-3 py-1.5 rounded-lg ${
-              ledgerEntries.length === 0 ? "bg-gray-100" : "bg-blue-500"
-            }`}
+            className="flex-row items-center px-3 py-1.5 rounded-lg"
+            style={{
+              backgroundColor:
+                ledgerEntries.length === 0 ? colors.bg.tertiary : colors.primary,
+            }}
             onPress={handleExportPdf}
             disabled={exportingPdf || ledgerEntries.length === 0}
           >
@@ -85,12 +89,14 @@ export default function PartyLedgerScreen() {
                 <Ionicons
                   name="download-outline"
                   size={18}
-                  color={ledgerEntries.length === 0 ? "#9CA3AF" : "#ffffff"}
+                  color={ledgerEntries.length === 0 ? colors.text.tertiary : "#ffffff"}
                 />
                 <Text
-                  className={`ml-1.5 text-sm font-semibold ${
-                    ledgerEntries.length === 0 ? "text-gray-400" : "text-white"
-                  }`}
+                  className="ml-1.5 text-sm font-semibold"
+                  style={{
+                    color:
+                      ledgerEntries.length === 0 ? colors.text.tertiary : "#ffffff",
+                  }}
                 >
                   Export
                 </Text>
@@ -102,21 +108,32 @@ export default function PartyLedgerScreen() {
 
       {/* Summary Cards */}
       <View className="px-4 pt-4">
-        <View className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <View
+          className="rounded-2xl shadow-sm border overflow-hidden"
+          style={{ backgroundColor: colors.card, borderColor: colors.border }}
+        >
           {/* Opening Balance */}
-          <View className="px-4 py-3 border-b border-gray-100">
+          <View
+            className="px-4 py-3 border-b"
+            style={{ borderColor: colors.border }}
+          >
             <View className="flex-row items-center justify-between">
-              <Text className="text-sm font-medium text-gray-600">
+              <Text
+                className="text-sm font-medium"
+                style={{ color: colors.text.secondary }}
+              >
                 Opening Balance
               </Text>
               <Text
-                className={`text-base font-bold ${
-                  (data?.summary?.opening_balance || 0) > 0
-                    ? "text-green-600"
-                    : (data?.summary?.opening_balance || 0) < 0
-                    ? "text-red-600"
-                    : "text-gray-900"
-                }`}
+                className="text-base font-bold"
+                style={{
+                  color:
+                    (data?.summary?.opening_balance || 0) > 0
+                      ? colors.success
+                      : (data?.summary?.opening_balance || 0) < 0
+                      ? colors.error
+                      : colors.text.primary,
+                }}
               >
                 {data?.summary?.opening_balance
                   ? formatLedgerBalance(data.summary.opening_balance)
@@ -127,17 +144,36 @@ export default function PartyLedgerScreen() {
 
           {/* Debit & Credit */}
           <View className="flex-row">
-            <View className="flex-1 px-4 py-3 border-r border-gray-100">
-              <Text className="text-xs text-gray-500 mb-1">Total Debit</Text>
-              <Text className="text-lg font-bold text-green-600">
+            <View
+              className="flex-1 px-4 py-3 border-r"
+              style={{ borderColor: colors.border }}
+            >
+              <Text
+                className="text-xs mb-1"
+                style={{ color: colors.text.tertiary }}
+              >
+                Total Debit
+              </Text>
+              <Text
+                className="text-lg font-bold"
+                style={{ color: colors.success }}
+              >
                 {data?.summary?.total_debit
                   ? formatLedgerAmount(data.summary.total_debit)
                   : "0.00"}
               </Text>
             </View>
             <View className="flex-1 px-4 py-3">
-              <Text className="text-xs text-gray-500 mb-1">Total Credit</Text>
-              <Text className="text-lg font-bold text-red-600">
+              <Text
+                className="text-xs mb-1"
+                style={{ color: colors.text.tertiary }}
+              >
+                Total Credit
+              </Text>
+              <Text
+                className="text-lg font-bold"
+                style={{ color: colors.error }}
+              >
                 {data?.summary?.total_credit
                   ? formatLedgerAmount(data.summary.total_credit)
                   : "0.00"}
@@ -146,19 +182,30 @@ export default function PartyLedgerScreen() {
           </View>
 
           {/* Closing Balance */}
-          <View className="px-4 py-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-t border-gray-100">
+          <View
+            className="px-4 py-3 border-t"
+            style={{
+              backgroundColor: colors.bg.tertiary,
+              borderColor: colors.border,
+            }}
+          >
             <View className="flex-row items-center justify-between">
-              <Text className="text-sm font-semibold text-gray-700">
+              <Text
+                className="text-sm font-semibold"
+                style={{ color: colors.text.secondary }}
+              >
                 Closing Balance
               </Text>
               <Text
-                className={`text-xl font-bold ${
-                  (data?.summary?.closing_balance || 0) > 0
-                    ? "text-green-600"
-                    : (data?.summary?.closing_balance || 0) < 0
-                    ? "text-red-600"
-                    : "text-gray-900"
-                }`}
+                className="text-xl font-bold"
+                style={{
+                  color:
+                    (data?.summary?.closing_balance || 0) > 0
+                      ? colors.success
+                      : (data?.summary?.closing_balance || 0) < 0
+                      ? colors.error
+                      : colors.text.primary,
+                }}
               >
                 {data?.summary?.closing_balance
                   ? formatLedgerBalance(data.summary.closing_balance)
@@ -178,42 +225,79 @@ export default function PartyLedgerScreen() {
       >
         <View className="pb-24">
           {ledgerEntries.length === 0 ? (
-            <View className="bg-white rounded-2xl p-12 items-center border border-gray-100">
-              <View className="w-20 h-20 rounded-full bg-gray-100 items-center justify-center mb-4">
+            <View
+              className="rounded-2xl p-12 items-center border"
+              style={{ backgroundColor: colors.card, borderColor: colors.border }}
+            >
+              <View
+                className="w-20 h-20 rounded-full items-center justify-center mb-4"
+                style={{ backgroundColor: colors.bg.tertiary }}
+              >
                 <Ionicons
                   name="document-text-outline"
                   size={40}
-                  color="#9CA3AF"
+                  color={colors.text.tertiary}
                 />
               </View>
-              <Text className="text-base font-medium text-gray-900 mb-1">
+              <Text
+                className="text-base font-medium mb-1"
+                style={{ color: colors.text.primary }}
+              >
                 No Ledger Entries
               </Text>
-              <Text className="text-sm text-gray-500 text-center">
+              <Text
+                className="text-sm text-center"
+                style={{ color: colors.text.tertiary }}
+              >
                 No transactions found for this party
               </Text>
             </View>
           ) : (
-            <View className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-4">
+            <View
+              className="rounded-2xl shadow-sm border overflow-hidden mb-4"
+              style={{ backgroundColor: colors.card, borderColor: colors.border }}
+            >
               {/* Opening Balance Row */}
               {data?.summary?.opening_balance !== 0 && (
-                <View className="flex-row px-3 py-3 bg-blue-50 border-b border-gray-200">
-                  <Text className="w-20 text-xs text-gray-500">—</Text>
-                  <Text className="flex-1 text-xs font-medium text-gray-700 italic px-2">
-                    Opening Balance
-                  </Text>
-                  <Text className="w-20 text-xs text-gray-500 text-right">
-                    —
-                  </Text>
-                  <Text className="w-20 text-xs text-gray-500 text-right px-2">
+                <View
+                  className="flex-row px-3 py-3 border-b"
+                  style={{
+                    backgroundColor: colors.bg.tertiary,
+                    borderColor: colors.border,
+                  }}
+                >
+                  <Text
+                    className="w-20 text-xs"
+                    style={{ color: colors.text.tertiary }}
+                  >
                     —
                   </Text>
                   <Text
-                    className={`w-24 text-xs font-bold text-right ${
-                      (data?.summary?.opening_balance || 0) > 0
-                        ? "text-green-600"
-                        : "text-red-600"
-                    }`}
+                    className="flex-1 text-xs font-medium italic px-2"
+                    style={{ color: colors.text.secondary }}
+                  >
+                    Opening Balance
+                  </Text>
+                  <Text
+                    className="w-20 text-xs text-right"
+                    style={{ color: colors.text.tertiary }}
+                  >
+                    —
+                  </Text>
+                  <Text
+                    className="w-20 text-xs text-right px-2"
+                    style={{ color: colors.text.tertiary }}
+                  >
+                    —
+                  </Text>
+                  <Text
+                    className="w-24 text-xs font-bold text-right"
+                    style={{
+                      color:
+                        (data?.summary?.opening_balance || 0) > 0
+                          ? colors.success
+                          : colors.error,
+                    }}
                   >
                     {formatLedgerBalance(data?.summary?.opening_balance || 0)}
                   </Text>
@@ -224,45 +308,63 @@ export default function PartyLedgerScreen() {
               {ledgerEntries.map((entry, index) => (
                 <TouchableOpacity
                   key={entry._id || index}
-                  className={`flex-row px-3 py-3 border-b border-gray-100 ${
-                    index % 2 === 0 ? "bg-white" : "bg-gray-50"
-                  } active:bg-blue-50`}
+                  className="flex-row px-3 py-3 border-b active:opacity-70"
+                  style={{
+                    borderColor: colors.border,
+                    backgroundColor:
+                      index % 2 === 0 ? colors.card : colors.bg.secondary,
+                  }}
                   onPress={() => {
                     if (entry.invoice_id) {
                       router.push(`/invoices/${entry.invoice_id}` as any);
                     }
                   }}
                 >
-                  <Text className="w-20 text-xs text-gray-600">
+                  <Text
+                    className="w-20 text-xs"
+                    style={{ color: colors.text.secondary }}
+                  >
                     {formatLedgerDate(entry.date)}
                   </Text>
                   <View className="flex-1 px-2">
                     <Text
-                      className="text-xs font-medium text-gray-900"
+                      className="text-xs font-medium"
                       numberOfLines={2}
+                      style={{ color: colors.text.primary }}
                     >
                       {entry.description || entry.type}
                     </Text>
                     {entry.reference && (
-                      <Text className="text-xs text-gray-400 mt-0.5">
+                      <Text
+                        className="text-xs mt-0.5"
+                        style={{ color: colors.text.tertiary }}
+                      >
                         {entry.reference}
                       </Text>
                     )}
                   </View>
-                  <Text className="w-20 text-xs font-semibold text-green-600 text-right">
+                  <Text
+                    className="w-20 text-xs font-semibold text-right"
+                    style={{ color: colors.success }}
+                  >
                     {entry.debit > 0 ? formatLedgerAmount(entry.debit) : "—"}
                   </Text>
-                  <Text className="w-20 text-xs font-semibold text-red-600 text-right px-2">
+                  <Text
+                    className="w-20 text-xs font-semibold text-right px-2"
+                    style={{ color: colors.error }}
+                  >
                     {entry.credit > 0 ? formatLedgerAmount(entry.credit) : "—"}
                   </Text>
                   <Text
-                    className={`w-24 text-xs font-bold text-right ${
-                      entry.running_balance > 0
-                        ? "text-green-600"
-                        : entry.running_balance < 0
-                        ? "text-red-600"
-                        : "text-gray-600"
-                    }`}
+                    className="w-24 text-xs font-bold text-right"
+                    style={{
+                      color:
+                        entry.running_balance > 0
+                          ? colors.success
+                          : entry.running_balance < 0
+                          ? colors.error
+                          : colors.text.secondary,
+                    }}
                   >
                     {formatLedgerBalance(entry.running_balance)}
                   </Text>
@@ -275,44 +377,61 @@ export default function PartyLedgerScreen() {
           {data?.pagination && data.pagination.pages > 1 && (
             <View className="flex-row items-center justify-center py-4 gap-3 mb-4">
               <TouchableOpacity
-                className={`px-5 py-2.5 rounded-xl ${
-                  page <= 1
-                    ? "bg-gray-100 border border-gray-200"
-                    : "bg-blue-500 shadow-sm"
-                }`}
+                className="px-5 py-2.5 rounded-xl"
+                style={{
+                  backgroundColor: page <= 1 ? colors.bg.tertiary : colors.primary,
+                  borderWidth: page <= 1 ? 1 : 0,
+                  borderColor: colors.border,
+                }}
                 onPress={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page <= 1}
               >
                 <Text
-                  className={`text-sm font-semibold ${
-                    page <= 1 ? "text-gray-400" : "text-white"
-                  }`}
+                  className="text-sm font-semibold"
+                  style={{
+                    color: page <= 1 ? colors.text.tertiary : "#ffffff",
+                  }}
                 >
                   Previous
                 </Text>
               </TouchableOpacity>
-              <View className="px-4 py-2 bg-white rounded-xl border border-gray-200">
-                <Text className="text-sm font-medium text-gray-700">
+              <View
+                className="px-4 py-2 rounded-xl border"
+                style={{
+                  backgroundColor: colors.card,
+                  borderColor: colors.border,
+                }}
+              >
+                <Text
+                  className="text-sm font-medium"
+                  style={{ color: colors.text.secondary }}
+                >
                   {page} / {data.pagination.pages}
                 </Text>
               </View>
               <TouchableOpacity
-                className={`px-5 py-2.5 rounded-xl ${
-                  page >= data.pagination.pages
-                    ? "bg-gray-100 border border-gray-200"
-                    : "bg-blue-500 shadow-sm"
-                }`}
+                className="px-5 py-2.5 rounded-xl"
+                style={{
+                  backgroundColor:
+                    page >= data.pagination.pages
+                      ? colors.bg.tertiary
+                      : colors.primary,
+                  borderWidth: page >= data.pagination.pages ? 1 : 0,
+                  borderColor: colors.border,
+                }}
                 onPress={() =>
                   setPage((p) => Math.min(data.pagination.pages, p + 1))
                 }
                 disabled={page >= data.pagination.pages}
               >
                 <Text
-                  className={`text-sm font-semibold ${
-                    page >= data.pagination.pages
-                      ? "text-gray-400"
-                      : "text-white"
-                  }`}
+                  className="text-sm font-semibold"
+                  style={{
+                    color:
+                      page >= data.pagination.pages
+                        ? colors.text.tertiary
+                        : "#ffffff",
+                  }}
                 >
                   Next
                 </Text>

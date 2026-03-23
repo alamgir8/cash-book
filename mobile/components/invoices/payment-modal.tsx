@@ -12,6 +12,7 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { paymentSchema, type PaymentFormData } from "@/lib/validations/invoice";
 import type { PaymentMethod } from "@/types/invoice";
+import { useTheme } from "@/hooks/useTheme";
 
 interface PaymentModalProps {
   visible: boolean;
@@ -36,6 +37,8 @@ export function PaymentModal({
   isSubmitting,
   maxAmount,
 }: PaymentModalProps) {
+  const { colors } = useTheme();
+
   const {
     control,
     handleSubmit,
@@ -75,21 +78,21 @@ export function PaymentModal({
       transparent={true}
       onRequestClose={handleClose}
     >
-      <View className="flex-1 justify-end bg-black/50">
-        <View className="bg-white rounded-t-3xl p-6 max-h-[80%]">
+      <View className="flex-1 justify-end" style={{ backgroundColor: colors.modalOverlay }}>
+        <View className="rounded-t-3xl p-6 max-h-[80%]" style={{ backgroundColor: colors.bg.primary }}>
           {/* Header */}
           <View className="flex-row justify-between items-center mb-6">
-            <Text className="text-xl font-bold text-gray-900">
+            <Text className="text-xl font-bold" style={{ color: colors.text.primary }}>
               Record Payment
             </Text>
             <TouchableOpacity onPress={handleClose} disabled={isSubmitting}>
-              <Ionicons name="close" size={24} color="#6B7280" />
+              <Ionicons name="close" size={24} color={colors.text.tertiary} />
             </TouchableOpacity>
           </View>
 
           {/* Amount Input */}
           <View className="mb-4">
-            <Text className="text-sm font-medium text-gray-700 mb-2">
+            <Text className="text-sm font-medium mb-2" style={{ color: colors.text.secondary }}>
               Amount *
             </Text>
             <Controller
@@ -97,18 +100,22 @@ export function PaymentModal({
               name="amount"
               render={({ field: { onChange, value } }) => (
                 <TextInput
-                  className={`border rounded-lg px-4 py-3 ${
-                    errors.amount ? "border-red-500" : "border-gray-300"
-                  }`}
+                  className="border rounded-lg px-4 py-3"
+                  style={{
+                    borderColor: errors.amount ? colors.error : colors.inputBorder,
+                    backgroundColor: colors.bg.secondary,
+                    color: colors.text.primary,
+                  }}
                   value={value}
                   onChangeText={onChange}
-                  placeholder={`Max: ${maxAmount.toFixed(2)}`}
+                  placeholder={\`Max: \${maxAmount.toFixed(2)}\`}
+                  placeholderTextColor={colors.inputPlaceholder}
                   keyboardType="decimal-pad"
                 />
               )}
             />
             {errors.amount && (
-              <Text className="text-red-500 text-xs mt-1">
+              <Text className="text-xs mt-1" style={{ color: colors.error }}>
                 {errors.amount.message}
               </Text>
             )}
@@ -116,7 +123,7 @@ export function PaymentModal({
 
           {/* Payment Method */}
           <View className="mb-4">
-            <Text className="text-sm font-medium text-gray-700 mb-2">
+            <Text className="text-sm font-medium mb-2" style={{ color: colors.text.secondary }}>
               Payment Method *
             </Text>
             <Controller
@@ -128,18 +135,15 @@ export function PaymentModal({
                     <TouchableOpacity
                       key={method.value}
                       onPress={() => onChange(method.value)}
-                      className={`px-4 py-2 rounded-lg border ${
-                        value === method.value
-                          ? "bg-blue-500 border-blue-500"
-                          : "bg-white border-gray-300"
-                      }`}
+                      className="px-4 py-2 rounded-lg border"
+                      style={{
+                        backgroundColor: value === method.value ? colors.primary : colors.bg.primary,
+                        borderColor: value === method.value ? colors.primary : colors.inputBorder,
+                      }}
                     >
                       <Text
-                        className={
-                          value === method.value
-                            ? "text-white font-medium"
-                            : "text-gray-700"
-                        }
+                        className="font-medium"
+                        style={{ color: value === method.value ? '#ffffff' : colors.text.secondary }}
                       >
                         {method.label}
                       </Text>
@@ -152,7 +156,7 @@ export function PaymentModal({
 
           {/* Reference */}
           <View className="mb-4">
-            <Text className="text-sm font-medium text-gray-700 mb-2">
+            <Text className="text-sm font-medium mb-2" style={{ color: colors.text.secondary }}>
               Reference (Optional)
             </Text>
             <Controller
@@ -160,10 +164,16 @@ export function PaymentModal({
               name="reference"
               render={({ field: { onChange, value } }) => (
                 <TextInput
-                  className="border border-gray-300 rounded-lg px-4 py-3"
+                  className="border rounded-lg px-4 py-3"
+                  style={{
+                    borderColor: colors.inputBorder,
+                    backgroundColor: colors.bg.secondary,
+                    color: colors.text.primary,
+                  }}
                   value={value}
                   onChangeText={onChange}
                   placeholder="Transaction ID, Cheque No, etc."
+                  placeholderTextColor={colors.inputPlaceholder}
                 />
               )}
             />
@@ -171,7 +181,7 @@ export function PaymentModal({
 
           {/* Notes */}
           <View className="mb-6">
-            <Text className="text-sm font-medium text-gray-700 mb-2">
+            <Text className="text-sm font-medium mb-2" style={{ color: colors.text.secondary }}>
               Notes (Optional)
             </Text>
             <Controller
@@ -179,10 +189,16 @@ export function PaymentModal({
               name="notes"
               render={({ field: { onChange, value } }) => (
                 <TextInput
-                  className="border border-gray-300 rounded-lg px-4 py-3"
+                  className="border rounded-lg px-4 py-3"
+                  style={{
+                    borderColor: colors.inputBorder,
+                    backgroundColor: colors.bg.secondary,
+                    color: colors.text.primary,
+                  }}
                   value={value}
                   onChangeText={onChange}
                   placeholder="Additional notes"
+                  placeholderTextColor={colors.inputPlaceholder}
                   multiline
                   numberOfLines={3}
                   textAlignVertical="top"
@@ -195,7 +211,8 @@ export function PaymentModal({
           <TouchableOpacity
             onPress={handleSubmit(handleFormSubmit)}
             disabled={isSubmitting}
-            className="bg-blue-500 rounded-lg py-4 items-center"
+            className="rounded-lg py-4 items-center"
+            style={{ backgroundColor: colors.primary }}
           >
             {isSubmitting ? (
               <ActivityIndicator color="white" />
