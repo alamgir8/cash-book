@@ -78,11 +78,20 @@ export function PaymentModal({
       transparent={true}
       onRequestClose={handleClose}
     >
-      <View className="flex-1 justify-end" style={{ backgroundColor: colors.modalOverlay }}>
-        <View className="rounded-t-3xl p-6 max-h-[80%]" style={{ backgroundColor: colors.bg.primary }}>
+      <View
+        className="flex-1 justify-end"
+        style={{ backgroundColor: colors.modalOverlay }}
+      >
+        <View
+          className="rounded-t-3xl p-6 max-h-[80%]"
+          style={{ backgroundColor: colors.bg.primary }}
+        >
           {/* Header */}
           <View className="flex-row justify-between items-center mb-6">
-            <Text className="text-xl font-bold" style={{ color: colors.text.primary }}>
+            <Text
+              className="text-xl font-bold"
+              style={{ color: colors.text.primary }}
+            >
               Record Payment
             </Text>
             <TouchableOpacity onPress={handleClose} disabled={isSubmitting}>
@@ -92,7 +101,10 @@ export function PaymentModal({
 
           {/* Amount Input */}
           <View className="mb-4">
-            <Text className="text-sm font-medium mb-2" style={{ color: colors.text.secondary }}>
+            <Text
+              className="text-sm font-medium mb-2"
+              style={{ color: colors.text.secondary }}
+            >
               Amount *
             </Text>
             <Controller
@@ -102,13 +114,15 @@ export function PaymentModal({
                 <TextInput
                   className="border rounded-lg px-4 py-3"
                   style={{
-                    borderColor: errors.amount ? colors.error : colors.inputBorder,
+                    borderColor: errors.amount
+                      ? colors.error
+                      : colors.inputBorder,
                     backgroundColor: colors.bg.secondary,
                     color: colors.text.primary,
                   }}
                   value={value}
                   onChangeText={onChange}
-                  placeholder={\`Max: \${maxAmount.toFixed(2)}\`}
+                  placeholder={`Max: ${maxAmount.toFixed(2)}`}
                   placeholderTextColor={colors.inputPlaceholder}
                   keyboardType="decimal-pad"
                 />
@@ -123,7 +137,10 @@ export function PaymentModal({
 
           {/* Payment Method */}
           <View className="mb-4">
-            <Text className="text-sm font-medium mb-2" style={{ color: colors.text.secondary }}>
+            <Text
+              className="text-sm font-medium mb-2"
+              style={{ color: colors.text.secondary }}
+            >
               Payment Method *
             </Text>
             <Controller
@@ -137,13 +154,24 @@ export function PaymentModal({
                       onPress={() => onChange(method.value)}
                       className="px-4 py-2 rounded-lg border"
                       style={{
-                        backgroundColor: value === method.value ? colors.primary : colors.bg.primary,
-                        borderColor: value === method.value ? colors.primary : colors.inputBorder,
+                        backgroundColor:
+                          value === method.value
+                            ? colors.primary
+                            : colors.bg.primary,
+                        borderColor:
+                          value === method.value
+                            ? colors.primary
+                            : colors.inputBorder,
                       }}
                     >
                       <Text
                         className="font-medium"
-                        style={{ color: value === method.value ? '#ffffff' : colors.text.secondary }}
+                        style={{
+                          color:
+                            value === method.value
+                              ? "#ffffff"
+                              : colors.text.secondary,
+                        }}
                       >
                         {method.label}
                       </Text>
@@ -156,7 +184,10 @@ export function PaymentModal({
 
           {/* Reference */}
           <View className="mb-4">
-            <Text className="text-sm font-medium mb-2" style={{ color: colors.text.secondary }}>
+            <Text
+              className="text-sm font-medium mb-2"
+              style={{ color: colors.text.secondary }}
+            >
               Reference (Optional)
             </Text>
             <Controller
@@ -181,7 +212,10 @@ export function PaymentModal({
 
           {/* Notes */}
           <View className="mb-6">
-            <Text className="text-sm font-medium mb-2" style={{ color: colors.text.secondary }}>
+            <Text
+              className="text-sm font-medium mb-2"
+              style={{ color: colors.text.secondary }}
+            >
               Notes (Optional)
             </Text>
             <Controller

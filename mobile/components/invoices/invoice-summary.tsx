@@ -19,10 +19,15 @@ export function InvoiceSummary({ invoice }: InvoiceSummaryProps) {
   };
 
   return (
-    <View className="p-4 rounded-lg shadow-sm mb-4" style={{ backgroundColor: colors.card }}>
+    <View
+      className="p-4 rounded-lg shadow-sm mb-4"
+      style={{ backgroundColor: colors.card }}
+    >
       {/* Subtotal */}
       <View className="flex-row justify-between py-2">
-        <Text className="text-sm" style={{ color: colors.text.secondary }}>Subtotal</Text>
+        <Text className="text-sm" style={{ color: colors.text.secondary }}>
+          Subtotal
+        </Text>
         <Text className="text-sm" style={{ color: colors.text.primary }}>
           \u09f3{formatAmount(invoice.subtotal)}
         </Text>
@@ -31,7 +36,9 @@ export function InvoiceSummary({ invoice }: InvoiceSummaryProps) {
       {/* Tax */}
       {invoice.total_tax > 0 && (
         <View className="flex-row justify-between py-2">
-          <Text className="text-sm" style={{ color: colors.text.secondary }}>Tax</Text>
+          <Text className="text-sm" style={{ color: colors.text.secondary }}>
+            Tax
+          </Text>
           <Text className="text-sm" style={{ color: colors.text.primary }}>
             \u09f3{formatAmount(invoice.total_tax)}
           </Text>
@@ -41,7 +48,9 @@ export function InvoiceSummary({ invoice }: InvoiceSummaryProps) {
       {/* Discount */}
       {invoice.total_discount > 0 && (
         <View className="flex-row justify-between py-2">
-          <Text className="text-sm" style={{ color: colors.text.secondary }}>Discount</Text>
+          <Text className="text-sm" style={{ color: colors.text.secondary }}>
+            Discount
+          </Text>
           <Text className="text-sm" style={{ color: colors.error }}>
             -\u09f3{formatAmount(invoice.total_discount)}
           </Text>
@@ -51,7 +60,9 @@ export function InvoiceSummary({ invoice }: InvoiceSummaryProps) {
       {/* Shipping */}
       {invoice.shipping_charge && invoice.shipping_charge > 0 && (
         <View className="flex-row justify-between py-2">
-          <Text className="text-sm" style={{ color: colors.text.secondary }}>Shipping</Text>
+          <Text className="text-sm" style={{ color: colors.text.secondary }}>
+            Shipping
+          </Text>
           <Text className="text-sm" style={{ color: colors.text.primary }}>
             \u09f3{formatAmount(invoice.shipping_charge)}
           </Text>
@@ -64,11 +75,14 @@ export function InvoiceSummary({ invoice }: InvoiceSummaryProps) {
           <Text className="text-sm" style={{ color: colors.text.secondary }}>
             Adjustment
             {invoice.adjustment_description &&
-              \` (\${invoice.adjustment_description})\`}
+              ` (${invoice.adjustment_description})`}
           </Text>
           <Text
             className="text-sm"
-            style={{ color: invoice.adjustment > 0 ? colors.text.primary : colors.error }}
+            style={{
+              color:
+                invoice.adjustment > 0 ? colors.text.primary : colors.error,
+            }}
           >
             {invoice.adjustment > 0 ? "\u09f3" : "-\u09f3"}
             {formatAmount(Math.abs(invoice.adjustment))}
@@ -77,18 +91,37 @@ export function InvoiceSummary({ invoice }: InvoiceSummaryProps) {
       )}
 
       {/* Grand Total */}
-      <View className="flex-row justify-between py-3 border-t-2 mt-2" style={{ borderColor: colors.border }}>
-        <Text className="text-base font-bold" style={{ color: colors.text.primary }}>Grand Total</Text>
-        <Text className="text-lg font-bold" style={{ color: colors.text.primary }}>
+      <View
+        className="flex-row justify-between py-3 border-t-2 mt-2"
+        style={{ borderColor: colors.border }}
+      >
+        <Text
+          className="text-base font-bold"
+          style={{ color: colors.text.primary }}
+        >
+          Grand Total
+        </Text>
+        <Text
+          className="text-lg font-bold"
+          style={{ color: colors.text.primary }}
+        >
           \u09f3{formatAmount(invoice.grand_total)}
         </Text>
       </View>
 
       {/* Amount Paid */}
       {invoice.amount_paid > 0 && (
-        <View className="flex-row justify-between py-2 border-t mt-2" style={{ borderColor: colors.border }}>
-          <Text className="text-sm" style={{ color: colors.success }}>Amount Paid</Text>
-          <Text className="text-sm font-semibold" style={{ color: colors.success }}>
+        <View
+          className="flex-row justify-between py-2 border-t mt-2"
+          style={{ borderColor: colors.border }}
+        >
+          <Text className="text-sm" style={{ color: colors.success }}>
+            Amount Paid
+          </Text>
+          <Text
+            className="text-sm font-semibold"
+            style={{ color: colors.success }}
+          >
             \u09f3{formatAmount(invoice.amount_paid)}
           </Text>
         </View>
@@ -97,7 +130,10 @@ export function InvoiceSummary({ invoice }: InvoiceSummaryProps) {
       {/* Balance Due */}
       {invoice.balance_due > 0 && (
         <View className="flex-row justify-between py-2">
-          <Text className="text-base font-semibold" style={{ color: colors.warning }}>
+          <Text
+            className="text-base font-semibold"
+            style={{ color: colors.warning }}
+          >
             Balance Due
           </Text>
           <Text className="text-lg font-bold" style={{ color: colors.warning }}>
