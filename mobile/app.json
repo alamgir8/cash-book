@@ -8,7 +8,6 @@
     "scheme": "hisab-boi",
     "icon": "./image/icon.png",
     "platforms": ["ios", "android", "web"],
-    "newArchEnabled": true,
     "splash": {
       "image": "./image/logo.png",
       "resizeMode": "contain",
@@ -25,7 +24,7 @@
       },
       "softwareKeyboardLayoutMode": "resize",
       "package": "com.alamgir.hisabboi",
-      "versionCode": 2
+      "versionCode": 3
     },
     "web": {
       "bundler": "metro"
