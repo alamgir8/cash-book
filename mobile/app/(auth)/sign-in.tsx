@@ -18,6 +18,11 @@ import Toast from "react-native-toast-message";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/hooks/useTheme";
 import { useBiometric } from "@/hooks/useBiometric";
+import {
+  getBiometricUsers,
+  getBiometricDisplayName as getBiometricDisplayNameStatic,
+  getBiometricIconName as getBiometricIconNameStatic,
+} from "@/services/biometric";
 import { CustomInput } from "@/components/custom-input";
 import { PasswordInput } from "@/components/password-input";
 import { CustomButton } from "@/components/custom-button";
@@ -74,6 +79,14 @@ export default function SignInScreen() {
   const [loading, setLoading] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [usePinLogin, setUsePinLogin] = useState(false);
+  // Whether any user on this device has biometric stored (doesn't need userIdentifier)
+  const [hasBiometricStored, setHasBiometricStored] = useState(false);
+
+  useEffect(() => {
+    getBiometricUsers().then((users) =>
+      setHasBiometricStored(users.length > 0),
+    );
+  }, []);
 
   const {
     control,
@@ -92,7 +105,7 @@ export default function SignInScreen() {
   // Try biometric login on mount if enabled
   // Uses findBiometricCredentials to find any user with biometric enabled on this device
   const handleBiometricLogin = useCallback(async () => {
-    if (!biometricStatus?.isEnabled || isAuthenticating) return;
+    if (isAuthenticating || loading) return;
 
     try {
       setFormError(null);
@@ -104,6 +117,10 @@ export default function SignInScreen() {
           password: credentials.password,
         });
         router.replace("/(app)");
+      } else {
+        setFormError(
+          "No biometric credentials found. Please log in with your password.",
+        );
       }
     } catch (error) {
       console.error("Biometric login failed:", error);
@@ -113,24 +130,17 @@ export default function SignInScreen() {
     } finally {
       setLoading(false);
     }
-  }, [
-    biometricStatus?.isEnabled,
-    isAuthenticating,
-    findBiometricCredentials,
-    signIn,
-    router,
-  ]);
+  }, [isAuthenticating, loading, findBiometricCredentials, signIn, router]);
 
   // Auto-prompt biometric on mount
   useEffect(() => {
-    if (biometricStatus?.isEnabled && !biometricLoading) {
-      // Small delay to ensure the screen is fully rendered
+    if (hasBiometricStored && !biometricLoading) {
       const timer = setTimeout(() => {
         handleBiometricLogin();
       }, 500);
       return () => clearTimeout(timer);
     }
-  }, [biometricStatus?.isEnabled, biometricLoading]);
+  }, [hasBiometricStored, biometricLoading]);
 
   useEffect(() => {
     if (usePinLogin) {
@@ -185,10 +195,11 @@ export default function SignInScreen() {
             {
               text: `Enable ${biometricName}`,
               onPress: async () => {
-                await enableBiometric({
+                const ok = await enableBiometric({
                   identifier: values.identifier.trim(),
                   password: values.password!,
                 });
+                if (ok) setHasBiometricStored(true);
                 router.replace("/(app)");
               },
             },
@@ -314,24 +325,24 @@ export default function SignInScreen() {
             />
 
             {/* Biometric / Face ID Login Button */}
-            {biometricStatus?.isAvailable && (
+            {(hasBiometricStored || biometricStatus?.isAvailable) && (
               <TouchableOpacity
                 onPress={
-                  biometricStatus.isEnabled
+                  hasBiometricStored
                     ? handleBiometricLogin
                     : () =>
                         Toast.show({
                           type: "info",
-                          text1: `Enable ${getBiometricDisplayName(biometricStatus.biometricType)}`,
+                          text1: `Enable ${getBiometricDisplayName(biometricStatus?.biometricType ?? "none")}`,
                           text2: "Go to Settings → Security to enable it.",
                         })
                 }
                 disabled={isAuthenticating || loading}
                 style={{
-                  backgroundColor: biometricStatus.isEnabled
+                  backgroundColor: hasBiometricStored
                     ? `${colors.primary}18`
                     : colors.bg.tertiary,
-                  borderColor: biometricStatus.isEnabled
+                  borderColor: hasBiometricStored
                     ? colors.primary
                     : colors.border,
                   opacity: isAuthenticating || loading ? 0.6 : 1,
@@ -342,19 +353,19 @@ export default function SignInScreen() {
                   <ActivityIndicator size="small" color={colors.primary} />
                 ) : (
                   <Ionicons
-                    name={getBiometricIconName(biometricStatus.biometricType)}
+                    name={getBiometricIconName(
+                      biometricStatus?.biometricType ?? "none",
+                    )}
                     size={26}
                     color={
-                      biometricStatus.isEnabled
-                        ? colors.primary
-                        : colors.text.tertiary
+                      hasBiometricStored ? colors.primary : colors.text.tertiary
                     }
                   />
                 )}
                 <View>
                   <Text
                     style={{
-                      color: biometricStatus.isEnabled
+                      color: hasBiometricStored
                         ? colors.primary
                         : colors.text.secondary,
                     }}
@@ -362,13 +373,11 @@ export default function SignInScreen() {
                   >
                     {isAuthenticating
                       ? "Authenticating..."
-                      : biometricStatus.isEnabled
-                        ? `Login with ${getBiometricDisplayName(
-                            biometricStatus.biometricType,
-                          )}`
-                        : `${getBiometricDisplayName(biometricStatus.biometricType)} Login`}
+                      : hasBiometricStored
+                        ? `Login with ${getBiometricDisplayName(biometricStatus?.biometricType ?? "none")}`
+                        : `${getBiometricDisplayName(biometricStatus?.biometricType ?? "none")} Login`}
                   </Text>
-                  {!biometricStatus.isEnabled && (
+                  {!hasBiometricStored && (
                     <Text
                       style={{ color: colors.text.tertiary }}
                       className="text-xs mt-0.5"
