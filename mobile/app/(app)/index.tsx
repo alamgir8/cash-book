@@ -95,8 +95,6 @@ export default function DashboardScreen() {
           queryKey: queryKeys.counterparties,
         }),
       ]);
-      setModalVisible(false);
-      setEditingTransaction(null);
       Toast.show({ type: "success", text1: "Transaction added" });
     },
     onError: () => {
@@ -340,7 +338,8 @@ export default function DashboardScreen() {
         ...payload,
       } as any);
     } else {
-      await createMutation.mutateAsync(payload as any);
+      const created = await createMutation.mutateAsync(payload as any);
+      return { _id: created._id };
     }
   };
 

@@ -32,7 +32,7 @@ import { AttachmentPicker } from "../transactions/attachment-picker";
 type TransactionModalProps = {
   visible: boolean;
   onClose: () => void;
-  onSubmit: (values: TransactionFormValues) => Promise<void>;
+  onSubmit: (values: TransactionFormValues) => Promise<{ _id: string } | void>;
   editingTransaction?: Transaction | null;
   accountOptions: SelectOption[];
   categoryOptions: SelectOption[];
@@ -59,6 +59,9 @@ export const TransactionModal = ({
   const insets = useSafeAreaInsets();
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [savedTransactionId, setSavedTransactionId] = useState<string | null>(
+    null,
+  );
 
   const {
     control,
@@ -120,6 +123,7 @@ export const TransactionModal = ({
           counterparty: "",
         });
         setSelectedDate(new Date());
+        setSavedTransactionId(null);
       }
     }
   }, [visible, editingTransaction, reset]);
@@ -147,7 +151,15 @@ export const TransactionModal = ({
   };
 
   const handleFormSubmit = async (values: TransactionFormValues) => {
-    await onSubmit(values);
+    const result = await onSubmit(values);
+    if (result && "_id" in result && !editingTransaction) {
+      setSavedTransactionId(result._id);
+      // Scroll to attachment picker
+      setTimeout(
+        () => scrollViewRef.current?.scrollToEnd({ animated: true }),
+        200,
+      );
+    }
   };
 
   const closeModal = () => {
@@ -531,8 +543,8 @@ export const TransactionModal = ({
                   />
                 </View>
 
-                {/* Attachments — available in edit mode */}
-                {editingTransaction ? (
+                {/* Attachments */}
+                {editingTransaction || savedTransactionId ? (
                   <View>
                     <Text
                       className="text-sm font-semibold mb-2"
@@ -541,25 +553,34 @@ export const TransactionModal = ({
                       Attachments
                     </Text>
                     <AttachmentPicker
-                      transactionId={editingTransaction._id}
-                      initialAttachments={editingTransaction.attachments ?? []}
+                      transactionId={
+                        savedTransactionId ?? editingTransaction!._id
+                      }
+                      initialAttachments={editingTransaction?.attachments ?? []}
                     />
                   </View>
                 ) : (
-                  <View
-                    className="rounded-xl p-3 border"
+                  <TouchableOpacity
+                    onPress={handleSubmit(handleFormSubmit)}
+                    disabled={isSubmitting}
+                    className="rounded-xl p-3 border flex-row items-center justify-center gap-2"
                     style={{
                       backgroundColor: colors.bg.tertiary,
                       borderColor: colors.border,
                     }}
                   >
+                    <Ionicons
+                      name="attach"
+                      size={16}
+                      color={colors.text.tertiary}
+                    />
                     <Text
                       className="text-xs text-center"
                       style={{ color: colors.text.tertiary }}
                     >
-                      📎 Save the transaction first to add attachments
+                      Save &amp; add attachments
                     </Text>
-                  </View>
+                  </TouchableOpacity>
                 )}
 
                 {/* Amount Preview */}
@@ -590,25 +611,46 @@ export const TransactionModal = ({
                 paddingBottom: Math.max(insets.bottom, 16),
               }}
             >
-              <TouchableOpacity
-                onPress={handleSubmit(handleFormSubmit)}
-                disabled={isSubmitting}
-                className="rounded-2xl py-4 items-center shadow-lg"
-                style={{ backgroundColor: colors.info }}
-              >
-                {isSubmitting ? (
-                  <ActivityIndicator color="white" />
-                ) : (
+              {savedTransactionId ? (
+                <TouchableOpacity
+                  onPress={closeModal}
+                  className="rounded-2xl py-4 items-center shadow-lg"
+                  style={{ backgroundColor: colors.success ?? "#10b981" }}
+                >
                   <View className="flex-row items-center gap-2">
-                    <Ionicons name="checkmark-circle" size={20} color="white" />
-                    <Text className="text-white font-bold text-base">
-                      {editingTransaction
-                        ? "Update Transaction"
-                        : "Save Transaction"}
-                    </Text>
+                    <Ionicons
+                      name="checkmark-done-circle"
+                      size={20}
+                      color="white"
+                    />
+                    <Text className="text-white font-bold text-base">Done</Text>
                   </View>
-                )}
-              </TouchableOpacity>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  onPress={handleSubmit(handleFormSubmit)}
+                  disabled={isSubmitting}
+                  className="rounded-2xl py-4 items-center shadow-lg"
+                  style={{ backgroundColor: colors.info }}
+                >
+                  {isSubmitting ? (
+                    <ActivityIndicator color="white" />
+                  ) : (
+                    <View className="flex-row items-center gap-2">
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={20}
+                        color="white"
+                      />
+                      <Text className="text-white font-bold text-base">
+                        {editingTransaction
+                          ? "Update Transaction"
+                          : "Save Transaction"}
+                      </Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              )}
             </View>
           </View>
         </KeyboardAvoidingView>
