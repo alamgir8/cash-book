@@ -84,7 +84,7 @@ const profileSettingsSchema = new mongoose.Schema(
       default: 1,
     },
   },
-  { _id: false }
+  { _id: false },
 );
 
 const securitySchema = new mongoose.Schema(
@@ -92,14 +92,37 @@ const securitySchema = new mongoose.Schema(
     password_updated_at: {
       type: Date,
     },
+    // Hashed 6-digit login PIN
     login_pin_hash: {
       type: String,
     },
     pin_updated_at: {
       type: Date,
     },
+    // Brute-force protection for PIN login
+    pin_attempts: {
+      type: Number,
+      default: 0,
+    },
+    pin_locked_until: {
+      type: Date,
+    },
   },
-  { _id: false }
+  { _id: false },
+);
+
+// Trusted device record
+const trustedDeviceSchema = new mongoose.Schema(
+  {
+    device_id: { type: String, required: true }, // stable device fingerprint
+    device_name: { type: String, trim: true }, // e.g. "iPhone 15 Pro"
+    platform: { type: String, enum: ["ios", "android", "web"] },
+    trusted_at: { type: Date, default: () => new Date() },
+    last_used_at: { type: Date, default: () => new Date() },
+    revoked: { type: Boolean, default: false },
+    revoked_at: { type: Date },
+  },
+  { _id: true },
 );
 
 const adminSchema = new mongoose.Schema(
@@ -144,8 +167,13 @@ const adminSchema = new mongoose.Schema(
       type: securitySchema,
       default: () => ({}),
     },
+    // Devices that have successfully completed first-login
+    trusted_devices: {
+      type: [trustedDeviceSchema],
+      default: () => [],
+    },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 adminSchema.methods.toJSON = function () {
@@ -154,10 +182,21 @@ adminSchema.methods.toJSON = function () {
   if (obj.security) {
     const hasPin = Boolean(obj.security.login_pin_hash);
     obj.security = {
-      ...obj.security,
       has_login_pin: hasPin,
+      pin_updated_at: obj.security.pin_updated_at,
+      pin_locked_until: obj.security.pin_locked_until,
     };
-    delete obj.security.login_pin_hash;
+  }
+  // Strip device secrets from general responses
+  if (obj.trusted_devices) {
+    obj.trusted_devices = obj.trusted_devices.map((d) => ({
+      device_id: d.device_id,
+      device_name: d.device_name,
+      platform: d.platform,
+      trusted_at: d.trusted_at,
+      last_used_at: d.last_used_at,
+      revoked: d.revoked,
+    }));
   }
   return obj;
 };

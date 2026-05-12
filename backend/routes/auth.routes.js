@@ -8,6 +8,9 @@ import {
   logout,
   getProfile,
   updateProfile,
+  trustDevice,
+  revokeDevice,
+  listDevices,
 } from "../controllers/auth.controller.js";
 import { validate } from "../middleware/validate.js";
 import { authenticate } from "../middleware/auth.js";
@@ -162,5 +165,10 @@ router.put(
   validate(updateProfileSchema),
   updateProfile,
 );
+
+// ── Device trust management ───────────────────────────────────
+router.post("/devices/trust", authenticate, trustDevice);
+router.get("/devices", authenticate, listDevices);
+router.delete("/devices/:deviceId", authenticate, revokeDevice);
 
 export default router;

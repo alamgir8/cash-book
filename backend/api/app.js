@@ -4,8 +4,12 @@ import helmet from "helmet";
 import morgan from "morgan";
 import compression from "compression";
 import rateLimit from "express-rate-limit";
+import path from "path";
+import { fileURLToPath } from "url";
 import routes from "../routes/index.js";
 import { errorHandler, notFoundHandler } from "../middleware/errorHandler.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const isProduction = process.env.NODE_ENV === "production";
 
@@ -83,6 +87,12 @@ export const createApp = () => {
 
   // ── API routes ────────────────────────────────────────────
   app.use("/api", routes);
+
+  // ── Static file serving for local attachment uploads ──────
+  const uploadDir =
+    process.env.UPLOAD_DIR ||
+    path.join(__dirname, "..", "uploads", "attachments");
+  app.use("/uploads/attachments", express.static(uploadDir));
 
   // ── Error handling ────────────────────────────────────────
   app.use(notFoundHandler);

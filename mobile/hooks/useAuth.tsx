@@ -19,6 +19,7 @@ import {
 } from "../lib/api";
 import { clearQueryCache } from "../lib/queryClient";
 import * as authService from "../services/auth";
+import { registerTrustedDevice } from "../services/device";
 import type {
   AuthSessionResponse,
   AuthTokens,
@@ -397,6 +398,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       try {
         const data = await authService.login({ identifier, password, pin });
         await applySession(data);
+        // Register device trust after password login (not PIN — already trusted)
+        if (password) {
+          void registerTrustedDevice();
+        }
         Toast.show({ type: "success", text1: "Welcome back!" });
       } catch (error) {
         const message = getApiErrorMessage(

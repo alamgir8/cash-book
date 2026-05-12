@@ -92,7 +92,7 @@ const issueSessionTokens = async ({ admin, req, refreshTokenDoc }) => {
       revoked_at: { $exists: false },
       user_agent: req.headers["user-agent"] ?? null,
     },
-    { $set: { revoked_at: new Date() } }
+    { $set: { revoked_at: new Date() } },
   );
 
   return {
@@ -145,7 +145,7 @@ export const register = async (req, res, next) => {
             admin: admin._id,
             ...category,
           })),
-          { ordered: false }
+          { ordered: false },
         );
       } catch (categoryError) {
         if (categoryError.code !== 11000) {
@@ -214,11 +214,48 @@ export const login = async (req, res, next) => {
         return res.status(401).json({ message: "Invalid credentials" });
       }
 
+      // ── Brute-force protection for PIN login ──
+      const pinLockedUntil = admin.security?.pin_locked_until;
+      if (pinLockedUntil && new Date() < new Date(pinLockedUntil)) {
+        const waitSecs = Math.ceil(
+          (new Date(pinLockedUntil) - new Date()) / 1000,
+        );
+        return res.status(429).json({
+          message: `Too many PIN attempts. Try again in ${waitSecs} seconds.`,
+          locked_until: pinLockedUntil,
+        });
+      }
+
       try {
         credentialValid = await argon2.verify(loginPinHash, pin);
       } catch (error) {
         credentialValid = false;
       }
+
+      if (!credentialValid) {
+        // Increment attempt counter; lock after 5 failures for 5 minutes
+        const attempts = (admin.security?.pin_attempts ?? 0) + 1;
+        const updatePayload = { "security.pin_attempts": attempts };
+        if (attempts >= 5) {
+          updatePayload["security.pin_locked_until"] = new Date(
+            Date.now() + 5 * 60 * 1000,
+          );
+          updatePayload["security.pin_attempts"] = 0;
+        }
+        await Admin.updateOne({ _id: admin._id }, { $set: updatePayload });
+        return res.status(401).json({ message: "Invalid credentials" });
+      }
+
+      // Reset on success
+      await Admin.updateOne(
+        { _id: admin._id },
+        {
+          $set: {
+            "security.pin_attempts": 0,
+            "security.pin_locked_until": null,
+          },
+        },
+      );
     }
 
     if (!credentialValid) {
@@ -427,6 +464,119 @@ export const updateProfile = async (req, res, next) => {
         errors: Object.values(error.errors).map((err) => err.message),
       });
     }
+    next(error);
+  }
+};
+
+/**
+ * POST /api/auth/devices/trust
+ * Register the current device as trusted after a successful password login.
+ * Body: { device_id, device_name, platform }
+ */
+export const trustDevice = async (req, res, next) => {
+  try {
+    const { device_id, device_name, platform } = req.body;
+
+    if (!device_id) {
+      return res.status(400).json({ message: "device_id is required" });
+    }
+
+    const admin = await Admin.findById(req.user.id);
+    if (!admin) return res.status(404).json({ message: "Admin not found" });
+
+    // Update existing device record or push new one
+    const existingIndex = (admin.trusted_devices ?? []).findIndex(
+      (d) => d.device_id === device_id,
+    );
+
+    if (existingIndex >= 0) {
+      admin.trusted_devices[existingIndex].revoked = false;
+      admin.trusted_devices[existingIndex].revoked_at = undefined;
+      admin.trusted_devices[existingIndex].last_used_at = new Date();
+      if (device_name)
+        admin.trusted_devices[existingIndex].device_name = device_name;
+    } else {
+      admin.trusted_devices.push({
+        device_id,
+        device_name: device_name ?? "Unknown Device",
+        platform: platform ?? "android",
+        trusted_at: new Date(),
+        last_used_at: new Date(),
+        revoked: false,
+      });
+    }
+
+    // Keep max 10 trusted devices — evict oldest non-revoked if over limit
+    const active = admin.trusted_devices.filter((d) => !d.revoked);
+    if (active.length > 10) {
+      active.sort(
+        (a, b) => new Date(a.last_used_at) - new Date(b.last_used_at),
+      );
+      const toRevoke = active.slice(0, active.length - 10);
+      for (const device of toRevoke) {
+        const idx = admin.trusted_devices.findIndex(
+          (d) => d.device_id === device.device_id,
+        );
+        if (idx >= 0) {
+          admin.trusted_devices[idx].revoked = true;
+          admin.trusted_devices[idx].revoked_at = new Date();
+        }
+      }
+    }
+
+    await admin.save({ validateBeforeSave: false });
+
+    res.json({ message: "Device trusted successfully" });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * DELETE /api/auth/devices/:deviceId
+ * Revoke a trusted device, forcing full login on next use.
+ */
+export const revokeDevice = async (req, res, next) => {
+  try {
+    const { deviceId } = req.params;
+    const admin = await Admin.findById(req.user.id);
+    if (!admin) return res.status(404).json({ message: "Admin not found" });
+
+    const device = admin.trusted_devices?.find((d) => d.device_id === deviceId);
+    if (!device) return res.status(404).json({ message: "Device not found" });
+
+    device.revoked = true;
+    device.revoked_at = new Date();
+    await admin.save({ validateBeforeSave: false });
+
+    res.json({ message: "Device revoked" });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/auth/devices
+ * List trusted devices for the current admin.
+ */
+export const listDevices = async (req, res, next) => {
+  try {
+    const admin = await Admin.findById(req.user.id)
+      .select("trusted_devices")
+      .lean();
+    if (!admin) return res.status(404).json({ message: "Admin not found" });
+
+    const devices = (admin.trusted_devices ?? []).map((d) => ({
+      device_id: d.device_id,
+      device_name: d.device_name,
+      platform: d.platform,
+      trusted_at: d.trusted_at,
+      last_used_at: d.last_used_at,
+      revoked: d.revoked,
+    }));
+
+    res.json({ devices });
+  } catch (error) {
     next(error);
   }
 };

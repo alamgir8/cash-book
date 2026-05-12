@@ -94,6 +94,18 @@ const transactionSchema = new Schema(
       enum: TRANSFER_DIRECTIONS,
       index: true,
     },
+    // Attachments — receipt/invoice images linked to this transaction
+    attachments: [
+      {
+        url: { type: String, required: true },
+        thumbnail_url: { type: String },
+        file_name: { type: String, trim: true },
+        file_size: { type: Number }, // bytes
+        mime_type: { type: String, trim: true },
+        storage_key: { type: String, trim: true }, // cloud storage object key
+        uploaded_at: { type: Date, default: () => new Date() },
+      },
+    ],
     // Who created this transaction
     created_by: {
       type: Schema.Types.ObjectId,

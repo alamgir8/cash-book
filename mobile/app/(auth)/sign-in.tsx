@@ -32,7 +32,7 @@ const schema = z
       .optional(),
     pin: z
       .union([
-        z.string().regex(/^[0-9]{5}$/, "PIN must be 5 digits"),
+        z.string().regex(/^[0-9]{6}$/, "PIN must be 6 digits"),
         z.literal(""),
       ])
       .optional(),

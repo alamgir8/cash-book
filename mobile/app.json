@@ -4,7 +4,7 @@
     "slug": "hisab-boi",
     "version": "2.0.0",
     "orientation": "portrait",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "scheme": "hisab-boi",
     "icon": "./image/icon.png",
     "platforms": ["ios", "android", "web"],
@@ -15,7 +15,39 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.alamgir.hisabboi"
+      "bundleIdentifier": "com.alamgir.hisabboi",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Allow Hisab Boi to take photos of receipts and invoices to attach to transactions.",
+        "NSPhotoLibraryUsageDescription": "Allow Hisab Boi to select photos from your library to attach to transactions.",
+        "NSPhotoLibraryAddUsageDescription": "Allow Hisab Boi to save photos to your library.",
+        "NSFaceIDUsageDescription": "Use Face ID to quickly and securely sign in to Hisab Boi.",
+        "NSMicrophoneUsageDescription": "Allow Hisab Boi to use the microphone for voice input when adding transactions.",
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "config": {
+        "usesNonExemptEncryption": false
+      },
+      "privacyManifests": {
+        "NSPrivacyAccessedAPITypes": [
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
+            "NSPrivacyAccessedAPITypeReasons": ["CA92.1"]
+          },
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryFileTimestamp",
+            "NSPrivacyAccessedAPITypeReasons": ["C617.1"]
+          },
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategorySystemBootTime",
+            "NSPrivacyAccessedAPITypeReasons": ["35F9.1"]
+          },
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryDiskSpace",
+            "NSPrivacyAccessedAPITypeReasons": ["E174.1"]
+          }
+        ]
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -24,7 +56,17 @@
       },
       "softwareKeyboardLayoutMode": "resize",
       "package": "com.alamgir.hisabboi",
-      "versionCode": 3
+      "versionCode": 3,
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT",
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "bundler": "metro"
@@ -40,15 +82,34 @@
       "expo-font",
       "expo-asset",
       [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Hisab Boi to access your camera for scanning receipts."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Hisab Boi to select receipts and invoices from your photo library.",
+          "cameraPermission": "Allow Hisab Boi to capture receipts with your camera."
+        }
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow Hisab Boi to use Face ID for secure sign-in."
+        }
+      ],
+      [
         "expo-build-properties",
         {
           "android": {
-            "compileSdkVersion": 35,
-            "targetSdkVersion": 35,
-            "buildToolsVersion": "35.0.0"
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36,
+            "buildToolsVersion": "36.0.0"
           },
           "ios": {
-            "deploymentTarget": "15.1"
+            "deploymentTarget": "16.4"
           }
         }
       ],

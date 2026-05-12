@@ -11,6 +11,11 @@ import {
   recalculateBalances,
   listCounterparties,
 } from "../controllers/transaction.controller.js";
+import {
+  uploadMiddleware,
+  uploadAttachments,
+  deleteAttachment,
+} from "../controllers/upload.controller.js";
 import { authenticate } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
 
@@ -190,12 +195,21 @@ router.patch("/:transactionId", validate(updateSchema), updateTransaction);
 router.delete(
   "/:transactionId",
   validate(transactionIdParams),
-  deleteTransaction
+  deleteTransaction,
 );
 router.post(
   "/:transactionId/restore",
   validate(transactionIdParams),
-  restoreTransaction
+  restoreTransaction,
 );
+
+// Attachment upload/delete routes
+router.post(
+  "/:transactionId/attachments",
+  validate(transactionIdParams),
+  uploadMiddleware,
+  uploadAttachments,
+);
+router.delete("/:transactionId/attachments/:storageKey", deleteAttachment);
 
 export default router;

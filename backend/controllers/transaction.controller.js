@@ -732,155 +732,155 @@ export const updateTransaction = async (req, res, next) => {
       }
     }
 
-    await adjustAccountBalanceAtomic({
-      accountId: originalAccount._id,
-      amount: transaction.amount,
-      type: transaction.type,
-      direction: "revert",
-    });
-
-    if (targetAccount._id.toString() !== originalAccount._id.toString()) {
-      transaction.account = targetAccount._id;
+    // ── Pre-parse date outside session to catch validation errors early ──
+    let parsedDate;
+    if (date !== undefined) {
+      try {
+        parsedDate = parseTransactionDate(date);
+      } catch (err) {
+        return res.status(400).json({ message: err.message });
+      }
     }
 
-    // Handle Transfer updates if this transaction is part of a transfer
-    if (transaction.transfer_id) {
-      const transferFilter = organizationId
-        ? { _id: transaction.transfer_id, organization: organizationId }
-        : { _id: transaction.transfer_id, admin: req.user.id };
+    // ── Snapshot values before mutation for the session ──
+    const originalAmount = transaction.amount;
+    const originalType = transaction.type;
+    const originalAccountId = originalAccount._id;
+    const targetAccountId = targetAccount._id;
+    const isAccountChange =
+      targetAccountId.toString() !== originalAccountId.toString();
 
-      const transfer = await Transfer.findOne(transferFilter);
+    // ── Apply all balance mutations + document saves inside a single session ──
+    const session = await mongoose.startSession();
+    let savedTransaction;
+    try {
+      await session.withTransaction(async () => {
+        // 1. Revert original balance impact
+        await adjustAccountBalanceAtomic({
+          accountId: originalAccountId,
+          amount: originalAmount,
+          type: originalType,
+          direction: "revert",
+          session,
+        });
 
-      if (transfer) {
-        let transferUpdated = false;
+        // 2. Handle Transfer sibling updates
+        if (transaction.transfer_id) {
+          const transferFilter = organizationId
+            ? { _id: transaction.transfer_id, organization: organizationId }
+            : { _id: transaction.transfer_id, admin: req.user.id };
 
-        // 1. Handle Amount Change
-        if (
-          amount !== undefined &&
-          Number(amount) !== Number(transfer.amount)
-        ) {
-          transfer.amount = amount;
-          transferUpdated = true;
+          const transfer =
+            await Transfer.findOne(transferFilter).session(session);
 
-          // Update the OTHER transaction in the pair
-          const otherTxnId =
-            transaction.transfer_direction === "outgoing"
-              ? transfer.credit_transaction
-              : transfer.debit_transaction;
-
-          const otherTxn = await Transaction.findById(otherTxnId);
-          if (otherTxn) {
-            // Revert old amount on other account atomically
-            await adjustAccountBalanceAtomic({
-              accountId: otherTxn.account,
-              amount: otherTxn.amount,
-              type: otherTxn.type,
-              direction: "revert",
-            });
-
-            // Update other transaction amount
-            otherTxn.amount = amount;
-
-            // Apply new amount on other account atomically
-            const otherBalance = await adjustAccountBalanceAtomic({
-              accountId: otherTxn.account,
-              amount: otherTxn.amount,
-              type: otherTxn.type,
-              direction: "apply",
-            });
-
-            otherTxn.balance_after_transaction = otherBalance;
-            await otherTxn.save();
-          }
-        }
-
-        // 2. Handle Date Change
-        if (date !== undefined) {
-          let newDate;
-          try {
-            newDate = parseTransactionDate(date);
-          } catch (e) {
-            // Ignore error here, will be caught later
-          }
-
-          if (
-            newDate &&
-            newDate.getTime() !== new Date(transfer.date).getTime()
-          ) {
-            transfer.date = newDate;
-            transferUpdated = true;
+          if (transfer) {
+            let transferUpdated = false;
 
             const otherTxnId =
               transaction.transfer_direction === "outgoing"
                 ? transfer.credit_transaction
                 : transfer.debit_transaction;
 
-            await Transaction.updateOne({ _id: otherTxnId }, { date: newDate });
+            const otherTxn =
+              await Transaction.findById(otherTxnId).session(session);
+
+            // 2a. Amount change — revert+re-apply sibling atomically
+            if (
+              amount !== undefined &&
+              Number(amount) !== Number(transfer.amount)
+            ) {
+              transfer.amount = amount;
+              transferUpdated = true;
+
+              if (otherTxn) {
+                await adjustAccountBalanceAtomic({
+                  accountId: otherTxn.account,
+                  amount: otherTxn.amount,
+                  type: otherTxn.type,
+                  direction: "revert",
+                  session,
+                });
+                otherTxn.amount = amount;
+                const otherBalance = await adjustAccountBalanceAtomic({
+                  accountId: otherTxn.account,
+                  amount: otherTxn.amount,
+                  type: otherTxn.type,
+                  direction: "apply",
+                  session,
+                });
+                otherTxn.balance_after_transaction = otherBalance;
+                await otherTxn.save({ session });
+              }
+            }
+
+            // 2b. Date change — keep sibling in sync
+            if (
+              parsedDate &&
+              parsedDate.getTime() !== new Date(transfer.date).getTime()
+            ) {
+              transfer.date = parsedDate;
+              transferUpdated = true;
+              if (otherTxn) {
+                otherTxn.date = parsedDate;
+                await otherTxn.save({ session });
+              }
+            }
+
+            // 2c. Account change — update transfer routing
+            if (isAccountChange) {
+              if (transaction.transfer_direction === "outgoing") {
+                transfer.from_account = targetAccountId;
+              } else {
+                transfer.to_account = targetAccountId;
+              }
+              transferUpdated = true;
+            }
+
+            if (transferUpdated) {
+              await transfer.save({ session });
+            }
           }
         }
 
-        // 3. Handle Account Change
-        if (targetAccount._id.toString() !== originalAccount._id.toString()) {
-          if (transaction.transfer_direction === "outgoing") {
-            transfer.from_account = targetAccount._id;
-          } else {
-            transfer.to_account = targetAccount._id;
-          }
-          transferUpdated = true;
+        // 3. Apply field updates to the main transaction
+        if (isAccountChange) {
+          transaction.account = targetAccountId;
+        }
+        if (type) transaction.type = type;
+        if (amount !== undefined) transaction.amount = amount;
+        if (parsedDate !== undefined) transaction.date = parsedDate;
+        if (description !== undefined) transaction.description = description;
+        if (keyword !== undefined) transaction.keyword = keyword;
+        if (counterparty !== undefined) transaction.counterparty = counterparty;
+        if (metaData !== undefined) transaction.meta_data = metaData;
+
+        if (req.body.client_request_id) {
+          transaction.client_request_id = req.body.client_request_id.trim();
+        } else if (
+          req.body.client_request_id === null ||
+          req.body.client_request_id === ""
+        ) {
+          transaction.client_request_id = undefined;
         }
 
-        if (transferUpdated) {
-          await transfer.save();
-        }
-      }
+        // 4. Apply new balance impact
+        const balanceAfter = await adjustAccountBalanceAtomic({
+          accountId: targetAccountId,
+          amount: transaction.amount,
+          type: transaction.type,
+          direction: "apply",
+          session,
+        });
+
+        transaction.balance_after_transaction = balanceAfter;
+        await transaction.save({ session });
+        savedTransaction = transaction._id;
+      });
+    } finally {
+      await session.endSession();
     }
 
-    if (type) {
-      transaction.type = type;
-    }
-    if (amount !== undefined) {
-      transaction.amount = amount;
-    }
-    if (date !== undefined) {
-      try {
-        transaction.date = parseTransactionDate(date);
-      } catch (err) {
-        return res.status(400).json({ message: err.message });
-      }
-    }
-    if (description !== undefined) {
-      transaction.description = description;
-    }
-    if (keyword !== undefined) {
-      transaction.keyword = keyword;
-    }
-    if (counterparty !== undefined) {
-      transaction.counterparty = counterparty;
-    }
-    if (metaData !== undefined) {
-      transaction.meta_data = metaData;
-    }
-
-    if (req.body.client_request_id) {
-      transaction.client_request_id = req.body.client_request_id.trim();
-    } else if (
-      req.body.client_request_id === null ||
-      req.body.client_request_id === ""
-    ) {
-      transaction.client_request_id = undefined;
-    }
-
-    const balanceAfter = await adjustAccountBalanceAtomic({
-      accountId: targetAccount._id,
-      amount: transaction.amount,
-      type: transaction.type,
-      direction: "apply",
-    });
-
-    transaction.balance_after_transaction = balanceAfter;
-    await transaction.save();
-
-    const populated = await Transaction.findById(transaction._id)
+    const populated = await Transaction.findById(savedTransaction)
       .populate("account", "name kind")
       .populate("category_id", "name type")
       .lean();
@@ -923,50 +923,60 @@ export const deleteTransaction = async (req, res, next) => {
       organizationId,
     });
 
-    if (account) {
-      await adjustAccountBalanceAtomic({
-        accountId: account._id,
-        amount: transaction.amount,
-        type: transaction.type,
-        direction: "revert",
-      });
-    }
-
-    // Handle Transfer deletion if this transaction is part of a transfer
-    if (transaction.transfer_id) {
-      const transferFilter = organizationId
-        ? { _id: transaction.transfer_id, organization: organizationId }
-        : { _id: transaction.transfer_id, admin: req.user.id };
-
-      const transfer = await Transfer.findOne(transferFilter);
-
-      if (transfer) {
-        const otherTxnId =
-          transaction.transfer_direction === "outgoing"
-            ? transfer.credit_transaction
-            : transfer.debit_transaction;
-
-        const otherTxn = await Transaction.findById(otherTxnId);
-
-        if (otherTxn && !otherTxn.is_deleted) {
+    // ── Wrap all balance mutations + soft-deletes in an atomic session ──
+    const session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        if (account) {
           await adjustAccountBalanceAtomic({
-            accountId: otherTxn.account,
-            amount: otherTxn.amount,
-            type: otherTxn.type,
+            accountId: account._id,
+            amount: transaction.amount,
+            type: transaction.type,
             direction: "revert",
+            session,
           });
-
-          otherTxn.softDelete();
-          await otherTxn.save();
         }
 
-        // Delete the transfer record as the transactions are deleted
-        await Transfer.deleteOne({ _id: transfer._id });
-      }
-    }
+        // Handle Transfer deletion — revert sibling leg atomically
+        if (transaction.transfer_id) {
+          const transferFilter = organizationId
+            ? { _id: transaction.transfer_id, organization: organizationId }
+            : { _id: transaction.transfer_id, admin: req.user.id };
 
-    transaction.softDelete();
-    await transaction.save();
+          const transfer =
+            await Transfer.findOne(transferFilter).session(session);
+
+          if (transfer) {
+            const otherTxnId =
+              transaction.transfer_direction === "outgoing"
+                ? transfer.credit_transaction
+                : transfer.debit_transaction;
+
+            const otherTxn =
+              await Transaction.findById(otherTxnId).session(session);
+
+            if (otherTxn && !otherTxn.is_deleted) {
+              await adjustAccountBalanceAtomic({
+                accountId: otherTxn.account,
+                amount: otherTxn.amount,
+                type: otherTxn.type,
+                direction: "revert",
+                session,
+              });
+              otherTxn.softDelete();
+              await otherTxn.save({ session });
+            }
+
+            await Transfer.deleteOne({ _id: transfer._id }).session(session);
+          }
+        }
+
+        transaction.softDelete();
+        await transaction.save({ session });
+      });
+    } finally {
+      await session.endSession();
+    }
 
     res.status(200).json({ message: "Transaction deleted" });
   } catch (error) {
@@ -1015,17 +1025,26 @@ export const restoreTransaction = async (req, res, next) => {
 
     transaction.restore();
 
-    const balanceAfter = await adjustAccountBalanceAtomic({
-      accountId: account._id,
-      amount: transaction.amount,
-      type: transaction.type,
-      direction: "apply",
-    });
+    const session = await mongoose.startSession();
+    let savedId;
+    try {
+      await session.withTransaction(async () => {
+        const balanceAfter = await adjustAccountBalanceAtomic({
+          accountId: account._id,
+          amount: transaction.amount,
+          type: transaction.type,
+          direction: "apply",
+          session,
+        });
+        transaction.balance_after_transaction = balanceAfter;
+        await transaction.save({ session });
+        savedId = transaction._id;
+      });
+    } finally {
+      await session.endSession();
+    }
 
-    transaction.balance_after_transaction = balanceAfter;
-    await transaction.save();
-
-    const populated = await Transaction.findById(transaction._id)
+    const populated = await Transaction.findById(savedId)
       .populate("account", "name kind")
       .populate("category_id", "name type")
       .lean();
