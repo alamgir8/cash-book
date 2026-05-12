@@ -1,0 +1,256 @@
+import { useState, useCallback } from "react";
+import {
+  Modal,
+  View,
+  Text,
+  TouchableOpacity,
+  FlatList,
+  Image,
+  Share,
+  Linking,
+  Alert,
+  ActivityIndicator,
+  Dimensions,
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useTheme } from "../../hooks/useTheme";
+import { deleteAttachment, type Attachment } from "../../services/attachments";
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const THUMB_SIZE = (SCREEN_WIDTH - 48) / 3;
+
+type Props = {
+  visible: boolean;
+  onClose: () => void;
+  transactionId: string;
+  attachments: Attachment[];
+  canDelete?: boolean;
+};
+
+export function AttachmentViewerModal({
+  visible,
+  onClose,
+  transactionId,
+  attachments,
+  canDelete = true,
+}: Props) {
+  const { colors } = useTheme();
+  const queryClient = useQueryClient();
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [loadingImg, setLoadingImg] = useState(false);
+
+  const deleteMutation = useMutation({
+    mutationFn: (storageKey: string) =>
+      deleteAttachment(transactionId, storageKey),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      queryClient.invalidateQueries({
+        queryKey: ["transaction", transactionId],
+      });
+    },
+    onError: () => Alert.alert("Error", "Failed to delete attachment."),
+  });
+
+  const handleDelete = useCallback(
+    (attachment: Attachment) => {
+      Alert.alert(
+        "Delete Attachment",
+        `Remove "${attachment.file_name ?? "this file"}"?`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Delete",
+            style: "destructive",
+            onPress: () => deleteMutation.mutate(attachment.storage_key),
+          },
+        ],
+      );
+    },
+    [deleteMutation],
+  );
+
+  const handleShare = useCallback(async (attachment: Attachment) => {
+    try {
+      await Share.share({
+        url: attachment.url,
+        message: attachment.file_name ?? "Attachment",
+      });
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const openPdf = useCallback((url: string) => {
+    Linking.openURL(url).catch(() =>
+      Alert.alert("Error", "Cannot open this file."),
+    );
+  }, []);
+
+  const isPdf = (mime?: string) => mime === "application/pdf";
+
+  const renderItem = ({ item }: { item: Attachment }) => (
+    <View
+      style={{
+        width: THUMB_SIZE,
+        height: THUMB_SIZE + 28,
+        borderColor: colors.border,
+      }}
+      className="m-1 rounded-xl overflow-hidden border"
+    >
+      <TouchableOpacity
+        className="flex-1"
+        activeOpacity={0.8}
+        onPress={() => {
+          if (isPdf(item.mime_type)) {
+            openPdf(item.url);
+          } else {
+            setPreviewUrl(item.url);
+          }
+        }}
+      >
+        {isPdf(item.mime_type) ? (
+          <View
+            style={{
+              backgroundColor: colors.bg.tertiary,
+              width: THUMB_SIZE,
+              height: THUMB_SIZE,
+            }}
+            className="items-center justify-center"
+          >
+            <Ionicons
+              name="document-text"
+              size={40}
+              color={colors.text.secondary}
+            />
+            <Text
+              style={{ color: colors.text.tertiary }}
+              className="text-xs mt-1"
+            >
+              PDF
+            </Text>
+          </View>
+        ) : (
+          <Image
+            source={{ uri: item.thumbnail_url ?? item.url }}
+            style={{ width: THUMB_SIZE, height: THUMB_SIZE }}
+            resizeMode="cover"
+          />
+        )}
+      </TouchableOpacity>
+
+      {/* Bottom row: name + actions */}
+      <View
+        style={{ backgroundColor: colors.bg.secondary }}
+        className="flex-row items-center justify-between px-1"
+      >
+        <Text
+          style={{ color: colors.text.tertiary, maxWidth: THUMB_SIZE - 52 }}
+          className="text-xs"
+          numberOfLines={1}
+        >
+          {item.file_name ?? "file"}
+        </Text>
+        <View className="flex-row">
+          <TouchableOpacity onPress={() => handleShare(item)} className="p-1">
+            <Ionicons
+              name="share-outline"
+              size={14}
+              color={colors.text.secondary}
+            />
+          </TouchableOpacity>
+          {canDelete && (
+            <TouchableOpacity
+              onPress={() => handleDelete(item)}
+              className="p-1"
+              disabled={deleteMutation.isPending}
+            >
+              <Ionicons name="trash-outline" size={14} color={colors.error} />
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+    </View>
+  );
+
+  return (
+    <>
+      <Modal
+        visible={visible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={onClose}
+      >
+        <View style={{ backgroundColor: colors.bg.primary }} className="flex-1">
+          {/* Header */}
+          <View
+            style={{ borderColor: colors.border }}
+            className="flex-row items-center justify-between px-4 pt-4 pb-3 border-b"
+          >
+            <Text
+              style={{ color: colors.text.primary }}
+              className="text-lg font-bold"
+            >
+              Attachments ({attachments.length})
+            </Text>
+            <TouchableOpacity onPress={onClose} className="p-1">
+              <Ionicons name="close" size={24} color={colors.text.primary} />
+            </TouchableOpacity>
+          </View>
+
+          {attachments.length === 0 ? (
+            <View className="flex-1 items-center justify-center">
+              <Ionicons name="attach" size={48} color={colors.text.tertiary} />
+              <Text
+                style={{ color: colors.text.tertiary }}
+                className="mt-3 text-base"
+              >
+                No attachments yet
+              </Text>
+            </View>
+          ) : (
+            <FlatList
+              data={attachments}
+              keyExtractor={(item) => item.storage_key}
+              renderItem={renderItem}
+              numColumns={3}
+              contentContainerStyle={{ padding: 8 }}
+            />
+          )}
+        </View>
+      </Modal>
+
+      {/* Full-screen image preview */}
+      {previewUrl && (
+        <Modal
+          visible
+          animationType="fade"
+          onRequestClose={() => setPreviewUrl(null)}
+        >
+          <View className="flex-1 bg-black items-center justify-center">
+            <TouchableOpacity
+              className="absolute top-12 right-4 z-10 p-2 bg-black/50 rounded-full"
+              onPress={() => setPreviewUrl(null)}
+            >
+              <Ionicons name="close" size={28} color="white" />
+            </TouchableOpacity>
+            {loadingImg && (
+              <ActivityIndicator
+                size="large"
+                color="white"
+                className="absolute"
+              />
+            )}
+            <Image
+              source={{ uri: previewUrl }}
+              style={{ width: SCREEN_WIDTH, height: SCREEN_WIDTH * 1.4 }}
+              resizeMode="contain"
+              onLoadStart={() => setLoadingImg(true)}
+              onLoadEnd={() => setLoadingImg(false)}
+            />
+          </View>
+        </Modal>
+      )}
+    </>
+  );
+}

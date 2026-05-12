@@ -43,7 +43,7 @@ export function useCreateInvoice(options?: {
   return useMutation({
     mutationFn: invoicesApi.create,
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.INVOICES });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.invoices });
       toast.success("Invoice created successfully");
       options?.onSuccess?.(data);
     },
@@ -71,7 +71,7 @@ export function useUpdateInvoice(
       invoicesApi.update(invoiceId, params),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["invoice", invoiceId] });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.INVOICES });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.invoices });
       toast.success("Invoice updated successfully");
       options?.onSuccess?.(data);
     },
@@ -93,7 +93,7 @@ export function useUpdateInvoiceStatus(invoiceId: string) {
       invoicesApi.updateStatus(invoiceId, status),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["invoice", invoiceId] });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.INVOICES });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.invoices });
     },
     onError: (error) => {
       toast.error(getApiErrorMessage(error));
@@ -111,7 +111,7 @@ export function useRecordPayment(invoiceId: string) {
     mutationFn: invoicesApi.recordPayment,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["invoice", invoiceId] });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.INVOICES });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.invoices });
       queryClient.invalidateQueries({ queryKey: ["parties"] });
       toast.success("Payment recorded successfully");
     },
@@ -133,7 +133,7 @@ export function useDeleteInvoice(options?: {
   return useMutation({
     mutationFn: invoicesApi.delete,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.INVOICES });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.invoices });
       toast.success("Invoice deleted successfully");
       options?.onSuccess?.();
     },

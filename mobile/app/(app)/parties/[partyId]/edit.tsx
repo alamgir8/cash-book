@@ -127,7 +127,7 @@ export default function EditPartyScreen() {
     mutationFn: (data: Parameters<typeof partiesApi.update>[1]) =>
       partiesApi.update(partyId!, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PARTIES });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.parties });
       queryClient.invalidateQueries({ queryKey: ["party", partyId] });
       toast.success("Party updated successfully");
       router.back();

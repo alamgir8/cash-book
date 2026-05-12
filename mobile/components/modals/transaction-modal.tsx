@@ -27,6 +27,7 @@ import {
   type SelectOption,
 } from "./types";
 import type { Transaction } from "@/services/transactions";
+import { AttachmentPicker } from "../transactions/attachment-picker";
 
 type TransactionModalProps = {
   visible: boolean;
@@ -529,6 +530,37 @@ export const TransactionModal = ({
                     )}
                   />
                 </View>
+
+                {/* Attachments — available in edit mode */}
+                {editingTransaction ? (
+                  <View>
+                    <Text
+                      className="text-sm font-semibold mb-2"
+                      style={{ color: colors.text.primary }}
+                    >
+                      Attachments
+                    </Text>
+                    <AttachmentPicker
+                      transactionId={editingTransaction._id}
+                      initialAttachments={editingTransaction.attachments ?? []}
+                    />
+                  </View>
+                ) : (
+                  <View
+                    className="rounded-xl p-3 border"
+                    style={{
+                      backgroundColor: colors.bg.tertiary,
+                      borderColor: colors.border,
+                    }}
+                  >
+                    <Text
+                      className="text-xs text-center"
+                      style={{ color: colors.text.tertiary }}
+                    >
+                      📎 Save the transaction first to add attachments
+                    </Text>
+                  </View>
+                )}
 
                 {/* Amount Preview */}
                 {currentAmount > 0 ? (

@@ -11,6 +11,7 @@ type Props = {
   onCategoryPress?: (categoryId: string) => void;
   onCounterpartyPress?: (counterparty: string) => void;
   onEdit?: (transaction: Transaction) => void;
+  onAttachmentsPress?: (transaction: Transaction) => void;
 };
 
 const TransactionCardComponent = ({
@@ -18,7 +19,9 @@ const TransactionCardComponent = ({
   onCategoryPress,
   onCounterpartyPress,
   onEdit,
+  onAttachmentsPress,
 }: Props) => {
+  const attachmentCount = transaction.attachments?.length ?? 0;
   const { formatAmount } = usePreferences();
   const { colors } = useTheme();
   const isCredit = transaction.type === "credit";
@@ -143,24 +146,45 @@ const TransactionCardComponent = ({
         </Text>
       </View> */}
 
-      {onEdit && !transaction.is_deleted ? (
+      {(onEdit || onAttachmentsPress) && !transaction.is_deleted ? (
         <View
           style={{ borderColor: colors.border }}
-          className="flex-row justify-end pt-2 border-t"
+          className="flex-row justify-between items-center pt-2 border-t"
         >
-          <TouchableOpacity
-            onPress={() => onEdit(transaction)}
-            style={{ backgroundColor: colors.info + "20" }}
-            className="flex-row items-center gap-1.5 px-3 py-2 rounded-lg active:scale-95"
-          >
-            <Ionicons name="create-outline" size={16} color={colors.info} />
-            <Text
-              style={{ color: colors.info }}
-              className="text-xs font-semibold"
+          {onAttachmentsPress ? (
+            <TouchableOpacity
+              onPress={() => onAttachmentsPress(transaction)}
+              style={{ backgroundColor: colors.warning + "20" }}
+              className="flex-row items-center gap-1.5 px-3 py-2 rounded-lg active:scale-95"
             >
-              Edit
-            </Text>
-          </TouchableOpacity>
+              <Ionicons name="attach" size={16} color={colors.warning} />
+              <Text
+                style={{ color: colors.warning }}
+                className="text-xs font-semibold"
+              >
+                {attachmentCount > 0
+                  ? `${attachmentCount} file${attachmentCount > 1 ? "s" : ""}`
+                  : "Attach"}
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <View />
+          )}
+          {onEdit ? (
+            <TouchableOpacity
+              onPress={() => onEdit(transaction)}
+              style={{ backgroundColor: colors.info + "20" }}
+              className="flex-row items-center gap-1.5 px-3 py-2 rounded-lg active:scale-95"
+            >
+              <Ionicons name="create-outline" size={16} color={colors.info} />
+              <Text
+                style={{ color: colors.info }}
+                className="text-xs font-semibold"
+              >
+                Edit
+              </Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
       ) : null}
     </View>
@@ -184,8 +208,11 @@ export const TransactionCard = memo(
         nextProps.transaction.category?.name &&
       prevProps.transaction.counterparty ===
         nextProps.transaction.counterparty &&
+      (prevProps.transaction.attachments?.length ?? 0) ===
+        (nextProps.transaction.attachments?.length ?? 0) &&
       prevProps.onCategoryPress === nextProps.onCategoryPress &&
-      prevProps.onCounterpartyPress === nextProps.onCounterpartyPress
+      prevProps.onCounterpartyPress === nextProps.onCounterpartyPress &&
+      prevProps.onAttachmentsPress === nextProps.onAttachmentsPress
     );
   },
 );

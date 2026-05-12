@@ -27,6 +27,15 @@ export type Transaction = {
   counterparty?: string;
   balance_after_transaction?: number;
   is_deleted?: boolean;
+  attachments?: {
+    url: string;
+    thumbnail_url?: string | null;
+    file_name?: string;
+    file_size?: number;
+    mime_type?: string;
+    storage_key: string;
+    uploaded_at?: string;
+  }[];
 };
 
 export type TransactionFilters = {
@@ -93,7 +102,7 @@ const mapFilters = (filters: TransactionFilters) => {
 };
 
 const normalizeAccount = (
-  accountSource: Record<string, any> | string | null | undefined
+  accountSource: Record<string, any> | string | null | undefined,
 ): TransactionAccount => {
   if (!accountSource) {
     return {
@@ -117,7 +126,7 @@ const normalizeAccount = (
 };
 
 export const normalizeTransaction = (
-  transaction: Record<string, any>
+  transaction: Record<string, any>,
 ): Transaction => {
   const categorySource = transaction.category_id ?? transaction.category;
   const category: TransactionCategory | null = categorySource
@@ -165,7 +174,7 @@ export const fetchTransactions = async (filters: TransactionFilters) => {
  * @param search - Optional search query to filter counterparties
  */
 export const fetchCounterparties = async (
-  search?: string
+  search?: string,
 ): Promise<string[]> => {
   const params: Record<string, string> = {};
   if (search?.trim()) {
@@ -203,7 +212,7 @@ export const createTransaction = async (payload: CreateTransactionPayload) => {
 
   const { data } = await api.post<{ transaction: Record<string, any> }>(
     "/transactions",
-    requestBody
+    requestBody,
   );
   return normalizeTransaction(data.transaction);
 };
@@ -255,7 +264,7 @@ export const createTransfer = async (payload: CreateTransferPayload) => {
 
   const { data } = await api.post<{ transfer: Record<string, any> }>(
     "/transactions/transfer",
-    requestBody
+    requestBody,
   );
 
   return normalizeTransfer(data.transfer);
@@ -290,7 +299,7 @@ export const updateTransaction = async ({
 
   const { data } = await api.put<{ transaction: Record<string, any> }>(
     `/transactions/${transactionId}`,
-    requestBody
+    requestBody,
   );
   return normalizeTransaction(data.transaction);
 };

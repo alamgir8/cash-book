@@ -15,7 +15,7 @@ import type {
  */
 export const useParties = (params?: ListPartiesParams) => {
   return useQuery({
-    queryKey: params ? ["parties", params] : QUERY_KEYS.PARTIES,
+    queryKey: params ? ["parties", params] : QUERY_KEYS.parties,
     queryFn: () => partiesApi.list(params),
   });
 };
@@ -51,7 +51,7 @@ export const useCreateParty = () => {
   return useMutation({
     mutationFn: (payload: CreatePartyPayload) => partiesApi.create(payload),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PARTIES });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.parties });
       Toast.show({
         type: "success",
         text1: "Party created successfully",
@@ -80,7 +80,7 @@ export const useUpdateParty = () => {
     }: { partyId: string } & UpdatePartyPayload) =>
       partiesApi.update(partyId, payload),
     onSuccess: (data: Party) => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PARTIES });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.parties });
       queryClient.invalidateQueries({ queryKey: ["party", data._id] });
       Toast.show({
         type: "success",
@@ -106,7 +106,7 @@ export const useDeleteParty = () => {
   return useMutation({
     mutationFn: (partyId: string) => partiesApi.delete(partyId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PARTIES });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.parties });
       Toast.show({
         type: "success",
         text1: "Party deleted successfully",
@@ -137,7 +137,7 @@ export const useArchiveParty = () => {
       archived: boolean;
     }) => partiesApi.update(partyId, { archived }),
     onSuccess: (data: Party) => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PARTIES });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.parties });
       queryClient.invalidateQueries({ queryKey: ["party", data._id] });
       Toast.show({
         type: "success",

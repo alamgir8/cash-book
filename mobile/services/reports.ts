@@ -2036,7 +2036,7 @@ export const exportInvoicePdf = async (invoiceId: string): Promise<string> => {
               <h3>Invoice Details</h3>
               <div class="info-row">
                 <span class="label">Invoice Date:</span>
-                <span class="value">${dayjs(invoice.invoice_date).format(
+                <span class="value">${dayjs(invoice.date).format(
                   "MMM D, YYYY",
                 )}</span>
               </div>
@@ -2047,10 +2047,10 @@ export const exportInvoicePdf = async (invoiceId: string): Promise<string> => {
                 )}</span>
               </div>
               ${
-                invoice.reference
+                invoice.invoice_number
                   ? `<div class="info-row">
-                <span class="label">Reference:</span>
-                <span class="value">${escapeHtml(invoice.reference)}</span>
+                <span class="label">Invoice #:</span>
+                <span class="value">${escapeHtml(invoice.invoice_number)}</span>
               </div>`
                   : ""
               }
@@ -2078,42 +2078,42 @@ export const exportInvoicePdf = async (invoiceId: string): Promise<string> => {
               <span class="value">${formatAmount(invoice.subtotal)}</span>
             </div>
             ${
-              invoice.tax_amount && invoice.tax_amount > 0
+              invoice.total_tax && invoice.total_tax > 0
                 ? `<div class="total-row">
-              <span class="label">Tax (${invoice.tax_rate || 0}%):</span>
-              <span class="value">${formatAmount(invoice.tax_amount)}</span>
+              <span class="label">Tax:</span>
+              <span class="value">${formatAmount(invoice.total_tax)}</span>
             </div>`
                 : ""
             }
             ${
-              invoice.discount_amount && invoice.discount_amount > 0
+              invoice.total_discount && invoice.total_discount > 0
                 ? `<div class="total-row">
               <span class="label">Discount:</span>
               <span class="value">-${formatAmount(
-                invoice.discount_amount,
+                invoice.total_discount,
               )}</span>
             </div>`
                 : ""
             }
             <div class="total-row grand">
               <span class="label">Total Amount:</span>
-              <span class="value">${formatAmount(invoice.total_amount)}</span>
+              <span class="value">${formatAmount(invoice.grand_total)}</span>
             </div>
             ${
-              invoice.paid_amount && invoice.paid_amount > 0
+              invoice.amount_paid && invoice.amount_paid > 0
                 ? `
               <div class="total-row" style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #e5e7eb;">
                 <span class="label">Paid:</span>
                 <span class="value" style="color: #10b981;">${formatAmount(
-                  invoice.paid_amount,
+                  invoice.amount_paid,
                 )}</span>
               </div>
               <div class="total-row">
                 <span class="label">Balance Due:</span>
                 <span class="value" style="color: ${
-                  invoice.due_amount > 0 ? "#ef4444" : "#10b981"
+                  invoice.balance_due > 0 ? "#ef4444" : "#10b981"
                 };">
-                  ${formatAmount(invoice.due_amount)}
+                  ${formatAmount(invoice.balance_due)}
                 </span>
               </div>
             `

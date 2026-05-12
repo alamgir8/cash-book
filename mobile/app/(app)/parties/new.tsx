@@ -97,7 +97,7 @@ export default function PartyScreen() {
   const createMutation = useMutation({
     mutationFn: partiesApi.create,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.PARTIES });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.parties });
       toast.success("Party created successfully");
       router.back();
     },

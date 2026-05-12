@@ -65,7 +65,7 @@ export default function SettingsScreen() {
   const [verifying, setVerifying] = useState(false);
   const [reconciling, setReconciling] = useState(false);
 
-  const orgId = activeOrganization?._id;
+  const orgId = activeOrganization?.id;
 
   const handleVerifyBalances = async () => {
     setVerifying(true);
