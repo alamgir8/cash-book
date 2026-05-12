@@ -1,5 +1,6 @@
 import * as LocalAuthentication from "expo-local-authentication";
 import * as SecureStore from "expo-secure-store";
+import { Platform } from "react-native";
 
 // Base keys - will be suffixed with user identifier for per-user storage
 const BIOMETRIC_ENABLED_KEY_PREFIX = "cash-book-biometric-enabled-";
@@ -56,13 +57,13 @@ export async function checkBiometricAvailability(): Promise<{
     let biometricType: BiometricType = "none";
     if (
       supportedTypes.includes(
-        LocalAuthentication.AuthenticationType.FINGERPRINT
+        LocalAuthentication.AuthenticationType.FINGERPRINT,
       )
     ) {
       biometricType = "fingerprint";
     } else if (
       supportedTypes.includes(
-        LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION
+        LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION,
       )
     ) {
       biometricType = "facial";
@@ -92,7 +93,7 @@ export async function checkBiometricAvailability(): Promise<{
  * @param userIdentifier - Optional user identifier to check for specific user
  */
 export async function getBiometricStatus(
-  userIdentifier?: string
+  userIdentifier?: string,
 ): Promise<BiometricStatus> {
   const availability = await checkBiometricAvailability();
   const isEnabled = await isBiometricEnabled(userIdentifier);
@@ -106,12 +107,16 @@ export async function getBiometricStatus(
 /**
  * Get storage keys for a specific user
  */
+function sanitizeKey(value: string): string {
+  // SecureStore only allows alphanumeric, ".", "-", "_"
+  return value.replace(/[^a-zA-Z0-9._-]/g, "_");
+}
+
 function getUserKeys(userIdentifier?: string): {
   enabledKey: string;
   credentialsKey: string;
 } {
-  // If no identifier, use a hash of "default" or check stored users
-  const suffix = userIdentifier || "default";
+  const suffix = sanitizeKey(userIdentifier || "default");
   return {
     enabledKey: `${BIOMETRIC_ENABLED_KEY_PREFIX}${suffix}`,
     credentialsKey: `${BIOMETRIC_CREDENTIALS_KEY_PREFIX}${suffix}`,
@@ -123,7 +128,7 @@ function getUserKeys(userIdentifier?: string): {
  * @param userIdentifier - Optional user identifier (email or phone)
  */
 export async function isBiometricEnabled(
-  userIdentifier?: string
+  userIdentifier?: string,
 ): Promise<boolean> {
   try {
     const { enabledKey } = getUserKeys(userIdentifier);
@@ -142,12 +147,14 @@ export async function isBiometricEnabled(
  */
 export async function enableBiometric(
   credentials: StoredCredentials,
-  userIdentifier?: string
+  userIdentifier?: string,
 ): Promise<boolean> {
   try {
     // First, verify biometric authentication works
+    const availability = await checkBiometricAvailability();
+    const displayName = getBiometricDisplayName(availability.biometricType);
     const result = await LocalAuthentication.authenticateAsync({
-      promptMessage: "Verify your identity to enable biometric login",
+      promptMessage: `Verify your identity to enable ${displayName} login`,
       cancelLabel: "Cancel",
       disableDeviceFallback: false,
       fallbackLabel: "Use passcode",
@@ -186,7 +193,7 @@ async function addBiometricUser(identifier: string): Promise<void> {
       users.push(identifier);
       await SecureStore.setItemAsync(
         BIOMETRIC_USERS_KEY,
-        JSON.stringify(users)
+        JSON.stringify(users),
       );
     }
   } catch (error) {
@@ -204,7 +211,7 @@ async function removeBiometricUser(identifier: string): Promise<void> {
     const filtered = users.filter((u) => u !== identifier);
     await SecureStore.setItemAsync(
       BIOMETRIC_USERS_KEY,
-      JSON.stringify(filtered)
+      JSON.stringify(filtered),
     );
   } catch (error) {
     console.warn("Failed to remove biometric user:", error);
@@ -229,7 +236,7 @@ export async function getBiometricUsers(): Promise<string[]> {
  * @param userIdentifier - Optional user identifier
  */
 export async function disableBiometric(
-  userIdentifier?: string
+  userIdentifier?: string,
 ): Promise<boolean> {
   try {
     const { enabledKey, credentialsKey } = getUserKeys(userIdentifier);
@@ -252,7 +259,7 @@ export async function disableBiometric(
  * @param userIdentifier - Optional user identifier to get specific user's credentials
  */
 export async function authenticateWithBiometric(
-  userIdentifier?: string
+  userIdentifier?: string,
 ): Promise<StoredCredentials | null> {
   try {
     const isEnabled = await isBiometricEnabled(userIdentifier);
@@ -260,8 +267,10 @@ export async function authenticateWithBiometric(
       return null;
     }
 
+    const availability = await checkBiometricAvailability();
+    const displayName = getBiometricDisplayName(availability.biometricType);
     const result = await LocalAuthentication.authenticateAsync({
-      promptMessage: "Login with biometrics",
+      promptMessage: `Login with ${displayName}`,
       cancelLabel: "Cancel",
       disableDeviceFallback: false,
       fallbackLabel: "Use passcode",
@@ -295,8 +304,10 @@ export async function findBiometricCredentials(): Promise<StoredCredentials | nu
     for (const user of users) {
       const isEnabled = await isBiometricEnabled(user);
       if (isEnabled) {
+        const availability = await checkBiometricAvailability();
+        const displayName = getBiometricDisplayName(availability.biometricType);
         const result = await LocalAuthentication.authenticateAsync({
-          promptMessage: "Login with biometrics",
+          promptMessage: `Login with ${displayName}`,
           cancelLabel: "Cancel",
           disableDeviceFallback: false,
           fallbackLabel: "Use passcode",
@@ -304,9 +315,8 @@ export async function findBiometricCredentials(): Promise<StoredCredentials | nu
 
         if (result.success) {
           const { credentialsKey } = getUserKeys(user);
-          const credentialsJson = await SecureStore.getItemAsync(
-            credentialsKey
-          );
+          const credentialsJson =
+            await SecureStore.getItemAsync(credentialsKey);
           if (credentialsJson) {
             return JSON.parse(credentialsJson) as StoredCredentials;
           }
@@ -328,9 +338,9 @@ export async function findBiometricCredentials(): Promise<StoredCredentials | nu
 export function getBiometricDisplayName(type: BiometricType): string {
   switch (type) {
     case "fingerprint":
-      return "Fingerprint";
+      return Platform.OS === "ios" ? "Touch ID" : "Fingerprint";
     case "facial":
-      return "Face ID";
+      return Platform.OS === "ios" ? "Face ID" : "Face Recognition";
     case "iris":
       return "Iris Scan";
     default:
@@ -342,7 +352,7 @@ export function getBiometricDisplayName(type: BiometricType): string {
  * Get the icon name for the biometric type (Ionicons)
  */
 export function getBiometricIconName(
-  type: BiometricType
+  type: BiometricType,
 ): "finger-print" | "scan" | "eye" | "lock-closed" {
   switch (type) {
     case "fingerprint":
@@ -363,7 +373,7 @@ export function getBiometricIconName(
  */
 export async function updateStoredCredentials(
   credentials: StoredCredentials,
-  userIdentifier?: string
+  userIdentifier?: string,
 ): Promise<boolean> {
   try {
     const identifier = userIdentifier || credentials.identifier;
@@ -386,7 +396,7 @@ export async function updateStoredCredentials(
  * @param userIdentifier - Optional user identifier
  */
 export async function hasStoredCredentials(
-  userIdentifier?: string
+  userIdentifier?: string,
 ): Promise<boolean> {
   try {
     const { credentialsKey } = getUserKeys(userIdentifier);

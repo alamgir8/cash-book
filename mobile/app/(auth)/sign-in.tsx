@@ -8,6 +8,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import { useForm, Controller } from "react-hook-form";
 import { z } from "zod";
@@ -65,6 +66,7 @@ export default function SignInScreen() {
     status: biometricStatus,
     isLoading: biometricLoading,
     isAuthenticating,
+    enableBiometric,
     findBiometricCredentials,
     getBiometricDisplayName,
     getBiometricIconName,
@@ -160,7 +162,41 @@ export default function SignInScreen() {
       }
 
       await signIn(credentials);
-      router.replace("/(app)");
+
+      // After successful password login, offer to enable biometric if available
+      if (
+        !usePinLogin &&
+        values.password &&
+        biometricStatus?.isAvailable &&
+        !biometricStatus.isEnabled
+      ) {
+        const biometricName = getBiometricDisplayName(
+          biometricStatus.biometricType,
+        );
+        Alert.alert(
+          `Enable ${biometricName}?`,
+          `Log in faster next time using ${biometricName}. Your credentials will be stored securely on this device.`,
+          [
+            {
+              text: "Not now",
+              style: "cancel",
+              onPress: () => router.replace("/(app)"),
+            },
+            {
+              text: `Enable ${biometricName}`,
+              onPress: async () => {
+                await enableBiometric({
+                  identifier: values.identifier.trim(),
+                  password: values.password!,
+                });
+                router.replace("/(app)");
+              },
+            },
+          ],
+        );
+      } else {
+        router.replace("/(app)");
+      }
     } catch (error) {
       console.error(error);
       if (error instanceof Error && error.message) {
@@ -235,12 +271,12 @@ export default function SignInScreen() {
                 name="pin"
                 render={({ field: { onChange, value } }) => (
                   <PasswordInput
-                    label="5-digit PIN"
+                    label="6-digit PIN"
                     value={value ?? ""}
                     onChangeText={onChange}
                     placeholder="Enter PIN"
                     keyboardType="number-pad"
-                    maxLength={5}
+                    maxLength={6}
                     error={errors.pin?.message}
                   />
                 )}
@@ -277,14 +313,27 @@ export default function SignInScreen() {
               containerClassName="mt-4"
             />
 
-            {/* Biometric Login Button */}
-            {biometricStatus?.isEnabled && (
+            {/* Biometric / Face ID Login Button */}
+            {biometricStatus?.isAvailable && (
               <TouchableOpacity
-                onPress={handleBiometricLogin}
+                onPress={
+                  biometricStatus.isEnabled
+                    ? handleBiometricLogin
+                    : () =>
+                        Toast.show({
+                          type: "info",
+                          text1: `Enable ${getBiometricDisplayName(biometricStatus.biometricType)}`,
+                          text2: "Go to Settings → Security to enable it.",
+                        })
+                }
                 disabled={isAuthenticating || loading}
                 style={{
-                  backgroundColor: `${colors.primary}15`,
-                  borderColor: colors.primary,
+                  backgroundColor: biometricStatus.isEnabled
+                    ? `${colors.primary}18`
+                    : colors.bg.tertiary,
+                  borderColor: biometricStatus.isEnabled
+                    ? colors.primary
+                    : colors.border,
                   opacity: isAuthenticating || loading ? 0.6 : 1,
                 }}
                 className="flex-row items-center justify-center gap-3 border rounded-xl py-4 mt-3"
@@ -294,20 +343,40 @@ export default function SignInScreen() {
                 ) : (
                   <Ionicons
                     name={getBiometricIconName(biometricStatus.biometricType)}
-                    size={24}
-                    color={colors.primary}
+                    size={26}
+                    color={
+                      biometricStatus.isEnabled
+                        ? colors.primary
+                        : colors.text.tertiary
+                    }
                   />
                 )}
-                <Text
-                  style={{ color: colors.primary }}
-                  className="font-bold text-base"
-                >
-                  {isAuthenticating
-                    ? "Authenticating..."
-                    : `Login with ${getBiometricDisplayName(
-                        biometricStatus.biometricType,
-                      )}`}
-                </Text>
+                <View>
+                  <Text
+                    style={{
+                      color: biometricStatus.isEnabled
+                        ? colors.primary
+                        : colors.text.secondary,
+                    }}
+                    className="font-bold text-base"
+                  >
+                    {isAuthenticating
+                      ? "Authenticating..."
+                      : biometricStatus.isEnabled
+                        ? `Login with ${getBiometricDisplayName(
+                            biometricStatus.biometricType,
+                          )}`
+                        : `${getBiometricDisplayName(biometricStatus.biometricType)} Login`}
+                  </Text>
+                  {!biometricStatus.isEnabled && (
+                    <Text
+                      style={{ color: colors.text.tertiary }}
+                      className="text-xs mt-0.5"
+                    >
+                      Enable in Settings → Security
+                    </Text>
+                  )}
+                </View>
               </TouchableOpacity>
             )}
 
