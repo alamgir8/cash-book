@@ -145,20 +145,38 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
               contentContainerStyle={{ gap: 12, paddingBottom: 24 }}
             >
               {/* Summary cards */}
-              <View className="flex-row gap-3">
-                <SummaryCard
-                  label="Total Borrowed"
-                  value={formatAmount(ledger.summary.total_borrowed)}
-                  color="#3b82f6"
-                  colors={colors}
-                />
-                <SummaryCard
-                  label="Total Repaid"
-                  value={formatAmount(ledger.summary.total_repaid)}
-                  color="#16a34a"
-                  colors={colors}
-                />
-              </View>
+              {ledger.summary.total_given > 0 && (
+                <View className="flex-row gap-3">
+                  <SummaryCard
+                    label="Total Given"
+                    value={formatAmount(ledger.summary.total_given)}
+                    color="#f59e0b"
+                    colors={colors}
+                  />
+                  <SummaryCard
+                    label="Returned to Me"
+                    value={formatAmount(ledger.summary.total_received_back)}
+                    color="#0d9488"
+                    colors={colors}
+                  />
+                </View>
+              )}
+              {ledger.summary.total_borrowed > 0 && (
+                <View className="flex-row gap-3">
+                  <SummaryCard
+                    label="Total Borrowed"
+                    value={formatAmount(ledger.summary.total_borrowed)}
+                    color="#3b82f6"
+                    colors={colors}
+                  />
+                  <SummaryCard
+                    label="I Repaid"
+                    value={formatAmount(ledger.summary.total_repaid)}
+                    color="#16a34a"
+                    colors={colors}
+                  />
+                </View>
+              )}
 
               {/* Outstanding / Settled */}
               <View
@@ -191,6 +209,16 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
                     {formatAmount(ledger.summary.outstanding)}
                   </Text>
                 </View>
+                {ledger.summary.owed_by_them > 0 && (
+                  <Text className="text-xs mt-0.5" style={{ color: "#f59e0b" }}>
+                    They owe me: {formatAmount(ledger.summary.owed_by_them)}
+                  </Text>
+                )}
+                {ledger.summary.owed_by_me > 0 && (
+                  <Text className="text-xs mt-0.5" style={{ color: "#3b82f6" }}>
+                    I owe them: {formatAmount(ledger.summary.owed_by_me)}
+                  </Text>
+                )}
                 <Text
                   className="text-xs mt-1"
                   style={{ color: colors.text.tertiary }}
@@ -210,7 +238,7 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
               {ledger.timeline.map((entry, i) => (
                 <LedgerRow
                   key={entry._id}
-                  isBorrow={entry.entry_type === "borrow"}
+                  entryType={entry.entry_type}
                   date={entry.date}
                   description={entry.description}
                   amount={entry.amount}
@@ -377,8 +405,44 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
 
 // ─── Ledger row (counterparty mode) ────────────────────────────────────────
 
+type LedgerEntryType =
+  | "borrow"
+  | "repayment"
+  | "loan_given"
+  | "loan_received_back";
+
+const ledgerEntryConfig: Record<
+  LedgerEntryType,
+  { color: string; icon: string; label: string; sign: string }
+> = {
+  borrow: {
+    color: "#3b82f6",
+    icon: "arrow-down-outline",
+    label: "Borrowed",
+    sign: "+",
+  },
+  repayment: {
+    color: "#16a34a",
+    icon: "arrow-up-outline",
+    label: "Repaid",
+    sign: "-",
+  },
+  loan_given: {
+    color: "#f59e0b",
+    icon: "arrow-up-outline",
+    label: "Loan Given",
+    sign: "-",
+  },
+  loan_received_back: {
+    color: "#0d9488",
+    icon: "arrow-down-outline",
+    label: "Returned",
+    sign: "+",
+  },
+};
+
 type LedgerRowProps = {
-  isBorrow: boolean;
+  entryType: LedgerEntryType;
   date: string;
   description?: string;
   amount: number;
@@ -389,7 +453,7 @@ type LedgerRowProps = {
 };
 
 const LedgerRow = ({
-  isBorrow,
+  entryType,
   date,
   description,
   amount,
@@ -397,79 +461,72 @@ const LedgerRow = ({
   isLast,
   formatAmount,
   colors,
-}: LedgerRowProps) => (
-  <View className="flex-row gap-3">
-    <View className="items-center" style={{ width: 32 }}>
-      <View
-        className="w-8 h-8 rounded-full items-center justify-center"
-        style={{ backgroundColor: isBorrow ? "#3b82f6" : "#16a34a" }}
-      >
-        <Ionicons
-          name={isBorrow ? "arrow-down-outline" : "arrow-up-outline"}
-          size={15}
-          color="white"
-        />
-      </View>
-      {!isLast && (
+}: LedgerRowProps) => {
+  const cfg = ledgerEntryConfig[entryType] ?? ledgerEntryConfig.borrow;
+  return (
+    <View className="flex-row gap-3">
+      <View className="items-center" style={{ width: 32 }}>
         <View
-          style={{
-            flex: 1,
-            width: 2,
-            backgroundColor: colors.border,
-            marginTop: 2,
-            minHeight: 20,
-          }}
-        />
-      )}
-    </View>
+          className="w-8 h-8 rounded-full items-center justify-center"
+          style={{ backgroundColor: cfg.color }}
+        >
+          <Ionicons name={cfg.icon as any} size={15} color="white" />
+        </View>
+        {!isLast && (
+          <View
+            style={{
+              flex: 1,
+              width: 2,
+              backgroundColor: colors.border,
+              marginTop: 2,
+              minHeight: 20,
+            }}
+          />
+        )}
+      </View>
 
-    <View
-      className="flex-1 rounded-xl p-3 mb-2"
-      style={{
-        backgroundColor: colors.bg.secondary,
-        borderWidth: 1,
-        borderColor: colors.border,
-      }}
-    >
-      <View className="flex-row justify-between items-start">
-        <Text
-          className="text-xs font-semibold"
-          style={{ color: isBorrow ? "#3b82f6" : "#16a34a" }}
-        >
-          {isBorrow ? "Borrowed" : "Repaid"}
-        </Text>
-        <Text
-          className="text-sm font-bold"
-          style={{ color: isBorrow ? "#3b82f6" : "#16a34a" }}
-        >
-          {isBorrow ? "+" : "-"}
-          {formatAmount(amount)}
-        </Text>
-      </View>
-      {!!description && (
-        <Text
-          className="text-xs mt-0.5"
-          style={{ color: colors.text.primary }}
-          numberOfLines={2}
-        >
-          {description}
-        </Text>
-      )}
-      <View className="flex-row justify-between mt-1">
-        <Text className="text-xs" style={{ color: colors.text.tertiary }}>
-          {dayjs(date).format("MMM DD, YYYY")}
-        </Text>
-        <Text
-          className="text-xs font-medium"
-          style={{ color: runningBalance > 0 ? "#ef4444" : "#16a34a" }}
-        >
-          Balance: {formatAmount(Math.abs(runningBalance))}
-          {runningBalance > 0 ? " owed" : " clear"}
-        </Text>
+      <View
+        className="flex-1 rounded-xl p-3 mb-2"
+        style={{
+          backgroundColor: colors.bg.secondary,
+          borderWidth: 1,
+          borderColor: colors.border,
+        }}
+      >
+        <View className="flex-row justify-between items-start">
+          <Text className="text-xs font-semibold" style={{ color: cfg.color }}>
+            {cfg.label}
+          </Text>
+          <Text className="text-sm font-bold" style={{ color: cfg.color }}>
+            {cfg.sign}
+            {formatAmount(amount)}
+          </Text>
+        </View>
+        {!!description && (
+          <Text
+            className="text-xs mt-0.5"
+            style={{ color: colors.text.primary }}
+            numberOfLines={2}
+          >
+            {description}
+          </Text>
+        )}
+        <View className="flex-row justify-between mt-1">
+          <Text className="text-xs" style={{ color: colors.text.tertiary }}>
+            {dayjs(date).format("MMM DD, YYYY")}
+          </Text>
+          <Text
+            className="text-xs font-medium"
+            style={{ color: runningBalance > 0 ? "#ef4444" : "#16a34a" }}
+          >
+            Balance: {formatAmount(Math.abs(runningBalance))}
+            {runningBalance > 0 ? " owed" : " clear"}
+          </Text>
+        </View>
       </View>
     </View>
-  </View>
-);
+  );
+};
 
 // ─── Timeline row (single chain mode) ──────────────────────────────────────
 

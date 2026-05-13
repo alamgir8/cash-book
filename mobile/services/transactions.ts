@@ -382,7 +382,7 @@ export type DueChain = {
 };
 
 export type LedgerEntry = Transaction & {
-  entry_type: "borrow" | "repayment";
+  entry_type: "borrow" | "repayment" | "loan_given" | "loan_received_back";
   running_balance: number;
 };
 
@@ -392,7 +392,11 @@ export type CounterpartyLedger = {
   summary: {
     total_borrowed: number;
     total_repaid: number;
+    total_given: number;
+    total_received_back: number;
     outstanding: number;
+    owed_by_me: number;
+    owed_by_them: number;
     transaction_count: number;
     is_settled: boolean;
   };
