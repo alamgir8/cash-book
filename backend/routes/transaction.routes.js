@@ -12,6 +12,7 @@ import {
   listCounterparties,
   listVendors,
   getDueChain,
+  getCounterpartyLedger,
 } from "../controllers/transaction.controller.js";
 import {
   uploadMiddleware,
@@ -200,6 +201,7 @@ router.use(authenticate);
 // Static routes MUST come before dynamic :transactionId route
 router.get("/counterparties", listCounterparties);
 router.get("/vendors", listVendors);
+router.get("/counterparty-ledger", getCounterpartyLedger);
 router.get("/", validate(listQuerySchema), listTransactions);
 router.get(
   "/:transactionId/due-chain",

@@ -1416,6 +1416,75 @@ export const listVendors = async (req, res, next) => {
 };
 
 /**
+ * GET /transactions/counterparty-ledger?counterparty=মসজিদ
+ *
+ * Returns a unified running ledger for ALL transactions with a given counterparty.
+ * Credits = borrows (balance goes up), debits = repayments (balance goes down).
+ * This is the "single history" view for revolving credit relationships.
+ */
+export const getCounterpartyLedger = async (req, res, next) => {
+  try {
+    const adminId = req.user.id;
+    const { counterparty } = req.query;
+
+    if (!counterparty) {
+      return res
+        .status(400)
+        .json({ message: "counterparty query param required" });
+    }
+
+    const txns = await Transaction.find({
+      admin: adminId,
+      counterparty: counterparty,
+      is_deleted: { $ne: true },
+    })
+      .populate("account", "name kind")
+      .populate("category_id", "name type")
+      .sort({ date: 1, createdAt: 1 })
+      .lean();
+
+    let runningBalance = 0;
+    let totalBorrowed = 0;
+    let totalRepaid = 0;
+
+    // Calculate running balance oldest→newest, then reverse for newest-first display
+    const timeline = txns.map((t) => {
+      const isBorrow = t.type === "credit"; // we received money — we owe them
+      if (isBorrow) {
+        runningBalance += t.amount;
+        totalBorrowed += t.amount;
+      } else {
+        runningBalance -= t.amount;
+        totalRepaid += t.amount;
+      }
+      return {
+        ...t,
+        entry_type: isBorrow ? "borrow" : "repayment",
+        running_balance: runningBalance,
+      };
+    });
+
+    timeline.reverse();
+
+    const outstanding = Math.max(0, totalBorrowed - totalRepaid);
+
+    res.json({
+      counterparty,
+      timeline,
+      summary: {
+        total_borrowed: totalBorrowed,
+        total_repaid: totalRepaid,
+        outstanding,
+        transaction_count: txns.length,
+        is_settled: outstanding === 0,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
  * GET /transactions/:transactionId/due-chain
  *
  * Returns the full chain for a due or payment transaction:
@@ -1443,12 +1512,24 @@ export const getDueChain = async (req, res, next) => {
       return res.status(403).json({ message: "Access denied" });
     }
 
-    // Resolve the due_group_id — works whether we're looking at the root or a payment
-    const groupId = txn.due_group_id ?? txn._id;
+    // Resolve the root id — works whether we're looking at the root or a payment
+    // parent_due_id on this txn means it IS a payment; follow up to the root
+    const rootId = txn.parent_due_id ? txn.parent_due_id : txn._id;
+    const rootIdStr = rootId.toString();
 
-    // Fetch all non-deleted transactions in the chain
+    // Fetch all non-deleted transactions in the chain.
+    // Covers three storage layouts:
+    //  1) Proper chains: payments have due_group_id = root._id (ObjectId or string)
+    //  2) Migrated chains: payments only have parent_due_id = root._id (no due_group_id)
+    //  3) Root itself (always included via _id match)
     const chainRaw = await Transaction.find({
-      due_group_id: groupId,
+      $or: [
+        { _id: rootId },
+        { due_group_id: rootId },
+        { due_group_id: rootIdStr },
+        { parent_due_id: rootId },
+        { parent_due_id: rootIdStr },
+      ],
       is_deleted: { $ne: true },
     })
       .populate("account", "name kind")
@@ -1459,9 +1540,10 @@ export const getDueChain = async (req, res, next) => {
     // The root/original due transaction
     const root =
       chainRaw.find(
-        (t) =>
-          t._id.toString() === groupId.toString() && t.payment_status === "due",
-      ) ?? chainRaw[0];
+        (t) => t._id.toString() === rootIdStr && t.payment_status === "due",
+      ) ??
+      chainRaw.find((t) => t._id.toString() === rootIdStr) ??
+      chainRaw[0];
 
     // Payment transactions only (has parent_due_id)
     const payments = chainRaw.filter((t) => t.parent_due_id != null);

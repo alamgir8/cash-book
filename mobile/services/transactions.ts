@@ -381,6 +381,23 @@ export type DueChain = {
   };
 };
 
+export type LedgerEntry = Transaction & {
+  entry_type: "borrow" | "repayment";
+  running_balance: number;
+};
+
+export type CounterpartyLedger = {
+  counterparty: string;
+  timeline: LedgerEntry[];
+  summary: {
+    total_borrowed: number;
+    total_repaid: number;
+    outstanding: number;
+    transaction_count: number;
+    is_settled: boolean;
+  };
+};
+
 /**
  * Fetch the full due chain for any transaction in the chain
  * (works whether you pass the root due transaction id or any payment id)
@@ -399,6 +416,30 @@ export const fetchDueChain = async (
     payments: data.payments.map((p) => ({
       ...normalizeTransaction(p),
       remaining_after: p.remaining_after,
+    })),
+    summary: data.summary,
+  };
+};
+
+/**
+ * Fetch a unified running ledger for ALL transactions with a counterparty.
+ * Shows every borrow and repayment in chronological order with running balance.
+ */
+export const fetchCounterpartyLedger = async (
+  counterparty: string,
+): Promise<CounterpartyLedger> => {
+  const { data } = await api.get<{
+    counterparty: string;
+    timeline: Record<string, any>[];
+    summary: CounterpartyLedger["summary"];
+  }>(`/transactions/counterparty-ledger`, { params: { counterparty } });
+
+  return {
+    counterparty: data.counterparty,
+    timeline: data.timeline.map((t) => ({
+      ...normalizeTransaction(t),
+      entry_type: t.entry_type,
+      running_balance: t.running_balance,
     })),
     summary: data.summary,
   };
