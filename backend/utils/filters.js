@@ -32,7 +32,9 @@ const escapeRegex = (value) => {
 
 const asObjectIdArray = (ids = []) =>
   ids.map((id) =>
-    id instanceof mongoose.Types.ObjectId ? id : new mongoose.Types.ObjectId(id)
+    id instanceof mongoose.Types.ObjectId
+      ? id
+      : new mongoose.Types.ObjectId(id),
   );
 
 export const buildTransactionFilters = ({
@@ -78,6 +80,31 @@ export const buildTransactionFilters = ({
         $regex: `^${escapeRegex(normalized)}$`,
         $options: "i",
       };
+    }
+  }
+
+  if (query.vendor) {
+    const normalized = String(query.vendor).trim();
+    if (normalized.length > 0) {
+      filter.vendor = {
+        $regex: `^${escapeRegex(normalized)}$`,
+        $options: "i",
+      };
+    }
+  }
+
+  if (query.payment_status) {
+    const status = String(query.payment_status).trim();
+    if (status === "due") {
+      filter.payment_status = "due";
+    } else if (status === "paid") {
+      // Treat missing/null field as "paid" (legacy transactions have no payment_status)
+      filter.$or = filter.$or ?? [];
+      filter.$or.push(
+        { payment_status: "paid" },
+        { payment_status: { $exists: false } },
+        { payment_status: null },
+      );
     }
   }
 

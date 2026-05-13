@@ -174,7 +174,7 @@ export const normalizeTransaction = (
     comment: transaction.comment ?? transaction.keyword ?? undefined,
     counterparty: transaction.counterparty ?? undefined,
     vendor: transaction.vendor ?? undefined,
-    payment_status: transaction.payment_status ?? "paid",
+    payment_status: transaction.payment_status ?? undefined,
     due_date: transaction.due_date ?? undefined,
     due_remaining: transaction.due_remaining ?? undefined,
     due_group_id: transaction.due_group_id
