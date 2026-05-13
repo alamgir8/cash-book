@@ -6,12 +6,13 @@ import {
   TouchableOpacity,
   FlatList,
   Image,
-  Share,
   Linking,
   Alert,
   ActivityIndicator,
   Dimensions,
 } from "react-native";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Sharing from "expo-sharing";
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTheme } from "../../hooks/useTheme";
@@ -80,14 +81,38 @@ export function AttachmentViewerModal({
     [deleteMutation],
   );
 
+  const [sharingKey, setSharingKey] = useState<string | null>(null);
+
   const handleShare = useCallback(async (attachment: Attachment) => {
+    const canShare = await Sharing.isAvailableAsync();
+    if (!canShare) {
+      Alert.alert("Not supported", "Sharing is not available on this device.");
+      return;
+    }
+    setSharingKey(attachment.storage_key);
     try {
-      await Share.share({
-        url: attachment.url,
-        message: attachment.file_name ?? "Attachment",
+      const ext =
+        attachment.mime_type === "application/pdf"
+          ? ".pdf"
+          : (attachment.file_name?.match(/\.[^.]+$/)?.[0] ?? ".jpg");
+      const fileName = attachment.file_name ?? `attachment_${Date.now()}${ext}`;
+      const localUri = (FileSystem.cacheDirectory ?? "") + fileName;
+      await FileSystem.downloadAsync(attachment.url, localUri);
+      await Sharing.shareAsync(localUri, {
+        mimeType: attachment.mime_type ?? "application/octet-stream",
+        dialogTitle: fileName,
+        UTI:
+          attachment.mime_type === "application/pdf"
+            ? "com.adobe.pdf"
+            : "public.image",
       });
     } catch {
-      /* ignore */
+      Alert.alert(
+        "Share Failed",
+        "Could not share the file. Please try again.",
+      );
+    } finally {
+      setSharingKey(null);
     }
   }, []);
 
@@ -149,36 +174,54 @@ export function AttachmentViewerModal({
         )}
       </TouchableOpacity>
 
-      {/* Bottom row: name + actions */}
+      {/* Bottom row: share left · name centre · delete right */}
       <View
         style={{ backgroundColor: colors.bg.secondary }}
-        className="flex-row items-center justify-between px-1"
+        className="flex-row items-center px-1"
       >
-        <Text
-          style={{ color: colors.text.tertiary, maxWidth: THUMB_SIZE - 52 }}
-          className="text-xs"
-          numberOfLines={1}
+        {/* Share — left side */}
+        <TouchableOpacity
+          onPress={() => handleShare(item)}
+          className="p-1"
+          disabled={sharingKey === item.storage_key}
+          hitSlop={{ top: 6, bottom: 6, left: 6, right: 4 }}
         >
-          {item.file_name ?? "file"}
-        </Text>
-        <View className="flex-row">
-          <TouchableOpacity onPress={() => handleShare(item)} className="p-1">
+          {sharingKey === item.storage_key ? (
+            <ActivityIndicator size={12} color={colors.text.secondary} />
+          ) : (
             <Ionicons
               name="share-outline"
               size={14}
               color={colors.text.secondary}
             />
-          </TouchableOpacity>
-          {canDelete && (
-            <TouchableOpacity
-              onPress={() => handleDelete(item)}
-              className="p-1"
-              disabled={deleteMutation.isPending}
-            >
-              <Ionicons name="trash-outline" size={14} color={colors.error} />
-            </TouchableOpacity>
           )}
-        </View>
+        </TouchableOpacity>
+
+        {/* File name — fills remaining space */}
+        <Text
+          style={{ color: colors.text.tertiary, flex: 1 }}
+          className="text-xs text-center px-0.5"
+          numberOfLines={1}
+        >
+          {item.file_name ?? "file"}
+        </Text>
+
+        {/* Delete — right side */}
+        {canDelete && (
+          <TouchableOpacity
+            onPress={() => handleDelete(item)}
+            className="p-1"
+            disabled={deleteMutation.isPending}
+            hitSlop={{ top: 6, bottom: 6, left: 4, right: 6 }}
+          >
+            {deleteMutation.isPending &&
+            deleteMutation.variables === item.storage_key ? (
+              <ActivityIndicator size={12} color={colors.error} />
+            ) : (
+              <Ionicons name="trash-outline" size={14} color={colors.error} />
+            )}
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
