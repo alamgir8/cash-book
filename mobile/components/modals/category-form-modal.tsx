@@ -264,47 +264,105 @@ export const CategoryFormModal = ({
                 <View
                   style={[
                     styles.flowContainer,
-                    { backgroundColor: colors.bg.tertiary },
+                    {
+                      backgroundColor: colors.bg.tertiary,
+                      borderColor: colors.border,
+                    },
                   ]}
                 >
                   <TouchableOpacity
                     onPress={() => handleFlowChange("credit")}
+                    activeOpacity={0.8}
                     style={[
                       styles.flowButton,
-                      flow === "credit" && {
-                        ...styles.flowButtonActive,
-                        backgroundColor: colors.bg.secondary,
-                      },
+                      flow === "credit"
+                        ? styles.flowButtonActiveCredit
+                        : { backgroundColor: "transparent" },
                     ]}
                   >
-                    <Text
-                      style={[
-                        styles.flowButtonText,
-                        flow === "credit"
-                          ? styles.flowButtonTextCredit
-                          : styles.flowButtonTextInactive,
-                      ]}
-                    >
-                      Income (Credit)
-                    </Text>
+                    <Ionicons
+                      name="arrow-down-circle"
+                      size={18}
+                      color={flow === "credit" ? "#fff" : colors.text.tertiary}
+                    />
+                    <View>
+                      <Text
+                        style={[
+                          styles.flowButtonLabel,
+                          {
+                            color:
+                              flow === "credit"
+                                ? "#fff"
+                                : colors.text.secondary,
+                          },
+                        ]}
+                      >
+                        Income
+                      </Text>
+                      <Text
+                        style={[
+                          styles.flowButtonSub,
+                          {
+                            color:
+                              flow === "credit"
+                                ? "rgba(255,255,255,0.75)"
+                                : colors.text.tertiary,
+                          },
+                        ]}
+                      >
+                        Credit
+                      </Text>
+                    </View>
                   </TouchableOpacity>
+
+                  <View
+                    style={[
+                      styles.flowDivider,
+                      { backgroundColor: colors.border },
+                    ]}
+                  />
+
                   <TouchableOpacity
                     onPress={() => handleFlowChange("debit")}
+                    activeOpacity={0.8}
                     style={[
                       styles.flowButton,
-                      flow === "debit" && styles.flowButtonActive,
+                      flow === "debit"
+                        ? styles.flowButtonActiveDebit
+                        : { backgroundColor: "transparent" },
                     ]}
                   >
-                    <Text
-                      style={[
-                        styles.flowButtonText,
-                        flow === "debit"
-                          ? styles.flowButtonTextDebit
-                          : styles.flowButtonTextInactive,
-                      ]}
-                    >
-                      Expense (Debit)
-                    </Text>
+                    <Ionicons
+                      name="arrow-up-circle"
+                      size={18}
+                      color={flow === "debit" ? "#fff" : colors.text.tertiary}
+                    />
+                    <View>
+                      <Text
+                        style={[
+                          styles.flowButtonLabel,
+                          {
+                            color:
+                              flow === "debit" ? "#fff" : colors.text.secondary,
+                          },
+                        ]}
+                      >
+                        Expense
+                      </Text>
+                      <Text
+                        style={[
+                          styles.flowButtonSub,
+                          {
+                            color:
+                              flow === "debit"
+                                ? "rgba(255,255,255,0.75)"
+                                : colors.text.tertiary,
+                          },
+                        ]}
+                      >
+                        Debit
+                      </Text>
+                    </View>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -522,33 +580,37 @@ const styles = StyleSheet.create({
   },
   flowContainer: {
     flexDirection: "row",
-    padding: 4,
-    borderRadius: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    overflow: "hidden",
+    height: 64,
   },
   flowButton: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
   },
-  flowButtonActive: {
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+  flowButtonActiveCredit: {
+    backgroundColor: "#16a34a",
   },
-  flowButtonText: {
-    fontWeight: "600",
+  flowButtonActiveDebit: {
+    backgroundColor: "#e11d48",
   },
-  flowButtonTextCredit: {
-    color: "#16a34a",
+  flowButtonLabel: {
+    fontSize: 15,
+    fontWeight: "700",
+    letterSpacing: 0.1,
   },
-  flowButtonTextDebit: {
-    color: "#dc2626",
+  flowButtonSub: {
+    fontSize: 11,
+    fontWeight: "500",
+    marginTop: 1,
   },
-  flowButtonTextInactive: {
-    color: "#6b7280",
+  flowDivider: {
+    width: 1,
+    marginVertical: 12,
   },
   input: {
     paddingHorizontal: 16,
