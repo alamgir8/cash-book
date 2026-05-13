@@ -1071,6 +1071,31 @@ export const deleteTransaction = async (req, res, next) => {
 
         transaction.softDelete();
         await transaction.save({ session });
+
+        // ── If this is a payment against a due transaction, restore its remaining ──
+        if (transaction.parent_due_id) {
+          const parentDueId =
+            typeof transaction.parent_due_id === "object"
+              ? transaction.parent_due_id._id
+              : transaction.parent_due_id;
+
+          const parentDue =
+            await Transaction.findById(parentDueId).session(session);
+          if (parentDue && parentDue.payment_status === "due") {
+            const currentRemaining =
+              parentDue.due_remaining ?? parentDue.amount;
+            const restoredRemaining = Math.min(
+              currentRemaining + transaction.amount,
+              parentDue.amount,
+            );
+            parentDue.due_remaining = restoredRemaining;
+            // Clear settled_at if it's no longer fully paid
+            if (restoredRemaining > 0) {
+              parentDue.due_settled_at = undefined;
+            }
+            await parentDue.save({ session });
+          }
+        }
       });
     } finally {
       await session.endSession();
@@ -1137,6 +1162,30 @@ export const restoreTransaction = async (req, res, next) => {
         transaction.balance_after_transaction = balanceAfter;
         await transaction.save({ session });
         savedId = transaction._id;
+
+        // ── If this is a payment against a due transaction, re-deduct due_remaining ──
+        if (transaction.parent_due_id) {
+          const parentDueId =
+            typeof transaction.parent_due_id === "object"
+              ? transaction.parent_due_id._id
+              : transaction.parent_due_id;
+
+          const parentDue =
+            await Transaction.findById(parentDueId).session(session);
+          if (parentDue && parentDue.payment_status === "due") {
+            const currentRemaining =
+              parentDue.due_remaining ?? parentDue.amount;
+            const newRemaining = Math.max(
+              0,
+              currentRemaining - transaction.amount,
+            );
+            parentDue.due_remaining = newRemaining;
+            if (newRemaining === 0 && !parentDue.due_settled_at) {
+              parentDue.due_settled_at = transaction.date;
+            }
+            await parentDue.save({ session });
+          }
+        }
       });
     } finally {
       await session.endSession();
