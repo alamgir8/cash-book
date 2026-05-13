@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ScrollView, View, Alert } from "react-native";
+import { ScrollView, View, Alert, Text } from "react-native";
 import Toast from "react-native-toast-message";
 import { router } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useBiometric } from "@/hooks/useBiometric";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useTheme } from "@/hooks/useTheme";
+import { useDeleteMode } from "@/hooks/useDeleteMode";
 import {
   exportTransactionsPdf,
   exportTransactionsByCategoryPdf,
@@ -63,6 +64,7 @@ export default function SettingsScreen() {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showBiometricModal, setShowBiometricModal] = useState(false);
   const [showBalanceCheck, setShowBalanceCheck] = useState(false);
+  const { recordTap, isDeleteModeActive, secondsLeft } = useDeleteMode();
 
   const orgId = activeOrganization?.id;
 
@@ -214,6 +216,26 @@ export default function SettingsScreen() {
         iconColor="#8b5cf6"
         gradientFrom="from-purple-100"
         gradientTo="to-purple-200"
+        onIconPress={recordTap}
+        rightAction={
+          isDeleteModeActive ? (
+            <View
+              className="flex-row items-center gap-1.5 px-3 py-1.5 rounded-full"
+              style={{ backgroundColor: colors.error + "25" }}
+            >
+              <View
+                className="w-2 h-2 rounded-full"
+                style={{ backgroundColor: colors.error }}
+              />
+              <Text
+                style={{ color: colors.error }}
+                className="text-xs font-bold"
+              >
+                Delete mode {secondsLeft}s
+              </Text>
+            </View>
+          ) : undefined
+        }
       />
 
       <ScrollView

@@ -12,6 +12,7 @@ import {
   OrganizationProvider,
   useOrganization,
 } from "../hooks/useOrganization";
+import { DeleteModeProvider } from "../hooks/useDeleteMode";
 import { ErrorBoundary } from "../components/error-boundary";
 import { AuthLoading } from "../components/auth-loading";
 import { queryClient } from "../lib/queryClient";
@@ -141,9 +142,11 @@ export default function RootLayout() {
             <ThemeProvider>
               <PreferencesProvider>
                 <OrganizationProvider>
-                  <OrganizationLoader>
-                    <RootContent />
-                  </OrganizationLoader>
+                  <DeleteModeProvider>
+                    <OrganizationLoader>
+                      <RootContent />
+                    </OrganizationLoader>
+                  </DeleteModeProvider>
                 </OrganizationProvider>
               </PreferencesProvider>
             </ThemeProvider>

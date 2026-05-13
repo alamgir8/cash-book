@@ -11,6 +11,7 @@ type Props = {
   onCategoryPress?: (categoryId: string) => void;
   onCounterpartyPress?: (counterparty: string) => void;
   onEdit?: (transaction: Transaction) => void;
+  onDelete?: (transaction: Transaction) => void;
   onAttachmentsPress?: (transaction: Transaction) => void;
 };
 
@@ -19,6 +20,7 @@ const TransactionCardComponent = ({
   onCategoryPress,
   onCounterpartyPress,
   onEdit,
+  onDelete,
   onAttachmentsPress,
 }: Props) => {
   const attachmentCount = transaction.attachments?.length ?? 0;
@@ -146,7 +148,7 @@ const TransactionCardComponent = ({
         </Text>
       </View> */}
 
-      {(onEdit || onAttachmentsPress) && !transaction.is_deleted ? (
+      {(onEdit || onAttachmentsPress || onDelete) && !transaction.is_deleted ? (
         <View
           style={{ borderColor: colors.border }}
           className="flex-row justify-between items-center pt-2 border-t"
@@ -185,6 +187,21 @@ const TransactionCardComponent = ({
               </Text>
             </TouchableOpacity>
           ) : null}
+          {onDelete ? (
+            <TouchableOpacity
+              onPress={() => onDelete(transaction)}
+              style={{ backgroundColor: colors.error + "20" }}
+              className="flex-row items-center gap-1.5 px-3 py-2 rounded-lg active:scale-95"
+            >
+              <Ionicons name="trash-outline" size={16} color={colors.error} />
+              <Text
+                style={{ color: colors.error }}
+                className="text-xs font-semibold"
+              >
+                Delete
+              </Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
       ) : null}
     </View>
@@ -212,6 +229,7 @@ export const TransactionCard = memo(
         (nextProps.transaction.attachments?.length ?? 0) &&
       prevProps.onCategoryPress === nextProps.onCategoryPress &&
       prevProps.onCounterpartyPress === nextProps.onCounterpartyPress &&
+      prevProps.onDelete === nextProps.onDelete &&
       prevProps.onAttachmentsPress === nextProps.onAttachmentsPress
     );
   },

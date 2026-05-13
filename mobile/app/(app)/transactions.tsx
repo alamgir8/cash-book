@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState, useEffect } from "react";
 import {
+  Alert,
   View,
   FlatList,
   ActivityIndicator,
@@ -20,6 +21,7 @@ import {
   fetchTransactions,
   fetchCounterparties,
   updateTransaction,
+  deleteTransaction,
   type Transaction,
   type TransactionFilters,
 } from "@/services/transactions";
@@ -30,6 +32,7 @@ import { fetchAccounts } from "@/services/accounts";
 import { queryKeys } from "@/lib/queryKeys";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useTheme } from "@/hooks/useTheme";
+import { useDeleteMode } from "@/hooks/useDeleteMode";
 import type { SelectOption } from "@/components/searchable-select";
 import Toast from "react-native-toast-message";
 const defaultFilters: TransactionFilters = {
@@ -120,6 +123,49 @@ export default function TransactionsScreen() {
       });
     },
   });
+
+  const { isDeleteModeActive } = useDeleteMode();
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteTransaction,
+    onSuccess: async (_, transactionId) => {
+      setAllTransactions((prev) => prev.filter((t) => t._id !== transactionId));
+      await Promise.all([
+        queryClient.invalidateQueries({
+          predicate: (query) => query.queryKey[0] === "transactions",
+        }),
+        queryClient.invalidateQueries({
+          predicate: (query) => query.queryKey[0] === "accounts",
+        }),
+      ]);
+      Toast.show({ type: "success", text1: "Transaction deleted" });
+    },
+    onError: () => {
+      Toast.show({
+        type: "error",
+        text1: "Delete failed",
+        text2: "Please try again.",
+      });
+    },
+  });
+
+  const handleDeleteTransaction = useCallback(
+    (transaction: Transaction) => {
+      Alert.alert(
+        "Delete Transaction?",
+        `Delete "${transaction.description || transaction.account?.name}" (${transaction.type === "credit" ? "+" : "-"}${transaction.amount})? This cannot be undone.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Delete",
+            style: "destructive",
+            onPress: () => deleteMutation.mutate(transaction._id),
+          },
+        ],
+      );
+    },
+    [deleteMutation],
+  );
 
   const accountOptions: SelectOption[] = useMemo(() => {
     const accounts = (accountsQuery.data ?? []) as {
@@ -401,6 +447,7 @@ export default function TransactionsScreen() {
         onCategoryPress={handleCategoryPress}
         onCounterpartyPress={handleCounterpartyPress}
         onEdit={canEditTransactions ? handleEditTransaction : undefined}
+        onDelete={isDeleteModeActive ? handleDeleteTransaction : undefined}
         onAttachmentsPress={handleAttachmentsPress}
       />
     ),
@@ -408,7 +455,9 @@ export default function TransactionsScreen() {
       handleCategoryPress,
       handleCounterpartyPress,
       handleEditTransaction,
+      handleDeleteTransaction,
       canEditTransactions,
+      isDeleteModeActive,
       handleAttachmentsPress,
     ],
   );

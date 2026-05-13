@@ -378,7 +378,7 @@ export function AttachmentPicker({
             </TouchableOpacity>
           )}
         </View>
-      )}{" "}
+      )}
       {/* Upload progress */}
       {uploading && (
         <View className="flex-row items-center gap-2 py-1.5">

@@ -13,6 +13,7 @@ interface ScreenHeaderProps {
   gradientTo?: string;
   showBack?: boolean;
   onBack?: () => void;
+  onIconPress?: () => void;
   rightAction?: React.ReactNode;
   actionButton?: {
     label: string;
@@ -30,6 +31,7 @@ export function ScreenHeader({
   backgroundColor = "#ffffff",
   showBack,
   onBack,
+  onIconPress,
   rightAction,
   actionButton,
 }: ScreenHeaderProps) {
@@ -78,12 +80,14 @@ export function ScreenHeader({
         </View>
 
         {icon && !actionButton && !rightAction && (
-          <View
+          <TouchableOpacity
+            onPress={onIconPress}
+            activeOpacity={onIconPress ? 0.6 : 1}
             style={{ backgroundColor: colors.info + "20" }}
             className="p-3 rounded-full"
           >
             <Ionicons name={icon} size={24} color={colors.info} />
-          </View>
+          </TouchableOpacity>
         )}
 
         {rightAction}

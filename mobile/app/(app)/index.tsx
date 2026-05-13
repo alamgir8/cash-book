@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   RefreshControl,
   Text,
@@ -34,6 +35,7 @@ import { exportTransactionsPdf } from "@/services/reports";
 import {
   createTransaction,
   createTransfer,
+  deleteTransaction,
   fetchCounterparties,
   fetchTransactions,
   updateTransaction,
@@ -47,6 +49,7 @@ import { usePreferences } from "@/hooks/usePreferences";
 import { useOrganization } from "@/hooks/useOrganization";
 import { usePaginationCache } from "@/hooks/usePaginationCache";
 import { useTheme } from "@/hooks/useTheme";
+import { useDeleteMode } from "@/hooks/useDeleteMode";
 
 const defaultFilters: TransactionFilters = {
   range: "monthly",
@@ -67,6 +70,7 @@ export default function DashboardScreen() {
   );
   const { mergeTransactionPages } = usePaginationCache();
   const { colors } = useTheme();
+  const { isDeleteModeActive } = useDeleteMode();
   const queryClient = useQueryClient();
   const [filters, setFilters] = useState<TransactionFilters>(defaultFilters);
   const [isModalVisible, setModalVisible] = useState(false);
@@ -141,6 +145,46 @@ export default function DashboardScreen() {
       });
     },
   });
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteTransaction,
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          predicate: (query) => query.queryKey[0] === "transactions",
+        }),
+        queryClient.invalidateQueries({
+          predicate: (query) => query.queryKey[0] === "accounts",
+        }),
+      ]);
+      Toast.show({ type: "success", text1: "Transaction deleted" });
+    },
+    onError: () => {
+      Toast.show({
+        type: "error",
+        text1: "Delete failed",
+        text2: "Please try again.",
+      });
+    },
+  });
+
+  const handleDeleteTransaction = useCallback(
+    (transaction: Transaction) => {
+      Alert.alert(
+        "Delete Transaction?",
+        `Delete "${transaction.description || transaction.account?.name}" (${transaction.type === "credit" ? "+" : "-"}${transaction.amount})? This cannot be undone.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Delete",
+            style: "destructive",
+            onPress: () => deleteMutation.mutate(transaction._id),
+          },
+        ],
+      );
+    },
+    [deleteMutation],
+  );
 
   const createTransferMutation = useMutation({
     mutationFn: createTransfer,
@@ -410,6 +454,7 @@ export default function DashboardScreen() {
         onCategoryPress={handleCategoryFilter}
         onCounterpartyPress={handleCounterpartyFilter}
         onEdit={handleEditTransaction}
+        onDelete={isDeleteModeActive ? handleDeleteTransaction : undefined}
         onAttachmentsPress={handleAttachmentsPress}
       />
     ),
@@ -417,6 +462,8 @@ export default function DashboardScreen() {
       handleCategoryFilter,
       handleCounterpartyFilter,
       handleEditTransaction,
+      handleDeleteTransaction,
+      isDeleteModeActive,
       handleAttachmentsPress,
     ],
   );

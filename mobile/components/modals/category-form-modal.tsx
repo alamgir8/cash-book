@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   Keyboard,
+  Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -230,202 +231,200 @@ export const CategoryFormModal = ({
               keyboardDismissMode="interactive"
               contentContainerStyle={styles.scrollContent}
             >
-              <View style={styles.formContainer}>
-                {/* Error Message */}
-                {error && (
-                  <View
-                    style={[
-                      styles.errorContainer,
-                      {
-                        backgroundColor: colors.error + "10",
-                        borderColor: colors.error + "30",
-                      },
-                    ]}
-                  >
-                    <Ionicons
-                      name="alert-circle"
-                      size={20}
-                      color={colors.error}
-                    />
-                    <Text style={[styles.errorText, { color: colors.error }]}>
-                      {error}
-                    </Text>
-                    <TouchableOpacity onPress={() => setError(null)}>
-                      <Ionicons name="close" size={18} color={colors.error} />
-                    </TouchableOpacity>
-                  </View>
-                )}
-
-                {/* Flow Selection */}
-                <View>
-                  <Text style={[styles.label, { color: colors.text.primary }]}>
-                    Category Flow
-                  </Text>
-                  <View
-                    style={[
-                      styles.flowContainer,
-                      { backgroundColor: colors.bg.tertiary },
-                    ]}
-                  >
-                    <TouchableOpacity
-                      onPress={() => handleFlowChange("credit")}
-                      style={[
-                        styles.flowButton,
-                        flow === "credit" && {
-                          ...styles.flowButtonActive,
-                          backgroundColor: colors.bg.secondary,
-                        },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.flowButtonText,
-                          flow === "credit"
-                            ? styles.flowButtonTextCredit
-                            : styles.flowButtonTextInactive,
-                        ]}
-                      >
-                        Income (Credit)
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => handleFlowChange("debit")}
-                      style={[
-                        styles.flowButton,
-                        flow === "debit" && styles.flowButtonActive,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.flowButtonText,
-                          flow === "debit"
-                            ? styles.flowButtonTextDebit
-                            : styles.flowButtonTextInactive,
-                        ]}
-                      >
-                        Expense (Debit)
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-
-                {/* Name Input */}
-                <View>
-                  <Text style={[styles.label, { color: colors.text.primary }]}>
-                    Category Name
-                  </Text>
-                  <TextInput
-                    value={name}
-                    onChangeText={setName}
-                    placeholder="e.g., Groceries"
-                    placeholderTextColor={colors.text.tertiary}
-                    style={[
-                      styles.input,
-                      {
-                        backgroundColor: colors.bg.tertiary,
-                        color: colors.text.primary,
-                        borderColor: colors.border,
-                      },
-                    ]}
+              {/* Error Message */}
+              {error && (
+                <View
+                  style={[
+                    styles.errorContainer,
+                    {
+                      backgroundColor: colors.error + "10",
+                      borderColor: colors.error + "30",
+                    },
+                  ]}
+                >
+                  <Ionicons
+                    name="alert-circle"
+                    size={20}
+                    color={colors.error}
                   />
-                </View>
-
-                {/* Type Selection */}
-                <View>
-                  <Text style={[styles.label, { color: colors.text.primary }]}>
-                    Category Type
+                  <Text style={[styles.errorText, { color: colors.error }]}>
+                    {error}
                   </Text>
-                  <View style={styles.typeContainer}>
-                    {currentTypes.map((t) => (
-                      <TouchableOpacity
-                        key={t.value}
-                        onPress={() => setType(t.value)}
+                  <TouchableOpacity onPress={() => setError(null)}>
+                    <Ionicons name="close" size={18} color={colors.error} />
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* Flow Selection */}
+              <View>
+                <Text style={[styles.label, { color: colors.text.primary }]}>
+                  Category Flow
+                </Text>
+                <View
+                  style={[
+                    styles.flowContainer,
+                    { backgroundColor: colors.bg.tertiary },
+                  ]}
+                >
+                  <TouchableOpacity
+                    onPress={() => handleFlowChange("credit")}
+                    style={[
+                      styles.flowButton,
+                      flow === "credit" && {
+                        ...styles.flowButtonActive,
+                        backgroundColor: colors.bg.secondary,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.flowButtonText,
+                        flow === "credit"
+                          ? styles.flowButtonTextCredit
+                          : styles.flowButtonTextInactive,
+                      ]}
+                    >
+                      Income (Credit)
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => handleFlowChange("debit")}
+                    style={[
+                      styles.flowButton,
+                      flow === "debit" && styles.flowButtonActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.flowButtonText,
+                        flow === "debit"
+                          ? styles.flowButtonTextDebit
+                          : styles.flowButtonTextInactive,
+                      ]}
+                    >
+                      Expense (Debit)
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Name Input */}
+              <View>
+                <Text style={[styles.label, { color: colors.text.primary }]}>
+                  Category Name
+                </Text>
+                <TextInput
+                  value={name}
+                  onChangeText={setName}
+                  placeholder="e.g., Groceries"
+                  placeholderTextColor={colors.text.tertiary}
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: colors.bg.tertiary,
+                      color: colors.text.primary,
+                      borderColor: colors.border,
+                    },
+                  ]}
+                />
+              </View>
+
+              {/* Type Selection */}
+              <View>
+                <Text style={[styles.label, { color: colors.text.primary }]}>
+                  Category Type
+                </Text>
+                <View style={styles.typeContainer}>
+                  {currentTypes.map((t) => (
+                    <TouchableOpacity
+                      key={t.value}
+                      onPress={() => setType(t.value)}
+                      style={[
+                        styles.typeButton,
+                        type === t.value
+                          ? {
+                              ...styles.typeButtonActive,
+                              backgroundColor: colors.info + "15",
+                              borderColor: colors.info + "40",
+                            }
+                          : {
+                              ...styles.typeButtonInactive,
+                              backgroundColor: colors.bg.tertiary,
+                              borderColor: colors.border,
+                            },
+                      ]}
+                    >
+                      <Text
                         style={[
-                          styles.typeButton,
+                          styles.typeButtonText,
                           type === t.value
                             ? {
-                                ...styles.typeButtonActive,
-                                backgroundColor: colors.info + "15",
-                                borderColor: colors.info + "40",
+                                ...styles.typeButtonTextActive,
+                                color: colors.info,
                               }
                             : {
-                                ...styles.typeButtonInactive,
-                                backgroundColor: colors.bg.tertiary,
-                                borderColor: colors.border,
+                                ...styles.typeButtonTextInactive,
+                                color: colors.text.secondary,
                               },
                         ]}
                       >
-                        <Text
-                          style={[
-                            styles.typeButtonText,
-                            type === t.value
-                              ? {
-                                  ...styles.typeButtonTextActive,
-                                  color: colors.info,
-                                }
-                              : {
-                                  ...styles.typeButtonTextInactive,
-                                  color: colors.text.secondary,
-                                },
-                          ]}
-                        >
-                          {t.label}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
+                        {t.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
                 </View>
+              </View>
 
-                {/* Color Selection */}
-                <View>
-                  <Text style={[styles.label, { color: colors.text.primary }]}>
-                    Color Tag
-                  </Text>
-                  <View style={styles.colorContainer}>
-                    {COLORS.map((c) => (
-                      <TouchableOpacity
-                        key={c}
-                        onPress={() => setColor(c)}
-                        style={[
-                          styles.colorButton,
-                          { backgroundColor: c },
-                          color === c && {
-                            ...styles.colorButtonActive,
-                            borderColor: colors.text.primary,
-                          },
-                        ]}
-                      >
-                        {color === c && (
-                          <Ionicons name="checkmark" size={20} color="white" />
-                        )}
-                      </TouchableOpacity>
-                    ))}
-                  </View>
+              {/* Color Selection */}
+              <View>
+                <Text style={[styles.label, { color: colors.text.primary }]}>
+                  Color Tag
+                </Text>
+                <View style={styles.colorContainer}>
+                  {COLORS.map((c) => (
+                    <TouchableOpacity
+                      key={c}
+                      onPress={() => setColor(c)}
+                      style={[
+                        styles.colorButton,
+                        { backgroundColor: c },
+                        color === c && {
+                          ...styles.colorButtonActive,
+                          borderColor: colors.text.primary,
+                        },
+                      ]}
+                    >
+                      {color === c && (
+                        <Ionicons name="checkmark" size={20} color="white" />
+                      )}
+                    </TouchableOpacity>
+                  ))}
                 </View>
+              </View>
 
-                {/* Description Input */}
-                <View>
-                  <Text style={[styles.label, { color: colors.text.primary }]}>
-                    Description (Optional)
-                  </Text>
-                  <TextInput
-                    value={description}
-                    onChangeText={setDescription}
-                    placeholder="Add a note..."
-                    placeholderTextColor={colors.text.tertiary}
-                    multiline
-                    numberOfLines={3}
-                    textAlignVertical="top"
-                    style={[
-                      styles.textArea,
-                      {
-                        backgroundColor: colors.bg.tertiary,
-                        color: colors.text.primary,
-                        borderColor: colors.border,
-                      },
-                    ]}
-                  />
-                </View>
+              {/* Description Input */}
+              <View>
+                <Text style={[styles.label, { color: colors.text.primary }]}>
+                  Description (Optional)
+                </Text>
+                <TextInput
+                  value={description}
+                  onChangeText={setDescription}
+                  placeholder="Add a note..."
+                  placeholderTextColor={colors.text.tertiary}
+                  multiline
+                  numberOfLines={3}
+                  textAlignVertical="top"
+                  style={[
+                    styles.textArea,
+                    {
+                      backgroundColor: colors.bg.tertiary,
+                      color: colors.text.primary,
+                      borderColor: colors.border,
+                    },
+                  ]}
+                />
               </View>
             </ScrollView>
 
@@ -457,6 +456,8 @@ export const CategoryFormModal = ({
   );
 };
 
+const SCREEN_HEIGHT = Dimensions.get("window").height;
+
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
@@ -466,7 +467,7 @@ const styles = StyleSheet.create({
   modalContainer: {
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    maxHeight: "90%",
+    maxHeight: SCREEN_HEIGHT * 0.92,
   },
   header: {
     flexDirection: "row",
@@ -491,12 +492,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   scrollView: {
-    flex: 1,
-    paddingHorizontal: 24,
-    paddingVertical: 16,
+    flexShrink: 1,
   },
   scrollContent: {
-    paddingBottom: 20,
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    paddingBottom: 24,
+    gap: 20,
   },
   formContainer: {
     gap: 20,

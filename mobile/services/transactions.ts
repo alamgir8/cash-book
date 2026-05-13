@@ -283,6 +283,12 @@ type UpdateTransactionPayload = {
   counterparty?: string;
 };
 
+export const deleteTransaction = async (
+  transactionId: string,
+): Promise<void> => {
+  await api.delete(`/transactions/${transactionId}`);
+};
+
 export const updateTransaction = async ({
   transactionId,
   ...payload
