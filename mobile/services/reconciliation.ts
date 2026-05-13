@@ -9,6 +9,7 @@ export type AccountDiscrepancy = {
   opening_balance: number;
   total_credit: number;
   total_debit: number;
+  transaction_count?: number;
 };
 
 export type BalanceVerificationReport = {
@@ -43,10 +44,17 @@ export type ReconciliationResult = {
   is_fully_consistent: boolean;
 };
 
-/**
- * Verify account balances without making changes.
- * Returns a detailed report of any discrepancies.
- */
+export type FixAccountResult = {
+  message: string;
+  account_id: string;
+  account_name: string;
+  previous_balance: number;
+  corrected_balance: number;
+  difference: number;
+  transactions_updated: number;
+};
+
+/** Verify account balances without making changes. */
 export const verifyBalances = async (
   organizationId?: string,
 ): Promise<BalanceVerificationReport> => {
@@ -58,15 +66,27 @@ export const verifyBalances = async (
   return response.data;
 };
 
-/**
- * Recalculate and fix all account balances from transaction history.
- */
+/** Recalculate and fix ALL account balances from transaction history. */
 export const reconcileBalances = async (
   organizationId?: string,
 ): Promise<ReconciliationResult> => {
   const params = organizationId ? { organizationId } : undefined;
   const response = await api.post<ReconciliationResult>(
     "/reconciliation/reconcile",
+    {},
+    { params },
+  );
+  return response.data;
+};
+
+/** Fix a single account's balance and per-transaction running balances. */
+export const fixAccount = async (
+  accountId: string,
+  organizationId?: string,
+): Promise<FixAccountResult> => {
+  const params = organizationId ? { organizationId } : undefined;
+  const response = await api.post<FixAccountResult>(
+    `/reconciliation/fix-account/${accountId}`,
     {},
     { params },
   );

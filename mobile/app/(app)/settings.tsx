@@ -14,7 +14,7 @@ import {
   exportTransactionsByAccountPdf,
 } from "@/services/reports";
 import { exportBackupToFile, importBackupFromFile } from "@/services/backup";
-import { verifyBalances, reconcileBalances } from "@/services/reconciliation";
+import { BalanceCheckModal } from "@/components/settings/balance-check-modal";
 import { ScreenHeader } from "@/components/screen-header";
 import { ActionButton } from "@/components/action-button";
 import { ProfileEditModal } from "@/components/profile-edit-modal";
@@ -62,83 +62,9 @@ export default function SettingsScreen() {
   const [restoring, setRestoring] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showBiometricModal, setShowBiometricModal] = useState(false);
-  const [verifying, setVerifying] = useState(false);
-  const [reconciling, setReconciling] = useState(false);
+  const [showBalanceCheck, setShowBalanceCheck] = useState(false);
 
   const orgId = activeOrganization?.id;
-
-  const handleVerifyBalances = async () => {
-    setVerifying(true);
-    try {
-      const report = await verifyBalances(orgId);
-      if (report.is_consistent) {
-        Toast.show({
-          type: "success",
-          text1: "Balances verified",
-          text2: `All ${report.accounts_checked} account(s) are consistent.`,
-        });
-      } else {
-        const discrepancyNames = report.discrepancies
-          .slice(0, 3)
-          .map((d) => d.account_name)
-          .join(", ");
-        Alert.alert(
-          "Balance Discrepancy Detected",
-          `${report.discrepancies.length} account(s) have mismatched balances: ${discrepancyNames}. Use "Fix Balances" to correct them automatically.`,
-          [
-            { text: "Dismiss", style: "cancel" },
-            { text: "Fix Now", onPress: handleReconcileBalances },
-          ],
-        );
-      }
-    } catch {
-      Toast.show({
-        type: "error",
-        text1: "Verification failed",
-        text2: "Could not reach server.",
-      });
-    } finally {
-      setVerifying(false);
-    }
-  };
-
-  const handleReconcileBalances = async () => {
-    Alert.alert(
-      "Fix Account Balances",
-      "This will recalculate all account balances from your full transaction history. Continue?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Fix Balances",
-          onPress: async () => {
-            setReconciling(true);
-            try {
-              const result = await reconcileBalances(orgId);
-              void queryClient.invalidateQueries({ queryKey: ["accounts"] });
-              void queryClient.invalidateQueries({
-                queryKey: ["transactions"],
-              });
-              Toast.show({
-                type: result.is_fully_consistent ? "success" : "info",
-                text1: result.is_fully_consistent
-                  ? "Balances are correct"
-                  : `Fixed ${result.corrections_made} account(s)`,
-                text2: `${result.accounts_processed} accounts processed · ${result.transactions_updated} transactions updated`,
-              });
-            } catch {
-              Toast.show({
-                type: "error",
-                text1: "Reconciliation failed",
-                text2: "Could not reach server.",
-              });
-            } finally {
-              setReconciling(false);
-            }
-          },
-        },
-      ],
-    );
-  };
 
   // Handlers
   const handleExport = async (type: ExportType) => {
@@ -353,22 +279,11 @@ export default function SettingsScreen() {
           >
             <ActionButton
               icon="shield-checkmark-outline"
-              label={verifying ? "Verifying..." : "Verify Balances"}
-              subLabel="Check if all account balances are mathematically correct"
-              onPress={handleVerifyBalances}
-              disabled={verifying || reconciling}
+              label="Balance Health Check"
+              subLabel="Verify and fix account balances from transaction history"
+              onPress={() => setShowBalanceCheck(true)}
               color="#10b981"
               bgColor="bg-emerald-50"
-            />
-            <View className="h-3" />
-            <ActionButton
-              icon="refresh-outline"
-              label={reconciling ? "Fixing..." : "Fix Balances"}
-              subLabel="Recalculate all balances from transaction history"
-              onPress={handleReconcileBalances}
-              disabled={verifying || reconciling}
-              color="#f59e0b"
-              bgColor="bg-amber-50"
             />
           </View>
         )}
@@ -435,6 +350,12 @@ export default function SettingsScreen() {
         visible={showBiometricModal}
         onClose={() => setShowBiometricModal(false)}
         userEmail={userEmail}
+      />
+
+      <BalanceCheckModal
+        visible={showBalanceCheck}
+        onClose={() => setShowBalanceCheck(false)}
+        organizationId={orgId}
       />
     </View>
   );

@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import {
   ActivityIndicator,
+  Alert,
+  Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -12,6 +14,8 @@ import {
   Keyboard,
   Dimensions,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
+import * as DocumentPicker from "expo-document-picker";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -27,6 +31,7 @@ import {
   type SelectOption,
 } from "./types";
 import type { Transaction } from "@/services/transactions";
+import { uploadAttachments } from "@/services/attachments";
 import { AttachmentPicker } from "../transactions/attachment-picker";
 
 type TransactionModalProps = {
@@ -59,9 +64,12 @@ export const TransactionModal = ({
   const insets = useSafeAreaInsets();
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [savedTransactionId, setSavedTransactionId] = useState<string | null>(
-    null,
-  );
+  // Staged files picked before saving (new transactions only)
+  type StagedFile = { uri: string; name: string; type: string; size?: number };
+  const [stagedFiles, setStagedFiles] = useState<StagedFile[]>([]);
+  const [uploadingAttachments, setUploadingAttachments] = useState(false);
+  const MAX_STAGED = 10;
+  const MAX_RAW_MB = 10;
 
   const {
     control,
@@ -123,7 +131,7 @@ export const TransactionModal = ({
           counterparty: "",
         });
         setSelectedDate(new Date());
-        setSavedTransactionId(null);
+        setStagedFiles([]);
       }
     }
   }, [visible, editingTransaction, reset]);
@@ -153,13 +161,124 @@ export const TransactionModal = ({
   const handleFormSubmit = async (values: TransactionFormValues) => {
     const result = await onSubmit(values);
     if (result && "_id" in result && !editingTransaction) {
-      setSavedTransactionId(result._id);
-      // Scroll to attachment picker
-      setTimeout(
-        () => scrollViewRef.current?.scrollToEnd({ animated: true }),
-        200,
-      );
+      // Upload any staged files right after creation
+      if (stagedFiles.length > 0) {
+        setUploadingAttachments(true);
+        try {
+          await uploadAttachments(result._id, stagedFiles);
+        } catch {
+          Alert.alert(
+            "Attachments Failed",
+            "Transaction was saved but some attachments could not be uploaded. You can add them later from the transaction list.",
+          );
+        } finally {
+          setUploadingAttachments(false);
+        }
+      }
+      closeModal();
+    } else if (editingTransaction) {
+      closeModal();
     }
+  };
+
+  // ── Staged file helpers (new transactions only) ────────────────────────
+  const requestCameraPermission = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert(
+        "Permission Required",
+        "Camera access is needed to capture receipts.",
+      );
+      return false;
+    }
+    return true;
+  };
+
+  const requestMediaPermission = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert(
+        "Permission Required",
+        "Photo library access is needed to attach images.",
+      );
+      return false;
+    }
+    return true;
+  };
+
+  const mapAsset = (asset: ImagePicker.ImagePickerAsset): StagedFile => ({
+    uri: asset.uri,
+    name: asset.fileName ?? `photo_${Date.now()}.jpg`,
+    type: asset.mimeType ?? "image/jpeg",
+    size: asset.fileSize,
+  });
+
+  const addStaged = (files: StagedFile[]) => {
+    for (const f of files) {
+      if (f.size && f.size > MAX_RAW_MB * 1024 * 1024) {
+        Alert.alert("File Too Large", `"${f.name}" exceeds ${MAX_RAW_MB} MB.`);
+        return;
+      }
+    }
+    setStagedFiles((prev) => [...prev, ...files].slice(0, MAX_STAGED));
+  };
+
+  const handleStagedScan = async () => {
+    if (!(await requestCameraPermission())) return;
+    const r = await ImagePicker.launchCameraAsync({
+      mediaTypes: ["images"],
+      quality: 1,
+      allowsEditing: true,
+      exif: false,
+    });
+    if (!r.canceled && r.assets[0]) addStaged([mapAsset(r.assets[0])]);
+  };
+
+  const handleStagedCamera = async () => {
+    if (!(await requestCameraPermission())) return;
+    const r = await ImagePicker.launchCameraAsync({
+      mediaTypes: ["images"],
+      quality: 0.85,
+      allowsEditing: false,
+      exif: false,
+    });
+    if (!r.canceled && r.assets[0]) addStaged([mapAsset(r.assets[0])]);
+  };
+
+  const handleStagedGallery = async () => {
+    if (!(await requestMediaPermission())) return;
+    const remaining = MAX_STAGED - stagedFiles.length;
+    const r = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsMultipleSelection: true,
+      selectionLimit: remaining,
+      quality: 0.85,
+      exif: false,
+    });
+    if (!r.canceled && r.assets.length) addStaged(r.assets.map(mapAsset));
+  };
+
+  const handleStagedDocument = async () => {
+    const r = await DocumentPicker.getDocumentAsync({
+      type: ["application/pdf"],
+      copyToCacheDirectory: true,
+      multiple: false,
+    });
+    if (!r.canceled && r.assets[0]) {
+      const a = r.assets[0];
+      addStaged([
+        {
+          uri: a.uri,
+          name: a.name,
+          type: a.mimeType ?? "application/pdf",
+          size: a.size,
+        },
+      ]);
+    }
+  };
+
+  const removeStagedFile = (index: number) => {
+    setStagedFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
   const closeModal = () => {
@@ -544,44 +663,191 @@ export const TransactionModal = ({
                 </View>
 
                 {/* Attachments */}
-                {editingTransaction || savedTransactionId ? (
-                  <View>
-                    <Text
-                      className="text-sm font-semibold mb-2"
-                      style={{ color: colors.text.primary }}
-                    >
-                      Attachments
-                    </Text>
-                    <AttachmentPicker
-                      transactionId={
-                        savedTransactionId ?? editingTransaction!._id
-                      }
-                      initialAttachments={editingTransaction?.attachments ?? []}
-                    />
-                  </View>
-                ) : (
-                  <TouchableOpacity
-                    onPress={handleSubmit(handleFormSubmit)}
-                    disabled={isSubmitting}
-                    className="rounded-xl p-3 border flex-row items-center justify-center gap-2"
-                    style={{
-                      backgroundColor: colors.bg.tertiary,
-                      borderColor: colors.border,
-                    }}
+                <View>
+                  <Text
+                    className="text-sm font-semibold mb-2"
+                    style={{ color: colors.text.primary }}
                   >
-                    <Ionicons
-                      name="attach"
-                      size={16}
-                      color={colors.text.tertiary}
+                    Attachments
+                  </Text>
+
+                  {editingTransaction ? (
+                    /* Editing: live upload/delete against existing transaction */
+                    <AttachmentPicker
+                      transactionId={editingTransaction._id}
+                      initialAttachments={editingTransaction.attachments ?? []}
                     />
-                    <Text
-                      className="text-xs text-center"
-                      style={{ color: colors.text.tertiary }}
-                    >
-                      Save &amp; add attachments
-                    </Text>
-                  </TouchableOpacity>
-                )}
+                  ) : (
+                    /* New transaction: stage files locally, upload on save */
+                    <View className="gap-3">
+                      {/* Staged file thumbnails */}
+                      {stagedFiles.length > 0 && (
+                        <ScrollView
+                          horizontal
+                          showsHorizontalScrollIndicator={false}
+                          contentContainerStyle={{ gap: 8, paddingVertical: 4 }}
+                        >
+                          {stagedFiles.map((f, i) => (
+                            <View
+                              key={i}
+                              className="relative rounded-xl overflow-hidden"
+                              style={{
+                                width: 80,
+                                height: 80,
+                                borderWidth: 1,
+                                borderColor: colors.border,
+                              }}
+                            >
+                              {f.type.startsWith("image/") ? (
+                                <Image
+                                  source={{ uri: f.uri }}
+                                  style={{ width: 80, height: 80 }}
+                                  resizeMode="cover"
+                                />
+                              ) : (
+                                <View
+                                  className="w-full h-full items-center justify-center"
+                                  style={{
+                                    backgroundColor: colors.bg.tertiary,
+                                  }}
+                                >
+                                  <Ionicons
+                                    name="document-text"
+                                    size={28}
+                                    color={colors.info}
+                                  />
+                                  <Text
+                                    style={{ color: colors.text.tertiary }}
+                                    className="text-xs mt-1 text-center px-1"
+                                    numberOfLines={2}
+                                  >
+                                    {f.name}
+                                  </Text>
+                                </View>
+                              )}
+                              <TouchableOpacity
+                                onPress={() => removeStagedFile(i)}
+                                className="absolute top-1 right-1 rounded-full p-0.5"
+                                style={{ backgroundColor: "rgba(0,0,0,0.65)" }}
+                                hitSlop={{
+                                  top: 6,
+                                  right: 6,
+                                  bottom: 6,
+                                  left: 6,
+                                }}
+                              >
+                                <Ionicons name="close" size={14} color="#fff" />
+                              </TouchableOpacity>
+                            </View>
+                          ))}
+                        </ScrollView>
+                      )}
+
+                      {/* Pick buttons */}
+                      {stagedFiles.length < MAX_STAGED && (
+                        <View className="flex-row gap-2">
+                          <TouchableOpacity
+                            onPress={handleStagedScan}
+                            className="flex-1 flex-row items-center justify-center gap-1.5 py-3 rounded-xl"
+                            style={{
+                              backgroundColor: colors.info + "20",
+                              borderWidth: 1,
+                              borderColor: colors.info + "50",
+                            }}
+                          >
+                            <Ionicons
+                              name="scan-outline"
+                              size={18}
+                              color={colors.info}
+                            />
+                            <Text
+                              style={{ color: colors.info }}
+                              className="text-sm font-semibold"
+                            >
+                              Scan
+                            </Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={handleStagedCamera}
+                            className="flex-1 flex-row items-center justify-center gap-1.5 py-3 rounded-xl"
+                            style={{
+                              backgroundColor: colors.bg.tertiary,
+                              borderWidth: 1,
+                              borderStyle: "dashed",
+                              borderColor: colors.border,
+                            }}
+                          >
+                            <Ionicons
+                              name="camera-outline"
+                              size={18}
+                              color={colors.text.secondary}
+                            />
+                            <Text
+                              style={{ color: colors.text.secondary }}
+                              className="text-sm font-medium"
+                            >
+                              Photo
+                            </Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={handleStagedGallery}
+                            className="flex-1 flex-row items-center justify-center gap-1.5 py-3 rounded-xl"
+                            style={{
+                              backgroundColor: colors.bg.tertiary,
+                              borderWidth: 1,
+                              borderStyle: "dashed",
+                              borderColor: colors.border,
+                            }}
+                          >
+                            <Ionicons
+                              name="images-outline"
+                              size={18}
+                              color={colors.text.secondary}
+                            />
+                            <Text
+                              style={{ color: colors.text.secondary }}
+                              className="text-sm font-medium"
+                            >
+                              Gallery
+                            </Text>
+                          </TouchableOpacity>
+                          {Platform.OS !== "web" && (
+                            <TouchableOpacity
+                              onPress={handleStagedDocument}
+                              className="flex-1 flex-row items-center justify-center gap-1.5 py-3 rounded-xl"
+                              style={{
+                                backgroundColor: colors.bg.tertiary,
+                                borderWidth: 1,
+                                borderStyle: "dashed",
+                                borderColor: colors.border,
+                              }}
+                            >
+                              <Ionicons
+                                name="document-outline"
+                                size={18}
+                                color={colors.text.secondary}
+                              />
+                              <Text
+                                style={{ color: colors.text.secondary }}
+                                className="text-sm font-medium"
+                              >
+                                PDF
+                              </Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      )}
+
+                      <Text
+                        style={{ color: colors.text.tertiary }}
+                        className="text-xs"
+                      >
+                        {stagedFiles.length}/{MAX_STAGED} files · Images ≤1 MB ·
+                        PDF ≤1.5 MB · JPG, PNG, WebP, HEIC, PDF
+                      </Text>
+                    </View>
+                  )}
+                </View>
 
                 {/* Amount Preview */}
                 {currentAmount > 0 ? (
@@ -611,46 +877,44 @@ export const TransactionModal = ({
                 paddingBottom: Math.max(insets.bottom, 16),
               }}
             >
-              {savedTransactionId ? (
-                <TouchableOpacity
-                  onPress={closeModal}
-                  className="rounded-2xl py-4 items-center shadow-lg"
-                  style={{ backgroundColor: colors.success ?? "#10b981" }}
-                >
+              <TouchableOpacity
+                onPress={handleSubmit(handleFormSubmit)}
+                disabled={isSubmitting || uploadingAttachments}
+                className="rounded-2xl py-4 items-center shadow-lg"
+                style={{ backgroundColor: colors.info }}
+              >
+                {isSubmitting || uploadingAttachments ? (
+                  <View className="flex-row items-center gap-2">
+                    <ActivityIndicator color="white" />
+                    <Text className="text-white font-bold text-base">
+                      {uploadingAttachments
+                        ? "Uploading attachments…"
+                        : "Saving…"}
+                    </Text>
+                  </View>
+                ) : (
                   <View className="flex-row items-center gap-2">
                     <Ionicons
-                      name="checkmark-done-circle"
+                      name={
+                        editingTransaction
+                          ? "checkmark-circle"
+                          : stagedFiles.length > 0
+                            ? "attach"
+                            : "checkmark-circle"
+                      }
                       size={20}
                       color="white"
                     />
-                    <Text className="text-white font-bold text-base">Done</Text>
-                  </View>
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity
-                  onPress={handleSubmit(handleFormSubmit)}
-                  disabled={isSubmitting}
-                  className="rounded-2xl py-4 items-center shadow-lg"
-                  style={{ backgroundColor: colors.info }}
-                >
-                  {isSubmitting ? (
-                    <ActivityIndicator color="white" />
-                  ) : (
-                    <View className="flex-row items-center gap-2">
-                      <Ionicons
-                        name="checkmark-circle"
-                        size={20}
-                        color="white"
-                      />
-                      <Text className="text-white font-bold text-base">
-                        {editingTransaction
-                          ? "Update Transaction"
+                    <Text className="text-white font-bold text-base">
+                      {editingTransaction
+                        ? "Update Transaction"
+                        : stagedFiles.length > 0
+                          ? `Save with ${stagedFiles.length} attachment${stagedFiles.length > 1 ? "s" : ""}`
                           : "Save Transaction"}
-                      </Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
-              )}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
             </View>
           </View>
         </KeyboardAvoidingView>

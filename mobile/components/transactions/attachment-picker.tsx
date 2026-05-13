@@ -278,7 +278,6 @@ export function AttachmentPicker({
           ))}
         </ScrollView>
       )}
-
       {/* Action buttons */}
       {attachments.length < maxFiles && (
         <View className="flex-row gap-2">
@@ -379,8 +378,7 @@ export function AttachmentPicker({
             </TouchableOpacity>
           )}
         </View>
-      )}
-
+      )}{" "}
       {/* Upload progress */}
       {uploading && (
         <View className="flex-row items-center gap-2 py-1.5">
@@ -390,7 +388,6 @@ export function AttachmentPicker({
           </Text>
         </View>
       )}
-
       <Text style={{ color: colors.text.tertiary }} className="text-xs">
         {attachments.length}/{maxFiles} files · Images ≤1 MB · PDF ≤1.5 MB ·
         JPG, PNG, WebP, HEIC, PDF
