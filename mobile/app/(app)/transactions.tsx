@@ -424,6 +424,26 @@ export default function TransactionsScreen() {
     }));
   }, []);
 
+  const handleVendorPress = useCallback((vendor?: string) => {
+    setAllTransactions([]);
+    setHasMorePages(true);
+    setFilters((prev) => ({
+      ...prev,
+      vendor: vendor || undefined,
+      page: 1,
+    }));
+  }, []);
+
+  const handlePaymentStatusPress = useCallback((status?: "paid" | "due") => {
+    setAllTransactions([]);
+    setHasMorePages(true);
+    setFilters((prev) => ({
+      ...prev,
+      payment_status: status || undefined,
+      page: 1,
+    }));
+  }, []);
+
   const handleExport = useCallback(async () => {
     if (exporting) return;
     try {
@@ -479,6 +499,8 @@ export default function TransactionsScreen() {
         transaction={item}
         onCategoryPress={handleCategoryPress}
         onCounterpartyPress={handleCounterpartyPress}
+        onVendorPress={handleVendorPress}
+        onPaymentStatusPress={handlePaymentStatusPress}
         onEdit={canEditTransactions ? handleEditTransaction : undefined}
         onDelete={isDeleteModeActive ? handleDeleteTransaction : undefined}
         onAttachmentsPress={handleAttachmentsPress}
@@ -489,6 +511,8 @@ export default function TransactionsScreen() {
     [
       handleCategoryPress,
       handleCounterpartyPress,
+      handleVendorPress,
+      handlePaymentStatusPress,
       handleEditTransaction,
       handleDeleteTransaction,
       canEditTransactions,

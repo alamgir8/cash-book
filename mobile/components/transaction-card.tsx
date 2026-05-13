@@ -10,17 +10,21 @@ type Props = {
   transaction: Transaction;
   onCategoryPress?: (categoryId: string) => void;
   onCounterpartyPress?: (counterparty: string) => void;
+  onVendorPress?: (vendor: string) => void;
+  onPaymentStatusPress?: (status: "paid" | "due") => void;
   onEdit?: (transaction: Transaction) => void;
   onDelete?: (transaction: Transaction) => void;
   onAttachmentsPress?: (transaction: Transaction) => void;
-  onPayDue?: (transaction: Transaction) => void; // "Record Payment" button
-  onViewChain?: (transaction: Transaction) => void; // "View History" button
+  onPayDue?: (transaction: Transaction) => void;
+  onViewChain?: (transaction: Transaction) => void;
 };
 
 const TransactionCardComponent = ({
   transaction,
   onCategoryPress,
   onCounterpartyPress,
+  onVendorPress,
+  onPaymentStatusPress,
   onEdit,
   onDelete,
   onAttachmentsPress,
@@ -167,7 +171,7 @@ const TransactionCardComponent = ({
         </Text>
       ) : null}
 
-      <View className="flex-row flex-wrap mt-2 gap-x-4">
+      <View className="flex-row flex-wrap mt-2 gap-x-2 gap-y-2">
         {transaction.category ? (
           <TouchableOpacity
             activeOpacity={onCategoryPress ? 0.8 : 1}
@@ -180,7 +184,7 @@ const TransactionCardComponent = ({
               backgroundColor: colors.info + "25",
               borderColor: colors.info + "40",
             }}
-            className="self-start mt-3 px-3 py-1 rounded-full border"
+            className="px-3 py-1 rounded-full border"
           >
             <Text
               style={{ color: colors.info }}
@@ -202,13 +206,68 @@ const TransactionCardComponent = ({
               backgroundColor: colors.info + "25",
               borderColor: colors.info + "40",
             }}
-            className="self-start mt-3 px-3 py-1 rounded-full border"
+            className="px-3 py-1 rounded-full border"
           >
             <Text
               style={{ color: colors.info }}
               className="text-xs font-semibold"
             >
               For: {transaction.counterparty}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
+        {transaction.vendor ? (
+          <TouchableOpacity
+            activeOpacity={onVendorPress ? 0.8 : 1}
+            onPress={() => {
+              if (transaction.vendor && onVendorPress) {
+                onVendorPress(transaction.vendor);
+              }
+            }}
+            style={{
+              backgroundColor: "#f59e0b" + "25",
+              borderColor: "#f59e0b" + "40",
+            }}
+            className="px-3 py-1 rounded-full border"
+          >
+            <Text
+              style={{ color: "#f59e0b" }}
+              className="text-xs font-semibold"
+            >
+              Vendor: {transaction.vendor}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
+        {transaction.payment_status ? (
+          <TouchableOpacity
+            activeOpacity={onPaymentStatusPress ? 0.8 : 1}
+            onPress={() => {
+              if (transaction.payment_status && onPaymentStatusPress) {
+                onPaymentStatusPress(
+                  transaction.payment_status as "paid" | "due",
+                );
+              }
+            }}
+            style={{
+              backgroundColor:
+                transaction.payment_status === "due"
+                  ? "#d97706" + "20"
+                  : "#16a34a" + "20",
+              borderColor:
+                transaction.payment_status === "due"
+                  ? "#d97706" + "40"
+                  : "#16a34a" + "40",
+            }}
+            className="px-3 py-1 rounded-full border"
+          >
+            <Text
+              style={{
+                color:
+                  transaction.payment_status === "due" ? "#d97706" : "#16a34a",
+              }}
+              className="text-xs font-semibold"
+            >
+              {transaction.payment_status === "due" ? "Due" : "Paid"}
             </Text>
           </TouchableOpacity>
         ) : null}
@@ -335,10 +394,15 @@ export const TransactionCard = memo(
     prevProps.transaction.category?.name ===
       nextProps.transaction.category?.name &&
     prevProps.transaction.counterparty === nextProps.transaction.counterparty &&
+    prevProps.transaction.vendor === nextProps.transaction.vendor &&
+    prevProps.transaction.payment_status ===
+      nextProps.transaction.payment_status &&
     (prevProps.transaction.attachments?.length ?? 0) ===
       (nextProps.transaction.attachments?.length ?? 0) &&
     prevProps.onCategoryPress === nextProps.onCategoryPress &&
     prevProps.onCounterpartyPress === nextProps.onCounterpartyPress &&
+    prevProps.onVendorPress === nextProps.onVendorPress &&
+    prevProps.onPaymentStatusPress === nextProps.onPaymentStatusPress &&
     prevProps.onDelete === nextProps.onDelete &&
     prevProps.onPayDue === nextProps.onPayDue &&
     prevProps.onViewChain === nextProps.onViewChain &&

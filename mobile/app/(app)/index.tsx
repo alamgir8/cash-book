@@ -320,6 +320,8 @@ export default function DashboardScreen() {
       "accountId",
       "categoryId",
       "counterparty",
+      "vendor",
+      "payment_status",
       "financialScope",
       "type",
       "search",
@@ -466,6 +468,22 @@ export default function DashboardScreen() {
     }));
   }, []);
 
+  const handleVendorFilter = useCallback((vendor?: string) => {
+    setFilters((prev) => ({
+      ...prev,
+      vendor: vendor || undefined,
+      page: 1,
+    }));
+  }, []);
+
+  const handlePaymentStatusFilter = useCallback((status?: "paid" | "due") => {
+    setFilters((prev) => ({
+      ...prev,
+      payment_status: status || undefined,
+      page: 1,
+    }));
+  }, []);
+
   const handleLoadMore = useCallback(() => {
     setFilters((prev) => ({
       ...prev,
@@ -487,6 +505,8 @@ export default function DashboardScreen() {
         transaction={item}
         onCategoryPress={handleCategoryFilter}
         onCounterpartyPress={handleCounterpartyFilter}
+        onVendorPress={handleVendorFilter}
+        onPaymentStatusPress={handlePaymentStatusFilter}
         onEdit={handleEditTransaction}
         onDelete={isDeleteModeActive ? handleDeleteTransaction : undefined}
         onAttachmentsPress={handleAttachmentsPress}
@@ -497,6 +517,8 @@ export default function DashboardScreen() {
     [
       handleCategoryFilter,
       handleCounterpartyFilter,
+      handleVendorFilter,
+      handlePaymentStatusFilter,
       handleEditTransaction,
       handleDeleteTransaction,
       isDeleteModeActive,
@@ -545,6 +567,13 @@ export default function DashboardScreen() {
             onAddTransaction={() => setModalVisible(true)}
             onAddTransfer={openTransferModal}
             onExportPDF={handleExportPDF}
+            onFilterDue={() => {
+              setFilters((prev) => ({
+                ...prev,
+                payment_status: "due",
+                page: 1,
+              }));
+            }}
           />
         )}
 

@@ -54,12 +54,14 @@ type HomeQuickFeaturesProps = {
   onAddTransaction: () => void;
   onAddTransfer: () => void;
   onExportPDF: () => void;
+  onFilterDue?: () => void;
 };
 
 export const HomeQuickFeatures = ({
   onAddTransaction,
   onAddTransfer,
   onExportPDF,
+  onFilterDue,
 }: HomeQuickFeaturesProps) => {
   const { colors } = useTheme();
   const [showAll, setShowAll] = useState(false);
@@ -123,6 +125,15 @@ export const HomeQuickFeatures = ({
 
   // Secondary actions - second row
   const secondaryFeatures = [
+    {
+      id: "due-transactions",
+      icon: "time" as const,
+      label: "Due / Unpaid",
+      color: "#d97706",
+      bgColor: "bg-amber-50",
+      onPress: onFilterDue ?? (() => router.push("/(app)/transactions")),
+      permission: canViewTransactions,
+    },
     {
       id: "add-invoice",
       icon: "document-text" as const,

@@ -65,6 +65,8 @@ export type TransactionFilters = {
   accountName?: string;
   categoryId?: string;
   counterparty?: string;
+  vendor?: string;
+  payment_status?: "paid" | "due";
   financialScope?: "actual" | "income" | "expense" | "both";
   type?: "debit" | "credit";
   q?: string;
@@ -100,6 +102,8 @@ const mapFilters = (filters: TransactionFilters) => {
   if (filters.accountId) params.accountId = filters.accountId;
   if (filters.categoryId) params.categoryId = filters.categoryId;
   if (filters.counterparty) params.counterparty = filters.counterparty;
+  if (filters.vendor) params.vendor = filters.vendor;
+  if (filters.payment_status) params.payment_status = filters.payment_status;
   if (filters.financialScope) params.financialScope = filters.financialScope;
   if (filters.type) params.type = filters.type;
   if (filters.q || filters.search) params.q = filters.q ?? filters.search;
@@ -248,6 +252,10 @@ export const createTransaction = async (payload: CreateTransactionPayload) => {
   if (payload.comment) requestBody.keyword = payload.comment;
   if (payload.categoryId) requestBody.categoryId = payload.categoryId;
   if (payload.counterparty) requestBody.counterparty = payload.counterparty;
+  if (payload.vendor !== undefined) requestBody.vendor = payload.vendor;
+  if (payload.payment_status)
+    requestBody.payment_status = payload.payment_status;
+  if (payload.due_date !== undefined) requestBody.due_date = payload.due_date;
 
   const { data } = await api.post<{ transaction: Record<string, any> }>(
     "/transactions",
