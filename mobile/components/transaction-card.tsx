@@ -218,95 +218,100 @@ const TransactionCardComponent = ({
       {!transaction.is_deleted ? (
         <View
           style={{ borderColor: colors.border }}
-          className="flex-row flex-wrap gap-2 pt-2 mt-2 border-t"
+          className="pt-2 mt-2 border-t"
         >
-          {/* Due-specific: Record Payment */}
-          {isDue && !isSettled && onPayDue && (
-            <TouchableOpacity
-              onPress={() => onPayDue(transaction)}
-              style={{ backgroundColor: "#d97706" + "20" }}
-              className="flex-row items-center gap-1.5 px-3 py-2 rounded-lg"
-            >
-              <Ionicons name="cash-outline" size={16} color="#d97706" />
-              <Text
-                style={{ color: "#d97706" }}
-                className="text-xs font-semibold"
-              >
-                Pay
-              </Text>
-            </TouchableOpacity>
-          )}
-
-          {/* Any chain transaction: View History */}
-          {hasChain && onViewChain && (
-            <TouchableOpacity
-              onPress={() => onViewChain(transaction)}
-              style={{ backgroundColor: colors.bg.tertiary }}
-              className="flex-row items-center gap-1.5 px-3 py-2 rounded-lg"
-            >
-              <Ionicons
-                name="git-branch-outline"
-                size={16}
-                color={colors.text.secondary}
-              />
-              <Text
-                style={{ color: colors.text.secondary }}
-                className="text-xs font-semibold"
-              >
-                History
-              </Text>
-            </TouchableOpacity>
-          )}
-
-          {onAttachmentsPress ? (
-            <TouchableOpacity
-              onPress={() => onAttachmentsPress(transaction)}
-              style={{ backgroundColor: colors.warning + "20" }}
-              className="flex-row items-center gap-1.5 px-3 py-2 rounded-lg"
-            >
-              <Ionicons name="attach" size={16} color={colors.warning} />
-              <Text
-                style={{ color: colors.warning }}
-                className="text-xs font-semibold"
-              >
-                {attachmentCount > 0
-                  ? `${attachmentCount} file${attachmentCount > 1 ? "s" : ""}`
-                  : "Attach"}
-              </Text>
-            </TouchableOpacity>
+          {/* Due chain actions (Pay / History) */}
+          {(isDue && !isSettled && onPayDue) || (hasChain && onViewChain) ? (
+            <View className="flex-row gap-2 mb-2">
+              {isDue && !isSettled && onPayDue && (
+                <TouchableOpacity
+                  onPress={() => onPayDue(transaction)}
+                  style={{ backgroundColor: "#d97706" + "20" }}
+                  className="flex-1 flex-row justify-center items-center gap-1.5 px-3 py-2 rounded-lg"
+                >
+                  <Ionicons name="cash-outline" size={16} color="#d97706" />
+                  <Text
+                    style={{ color: "#d97706" }}
+                    className="text-xs font-semibold"
+                  >
+                    Pay
+                  </Text>
+                </TouchableOpacity>
+              )}
+              {hasChain && onViewChain && (
+                <TouchableOpacity
+                  onPress={() => onViewChain(transaction)}
+                  style={{ backgroundColor: colors.bg.tertiary }}
+                  className="flex-1 flex-row justify-center items-center gap-1.5 px-3 py-2 rounded-lg"
+                >
+                  <Ionicons
+                    name="git-branch-outline"
+                    size={16}
+                    color={colors.text.secondary}
+                  />
+                  <Text
+                    style={{ color: colors.text.secondary }}
+                    className="text-xs font-semibold"
+                  >
+                    History
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
           ) : null}
 
-          {onEdit ? (
-            <TouchableOpacity
-              onPress={() => onEdit(transaction)}
-              style={{ backgroundColor: colors.info + "20" }}
-              className="flex-row items-center gap-1.5 px-3 py-2 rounded-lg"
-            >
-              <Ionicons name="create-outline" size={16} color={colors.info} />
-              <Text
-                style={{ color: colors.info }}
-                className="text-xs font-semibold"
+          {/* Attach / Edit / Delete — spread between */}
+          <View className="flex-row items-center gap-2">
+            {onAttachmentsPress ? (
+              <TouchableOpacity
+                onPress={() => onAttachmentsPress(transaction)}
+                style={{ backgroundColor: colors.warning + "20" }}
+                className="flex-1 flex-row justify-center items-center gap-1.5 px-3 py-2 rounded-lg"
               >
-                Edit
-              </Text>
-            </TouchableOpacity>
-          ) : null}
+                <Ionicons name="attach" size={16} color={colors.warning} />
+                <Text
+                  style={{ color: colors.warning }}
+                  className="text-xs font-semibold"
+                >
+                  {attachmentCount > 0
+                    ? `${attachmentCount} file${attachmentCount > 1 ? "s" : ""}`
+                    : "Attach"}
+                </Text>
+              </TouchableOpacity>
+            ) : null}
 
-          {onDelete ? (
-            <TouchableOpacity
-              onPress={() => onDelete(transaction)}
-              style={{ backgroundColor: colors.error + "20" }}
-              className="flex-row items-center gap-1.5 px-3 py-2 rounded-lg"
-            >
-              <Ionicons name="trash-outline" size={16} color={colors.error} />
-              <Text
-                style={{ color: colors.error }}
-                className="text-xs font-semibold"
+            {onEdit ? (
+              <TouchableOpacity
+                onPress={() => onEdit(transaction)}
+                style={{ backgroundColor: colors.info + "20" }}
+                className="flex-1 flex-row justify-center items-center gap-1.5 px-3 py-2 rounded-lg"
               >
-                Delete
-              </Text>
-            </TouchableOpacity>
-          ) : null}
+                <Ionicons name="create-outline" size={16} color={colors.info} />
+                <Text
+                  style={{ color: colors.info }}
+                  className="text-xs font-semibold"
+                >
+                  Edit
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+
+            {onDelete ? (
+              <TouchableOpacity
+                onPress={() => onDelete(transaction)}
+                style={{ backgroundColor: colors.error + "20" }}
+                className="flex-1 flex-row justify-center items-center gap-1.5 px-3 py-2 rounded-lg"
+              >
+                <Ionicons name="trash-outline" size={16} color={colors.error} />
+                <Text
+                  style={{ color: colors.error }}
+                  className="text-xs font-semibold"
+                >
+                  Delete
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
         </View>
       ) : null}
     </View>
@@ -339,4 +344,3 @@ export const TransactionCard = memo(
     prevProps.onViewChain === nextProps.onViewChain &&
     prevProps.onAttachmentsPress === nextProps.onAttachmentsPress,
 );
-
