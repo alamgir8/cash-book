@@ -87,6 +87,8 @@ Run Admin : npm start
 eas build -p android --profile preview
 eas build -p android --profile preview --clear-cache
 
+- To build .ipa file
+eas build -p ios --profile preview --clear-cache
 ```
 
 - To build .aab file
