@@ -163,11 +163,13 @@ const TransactionCardComponent = ({
         </Text>
       ) : null}
 
-      {/* Vendor tag */}
-      {transaction.vendor ? (
-        <Text className="text-xs mt-1" style={{ color: colors.text.tertiary }}>
-          <Text style={{ color: colors.text.secondary }}>Vendor: </Text>
-          {transaction.vendor}
+      {/* Additional info / comment */}
+      {transaction.comment ? (
+        <Text
+          className="text-xs mt-1 italic"
+          style={{ color: colors.text.tertiary }}
+        >
+          {transaction.comment}
         </Text>
       ) : null}
 

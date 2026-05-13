@@ -21,6 +21,8 @@ type DisplayFilters = {
   categoryId?: string;
   categoryNames?: string[];
   counterparty?: string;
+  vendor?: string;
+  payment_status?: string;
   financialScope?: string;
   type?: string;
   search?: string;
@@ -139,6 +141,19 @@ const parseFilters = (raw: RawFilters): ParsedFilters => {
   if (counterparty) {
     filters.counterparty = counterparty;
     display.counterparty = counterparty;
+  }
+
+  const vendor = toStringValue(raw.vendor);
+  if (vendor) {
+    filters.vendor = vendor;
+    display.vendor = vendor;
+  }
+
+  const payment_status = toStringValue(raw.payment_status);
+  if (payment_status === "paid" || payment_status === "due") {
+    filters.payment_status =
+      payment_status as TransactionFilters["payment_status"];
+    display.payment_status = payment_status;
   }
 
   const financialScope =
@@ -409,6 +424,20 @@ const buildFiltersSection = (
 
   if (display.counterparty) {
     chips.push(`Counterparty: ${display.counterparty}`);
+  }
+
+  if (display.vendor) {
+    chips.push(`Vendor: ${display.vendor}`);
+  }
+
+  if (display.payment_status) {
+    const statusLabel =
+      display.payment_status === "due"
+        ? "Due / Unpaid"
+        : display.payment_status === "paid"
+          ? "Paid"
+          : capitalize(display.payment_status);
+    chips.push(`Payment Status: ${statusLabel}`);
   }
 
   if (display.financialScope) {
