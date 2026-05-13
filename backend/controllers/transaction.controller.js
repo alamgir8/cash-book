@@ -1497,8 +1497,9 @@ export const getCounterpartyLedger = async (req, res, next) => {
         entry_type = "borrow"; // label: "Borrowed"
       } else if (catName === "Loan Repayment Paid") {
         // I paid counterparty back → I owe less
-        owedByMe = Math.max(0, owedByMe - t.amount);
+        // Track full amount paid (even if it temporarily over-clears) for accurate total display
         totalRepaid += t.amount;
+        owedByMe = Math.max(0, owedByMe - t.amount);
         entry_type = "repayment"; // label: "Repaid"
       } else if (catName === "Loan Given") {
         // I lent to counterparty → they owe me more
@@ -1507,8 +1508,9 @@ export const getCounterpartyLedger = async (req, res, next) => {
         entry_type = "loan_given"; // label: "Loan Given"
       } else if (catName === "Loan Repayment Received") {
         // Counterparty paid me back → they owe me less
-        owedByThem = Math.max(0, owedByThem - t.amount);
+        // Track full amount received for accurate total display
         totalReceived += t.amount;
+        owedByThem = Math.max(0, owedByThem - t.amount);
         entry_type = "loan_received_back"; // label: "Repaid to me"
       } else {
         // Fallback by type field (shouldn't normally hit)
@@ -1537,6 +1539,8 @@ export const getCounterpartyLedger = async (req, res, next) => {
     timeline.reverse();
 
     const outstanding = owedByThem + owedByMe; // total unsettled on both sides
+    // Net from user's perspective: positive = I owe them, negative = they owe me
+    const netOwedByMe = owedByMe - owedByThem;
 
     res.json({
       counterparty,
@@ -1550,6 +1554,7 @@ export const getCounterpartyLedger = async (req, res, next) => {
         total_received_back: totalReceived,
         // Combined outstanding
         outstanding,
+        net_owed_by_me: netOwedByMe, // positive = I owe them, negative = they owe me
         owed_by_me: owedByMe,
         owed_by_them: owedByThem,
         transaction_count: txns.length,

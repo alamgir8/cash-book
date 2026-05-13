@@ -395,6 +395,7 @@ export type CounterpartyLedger = {
     total_given: number;
     total_received_back: number;
     outstanding: number;
+    net_owed_by_me: number;
     owed_by_me: number;
     owed_by_them: number;
     transaction_count: number;

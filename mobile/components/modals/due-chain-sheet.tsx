@@ -184,11 +184,15 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
                 style={{
                   backgroundColor: ledger.summary.is_settled
                     ? "#16a34a15"
-                    : "#ef444415",
+                    : ledger.summary.net_owed_by_me > 0
+                      ? "#ef444415"
+                      : "#f59e0b15",
                   borderWidth: 1,
                   borderColor: ledger.summary.is_settled
                     ? "#16a34a40"
-                    : "#ef444440",
+                    : ledger.summary.net_owed_by_me > 0
+                      ? "#ef444440"
+                      : "#f59e0b40",
                 }}
               >
                 <View className="flex-row justify-between items-center">
@@ -198,27 +202,40 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
                   >
                     {ledger.summary.is_settled
                       ? "✅ Fully Settled"
-                      : "⏳ Outstanding Balance"}
+                      : ledger.summary.net_owed_by_me > 0
+                        ? "⏳ I Owe Them"
+                        : "⏳ They Owe Me"}
                   </Text>
                   <Text
                     className="text-base font-bold"
                     style={{
-                      color: ledger.summary.is_settled ? "#16a34a" : "#ef4444",
+                      color: ledger.summary.is_settled
+                        ? "#16a34a"
+                        : ledger.summary.net_owed_by_me > 0
+                          ? "#ef4444"
+                          : "#f59e0b",
                     }}
                   >
-                    {formatAmount(ledger.summary.outstanding)}
+                    {formatAmount(Math.abs(ledger.summary.net_owed_by_me))}
                   </Text>
                 </View>
-                {ledger.summary.owed_by_them > 0 && (
-                  <Text className="text-xs mt-0.5" style={{ color: "#f59e0b" }}>
-                    They owe me: {formatAmount(ledger.summary.owed_by_them)}
-                  </Text>
-                )}
-                {ledger.summary.owed_by_me > 0 && (
-                  <Text className="text-xs mt-0.5" style={{ color: "#3b82f6" }}>
-                    I owe them: {formatAmount(ledger.summary.owed_by_me)}
-                  </Text>
-                )}
+                {ledger.summary.owed_by_them > 0 &&
+                  ledger.summary.owed_by_me > 0 && (
+                    <>
+                      <Text
+                        className="text-xs mt-0.5"
+                        style={{ color: "#ef4444" }}
+                      >
+                        I owe them: {formatAmount(ledger.summary.owed_by_me)}
+                      </Text>
+                      <Text
+                        className="text-xs mt-0.5"
+                        style={{ color: "#f59e0b" }}
+                      >
+                        They owe me: {formatAmount(ledger.summary.owed_by_them)}
+                      </Text>
+                    </>
+                  )}
                 <Text
                   className="text-xs mt-1"
                   style={{ color: colors.text.tertiary }}
@@ -517,10 +534,19 @@ const LedgerRow = ({
           </Text>
           <Text
             className="text-xs font-medium"
-            style={{ color: runningBalance > 0 ? "#ef4444" : "#16a34a" }}
+            style={{
+              color:
+                runningBalance < 0
+                  ? "#ef4444"
+                  : runningBalance > 0
+                    ? "#f59e0b"
+                    : "#16a34a",
+            }}
           >
-            Balance: {formatAmount(Math.abs(runningBalance))}
-            {runningBalance > 0 ? " owed" : " clear"}
+            Balance:{" "}
+            {runningBalance === 0
+              ? "✓ Clear"
+              : `${formatAmount(Math.abs(runningBalance))}${runningBalance < 0 ? " I owe" : " they owe"}`}
           </Text>
         </View>
       </View>
