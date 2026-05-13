@@ -13,6 +13,8 @@ type Props = {
   onEdit?: (transaction: Transaction) => void;
   onDelete?: (transaction: Transaction) => void;
   onAttachmentsPress?: (transaction: Transaction) => void;
+  onPayDue?: (transaction: Transaction) => void; // "Record Payment" button
+  onViewChain?: (transaction: Transaction) => void; // "View History" button
 };
 
 const TransactionCardComponent = ({
@@ -22,24 +24,86 @@ const TransactionCardComponent = ({
   onEdit,
   onDelete,
   onAttachmentsPress,
+  onPayDue,
+  onViewChain,
 }: Props) => {
   const attachmentCount = transaction.attachments?.length ?? 0;
   const { formatAmount } = usePreferences();
   const { colors } = useTheme();
   const isCredit = transaction.type === "credit";
   const amountColor = isCredit ? colors.success : colors.error;
-  const accountKindLabel = transaction.account?.kind
-    ? transaction.account.kind.replace(/_/g, " ")
-    : "Account";
+
+  const isDue = transaction.payment_status === "due";
+  const isPayment = !!transaction.parent_due_id; // payment linked to a due
+  const hasChain = isDue || isPayment;
+  const remaining = transaction.due_remaining ?? transaction.amount;
+  const isSettled = isDue && remaining === 0;
 
   return (
     <View
       style={{
         backgroundColor: colors.bg.secondary,
-        borderColor: colors.border,
+        borderColor: isDue && !isSettled ? "#d97706" + "60" : colors.border,
+        borderWidth: isDue && !isSettled ? 1.5 : 1,
       }}
-      className="rounded-2xl p-3 border shadow-sm"
+      className="rounded-2xl p-3 shadow-sm"
     >
+      {/* Due / Payment badge row */}
+      {(isDue || isPayment) && (
+        <View className="flex-row gap-2 mb-2">
+          {isDue && (
+            <View
+              className="flex-row items-center gap-1 px-2 py-0.5 rounded-full"
+              style={{
+                backgroundColor: isSettled
+                  ? "#16a34a" + "20"
+                  : "#d97706" + "20",
+              }}
+            >
+              <Ionicons
+                name={isSettled ? "checkmark-circle" : "time-outline"}
+                size={12}
+                color={isSettled ? "#16a34a" : "#d97706"}
+              />
+              <Text
+                className="text-xs font-bold"
+                style={{ color: isSettled ? "#16a34a" : "#d97706" }}
+              >
+                {isSettled
+                  ? "Settled"
+                  : `Due · ${formatAmount(remaining)} left`}
+              </Text>
+            </View>
+          )}
+          {isPayment && (
+            <View
+              className="flex-row items-center gap-1 px-2 py-0.5 rounded-full"
+              style={{ backgroundColor: "#16a34a" + "20" }}
+            >
+              <Ionicons name="cash-outline" size={12} color="#16a34a" />
+              <Text className="text-xs font-bold" style={{ color: "#16a34a" }}>
+                Payment
+              </Text>
+            </View>
+          )}
+          {transaction.due_date && isDue && !isSettled && (
+            <View
+              className="flex-row items-center gap-1 px-2 py-0.5 rounded-full"
+              style={{ backgroundColor: colors.bg.tertiary }}
+            >
+              <Ionicons
+                name="calendar-outline"
+                size={12}
+                color={colors.text.tertiary}
+              />
+              <Text className="text-xs" style={{ color: colors.text.tertiary }}>
+                Due {dayjs(transaction.due_date).format("MMM D")}
+              </Text>
+            </View>
+          )}
+        </View>
+      )}
+
       <View className="flex-row justify-between items-start">
         <View className="flex-1 mr-4">
           <View className="flex-row items-center gap-2">
@@ -95,6 +159,14 @@ const TransactionCardComponent = ({
         </Text>
       ) : null}
 
+      {/* Vendor tag */}
+      {transaction.vendor ? (
+        <Text className="text-xs mt-1" style={{ color: colors.text.tertiary }}>
+          <Text style={{ color: colors.text.secondary }}>Vendor: </Text>
+          {transaction.vendor}
+        </Text>
+      ) : null}
+
       <View className="flex-row flex-wrap mt-2 gap-x-4">
         {transaction.category ? (
           <TouchableOpacity
@@ -136,28 +208,61 @@ const TransactionCardComponent = ({
               style={{ color: colors.info }}
               className="text-xs font-semibold"
             >
-              Counterparty: {transaction.counterparty}
+              For: {transaction.counterparty}
             </Text>
           </TouchableOpacity>
         ) : null}
       </View>
 
-      {/* <View className="flex-row justify-between items-center mt-4 pt-3 border-t border-gray-100">
-        <Text className="text-xs text-gray-500 font-medium">
-          {transaction.category?.name ?? accountKindLabel}
-        </Text>
-      </View> */}
-
-      {(onEdit || onAttachmentsPress || onDelete) && !transaction.is_deleted ? (
+      {/* Action row */}
+      {!transaction.is_deleted ? (
         <View
           style={{ borderColor: colors.border }}
-          className="flex-row justify-between items-center pt-2 border-t"
+          className="flex-row flex-wrap gap-2 pt-2 mt-2 border-t"
         >
+          {/* Due-specific: Record Payment */}
+          {isDue && !isSettled && onPayDue && (
+            <TouchableOpacity
+              onPress={() => onPayDue(transaction)}
+              style={{ backgroundColor: "#d97706" + "20" }}
+              className="flex-row items-center gap-1.5 px-3 py-2 rounded-lg"
+            >
+              <Ionicons name="cash-outline" size={16} color="#d97706" />
+              <Text
+                style={{ color: "#d97706" }}
+                className="text-xs font-semibold"
+              >
+                Pay
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Any chain transaction: View History */}
+          {hasChain && onViewChain && (
+            <TouchableOpacity
+              onPress={() => onViewChain(transaction)}
+              style={{ backgroundColor: colors.bg.tertiary }}
+              className="flex-row items-center gap-1.5 px-3 py-2 rounded-lg"
+            >
+              <Ionicons
+                name="git-branch-outline"
+                size={16}
+                color={colors.text.secondary}
+              />
+              <Text
+                style={{ color: colors.text.secondary }}
+                className="text-xs font-semibold"
+              >
+                History
+              </Text>
+            </TouchableOpacity>
+          )}
+
           {onAttachmentsPress ? (
             <TouchableOpacity
               onPress={() => onAttachmentsPress(transaction)}
               style={{ backgroundColor: colors.warning + "20" }}
-              className="flex-row items-center gap-1.5 px-3 py-2 rounded-lg active:scale-95"
+              className="flex-row items-center gap-1.5 px-3 py-2 rounded-lg"
             >
               <Ionicons name="attach" size={16} color={colors.warning} />
               <Text
@@ -169,14 +274,13 @@ const TransactionCardComponent = ({
                   : "Attach"}
               </Text>
             </TouchableOpacity>
-          ) : (
-            <View />
-          )}
+          ) : null}
+
           {onEdit ? (
             <TouchableOpacity
               onPress={() => onEdit(transaction)}
               style={{ backgroundColor: colors.info + "20" }}
-              className="flex-row items-center gap-1.5 px-3 py-2 rounded-lg active:scale-95"
+              className="flex-row items-center gap-1.5 px-3 py-2 rounded-lg"
             >
               <Ionicons name="create-outline" size={16} color={colors.info} />
               <Text
@@ -187,11 +291,12 @@ const TransactionCardComponent = ({
               </Text>
             </TouchableOpacity>
           ) : null}
+
           {onDelete ? (
             <TouchableOpacity
               onPress={() => onDelete(transaction)}
               style={{ backgroundColor: colors.error + "20" }}
-              className="flex-row items-center gap-1.5 px-3 py-2 rounded-lg active:scale-95"
+              className="flex-row items-center gap-1.5 px-3 py-2 rounded-lg"
             >
               <Ionicons name="trash-outline" size={16} color={colors.error} />
               <Text
@@ -208,29 +313,30 @@ const TransactionCardComponent = ({
   );
 };
 
-// Memoize the component with custom comparison
 export const TransactionCard = memo(
   TransactionCardComponent,
-  (prevProps, nextProps) => {
-    // Only re-render if transaction ID or callbacks change
-    return (
-      prevProps.transaction._id === nextProps.transaction._id &&
-      prevProps.transaction.amount === nextProps.transaction.amount &&
-      prevProps.transaction.type === nextProps.transaction.type &&
-      prevProps.transaction.description === nextProps.transaction.description &&
-      prevProps.transaction.date === nextProps.transaction.date &&
-      prevProps.transaction.account?.name ===
-        nextProps.transaction.account?.name &&
-      prevProps.transaction.category?.name ===
-        nextProps.transaction.category?.name &&
-      prevProps.transaction.counterparty ===
-        nextProps.transaction.counterparty &&
-      (prevProps.transaction.attachments?.length ?? 0) ===
-        (nextProps.transaction.attachments?.length ?? 0) &&
-      prevProps.onCategoryPress === nextProps.onCategoryPress &&
-      prevProps.onCounterpartyPress === nextProps.onCounterpartyPress &&
-      prevProps.onDelete === nextProps.onDelete &&
-      prevProps.onAttachmentsPress === nextProps.onAttachmentsPress
-    );
-  },
+  (prevProps, nextProps) =>
+    prevProps.transaction._id === nextProps.transaction._id &&
+    prevProps.transaction.amount === nextProps.transaction.amount &&
+    prevProps.transaction.type === nextProps.transaction.type &&
+    prevProps.transaction.description === nextProps.transaction.description &&
+    prevProps.transaction.date === nextProps.transaction.date &&
+    prevProps.transaction.due_remaining ===
+      nextProps.transaction.due_remaining &&
+    prevProps.transaction.payment_status ===
+      nextProps.transaction.payment_status &&
+    prevProps.transaction.account?.name ===
+      nextProps.transaction.account?.name &&
+    prevProps.transaction.category?.name ===
+      nextProps.transaction.category?.name &&
+    prevProps.transaction.counterparty === nextProps.transaction.counterparty &&
+    (prevProps.transaction.attachments?.length ?? 0) ===
+      (nextProps.transaction.attachments?.length ?? 0) &&
+    prevProps.onCategoryPress === nextProps.onCategoryPress &&
+    prevProps.onCounterpartyPress === nextProps.onCounterpartyPress &&
+    prevProps.onDelete === nextProps.onDelete &&
+    prevProps.onPayDue === nextProps.onPayDue &&
+    prevProps.onViewChain === nextProps.onViewChain &&
+    prevProps.onAttachmentsPress === nextProps.onAttachmentsPress,
 );
+

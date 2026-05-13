@@ -24,7 +24,24 @@ export type Transaction = {
   description?: string;
   keyword?: string;
   comment?: string;
-  counterparty?: string;
+  counterparty?: string; // For / Beneficiary
+  vendor?: string; // Vendor / Seller (who you buy from / sell to)
+  payment_status?: "paid" | "due";
+  due_date?: string;
+  due_remaining?: number; // remaining unpaid (lives on the root due transaction)
+  due_group_id?: string;
+  parent_due_id?:
+    | string
+    | {
+        _id: string;
+        amount: number;
+        due_remaining?: number;
+        date: string;
+        description?: string;
+        vendor?: string;
+        counterparty?: string;
+      };
+  due_settled_at?: string;
   balance_after_transaction?: number;
   is_deleted?: boolean;
   attachments?: {
@@ -152,6 +169,15 @@ export const normalizeTransaction = (
     keyword: transaction.keyword ?? undefined,
     comment: transaction.comment ?? transaction.keyword ?? undefined,
     counterparty: transaction.counterparty ?? undefined,
+    vendor: transaction.vendor ?? undefined,
+    payment_status: transaction.payment_status ?? "paid",
+    due_date: transaction.due_date ?? undefined,
+    due_remaining: transaction.due_remaining ?? undefined,
+    due_group_id: transaction.due_group_id
+      ? String(transaction.due_group_id)
+      : undefined,
+    parent_due_id: transaction.parent_due_id ?? undefined,
+    due_settled_at: transaction.due_settled_at ?? undefined,
     balance_after_transaction: transaction.balance_after_transaction,
     is_deleted: transaction.is_deleted,
     attachments: transaction.attachments ?? [],
@@ -187,6 +213,15 @@ export const fetchCounterparties = async (
   return data;
 };
 
+export const fetchVendors = async (search?: string): Promise<string[]> => {
+  const params: Record<string, string> = {};
+  if (search?.trim()) {
+    params.search = search.trim();
+  }
+  const { data } = await api.get<string[]>("/transactions/vendors", { params });
+  return data;
+};
+
 type CreateTransactionPayload = {
   accountId: string;
   amount: number;
@@ -196,6 +231,9 @@ type CreateTransactionPayload = {
   comment?: string;
   categoryId?: string;
   counterparty?: string;
+  vendor?: string;
+  payment_status?: "paid" | "due";
+  due_date?: string;
 };
 
 export const createTransaction = async (payload: CreateTransactionPayload) => {
@@ -281,6 +319,9 @@ type UpdateTransactionPayload = {
   comment?: string;
   categoryId?: string;
   counterparty?: string;
+  vendor?: string;
+  payment_status?: "paid" | "due";
+  due_date?: string;
 };
 
 export const deleteTransaction = async (
@@ -303,9 +344,91 @@ export const updateTransaction = async ({
   if (payload.comment) requestBody.keyword = payload.comment;
   if (payload.categoryId) requestBody.categoryId = payload.categoryId;
   if (payload.counterparty) requestBody.counterparty = payload.counterparty;
+  if (payload.vendor !== undefined) requestBody.vendor = payload.vendor;
+  if (payload.payment_status)
+    requestBody.payment_status = payload.payment_status;
+  if (payload.due_date !== undefined) requestBody.due_date = payload.due_date;
 
   const { data } = await api.put<{ transaction: Record<string, any> }>(
     `/transactions/${transactionId}`,
+    requestBody,
+  );
+  return normalizeTransaction(data.transaction);
+};
+
+// ── Due chain types ────────────────────────────────────────────────────────
+
+export type DueChainPayment = Transaction & { remaining_after: number };
+
+export type DueChain = {
+  root: Transaction;
+  payments: DueChainPayment[];
+  summary: {
+    original_amount: number;
+    total_paid: number;
+    remaining: number;
+    is_settled: boolean;
+    settled_at: string | null;
+    payment_count: number;
+  };
+};
+
+/**
+ * Fetch the full due chain for any transaction in the chain
+ * (works whether you pass the root due transaction id or any payment id)
+ */
+export const fetchDueChain = async (
+  transactionId: string,
+): Promise<DueChain> => {
+  const { data } = await api.get<{
+    root: Record<string, any>;
+    payments: Record<string, any>[];
+    summary: DueChain["summary"];
+  }>(`/transactions/${transactionId}/due-chain`);
+
+  return {
+    root: normalizeTransaction(data.root),
+    payments: data.payments.map((p) => ({
+      ...normalizeTransaction(p),
+      remaining_after: p.remaining_after,
+    })),
+    summary: data.summary,
+  };
+};
+
+type CreateDuePaymentPayload = {
+  parentDueId: string;
+  accountId: string;
+  amount: number;
+  type: "debit" | "credit";
+  date?: string;
+  description?: string;
+  categoryId?: string;
+};
+
+/**
+ * Record a (partial or full) payment against an existing "due" transaction.
+ * The backend will:
+ *   - Create the payment transaction (payment_status = 'paid')
+ *   - Decrement the parent due's due_remaining
+ *   - Mark the parent due as settled if due_remaining reaches 0
+ *   - Adjust the account balance for the paid amount
+ */
+export const createDuePayment = async (
+  payload: CreateDuePaymentPayload,
+): Promise<Transaction> => {
+  const requestBody: Record<string, unknown> = {
+    accountId: payload.accountId,
+    amount: payload.amount,
+    type: payload.type,
+    parent_due_id: payload.parentDueId,
+  };
+  if (payload.date) requestBody.date = payload.date;
+  if (payload.description) requestBody.description = payload.description;
+  if (payload.categoryId) requestBody.categoryId = payload.categoryId;
+
+  const { data } = await api.post<{ transaction: Record<string, any> }>(
+    "/transactions",
     requestBody,
   );
   return normalizeTransaction(data.transaction);

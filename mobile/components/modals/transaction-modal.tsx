@@ -42,6 +42,7 @@ type TransactionModalProps = {
   accountOptions: SelectOption[];
   categoryOptions: SelectOption[];
   counterpartyOptions?: SelectOption[];
+  vendorOptions?: SelectOption[];
   isAccountsLoading?: boolean;
   isCategoriesLoading?: boolean;
   isSubmitting?: boolean;
@@ -55,6 +56,7 @@ export const TransactionModal = ({
   accountOptions,
   categoryOptions,
   counterpartyOptions = [],
+  vendorOptions = [],
   isAccountsLoading = false,
   isCategoriesLoading = false,
   isSubmitting = false,
@@ -64,6 +66,7 @@ export const TransactionModal = ({
   const insets = useSafeAreaInsets();
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [pickingDueDate, setPickingDueDate] = useState(false);
   // Staged files picked before saving (new transactions only)
   type StagedFile = { uri: string; name: string; type: string; size?: number };
   const [stagedFiles, setStagedFiles] = useState<StagedFile[]>([]);
@@ -89,12 +92,16 @@ export const TransactionModal = ({
       comment: "",
       categoryId: "",
       counterparty: "",
+      vendor: "",
+      payment_status: "paid",
+      due_date: "",
     },
   });
 
   const currentAmount = watch("amount");
   const selectedType = watch("type");
   const selectedCategoryId = watch("categoryId");
+  const paymentStatus = watch("payment_status");
 
   // Filter categories based on selected transaction type (debit/credit)
   const filteredCategoryOptions = useMemo(() => {
@@ -117,6 +124,11 @@ export const TransactionModal = ({
           comment: editingTransaction.keyword || "",
           categoryId: editingTransaction.category?._id || "",
           counterparty: editingTransaction.counterparty || "",
+          vendor: editingTransaction.vendor || "",
+          payment_status: editingTransaction.payment_status || "paid",
+          due_date: editingTransaction.due_date
+            ? dayjs(editingTransaction.due_date).format("YYYY-MM-DD")
+            : "",
         });
         setSelectedDate(new Date(editingTransaction.date));
       } else {
@@ -129,6 +141,9 @@ export const TransactionModal = ({
           comment: "",
           categoryId: "",
           counterparty: "",
+          vendor: "",
+          payment_status: "paid",
+          due_date: "",
         });
         setSelectedDate(new Date());
         setStagedFiles([]);
@@ -151,11 +166,18 @@ export const TransactionModal = ({
   const handleDateChange = (event: any, date?: Date) => {
     setShowDatePicker(false);
     if (date) {
-      setSelectedDate(date);
-      setValue("date", dayjs(date).format("YYYY-MM-DD"), {
-        shouldValidate: true,
-      });
+      if (pickingDueDate) {
+        setValue("due_date", dayjs(date).format("YYYY-MM-DD"), {
+          shouldValidate: true,
+        });
+      } else {
+        setSelectedDate(date);
+        setValue("date", dayjs(date).format("YYYY-MM-DD"), {
+          shouldValidate: true,
+        });
+      }
     }
+    setPickingDueDate(false);
   };
 
   const handleFormSubmit = async (values: TransactionFormValues) => {
@@ -564,13 +586,21 @@ export const TransactionModal = ({
 
                         {showDatePicker && (
                           <DateTimePicker
-                            value={selectedDate}
+                            value={
+                              pickingDueDate
+                                ? watch("due_date")
+                                  ? new Date(watch("due_date")!)
+                                  : new Date()
+                                : selectedDate
+                            }
                             mode="date"
                             display={
                               Platform.OS === "ios" ? "compact" : "default"
                             }
                             onChange={handleDateChange}
-                            maximumDate={new Date()}
+                            maximumDate={
+                              pickingDueDate ? undefined : new Date()
+                            }
                           />
                         )}
                       </View>
@@ -607,13 +637,206 @@ export const TransactionModal = ({
                   />
                 </View>
 
-                {/* Counterparty Field */}
+                {/* Vendor / Seller */}
+                <View>
+                  <Text
+                    className="text-sm font-semibold mb-1"
+                    style={{ color: colors.text.primary }}
+                  >
+                    Vendor / Seller
+                  </Text>
+                  <Text
+                    className="text-xs mb-2"
+                    style={{ color: colors.text.tertiary }}
+                  >
+                    Who did you buy from or sell to? (e.g. Jahangir Alam)
+                  </Text>
+                  <Controller
+                    control={control}
+                    name="vendor"
+                    render={({ field: { value, onChange } }) => (
+                      <SearchableSelect
+                        value={value || ""}
+                        placeholder="Select or add vendor name"
+                        options={vendorOptions}
+                        onSelect={(selectedValue) => onChange(selectedValue)}
+                        allowCustomValue={true}
+                        customDisplayValue={value || ""}
+                      />
+                    )}
+                  />
+                </View>
+
+                {/* Payment Mode */}
                 <View>
                   <Text
                     className="text-sm font-semibold mb-2"
                     style={{ color: colors.text.primary }}
                   >
-                    Counterparty
+                    Payment Mode
+                  </Text>
+                  <Controller
+                    control={control}
+                    name="payment_status"
+                    render={({ field: { value, onChange } }) => (
+                      <View
+                        className="flex-row rounded-xl overflow-hidden border"
+                        style={{ borderColor: colors.border, height: 52 }}
+                      >
+                        <TouchableOpacity
+                          activeOpacity={0.8}
+                          onPress={() => onChange("paid")}
+                          className="flex-1 flex-row items-center justify-center gap-2"
+                          style={{
+                            backgroundColor:
+                              value === "paid" ? "#16a34a" : "transparent",
+                          }}
+                        >
+                          <Ionicons
+                            name="cash-outline"
+                            size={18}
+                            color={
+                              value === "paid" ? "#fff" : colors.text.tertiary
+                            }
+                          />
+                          <Text
+                            className="font-bold text-sm"
+                            style={{
+                              color:
+                                value === "paid"
+                                  ? "#fff"
+                                  : colors.text.secondary,
+                            }}
+                          >
+                            Cash / Paid
+                          </Text>
+                        </TouchableOpacity>
+
+                        <View
+                          style={{
+                            width: 1,
+                            marginVertical: 10,
+                            backgroundColor: colors.border,
+                          }}
+                        />
+
+                        <TouchableOpacity
+                          activeOpacity={0.8}
+                          onPress={() => onChange("due")}
+                          className="flex-1 flex-row items-center justify-center gap-2"
+                          style={{
+                            backgroundColor:
+                              value === "due" ? "#d97706" : "transparent",
+                          }}
+                        >
+                          <Ionicons
+                            name="time-outline"
+                            size={18}
+                            color={
+                              value === "due" ? "#fff" : colors.text.tertiary
+                            }
+                          />
+                          <Text
+                            className="font-bold text-sm"
+                            style={{
+                              color:
+                                value === "due"
+                                  ? "#fff"
+                                  : colors.text.secondary,
+                            }}
+                          >
+                            Due / Unpaid
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  />
+                  {paymentStatus === "due" && (
+                    <View
+                      className="mt-2 px-3 py-2 rounded-xl flex-row items-center gap-2"
+                      style={{
+                        backgroundColor: "#d97706" + "15",
+                        borderWidth: 1,
+                        borderColor: "#d97706" + "40",
+                      }}
+                    >
+                      <Ionicons
+                        name="warning-outline"
+                        size={16}
+                        color="#d97706"
+                      />
+                      <Text
+                        className="text-xs flex-1"
+                        style={{ color: "#d97706" }}
+                      >
+                        This transaction will NOT affect account balance until
+                        marked paid.
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                {/* Due Date (shown only when payment_status = due) */}
+                {paymentStatus === "due" && (
+                  <View>
+                    <Text
+                      className="text-sm font-semibold mb-2"
+                      style={{ color: colors.text.primary }}
+                    >
+                      Due Date (Optional)
+                    </Text>
+                    <Controller
+                      control={control}
+                      name="due_date"
+                      render={({ field: { value, onChange } }) => (
+                        <TouchableOpacity
+                          onPress={() => {
+                            // Reuse the date picker — flag which field we’re picking
+                            setPickingDueDate(true);
+                            setShowDatePicker(true);
+                          }}
+                          style={{
+                            backgroundColor: colors.bg.tertiary,
+                            borderColor: colors.border,
+                          }}
+                          className="px-4 py-3 rounded-xl border flex-row items-center justify-between"
+                        >
+                          <Text
+                            className="text-base"
+                            style={{
+                              color: value
+                                ? colors.text.primary
+                                : colors.text.tertiary,
+                            }}
+                          >
+                            {value
+                              ? dayjs(value).format("MMM DD, YYYY")
+                              : "Select due date"}
+                          </Text>
+                          <Ionicons
+                            name="calendar-outline"
+                            size={20}
+                            color={colors.text.secondary}
+                          />
+                        </TouchableOpacity>
+                      )}
+                    />
+                  </View>
+                )}
+
+                {/* Counterparty / Beneficiary */}
+                <View>
+                  <Text
+                    className="text-sm font-semibold mb-1"
+                    style={{ color: colors.text.primary }}
+                  >
+                    For / Beneficiary
+                  </Text>
+                  <Text
+                    className="text-xs mb-2"
+                    style={{ color: colors.text.tertiary }}
+                  >
+                    Who is this expense/income for? (e.g. Wife, Child, Home)
                   </Text>
                   <Controller
                     control={control}

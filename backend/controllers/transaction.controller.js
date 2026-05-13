@@ -363,6 +363,10 @@ export const createTransaction = async (req, res, next) => {
       description,
       keyword,
       counterparty,
+      vendor,
+      payment_status = "paid",
+      due_date,
+      parent_due_id, // link this payment to an existing due transaction
       category_id: categoryIdAlias,
       categoryId,
       meta_data: metaData,
@@ -428,6 +432,34 @@ export const createTransaction = async (req, res, next) => {
       return res.status(400).json({ message: err.message });
     }
 
+    // ── Due-chain: validate parent due transaction ──────────────────────
+    let parentDue = null;
+    if (parent_due_id) {
+      parentDue = await Transaction.findById(parent_due_id);
+      if (!parentDue || parentDue.is_deleted) {
+        return res
+          .status(404)
+          .json({ message: "Parent due transaction not found" });
+      }
+      if (parentDue.admin.toString() !== req.user.id) {
+        return res
+          .status(403)
+          .json({ message: "Access denied to parent due transaction" });
+      }
+      if (parentDue.payment_status !== "due") {
+        return res
+          .status(400)
+          .json({ message: "Parent transaction is not a due transaction" });
+      }
+      const currentRemaining = parentDue.due_remaining ?? parentDue.amount;
+      if (Number(amount) > currentRemaining + 0.001) {
+        return res.status(400).json({
+          message: `Payment amount (${amount}) exceeds remaining due amount (${currentRemaining})`,
+        });
+      }
+    }
+    // ────────────────────────────────────────────────────────────────────
+
     const transactionPayload = {
       admin: req.user.id,
       organization,
@@ -440,8 +472,23 @@ export const createTransaction = async (req, res, next) => {
       description,
       keyword,
       counterparty,
+      vendor,
+      payment_status: parent_due_id ? "paid" : payment_status, // payments against due are always "paid"
+      due_date: due_date ? new Date(due_date) : undefined,
       meta_data: metaData,
     };
+
+    // Inherit vendor/counterparty from parent due if not explicitly provided
+    if (parentDue) {
+      if (!transactionPayload.vendor && parentDue.vendor) {
+        transactionPayload.vendor = parentDue.vendor;
+      }
+      if (!transactionPayload.counterparty && parentDue.counterparty) {
+        transactionPayload.counterparty = parentDue.counterparty;
+      }
+      transactionPayload.parent_due_id = parentDue._id;
+      transactionPayload.due_group_id = parentDue.due_group_id ?? parentDue._id;
+    }
 
     if (idempotencyKey) {
       transactionPayload.client_request_id = idempotencyKey;
@@ -449,19 +496,51 @@ export const createTransaction = async (req, res, next) => {
 
     const transaction = await Transaction.create(transactionPayload);
 
-    const balanceAfter = await adjustAccountBalanceAtomic({
-      accountId: account._id,
-      amount,
-      type,
-      direction: "apply",
-    });
+    // For new "due" transactions, set due_group_id = own _id and due_remaining = amount
+    if (payment_status === "due" && !parent_due_id) {
+      transaction.due_group_id = transaction._id;
+      transaction.due_remaining = Number(amount);
+    }
 
-    transaction.balance_after_transaction = balanceAfter;
+    // Adjust account balance:
+    //  - Due transaction: no cash moved yet
+    //  - Payment against a due: cash is paid now, adjust balance
+    //  - Regular paid: adjust balance
+    const resolvedStatus = transactionPayload.payment_status;
+    if (resolvedStatus !== "due") {
+      const balanceAfter = await adjustAccountBalanceAtomic({
+        accountId: account._id,
+        amount,
+        type,
+        direction: "apply",
+      });
+      transaction.balance_after_transaction = balanceAfter;
+    } else {
+      const freshAccount = await Account.findById(account._id);
+      transaction.balance_after_transaction =
+        freshAccount?.current_balance ?? account.current_balance;
+    }
     await transaction.save();
+
+    // ── Update parent due transaction's remaining balance ───────────────
+    if (parentDue) {
+      const prevRemaining = parentDue.due_remaining ?? parentDue.amount;
+      const newRemaining = Math.max(0, prevRemaining - Number(amount));
+      parentDue.due_remaining = newRemaining;
+      if (newRemaining === 0) {
+        parentDue.due_settled_at = txnDate;
+      }
+      await parentDue.save();
+    }
+    // ────────────────────────────────────────────────────────────────────
 
     const populated = await Transaction.findById(transaction._id)
       .populate("account", "name kind")
       .populate("category_id", "name type")
+      .populate(
+        "parent_due_id",
+        "amount due_remaining date description vendor counterparty",
+      )
       .lean();
 
     res.status(201).json({ transaction: populated });
@@ -668,6 +747,9 @@ export const updateTransaction = async (req, res, next) => {
       description,
       keyword,
       counterparty,
+      vendor,
+      payment_status: newPaymentStatus,
+      due_date,
       meta_data: metaData,
     } = req.body;
 
@@ -749,20 +831,23 @@ export const updateTransaction = async (req, res, next) => {
     const targetAccountId = targetAccount._id;
     const isAccountChange =
       targetAccountId.toString() !== originalAccountId.toString();
+    const oldPaymentStatus = transaction.payment_status || "paid";
 
     // ── Apply all balance mutations + document saves inside a single session ──
     const session = await mongoose.startSession();
     let savedTransaction;
     try {
       await session.withTransaction(async () => {
-        // 1. Revert original balance impact
-        await adjustAccountBalanceAtomic({
-          accountId: originalAccountId,
-          amount: originalAmount,
-          type: originalType,
-          direction: "revert",
-          session,
-        });
+        // 1. Revert original balance impact (only if previously paid — due had no impact)
+        if (oldPaymentStatus !== "due") {
+          await adjustAccountBalanceAtomic({
+            accountId: originalAccountId,
+            amount: originalAmount,
+            type: originalType,
+            direction: "revert",
+            session,
+          });
+        }
 
         // 2. Handle Transfer sibling updates
         if (transaction.transfer_id) {
@@ -852,6 +937,11 @@ export const updateTransaction = async (req, res, next) => {
         if (description !== undefined) transaction.description = description;
         if (keyword !== undefined) transaction.keyword = keyword;
         if (counterparty !== undefined) transaction.counterparty = counterparty;
+        if (vendor !== undefined) transaction.vendor = vendor;
+        if (due_date !== undefined)
+          transaction.due_date = due_date ? new Date(due_date) : null;
+        if (newPaymentStatus !== undefined)
+          transaction.payment_status = newPaymentStatus;
         if (metaData !== undefined) transaction.meta_data = metaData;
 
         if (req.body.client_request_id) {
@@ -863,16 +953,23 @@ export const updateTransaction = async (req, res, next) => {
           transaction.client_request_id = undefined;
         }
 
-        // 4. Apply new balance impact
-        const balanceAfter = await adjustAccountBalanceAtomic({
-          accountId: targetAccountId,
-          amount: transaction.amount,
-          type: transaction.type,
-          direction: "apply",
-          session,
-        });
-
-        transaction.balance_after_transaction = balanceAfter;
+        // 4. Apply new balance impact (conditional on payment_status)
+        const resolvedPaymentStatus = transaction.payment_status || "paid";
+        if (resolvedPaymentStatus !== "due") {
+          const balanceAfter = await adjustAccountBalanceAtomic({
+            accountId: targetAccountId,
+            amount: transaction.amount,
+            type: transaction.type,
+            direction: "apply",
+            session,
+          });
+          transaction.balance_after_transaction = balanceAfter;
+        } else {
+          // Due: no cash moved, record current balance without changing it
+          const freshAccount =
+            await Account.findById(targetAccountId).session(session);
+          transaction.balance_after_transaction = freshAccount?.current_balance;
+        }
         await transaction.save({ session });
         savedTransaction = transaction._id;
       });
@@ -927,7 +1024,8 @@ export const deleteTransaction = async (req, res, next) => {
     const session = await mongoose.startSession();
     try {
       await session.withTransaction(async () => {
-        if (account) {
+        // Only revert balance if the transaction was actually paid (due = no cash moved)
+        if (account && (transaction.payment_status || "paid") !== "due") {
           await adjustAccountBalanceAtomic({
             accountId: account._id,
             amount: transaction.amount,
@@ -1211,6 +1309,137 @@ export const listCounterparties = async (req, res, next) => {
     const sortedCounterparties = results.map((r) => r.name);
 
     res.json(sortedCounterparties);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Get all unique vendors for the authenticated admin
+ */
+export const listVendors = async (req, res, next) => {
+  try {
+    const adminId = req.user.id;
+    const organizationId = getOrgFromRequest(req);
+    const searchQuery = req.query.search?.trim().toLowerCase() || "";
+
+    const distinctFilter = organizationId
+      ? {
+          organization: new mongoose.Types.ObjectId(organizationId),
+          is_deleted: { $ne: true },
+        }
+      : {
+          admin: new mongoose.Types.ObjectId(adminId),
+          is_deleted: { $ne: true },
+        };
+
+    const pipeline = [
+      { $match: distinctFilter },
+      { $match: { vendor: { $exists: true, $nin: [null, ""] } } },
+      {
+        $group: {
+          _id: { $toLower: { $trim: { input: "$vendor" } } },
+          name: { $first: { $trim: { input: "$vendor" } } },
+        },
+      },
+      ...(searchQuery
+        ? [
+            {
+              $match: {
+                _id: {
+                  $regex: searchQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+                  $options: "i",
+                },
+              },
+            },
+          ]
+        : []),
+      { $sort: { _id: 1 } },
+      { $limit: 200 },
+      { $project: { _id: 0, name: 1 } },
+    ];
+
+    const results = await Transaction.aggregate(pipeline);
+    res.json(results.map((r) => r.name));
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /transactions/:transactionId/due-chain
+ *
+ * Returns the full chain for a due or payment transaction:
+ *   - The original due transaction
+ *   - All payment transactions linked to it (sorted by date asc)
+ *   - A running balance showing what was remaining after each payment
+ */
+export const getDueChain = async (req, res, next) => {
+  try {
+    const { transactionId } = req.params;
+    const adminId = req.user.id;
+
+    // Load the requested transaction
+    const txn = await Transaction.findById(transactionId)
+      .populate("account", "name kind")
+      .populate("category_id", "name type")
+      .lean();
+
+    if (!txn || txn.is_deleted) {
+      return res.status(404).json({ message: "Transaction not found" });
+    }
+
+    // Access check
+    if (txn.admin.toString() !== adminId) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    // Resolve the due_group_id — works whether we're looking at the root or a payment
+    const groupId = txn.due_group_id ?? txn._id;
+
+    // Fetch all non-deleted transactions in the chain
+    const chainRaw = await Transaction.find({
+      due_group_id: groupId,
+      is_deleted: { $ne: true },
+    })
+      .populate("account", "name kind")
+      .populate("category_id", "name type")
+      .sort({ date: 1, createdAt: 1 })
+      .lean();
+
+    // The root/original due transaction
+    const root =
+      chainRaw.find(
+        (t) =>
+          t._id.toString() === groupId.toString() && t.payment_status === "due",
+      ) ?? chainRaw[0];
+
+    // Payment transactions only (has parent_due_id)
+    const payments = chainRaw.filter((t) => t.parent_due_id != null);
+
+    // Build running balance entries
+    const originalAmount = root?.amount ?? 0;
+    let running = originalAmount;
+    const timeline = payments.map((p) => {
+      running = Math.max(0, running - p.amount);
+      return { ...p, remaining_after: running };
+    });
+
+    const totalPaid = payments.reduce((s, p) => s + p.amount, 0);
+    const remaining = Math.max(0, originalAmount - totalPaid);
+
+    res.json({
+      root,
+      payments: timeline,
+      summary: {
+        original_amount: originalAmount,
+        total_paid: totalPaid,
+        remaining,
+        is_settled: remaining === 0,
+        settled_at: root?.due_settled_at ?? null,
+        payment_count: payments.length,
+      },
+    });
   } catch (error) {
     next(error);
   }

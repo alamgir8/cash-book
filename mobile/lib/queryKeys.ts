@@ -6,6 +6,7 @@ export const queryKeys = {
     all: ["categories"],
   },
   counterparties: ["counterparties"],
+  vendors: ["vendors"],
   accountDetail: (accountId: string) => ["account", accountId, "detail"],
   accountTransactions: (
     accountId: string,

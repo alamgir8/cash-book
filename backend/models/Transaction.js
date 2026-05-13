@@ -70,6 +70,47 @@ const transactionSchema = new Schema(
       type: String,
       trim: true,
     },
+    // Vendor / Seller — who you bought from or sold to (free text)
+    vendor: {
+      type: String,
+      trim: true,
+    },
+    // payment_status: 'paid' = cash paid immediately; 'due' = recorded but not yet paid
+    payment_status: {
+      type: String,
+      enum: ["paid", "due"],
+      default: "paid",
+      index: true,
+    },
+    // Optional due date when payment_status = 'due'
+    due_date: {
+      type: Date,
+    },
+    // ── Due / Credit chain linking ─────────────────────────────────────────
+    // All transactions in the same due chain share this ID.
+    // For the original "due" transaction it equals its own _id.
+    // For each payment it equals the parent due transaction's _id.
+    due_group_id: {
+      type: Schema.Types.ObjectId,
+      ref: "Transaction",
+      index: true,
+    },
+    // Payment transactions point back to the original "due" transaction
+    parent_due_id: {
+      type: Schema.Types.ObjectId,
+      ref: "Transaction",
+      index: true,
+    },
+    // Remaining unpaid amount on the original "due" transaction (updated with each payment)
+    due_remaining: {
+      type: Number,
+      min: 0,
+    },
+    // When the due transaction was fully settled (due_remaining reached 0)
+    due_settled_at: {
+      type: Date,
+    },
+    // ──────────────────────────────────────────────────────────────────────
     meta_data: {
       type: Schema.Types.Mixed,
     },
@@ -151,10 +192,15 @@ transactionSchema.index(
   },
 );
 
+transactionSchema.index({ admin: 1, payment_status: 1, date: -1 });
+transactionSchema.index({ admin: 1, vendor: 1 });
+transactionSchema.index({ admin: 1, due_group_id: 1, date: 1 }); // due chain queries
+transactionSchema.index({ admin: 1, parent_due_id: 1 }); // payments by parent
 transactionSchema.index({
   keyword: "text",
   description: "text",
   counterparty: "text",
+  vendor: "text",
 });
 
 transactionSchema.methods.softDelete = function () {

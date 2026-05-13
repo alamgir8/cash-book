@@ -10,6 +10,8 @@ import {
   restoreTransaction,
   recalculateBalances,
   listCounterparties,
+  listVendors,
+  getDueChain,
 } from "../controllers/transaction.controller.js";
 import {
   uploadMiddleware,
@@ -47,6 +49,10 @@ const createSchema = z.object({
     description: z.string().optional(),
     keyword: z.string().optional(),
     counterparty: z.string().optional(),
+    vendor: z.string().optional(),
+    payment_status: z.enum(["paid", "due"]).optional(),
+    due_date: dateValidator,
+    parent_due_id: z.string().trim().optional(), // link payment to a due transaction
     categoryId: z.string().optional(),
     category_id: z.string().optional(),
     meta_data: metaSchema,
@@ -114,6 +120,9 @@ const updateSchema = z.object({
       description: z.string().optional(),
       keyword: z.string().optional(),
       counterparty: z.string().optional(),
+      vendor: z.string().optional(),
+      payment_status: z.enum(["paid", "due"]).optional(),
+      due_date: dateValidator,
       categoryId: z.string().optional(),
       category_id: z.string().optional(),
       meta_data: metaSchema,
@@ -128,6 +137,9 @@ const updateSchema = z.object({
         data.description === undefined &&
         data.keyword === undefined &&
         data.counterparty === undefined &&
+        data.vendor === undefined &&
+        data.payment_status === undefined &&
+        data.due_date === undefined &&
         data.categoryId === undefined &&
         data.category_id === undefined &&
         data.meta_data === undefined
@@ -158,6 +170,8 @@ const listQuerySchema = z.object({
     categoryId: z.string().optional(),
     category_id: z.string().optional(),
     counterparty: z.string().optional(),
+    vendor: z.string().optional(),
+    payment_status: z.enum(["paid", "due"]).optional(),
     financialScope: z.string().optional(),
     financial_scope: z.string().optional(),
     q: z.string().optional(),
@@ -185,7 +199,13 @@ router.use(authenticate);
 
 // Static routes MUST come before dynamic :transactionId route
 router.get("/counterparties", listCounterparties);
+router.get("/vendors", listVendors);
 router.get("/", validate(listQuerySchema), listTransactions);
+router.get(
+  "/:transactionId/due-chain",
+  validate(transactionIdParams),
+  getDueChain,
+);
 router.get("/:transactionId", validate(transactionIdParams), getTransaction);
 router.post("/", validate(createSchema), createTransaction);
 router.post("/transfer", validate(transferSchema), createTransfer);

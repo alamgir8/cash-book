@@ -20,6 +20,8 @@ import { FloatingActionButton } from "@/components/floating-action-button";
 import { TransactionModal } from "@/components/modals/transaction-modal";
 import { AttachmentViewerModal } from "@/components/transactions/attachment-viewer-modal";
 import { TransferModal } from "@/components/modals/transfer-modal";
+import { DuePaymentModal } from "@/components/modals/due-payment-modal";
+import { DueChainSheet } from "@/components/modals/due-chain-sheet";
 import {
   StatsCardsSkeleton,
   QuickFeaturesSkeleton,
@@ -34,9 +36,11 @@ import type {
 import { exportTransactionsPdf } from "@/services/reports";
 import {
   createTransaction,
+  createDuePayment,
   createTransfer,
   deleteTransaction,
   fetchCounterparties,
+  fetchVendors,
   fetchTransactions,
   updateTransaction,
   type Transaction,
@@ -77,6 +81,10 @@ export default function DashboardScreen() {
   const [isTransferModalVisible, setTransferModalVisible] = useState(false);
   const [editingTransaction, setEditingTransaction] =
     useState<Transaction | null>(null);
+  const [payingDueTxn, setPayingDueTxn] = useState<Transaction | null>(null);
+  const [viewingChainFor, setViewingChainFor] = useState<Transaction | null>(
+    null,
+  );
 
   const accountsQuery = useQuery({
     queryKey: queryKeys.accounts,
@@ -255,6 +263,11 @@ export default function DashboardScreen() {
     queryFn: () => fetchCounterparties(),
   });
 
+  const vendorsQuery = useQuery({
+    queryKey: queryKeys.vendors,
+    queryFn: () => fetchVendors(),
+  });
+
   // Combine API counterparties with counterparties from loaded transactions
   const counterpartyOptions: SelectOption[] = useMemo(() => {
     const apiCounterparties = counterpartiesQuery.data ?? [];
@@ -280,6 +293,24 @@ export default function DashboardScreen() {
       .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
       .map((name) => ({ value: name, label: name }));
   }, [counterpartiesQuery.data, transactionsQuery.data, editingTransaction]);
+
+  const vendorOptions: SelectOption[] = useMemo(() => {
+    const apiVendors = vendorsQuery.data ?? [];
+    const txnVendors = (transactionsQuery.data?.transactions ?? [])
+      .map((txn) => txn.vendor?.trim())
+      .filter((name): name is string => Boolean(name));
+    const editingVendor = editingTransaction?.vendor?.trim();
+    const allVendors = [
+      ...new Set([
+        ...apiVendors,
+        ...txnVendors,
+        ...(editingVendor ? [editingVendor] : []),
+      ]),
+    ];
+    return allVendors
+      .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
+      .map((name) => ({ value: name, label: name }));
+  }, [vendorsQuery.data, transactionsQuery.data, editingTransaction]);
 
   const hasActiveFilters = useMemo(() => {
     if (filters.range && filters.range !== defaultFilters.range) {
@@ -383,6 +414,9 @@ export default function DashboardScreen() {
       counterparty: values.counterparty?.trim()
         ? values.counterparty.trim()
         : undefined,
+      vendor: values.vendor?.trim() ? values.vendor.trim() : undefined,
+      payment_status: values.payment_status || "paid",
+      due_date: values.due_date?.trim() ? values.due_date.trim() : undefined,
     };
 
     if (editingTransaction) {
@@ -456,6 +490,8 @@ export default function DashboardScreen() {
         onEdit={handleEditTransaction}
         onDelete={isDeleteModeActive ? handleDeleteTransaction : undefined}
         onAttachmentsPress={handleAttachmentsPress}
+        onPayDue={(t) => setPayingDueTxn(t)}
+        onViewChain={(t) => setViewingChainFor(t)}
       />
     ),
     [
@@ -644,6 +680,22 @@ export default function DashboardScreen() {
         attachments={viewingAttachmentsFor?.attachments ?? []}
         canDelete={canEditTransactions}
       />
+      {payingDueTxn && (
+        <DuePaymentModal
+          visible={!!payingDueTxn}
+          onClose={() => setPayingDueTxn(null)}
+          dueTxn={payingDueTxn}
+          accountOptions={accountOptions}
+          onSuccess={() => setPayingDueTxn(null)}
+        />
+      )}
+      {viewingChainFor && (
+        <DueChainSheet
+          visible={!!viewingChainFor}
+          onClose={() => setViewingChainFor(null)}
+          transaction={viewingChainFor}
+        />
+      )}
     </View>
   );
 }
