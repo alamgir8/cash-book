@@ -8,6 +8,8 @@ if (!CLOUD_NAME || !API_KEY || !API_SECRET) {
   console.warn(
     "[Cloudinary] Missing CLOUDINARY_CLOUD_NAME / CLOUDINARY_API_KEY / CLOUDINARY_API_SECRET — attachment uploads will fail.",
   );
+} else {
+  console.log(`[Cloudinary] Configured ✓ (cloud: ${CLOUD_NAME})`);
 }
 
 cloudinary.config({

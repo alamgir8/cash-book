@@ -17,6 +17,7 @@ import { ScreenHeader } from "@/components/screen-header";
 import { EmptyState } from "@/components/empty-state";
 import { FloatingActionButton } from "@/components/floating-action-button";
 import { TransactionModal } from "@/components/modals/transaction-modal";
+import { AttachmentViewerModal } from "@/components/transactions/attachment-viewer-modal";
 import { TransferModal } from "@/components/modals/transfer-modal";
 import {
   StatsCardsSkeleton,
@@ -55,7 +56,15 @@ const defaultFilters: TransactionFilters = {
 
 export default function DashboardScreen() {
   const { formatAmount } = usePreferences();
-  const { canCreateTransactions, activeOrganization } = useOrganization();
+  const { canCreateTransactions, activeOrganization, hasPermission } =
+    useOrganization();
+  const canEditTransactions = hasPermission("edit_transactions");
+  const [viewingAttachmentsFor, setViewingAttachmentsFor] =
+    useState<Transaction | null>(null);
+  const handleAttachmentsPress = useCallback(
+    (t: Transaction) => setViewingAttachmentsFor(t),
+    [],
+  );
   const { mergeTransactionPages } = usePaginationCache();
   const { colors } = useTheme();
   const queryClient = useQueryClient();
@@ -401,9 +410,15 @@ export default function DashboardScreen() {
         onCategoryPress={handleCategoryFilter}
         onCounterpartyPress={handleCounterpartyFilter}
         onEdit={handleEditTransaction}
+        onAttachmentsPress={handleAttachmentsPress}
       />
     ),
-    [handleCategoryFilter, handleCounterpartyFilter, handleEditTransaction],
+    [
+      handleCategoryFilter,
+      handleCounterpartyFilter,
+      handleEditTransaction,
+      handleAttachmentsPress,
+    ],
   );
 
   const renderHeader = () => {
@@ -574,6 +589,13 @@ export default function DashboardScreen() {
         counterpartyOptions={counterpartyOptions}
         isAccountsLoading={accountsQuery.isLoading}
         isSubmitting={createTransferMutation.isPending}
+      />
+      <AttachmentViewerModal
+        visible={!!viewingAttachmentsFor}
+        onClose={() => setViewingAttachmentsFor(null)}
+        transactionId={viewingAttachmentsFor?._id ?? ""}
+        attachments={viewingAttachmentsFor?.attachments ?? []}
+        canDelete={canEditTransactions}
       />
     </View>
   );

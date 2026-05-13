@@ -1,12 +1,16 @@
 import multer from "multer";
 import { Readable } from "stream";
+import sharp from "sharp";
 import { cloudinary } from "../config/cloudinary.js";
 import { Transaction } from "../models/Transaction.js";
 import { checkOrgAccess } from "../utils/organization.js";
 
 // ── Constants ──────────────────────────────────────────────────────────────
-const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
+const MAX_RAW_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB – multer hard cap
 const MAX_ATTACHMENTS_PER_TRANSACTION = 10;
+// Limits applied to the locally-compressed buffer BEFORE any Cloudinary upload
+const MAX_IMAGE_BYTES_AFTER_OPT = 1 * 1024 * 1024; // 1 MB
+const MAX_PDF_BYTES_AFTER_OPT = 1.5 * 1024 * 1024; // 1.5 MB
 const ALLOWED_MIME_TYPES = new Set([
   "image/jpeg",
   "image/jpg",
@@ -36,18 +40,44 @@ export const uploadMiddleware = multer({
     }
   },
   limits: {
-    fileSize: MAX_FILE_SIZE_BYTES,
+    fileSize: MAX_RAW_FILE_SIZE_BYTES,
     files: MAX_ATTACHMENTS_PER_TRANSACTION,
   },
 }).array("attachments", MAX_ATTACHMENTS_PER_TRANSACTION);
 
+// ── Locally compress an image buffer with sharp ───────────────────────────
+/**
+ * Returns a compressed JPEG buffer.
+ * Tries progressively lower quality until the result fits within maxBytes,
+ * starting at quality 82 and stepping down to 40 in increments of 14.
+ * If even quality 40 is still too large the buffer at that quality is returned
+ * so the caller can decide whether to reject it.
+ */
+const optimizeImageBuffer = async (inputBuffer, maxBytes) => {
+  const qualities = [82, 68, 55, 40];
+  let best = null;
+  for (const q of qualities) {
+    const out = await sharp(inputBuffer)
+      .rotate() // auto-orient from EXIF
+      .jpeg({ quality: q, progressive: true, mozjpeg: true })
+      .toBuffer();
+    best = out;
+    if (out.length <= maxBytes) return { buffer: out, fits: true };
+  }
+  return { buffer: best, fits: false };
+};
+
 // ── Stream a buffer to Cloudinary ─────────────────────────────────────────
 const uploadBufferToCloudinary = (buffer, options) =>
   new Promise((resolve, reject) => {
-    const uploadStream = cloudinary.uploader.upload_stream(options, (err, result) => {
-      if (err || !result) return reject(err ?? new Error("Cloudinary upload failed"));
-      resolve(result);
-    });
+    const uploadStream = cloudinary.uploader.upload_stream(
+      options,
+      (err, result) => {
+        if (err || !result)
+          return reject(err ?? new Error("Cloudinary upload failed"));
+        resolve(result);
+      },
+    );
     const readable = new Readable();
     readable.push(buffer);
     readable.push(null);
@@ -83,7 +113,8 @@ export const uploadAttachments = async (req, res, next) => {
         transaction.organization,
         "edit_transactions",
       );
-      if (!access.hasAccess) return res.status(403).json({ message: access.error });
+      if (!access.hasAccess)
+        return res.status(403).json({ message: access.error });
     } else if (transaction.admin.toString() !== req.user.id) {
       return res.status(403).json({ message: "Access denied" });
     }
@@ -103,11 +134,45 @@ export const uploadAttachments = async (req, res, next) => {
     const uploaded = await Promise.all(
       req.files.map(async (file) => {
         const isPdf = file.mimetype === "application/pdf";
-        const result = await uploadBufferToCloudinary(file.buffer, {
+
+        // ── Step 1: compress locally (images only) & validate size ───────
+        let uploadBuffer = file.buffer;
+        const sizeLimit = isPdf
+          ? MAX_PDF_BYTES_AFTER_OPT
+          : MAX_IMAGE_BYTES_AFTER_OPT;
+        const limitLabel = isPdf ? "1.5 MB" : "1 MB";
+
+        if (isPdf) {
+          // PDFs can't be compressed — check raw size
+          if (file.buffer.length > sizeLimit) {
+            throw Object.assign(
+              new Error(
+                `"${file.originalname}" is ${(file.buffer.length / 1024 / 1024).toFixed(2)} MB, which exceeds the ${limitLabel} PDF limit.`,
+              ),
+              { statusCode: 422 },
+            );
+          }
+        } else {
+          // Compress the image with sharp
+          const { buffer: compressed, fits } = await optimizeImageBuffer(
+            file.buffer,
+            sizeLimit,
+          );
+          if (!fits) {
+            throw Object.assign(
+              new Error(
+                `"${file.originalname}" is still ${(compressed.length / 1024 / 1024).toFixed(2)} MB after optimization, which exceeds the ${limitLabel} image limit. Please use a smaller image.`,
+              ),
+              { statusCode: 422 },
+            );
+          }
+          uploadBuffer = compressed;
+        }
+
+        // ── Step 2: upload the validated buffer to Cloudinary ─────────────
+        const result = await uploadBufferToCloudinary(uploadBuffer, {
           folder: `cash-book/transactions/${transactionId}`,
           resource_type: isPdf ? "raw" : "image",
-          format: isPdf ? undefined : "webp",
-          quality: "auto",
           use_filename: true,
           unique_filename: true,
           tags: [`txn_${transactionId}`, `admin_${req.user.id}`],
@@ -117,8 +182,8 @@ export const uploadAttachments = async (req, res, next) => {
           url: result.secure_url,
           thumbnail_url: makeThumbnailUrl(result.public_id, isPdf),
           file_name: file.originalname,
-          file_size: file.size,
-          mime_type: file.mimetype,
+          file_size: uploadBuffer.length,
+          mime_type: isPdf ? file.mimetype : "image/jpeg",
           storage_key: result.public_id,
           uploaded_at: new Date(),
         };
@@ -141,7 +206,10 @@ export const uploadAttachments = async (req, res, next) => {
 export const deleteAttachment = async (req, res, next) => {
   try {
     const { transactionId } = req.params;
-    const storageKey = decodeURIComponent(req.params.storageKey);
+    // Express wildcard stores the rest of the path in params[0]
+    const storageKey = decodeURIComponent(
+      req.params[0] || req.params.storageKey || "",
+    );
 
     const transaction = await Transaction.findById(transactionId);
     if (!transaction || transaction.is_deleted) {
@@ -154,7 +222,8 @@ export const deleteAttachment = async (req, res, next) => {
         transaction.organization,
         "edit_transactions",
       );
-      if (!access.hasAccess) return res.status(403).json({ message: access.error });
+      if (!access.hasAccess)
+        return res.status(403).json({ message: access.error });
     } else if (transaction.admin.toString() !== req.user.id) {
       return res.status(403).json({ message: "Access denied" });
     }
@@ -177,10 +246,16 @@ export const deleteAttachment = async (req, res, next) => {
         invalidate: true,
       })
       .catch((err) =>
-        console.warn(`[Cloudinary] Could not delete ${removed.storage_key}:`, err?.message),
+        console.warn(
+          `[Cloudinary] Could not delete ${removed.storage_key}:`,
+          err?.message,
+        ),
       );
 
-    res.json({ message: "Attachment removed", attachments: transaction.attachments });
+    res.json({
+      message: "Attachment removed",
+      attachments: transaction.attachments,
+    });
   } catch (error) {
     next(error);
   }

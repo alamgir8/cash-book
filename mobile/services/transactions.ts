@@ -154,6 +154,7 @@ export const normalizeTransaction = (
     counterparty: transaction.counterparty ?? undefined,
     balance_after_transaction: transaction.balance_after_transaction,
     is_deleted: transaction.is_deleted,
+    attachments: transaction.attachments ?? [],
   };
 };
 

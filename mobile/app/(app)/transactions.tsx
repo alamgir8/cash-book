@@ -14,6 +14,7 @@ import { FilterBar } from "@/components/filter-bar";
 import { TransactionCard } from "@/components/transaction-card";
 import { StatsCards } from "@/components/stats-cards";
 import { TransactionModal } from "@/components/modals/transaction-modal";
+import { AttachmentViewerModal } from "@/components/transactions/attachment-viewer-modal";
 import type { TransactionFormValues } from "@/components/modals/types";
 import {
   fetchTransactions,
@@ -56,6 +57,12 @@ export default function TransactionsScreen() {
     ...(accountId ? { accountId } : {}),
   });
   const [exporting, setExporting] = useState(false);
+  const [viewingAttachmentsFor, setViewingAttachmentsFor] =
+    useState<Transaction | null>(null);
+  const handleAttachmentsPress = useCallback(
+    (t: Transaction) => setViewingAttachmentsFor(t),
+    [],
+  );
   const [allTransactions, setAllTransactions] = useState<any[]>([]);
   const [hasMorePages, setHasMorePages] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -394,6 +401,7 @@ export default function TransactionsScreen() {
         onCategoryPress={handleCategoryPress}
         onCounterpartyPress={handleCounterpartyPress}
         onEdit={canEditTransactions ? handleEditTransaction : undefined}
+        onAttachmentsPress={handleAttachmentsPress}
       />
     ),
     [
@@ -401,6 +409,7 @@ export default function TransactionsScreen() {
       handleCounterpartyPress,
       handleEditTransaction,
       canEditTransactions,
+      handleAttachmentsPress,
     ],
   );
 
@@ -578,6 +587,13 @@ export default function TransactionsScreen() {
         isAccountsLoading={accountsQuery.isLoading}
         isCategoriesLoading={categoriesQuery.isLoading}
         isSubmitting={updateMutation.isPending}
+      />
+      <AttachmentViewerModal
+        visible={!!viewingAttachmentsFor}
+        onClose={() => setViewingAttachmentsFor(null)}
+        transactionId={viewingAttachmentsFor?._id ?? ""}
+        attachments={viewingAttachmentsFor?.attachments ?? []}
+        canDelete={canEditTransactions}
       />
     </View>
   );

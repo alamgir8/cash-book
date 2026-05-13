@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   Modal,
   View,
@@ -39,11 +39,21 @@ export function AttachmentViewerModal({
   const queryClient = useQueryClient();
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [loadingImg, setLoadingImg] = useState(false);
+  const [localAttachments, setLocalAttachments] =
+    useState<Attachment[]>(attachments);
+
+  // Sync local list when the modal opens for a (possibly different) transaction
+  useEffect(() => {
+    if (visible) setLocalAttachments(attachments);
+  }, [visible, transactionId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const deleteMutation = useMutation({
     mutationFn: (storageKey: string) =>
       deleteAttachment(transactionId, storageKey),
-    onSuccess: () => {
+    onSuccess: (data, storageKey) => {
+      setLocalAttachments((prev) =>
+        prev.filter((a) => a.storage_key !== storageKey),
+      );
       queryClient.invalidateQueries({ queryKey: ["transactions"] });
       queryClient.invalidateQueries({
         queryKey: ["transaction", transactionId],
@@ -191,14 +201,14 @@ export function AttachmentViewerModal({
               style={{ color: colors.text.primary }}
               className="text-lg font-bold"
             >
-              Attachments ({attachments.length})
+              Attachments ({localAttachments.length})
             </Text>
             <TouchableOpacity onPress={onClose} className="p-1">
               <Ionicons name="close" size={24} color={colors.text.primary} />
             </TouchableOpacity>
           </View>
 
-          {attachments.length === 0 ? (
+          {localAttachments.length === 0 ? (
             <View className="flex-1 items-center justify-center">
               <Ionicons name="attach" size={48} color={colors.text.tertiary} />
               <Text
@@ -210,7 +220,7 @@ export function AttachmentViewerModal({
             </View>
           ) : (
             <FlatList
-              data={attachments}
+              data={localAttachments}
               keyExtractor={(item) => item.storage_key}
               renderItem={renderItem}
               numColumns={3}

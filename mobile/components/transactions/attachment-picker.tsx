@@ -7,9 +7,8 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
-  ActionSheetIOS,
 } from "react-native";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import { Ionicons } from "@expo/vector-icons";
@@ -24,7 +23,7 @@ type AttachmentPickerProps = {
   maxFiles?: number;
 };
 
-const MAX_FILE_SIZE_MB = 10;
+const MAX_RAW_FILE_SIZE_MB = 10; // Max raw size accepted before upload
 
 export function AttachmentPicker({
   transactionId,
@@ -33,7 +32,13 @@ export function AttachmentPicker({
   maxFiles = 10,
 }: AttachmentPickerProps) {
   const { colors } = useTheme();
-  const [attachments, setAttachments] = useState<Attachment[]>(initialAttachments);
+  const [attachments, setAttachments] =
+    useState<Attachment[]>(initialAttachments);
+  // Reset when transactionId changes (modal re-used for different transactions)
+  useEffect(() => {
+    setAttachments(initialAttachments);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [transactionId]);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<string>("");
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -47,7 +52,10 @@ export function AttachmentPicker({
   const requestCameraPermission = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert("Permission Required", "Camera access is needed to capture receipts.");
+      Alert.alert(
+        "Permission Required",
+        "Camera access is needed to capture receipts.",
+      );
       return false;
     }
     return true;
@@ -56,13 +64,24 @@ export function AttachmentPicker({
   const requestMediaPermission = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert("Permission Required", "Photo library access is needed to attach images.");
+      Alert.alert(
+        "Permission Required",
+        "Photo library access is needed to attach images.",
+      );
       return false;
     }
     return true;
   };
 
   // ── Actions ────────────────────────────────────────────────────────────
+
+  /** Map an ImagePickerAsset to the shape uploadFiles expects (with real mimeType) */
+  const mapImageAsset = (asset: ImagePicker.ImagePickerAsset) => ({
+    uri: asset.uri,
+    name: asset.fileName ?? `photo_${Date.now()}.jpg`,
+    type: asset.mimeType ?? "image/jpeg",
+    size: asset.fileSize,
+  });
 
   /** Quick photo — no crop editing */
   const handleCamera = async () => {
@@ -74,7 +93,7 @@ export function AttachmentPicker({
       exif: false,
     });
     if (result.canceled || !result.assets?.[0]) return;
-    await uploadFiles([result.assets[0]]);
+    await uploadFiles([mapImageAsset(result.assets[0])]);
   };
 
   /** Scan mode — camera + crop/rotate editing to straighten documents */
@@ -82,13 +101,13 @@ export function AttachmentPicker({
     if (!(await requestCameraPermission())) return;
     const result = await ImagePicker.launchCameraAsync({
       mediaTypes: ["images"],
-      quality: 1,          // max quality for scanned docs
+      quality: 1, // max quality for scanned docs
       allowsEditing: true, // lets user crop / straighten
-      aspect: undefined,   // free-form crop (not locked ratio)
+      aspect: undefined, // free-form crop (not locked ratio)
       exif: false,
     });
     if (result.canceled || !result.assets?.[0]) return;
-    await uploadFiles([result.assets[0]]);
+    await uploadFiles([mapImageAsset(result.assets[0])]);
   };
 
   /** Gallery multi-select */
@@ -103,7 +122,7 @@ export function AttachmentPicker({
       exif: false,
     });
     if (result.canceled || !result.assets?.length) return;
-    await uploadFiles(result.assets);
+    await uploadFiles(result.assets.map(mapImageAsset));
   };
 
   /** PDF document picker */
@@ -115,39 +134,14 @@ export function AttachmentPicker({
     });
     if (result.canceled || !result.assets?.[0]) return;
     const asset = result.assets[0];
-    await uploadFiles([{ uri: asset.uri, name: asset.name, type: asset.mimeType ?? "application/pdf", size: asset.size }]);
-  };
-
-  /** On iOS, show a native action sheet for the camera options */
-  const handleAddPress = () => {
-    if (attachments.length >= maxFiles) {
-      Alert.alert("Limit Reached", `Maximum ${maxFiles} attachments allowed.`);
-      return;
-    }
-    if (Platform.OS === "ios") {
-      ActionSheetIOS.showActionSheetWithOptions(
-        {
-          options: ["Cancel", "Scan Document", "Take Photo", "Choose from Gallery", "Pick PDF"],
-          cancelButtonIndex: 0,
-          title: "Add Attachment",
-        },
-        (index) => {
-          if (index === 1) handleScan();
-          else if (index === 2) handleCamera();
-          else if (index === 3) handleGallery();
-          else if (index === 4) handleDocument();
-        },
-      );
-    } else {
-      // Android: show an Alert with buttons
-      Alert.alert("Add Attachment", "Choose a source", [
-        { text: "📄 Scan Document", onPress: handleScan },
-        { text: "📷 Take Photo", onPress: handleCamera },
-        { text: "🖼️ Choose from Gallery", onPress: handleGallery },
-        { text: "📑 Pick PDF", onPress: handleDocument },
-        { text: "Cancel", style: "cancel" },
-      ]);
-    }
+    await uploadFiles([
+      {
+        uri: asset.uri,
+        name: asset.name,
+        type: asset.mimeType ?? "application/pdf",
+        size: asset.size,
+      },
+    ]);
   };
 
   // ── Upload ─────────────────────────────────────────────────────────────
@@ -155,18 +149,28 @@ export function AttachmentPicker({
     files: { uri: string; name?: string; type?: string; size?: number }[],
   ) => {
     for (const file of files) {
-      if (file.size && file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
-        Alert.alert("File Too Large", `"${file.name ?? "File"}" exceeds the ${MAX_FILE_SIZE_MB} MB limit.`);
+      if (file.size && file.size > MAX_RAW_FILE_SIZE_MB * 1024 * 1024) {
+        Alert.alert(
+          "File Too Large",
+          `"${file.name ?? "File"}" exceeds the ${MAX_RAW_FILE_SIZE_MB} MB raw size limit.`,
+        );
         return;
       }
     }
     setUploading(true);
-    setUploadProgress(files.length > 1 ? `Uploading ${files.length} files…` : "Uploading…");
+    setUploadProgress(
+      files.length > 1 ? `Uploading ${files.length} files…` : "Uploading…",
+    );
     try {
       const response = await uploadAttachments(transactionId, files);
       handleAttachmentsChange(response.attachments);
-    } catch {
-      Alert.alert("Upload Failed", "Could not upload the attachment. Please try again.");
+    } catch (err: unknown) {
+      const apiMsg =
+        (err as any)?.response?.data?.message ?? (err as any)?.message;
+      Alert.alert(
+        "Upload Failed",
+        apiMsg ?? "Could not upload the attachment. Please try again.",
+      );
     } finally {
       setUploading(false);
       setUploadProgress("");
@@ -195,7 +199,8 @@ export function AttachmentPicker({
     ]);
   };
 
-  const isImage = (mimeType?: string) => !mimeType || mimeType.startsWith("image/");
+  const isImage = (mimeType?: string) =>
+    !mimeType || mimeType.startsWith("image/");
 
   return (
     <View className="gap-3">
@@ -210,7 +215,12 @@ export function AttachmentPicker({
             <View
               key={att.storage_key}
               className="relative rounded-xl overflow-hidden"
-              style={{ width: 80, height: 80, borderWidth: 1, borderColor: colors.border }}
+              style={{
+                width: 80,
+                height: 80,
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
             >
               {isImage(att.mime_type) ? (
                 <Image
@@ -223,7 +233,11 @@ export function AttachmentPicker({
                   className="w-full h-full items-center justify-center"
                   style={{ backgroundColor: colors.bg.tertiary }}
                 >
-                  <Ionicons name="document-text" size={28} color={colors.info} />
+                  <Ionicons
+                    name="document-text"
+                    size={28}
+                    color={colors.info}
+                  />
                   <Text
                     style={{ color: colors.text.tertiary }}
                     className="text-xs mt-1 text-center px-1"
@@ -237,7 +251,10 @@ export function AttachmentPicker({
               {/* Size badge */}
               {att.file_size ? (
                 <View className="absolute bottom-0 left-0 right-0 px-1 py-0.5 bg-black/50">
-                  <Text className="text-white text-center" style={{ fontSize: 9 }}>
+                  <Text
+                    className="text-white text-center"
+                    style={{ fontSize: 9 }}
+                  >
                     {(att.file_size / 1024).toFixed(0)} KB
                   </Text>
                 </View>
@@ -270,10 +287,17 @@ export function AttachmentPicker({
             onPress={handleScan}
             disabled={uploading}
             className="flex-1 flex-row items-center justify-center gap-1.5 py-3 rounded-xl"
-            style={{ backgroundColor: colors.info + "20", borderWidth: 1, borderColor: colors.info + "50" }}
+            style={{
+              backgroundColor: colors.info + "20",
+              borderWidth: 1,
+              borderColor: colors.info + "50",
+            }}
           >
             <Ionicons name="scan-outline" size={18} color={colors.info} />
-            <Text style={{ color: colors.info }} className="text-sm font-semibold">
+            <Text
+              style={{ color: colors.info }}
+              className="text-sm font-semibold"
+            >
               Scan
             </Text>
           </TouchableOpacity>
@@ -283,10 +307,22 @@ export function AttachmentPicker({
             onPress={handleCamera}
             disabled={uploading}
             className="flex-1 flex-row items-center justify-center gap-1.5 py-3 rounded-xl"
-            style={{ backgroundColor: colors.bg.tertiary, borderWidth: 1, borderStyle: "dashed", borderColor: colors.border }}
+            style={{
+              backgroundColor: colors.bg.tertiary,
+              borderWidth: 1,
+              borderStyle: "dashed",
+              borderColor: colors.border,
+            }}
           >
-            <Ionicons name="camera-outline" size={18} color={colors.text.secondary} />
-            <Text style={{ color: colors.text.secondary }} className="text-sm font-medium">
+            <Ionicons
+              name="camera-outline"
+              size={18}
+              color={colors.text.secondary}
+            />
+            <Text
+              style={{ color: colors.text.secondary }}
+              className="text-sm font-medium"
+            >
               Photo
             </Text>
           </TouchableOpacity>
@@ -296,10 +332,22 @@ export function AttachmentPicker({
             onPress={handleGallery}
             disabled={uploading}
             className="flex-1 flex-row items-center justify-center gap-1.5 py-3 rounded-xl"
-            style={{ backgroundColor: colors.bg.tertiary, borderWidth: 1, borderStyle: "dashed", borderColor: colors.border }}
+            style={{
+              backgroundColor: colors.bg.tertiary,
+              borderWidth: 1,
+              borderStyle: "dashed",
+              borderColor: colors.border,
+            }}
           >
-            <Ionicons name="images-outline" size={18} color={colors.text.secondary} />
-            <Text style={{ color: colors.text.secondary }} className="text-sm font-medium">
+            <Ionicons
+              name="images-outline"
+              size={18}
+              color={colors.text.secondary}
+            />
+            <Text
+              style={{ color: colors.text.secondary }}
+              className="text-sm font-medium"
+            >
               Gallery
             </Text>
           </TouchableOpacity>
@@ -310,10 +358,22 @@ export function AttachmentPicker({
               onPress={handleDocument}
               disabled={uploading}
               className="flex-1 flex-row items-center justify-center gap-1.5 py-3 rounded-xl"
-              style={{ backgroundColor: colors.bg.tertiary, borderWidth: 1, borderStyle: "dashed", borderColor: colors.border }}
+              style={{
+                backgroundColor: colors.bg.tertiary,
+                borderWidth: 1,
+                borderStyle: "dashed",
+                borderColor: colors.border,
+              }}
             >
-              <Ionicons name="document-outline" size={18} color={colors.text.secondary} />
-              <Text style={{ color: colors.text.secondary }} className="text-sm font-medium">
+              <Ionicons
+                name="document-outline"
+                size={18}
+                color={colors.text.secondary}
+              />
+              <Text
+                style={{ color: colors.text.secondary }}
+                className="text-sm font-medium"
+              >
                 PDF
               </Text>
             </TouchableOpacity>
@@ -332,7 +392,8 @@ export function AttachmentPicker({
       )}
 
       <Text style={{ color: colors.text.tertiary }} className="text-xs">
-        {attachments.length}/{maxFiles} files · Max {MAX_FILE_SIZE_MB} MB · JPG, PNG, WebP, HEIC, PDF
+        {attachments.length}/{maxFiles} files · Images ≤1 MB · PDF ≤1.5 MB ·
+        JPG, PNG, WebP, HEIC, PDF
       </Text>
     </View>
   );

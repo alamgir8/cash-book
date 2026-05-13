@@ -64,8 +64,10 @@ export const deleteAttachment = async (
   transactionId: string,
   storageKey: string,
 ): Promise<{ message: string; attachments: Attachment[] }> => {
+  // Cloudinary public_ids contain "/" — encode the whole key so it doesn't break the route
+  const encodedKey = storageKey.split("/").map(encodeURIComponent).join("/");
   const response = await api.delete(
-    `/transactions/${transactionId}/attachments/${storageKey}`,
+    `/transactions/${transactionId}/attachments/${encodedKey}`,
   );
   return response.data;
 };

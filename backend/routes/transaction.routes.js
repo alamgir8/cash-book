@@ -210,6 +210,6 @@ router.post(
   uploadMiddleware,
   uploadAttachments,
 );
-router.delete("/:transactionId/attachments/:storageKey", deleteAttachment);
+router.delete("/:transactionId/attachments/*", deleteAttachment);
 
 export default router;
