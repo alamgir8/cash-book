@@ -592,6 +592,9 @@ export default function DashboardScreen() {
           categories={categoryOptions}
           showCounterpartyField
           counterparties={counterpartyOptions}
+          showVendorField
+          vendors={vendorOptions}
+          showPaymentStatusFilter
         />
       </View>
     );
@@ -612,7 +615,7 @@ export default function DashboardScreen() {
             : "Track your finances easily"
         }
         icon="analytics"
-        backgroundColor={colors.bg.secondary}
+        backgroundColor={colors.bg.primary}
       />
 
       <FlatList

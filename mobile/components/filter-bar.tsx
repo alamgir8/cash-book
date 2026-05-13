@@ -81,6 +81,9 @@ type Props = {
   categories?: SelectOption[];
   showCounterpartyField?: boolean;
   counterparties?: SelectOption[];
+  showVendorField?: boolean;
+  vendors?: SelectOption[];
+  showPaymentStatusFilter?: boolean;
   hasActiveFilters?: boolean;
   onReset?: () => void;
   onApplyFilters?: () => void;
@@ -101,6 +104,9 @@ export const FilterBar = ({
   categories,
   showCounterpartyField = false,
   counterparties,
+  showVendorField = false,
+  vendors,
+  showPaymentStatusFilter = false,
   hasActiveFilters,
   onReset,
   onApplyFilters,
@@ -162,6 +168,8 @@ export const FilterBar = ({
           filters.accountId ||
           filters.categoryId ||
           filters.counterparty ||
+          filters.vendor ||
+          filters.payment_status ||
           filters.type ||
           filters.search ||
           filters.q ||
@@ -305,6 +313,52 @@ export const FilterBar = ({
               >
                 <Text
                   style={{ color: textColor }}
+                  className="text-center text-sm font-semibold"
+                >
+                  {option.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      ) : null}
+
+      {/* Payment Status quick pills */}
+      {showPaymentStatusFilter ? (
+        <View className="flex-row gap-2 mt-3">
+          {[
+            { label: "All", value: undefined },
+            { label: "✓ Paid", value: "paid" as const },
+            { label: "⏱ Due", value: "due" as const },
+          ].map((option) => {
+            const isActive =
+              option.value === undefined
+                ? !filters.payment_status
+                : filters.payment_status === option.value;
+            const activeColor =
+              option.value === "due"
+                ? "#d97706"
+                : option.value === "paid"
+                  ? "#16a34a"
+                  : colors.info;
+            return (
+              <TouchableOpacity
+                key={option.label}
+                onPress={() =>
+                  onChange({
+                    ...filters,
+                    payment_status: option.value,
+                    page: 1,
+                  })
+                }
+                style={{
+                  backgroundColor: isActive ? activeColor : colors.bg.tertiary,
+                  borderColor: isActive ? activeColor : colors.border,
+                }}
+                className="flex-1 py-1.5 rounded-full border"
+              >
+                <Text
+                  style={{ color: isActive ? "#ffffff" : colors.text.primary }}
                   className="text-center text-sm font-semibold"
                 >
                   {option.label}
@@ -530,6 +584,30 @@ export const FilterBar = ({
             </View>
           ) : null}
 
+          {showVendorField && vendors ? (
+            <View>
+              <SearchableSelect
+                label="Vendor / Seller"
+                placeholder={
+                  vendors.length === 0 ? "No vendors" : "Filter by vendor"
+                }
+                value={formFilters.vendor ?? ""}
+                options={
+                  vendors.length > 0
+                    ? [{ value: "", label: "All vendors" }, ...vendors]
+                    : [{ value: "", label: "All vendors" }]
+                }
+                onSelect={(val) =>
+                  setFormFilters({
+                    ...formFilters,
+                    vendor: val || undefined,
+                  })
+                }
+                disabled={vendors.length === 0}
+              />
+            </View>
+          ) : null}
+
           <View className="flex-row gap-3">
             <View className="flex-1">
               <Text
@@ -615,6 +693,8 @@ export const FilterBar = ({
                 const {
                   categoryId,
                   counterparty,
+                  vendor,
+                  payment_status,
                   accountId: selectedAccountId,
                   search: _ignoredSearch,
                   ...other
@@ -627,15 +707,18 @@ export const FilterBar = ({
                 if (selectedAccountId) {
                   updatedFilters.accountId = selectedAccountId;
                 }
-
                 if (categoryId) {
                   updatedFilters.categoryId = categoryId;
                 }
-
                 if (counterparty) {
                   updatedFilters.counterparty = counterparty;
                 }
-
+                if (vendor) {
+                  updatedFilters.vendor = vendor;
+                }
+                if (payment_status) {
+                  updatedFilters.payment_status = payment_status;
+                }
                 if (searchInput && searchInput.trim().length > 0) {
                   updatedFilters.search = searchInput.trim();
                 }

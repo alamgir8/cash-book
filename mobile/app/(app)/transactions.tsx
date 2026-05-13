@@ -550,6 +550,9 @@ export default function TransactionsScreen() {
           categories={categoryOptions}
           showCounterpartyField
           counterparties={counterpartyOptions}
+          showVendorField
+          vendors={vendorOptions}
+          showPaymentStatusFilter
           onReset={handleResetFilters}
           onApplyFilters={() => {
             setAllTransactions([]);
