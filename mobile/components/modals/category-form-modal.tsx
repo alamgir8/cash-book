@@ -4,14 +4,13 @@ import {
   Text,
   TextInput,
   View,
-  ScrollView,
-  KeyboardAvoidingView,
   Platform,
   TouchableOpacity,
   StyleSheet,
   Keyboard,
   Dimensions,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -181,8 +180,14 @@ export const CategoryFormModal = ({
           }}
           style={{ flex: 1 }}
         />
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "padding"}
+        <KeyboardAwareScrollView
+          bottomOffset={Platform.OS === "ios" ? 100 : 120}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          style={[
+            styles.modalContainer,
+            { backgroundColor: colors.bg.primary },
+          ]}
         >
           <View
             style={[
@@ -224,13 +229,7 @@ export const CategoryFormModal = ({
               </TouchableOpacity>
             </View>
 
-            <ScrollView
-              style={styles.scrollView}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-              keyboardDismissMode="interactive"
-              contentContainerStyle={styles.scrollContent}
-            >
+            <View style={styles.scrollContent}>
               {/* Error Message */}
               {error && (
                 <View
@@ -484,7 +483,7 @@ export const CategoryFormModal = ({
                   ]}
                 />
               </View>
-            </ScrollView>
+            </View>
 
             {/* Footer */}
             <View
@@ -508,7 +507,7 @@ export const CategoryFormModal = ({
               />
             </View>
           </View>
-        </KeyboardAvoidingView>
+        </KeyboardAwareScrollView>
       </View>
     </Modal>
   );

@@ -6,11 +6,10 @@ import {
   FlatList,
   Modal,
   TextInput,
-  ScrollView,
-  KeyboardAvoidingView,
   Platform,
   Pressable,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/useTheme";
 import type { ImportItem, ImportRecord } from "@/services/imports";
@@ -139,8 +138,15 @@ function EditItemModal({
     >
       <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)" }}>
         <Pressable onPress={onClose} style={{ flex: 1 }} />
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "padding"}
+        <KeyboardAwareScrollView
+          bottomOffset={Platform.OS === "ios" ? 100 : 120}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          style={{
+            backgroundColor: colors.bg.primary,
+            borderTopLeftRadius: 24,
+            borderTopRightRadius: 24,
+          }}
         >
           <Pressable
             onPress={(e) => e.stopPropagation()}
@@ -179,13 +185,7 @@ function EditItemModal({
               </TouchableOpacity>
             </View>
 
-            <ScrollView
-              className="px-5"
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-              keyboardDismissMode="interactive"
-              style={{ maxHeight: 500 }}
-            >
+            <View className="px-5">
               {/* Row info */}
               <View
                 className="flex-row items-center gap-2 mb-4 px-3 py-2 rounded-lg"
@@ -457,9 +457,9 @@ function EditItemModal({
                   </Text>
                 </TouchableOpacity>
               </View>
-            </ScrollView>
+            </View>
           </Pressable>
-        </KeyboardAvoidingView>
+        </KeyboardAwareScrollView>
       </View>
     </Modal>
   );

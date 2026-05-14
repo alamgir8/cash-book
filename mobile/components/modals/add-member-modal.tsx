@@ -2,16 +2,15 @@ import React from "react";
 import {
   View,
   Text,
-  ScrollView,
   TouchableOpacity,
   ActivityIndicator,
   TextInput,
   Modal,
-  KeyboardAvoidingView,
   Platform,
   Keyboard,
   Dimensions,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { Ionicons } from "@expo/vector-icons";
 import { z } from "zod";
 import { useForm, Controller } from "react-hook-form";
@@ -121,15 +120,20 @@ export function AddMemberModal({
           }}
           style={{ flex: 1 }}
         />
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "padding"}
+        <KeyboardAwareScrollView
+          bottomOffset={Platform.OS === "ios" ? 100 : 120}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          style={{
+            maxHeight: Dimensions.get("window").height * 0.85,
+            backgroundColor: colors.bg.primary,
+            borderTopLeftRadius: 24,
+            borderTopRightRadius: 24,
+          }}
         >
           <View
             className="rounded-t-3xl"
-            style={{
-              maxHeight: Dimensions.get("window").height * 0.85,
-              backgroundColor: colors.bg.primary,
-            }}
+            style={{ backgroundColor: colors.bg.primary }}
           >
             <View
               className="flex-row justify-between items-center p-6 pb-4 border-b"
@@ -162,13 +166,7 @@ export function AddMemberModal({
               </TouchableOpacity>
             </View>
 
-            <ScrollView
-              className="px-6 py-4"
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-              keyboardDismissMode="interactive"
-              contentContainerClassName="pb-5"
-            >
+            <View className="px-6 py-4">
               <View className="gap-5">
                 <View>
                   <Text
@@ -386,7 +384,7 @@ export function AddMemberModal({
                   </Text>
                 </View>
               </View>
-            </ScrollView>
+            </View>
 
             <View
               className="px-6 pt-4 border-t"
@@ -416,7 +414,7 @@ export function AddMemberModal({
               </TouchableOpacity>
             </View>
           </View>
-        </KeyboardAvoidingView>
+        </KeyboardAwareScrollView>
       </View>
     </Modal>
   );

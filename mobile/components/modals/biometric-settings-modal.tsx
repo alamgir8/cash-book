@@ -8,12 +8,11 @@ import {
   ActivityIndicator,
   Switch,
   Alert,
-  KeyboardAvoidingView,
   Platform,
-  ScrollView,
   Keyboard,
   Dimensions,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { Ionicons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -157,15 +156,24 @@ export function BiometricSettingsModal({
           }}
           style={{ flex: 1 }}
         />
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "padding"}
+        <KeyboardAwareScrollView
+          bottomOffset={Platform.OS === "ios" ? 100 : 120}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{
+            paddingBottom: Math.max(insets.bottom, 16),
+          }}
+          style={{
+            backgroundColor: colors.bg.primary,
+            borderTopLeftRadius: 24,
+            borderTopRightRadius: 24,
+            maxHeight: Dimensions.get("window").height * 0.85,
+          }}
         >
           <View
             className="rounded-t-3xl p-6"
             style={{
               backgroundColor: colors.bg.primary,
-              maxHeight: Dimensions.get("window").height * 0.85,
-              paddingBottom: Math.max(insets.bottom, 16),
             }}
           >
             {/* Header */}
@@ -209,7 +217,7 @@ export function BiometricSettingsModal({
               </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <View>
               {isLoading ? (
                 <View className="items-center py-8">
                   <ActivityIndicator size="large" color={colors.info} />
@@ -509,9 +517,9 @@ export function BiometricSettingsModal({
                   </View>
                 </View>
               )}
-            </ScrollView>
+            </View>
           </View>
-        </KeyboardAvoidingView>
+        </KeyboardAwareScrollView>
       </View>
     </Modal>
   );

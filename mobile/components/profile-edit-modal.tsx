@@ -1,9 +1,7 @@
 import { useEffect, useState } from "react";
 import {
-  KeyboardAvoidingView,
   Modal,
   Platform,
-  ScrollView,
   Switch,
   Text,
   TextInput,
@@ -12,6 +10,7 @@ import {
   Keyboard,
   Dimensions,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { Ionicons } from "@expo/vector-icons";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
@@ -247,14 +246,19 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
           }}
           style={{ flex: 1 }}
         />
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "padding"}
+        <KeyboardAwareScrollView
+          bottomOffset={Platform.OS === "ios" ? 100 : 120}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          style={{
+            backgroundColor: colors.bg.primary,
+            maxHeight: Dimensions.get("window").height * 0.85,
+            borderTopLeftRadius: 24,
+            borderTopRightRadius: 24,
+          }}
         >
           <View
-            style={{
-              backgroundColor: colors.bg.primary,
-              maxHeight: Dimensions.get("window").height * 0.85,
-            }}
+            style={{ backgroundColor: colors.bg.primary }}
             className="rounded-t-3xl"
           >
             {/* Header */}
@@ -290,12 +294,8 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
             </View>
 
             {/* Form Content */}
-            <ScrollView
+            <View
               className="px-6"
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-              keyboardDismissMode="interactive"
-              contentContainerStyle={{ paddingBottom: 20 }}
             >
               <View className="gap-5 py-4">
                 {/* Personal Information Section */}
@@ -555,9 +555,9 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
                   </View>
                 </View>
               </View>
-            </ScrollView>
+            </View>
 
-            {/* Submit Button - Fixed at bottom */}
+            {/* Submit Button - Fixed at bottom */}}
             <View
               className="px-6 pt-4 border-t"
               style={{
@@ -578,7 +578,7 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
               />
             </View>
           </View>
-        </KeyboardAvoidingView>
+        </KeyboardAwareScrollView>
       </View>
     </Modal>
   );

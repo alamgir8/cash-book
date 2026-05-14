@@ -5,6 +5,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import Toast from "react-native-toast-message";
 import * as SplashScreen from "expo-splash-screen";
+import { KeyboardProvider } from "react-native-keyboard-controller";
 import { AuthProvider, useAuth } from "../hooks/useAuth";
 import { PreferencesProvider } from "../hooks/usePreferences";
 import { ThemeProvider, useTheme } from "../hooks/useTheme";
@@ -137,21 +138,23 @@ export default function RootLayout() {
   return (
     <ErrorBoundary>
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <QueryClientProvider client={queryClient}>
-          <AuthProvider>
-            <ThemeProvider>
-              <PreferencesProvider>
-                <OrganizationProvider>
-                  <DeleteModeProvider>
-                    <OrganizationLoader>
-                      <RootContent />
-                    </OrganizationLoader>
-                  </DeleteModeProvider>
-                </OrganizationProvider>
-              </PreferencesProvider>
-            </ThemeProvider>
-          </AuthProvider>
-        </QueryClientProvider>
+        <KeyboardProvider>
+          <QueryClientProvider client={queryClient}>
+            <AuthProvider>
+              <ThemeProvider>
+                <PreferencesProvider>
+                  <OrganizationProvider>
+                    <DeleteModeProvider>
+                      <OrganizationLoader>
+                        <RootContent />
+                      </OrganizationLoader>
+                    </DeleteModeProvider>
+                  </OrganizationProvider>
+                </PreferencesProvider>
+              </ThemeProvider>
+            </AuthProvider>
+          </QueryClientProvider>
+        </KeyboardProvider>
       </GestureHandlerRootView>
     </ErrorBoundary>
   );

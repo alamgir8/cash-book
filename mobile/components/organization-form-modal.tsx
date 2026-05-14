@@ -4,12 +4,11 @@ import {
   Text,
   Modal,
   TouchableOpacity,
-  ScrollView,
-  KeyboardAvoidingView,
   Platform,
   Keyboard,
   Dimensions,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { Ionicons } from "@expo/vector-icons";
 import { organizationsApi, type Organization } from "../services/organizations";
 import { getApiErrorMessage } from "../lib/api";
@@ -189,14 +188,19 @@ export function OrganizationFormModal({
           }}
           style={{ flex: 1 }}
         />
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "padding"}
+        <KeyboardAwareScrollView
+          bottomOffset={Platform.OS === "ios" ? 100 : 120}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          style={{
+            backgroundColor: colors.bg.primary,
+            maxHeight: Dimensions.get("window").height * 0.85,
+            borderTopLeftRadius: 24,
+            borderTopRightRadius: 24,
+          }}
         >
           <View
-            style={{
-              backgroundColor: colors.bg.primary,
-              maxHeight: Dimensions.get("window").height * 0.85,
-            }}
+            style={{ backgroundColor: colors.bg.primary }}
             className="rounded-t-3xl"
           >
             {/* Header */}
@@ -233,14 +237,10 @@ export function OrganizationFormModal({
               </TouchableOpacity>
             </View>
 
-            <ScrollView
+            <View
               className="px-6 py-4"
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-              keyboardDismissMode="interactive"
-              contentContainerStyle={{ paddingBottom: 20 }}
             >
-              {/* Business Name */}
+              {/* Business Name */}}
               <Controller
                 control={control}
                 name="name"
@@ -510,9 +510,9 @@ export function OrganizationFormModal({
                   </View>
                 )}
               </View>
-            </ScrollView>
+            </View>
 
-            {/* Footer */}
+            {/* Footer */}}
             <View
               className="px-6 pt-4 border-t"
               style={{
@@ -530,7 +530,7 @@ export function OrganizationFormModal({
               />
             </View>
           </View>
-        </KeyboardAvoidingView>
+        </KeyboardAwareScrollView>
       </View>
     </Modal>
   );

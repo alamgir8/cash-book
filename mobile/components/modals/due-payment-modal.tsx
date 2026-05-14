@@ -8,15 +8,14 @@ import { useState, useEffect } from "react";
 import {
   ActivityIndicator,
   Alert,
-  KeyboardAvoidingView,
   Modal,
   Platform,
-  ScrollView,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import dayjs from "dayjs";
@@ -121,12 +120,20 @@ export const DuePaymentModal = ({
           activeOpacity={1}
           onPress={onClose}
         />
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        <KeyboardAwareScrollView
+          bottomOffset={Platform.OS === "ios" ? 100 : 120}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          style={{
+            maxHeight: 620,
+            backgroundColor: colors.bg.primary,
+            borderTopLeftRadius: 24,
+            borderTopRightRadius: 24,
+          }}
         >
           <View
             className="rounded-t-3xl"
-            style={{ backgroundColor: colors.bg.primary, maxHeight: 620 }}
+            style={{ backgroundColor: colors.bg.primary }}
           >
             {/* Header */}
             <View
@@ -164,11 +171,7 @@ export const DuePaymentModal = ({
               </TouchableOpacity>
             </View>
 
-            <ScrollView
-              className="px-6 py-4"
-              keyboardShouldPersistTaps="handled"
-              contentContainerStyle={{ gap: 16, paddingBottom: 16 }}
-            >
+            <View className="px-6 py-4">
               {/* Due context banner */}
               <View
                 className="rounded-xl p-3"
@@ -357,7 +360,7 @@ export const DuePaymentModal = ({
                   className="px-4 py-3 rounded-xl border"
                 />
               </View>
-            </ScrollView>
+            </View>
 
             {/* Footer */}
             <View
@@ -394,7 +397,7 @@ export const DuePaymentModal = ({
               </TouchableOpacity>
             </View>
           </View>
-        </KeyboardAvoidingView>
+        </KeyboardAwareScrollView>
       </View>
     </Modal>
   );

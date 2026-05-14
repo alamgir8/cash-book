@@ -1,6 +1,5 @@
 import { ReactNode } from "react";
 import {
-  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -8,6 +7,7 @@ import {
   Keyboard,
   StyleSheet,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "../hooks/useTheme";
 
@@ -46,16 +46,7 @@ export function KeyboardAwareModal({
         />
 
         {/* Modal Content */}
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "padding"}
-          keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
-          style={[
-            styles.container,
-            {
-              maxHeight: height,
-            },
-          ]}
-        >
+        <View style={[styles.container, { maxHeight: height }]}>
           <View
             style={[
               styles.content,
@@ -65,9 +56,15 @@ export function KeyboardAwareModal({
               },
             ]}
           >
-            {children}
+            <KeyboardAwareScrollView
+              bottomOffset={Platform.OS === "ios" ? 16 : 24}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              {children}
+            </KeyboardAwareScrollView>
           </View>
-        </KeyboardAvoidingView>
+        </View>
       </View>
     </Modal>
   );
@@ -88,7 +85,6 @@ const styles = StyleSheet.create({
   content: {
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    maxHeight: "100%",
     overflow: "hidden",
   },
 });

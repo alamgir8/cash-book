@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   Alert,
   Image,
-  KeyboardAvoidingView,
   Modal,
   Platform,
   ScrollView,
@@ -14,6 +13,7 @@ import {
   Keyboard,
   Dimensions,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -308,15 +308,7 @@ export const TransactionModal = ({
     onClose();
   };
 
-  const scrollViewRef = useRef<ScrollView>(null);
   const screenHeight = Dimensions.get("window").height;
-
-  // Scroll to focused input when keyboard opens
-  const handleInputFocus = () => {
-    setTimeout(() => {
-      scrollViewRef.current?.scrollToEnd({ animated: true });
-    }, 300);
-  };
 
   return (
     <Modal visible={visible} transparent animationType="slide">
@@ -332,16 +324,20 @@ export const TransactionModal = ({
           }}
           style={{ flex: 1 }}
         />
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "padding"}
-          keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+        <KeyboardAwareScrollView
+          bottomOffset={Platform.OS === "ios" ? 100 : 120}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          style={{
+            maxHeight: screenHeight * 0.85,
+            backgroundColor: colors.bg.primary,
+            borderTopLeftRadius: 24,
+            borderTopRightRadius: 24,
+          }}
         >
           <View
             className="rounded-t-3xl"
-            style={{
-              maxHeight: screenHeight * 0.85,
-              backgroundColor: colors.bg.primary,
-            }}
+            style={{ backgroundColor: colors.bg.primary }}
           >
             {/* Header */}
             <View
@@ -378,14 +374,7 @@ export const TransactionModal = ({
             </View>
 
             {/* Form Content */}
-            <ScrollView
-              ref={scrollViewRef}
-              className="px-6 py-4"
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-              keyboardDismissMode="interactive"
-              contentContainerStyle={{ paddingBottom: 20 }}
-            >
+            <View className="px-6 py-4">
               <View className="gap-5">
                 {/* Account Selection */}
                 <Controller
@@ -623,7 +612,6 @@ export const TransactionModal = ({
                       <TextInput
                         value={value || ""}
                         onChangeText={onChange}
-                        onFocus={handleInputFocus}
                         placeholder="What is this transaction about?"
                         placeholderTextColor={colors.text.tertiary}
                         style={{
@@ -869,7 +857,6 @@ export const TransactionModal = ({
                       <TextInput
                         value={value || ""}
                         onChangeText={onChange}
-                        onFocus={handleInputFocus}
                         placeholder="Any additional details..."
                         placeholderTextColor={colors.text.tertiary}
                         style={{
@@ -1090,7 +1077,7 @@ export const TransactionModal = ({
                   </View>
                 ) : null}
               </View>
-            </ScrollView>
+            </View>
 
             {/* Submit Button - Fixed at bottom */}
             <View
@@ -1140,7 +1127,7 @@ export const TransactionModal = ({
               </TouchableOpacity>
             </View>
           </View>
-        </KeyboardAvoidingView>
+        </KeyboardAwareScrollView>
       </View>
     </Modal>
   );

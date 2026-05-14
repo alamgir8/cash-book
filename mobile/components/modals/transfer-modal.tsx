@@ -1,10 +1,8 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
   Modal,
   Platform,
-  ScrollView,
   Text,
   TextInput,
   TouchableOpacity,
@@ -12,6 +10,7 @@ import {
   Keyboard,
   Dimensions,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -123,15 +122,20 @@ export const TransferModal = ({
           }}
           style={{ flex: 1 }}
         />
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "padding"}
+        <KeyboardAwareScrollView
+          bottomOffset={Platform.OS === "ios" ? 100 : 120}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          style={{
+            maxHeight: Dimensions.get("window").height * 0.85,
+            backgroundColor: colors.bg.primary,
+            borderTopLeftRadius: 24,
+            borderTopRightRadius: 24,
+          }}
         >
           <View
             className="rounded-t-3xl"
-            style={{
-              maxHeight: Dimensions.get("window").height * 0.85,
-              backgroundColor: colors.bg.primary,
-            }}
+            style={{ backgroundColor: colors.bg.primary }}
           >
             {/* Header */}
             <View
@@ -166,13 +170,7 @@ export const TransferModal = ({
             </View>
 
             {/* Form Content */}
-            <ScrollView
-              className="px-6 py-4"
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-              keyboardDismissMode="interactive"
-              contentContainerStyle={{ paddingBottom: 20 }}
-            >
+            <View className="px-6 py-4">
               <View className="gap-5">
                 {/* From Account */}
                 <Controller
@@ -428,7 +426,7 @@ export const TransferModal = ({
                   </View>
                 ) : null}
               </View>
-            </ScrollView>
+            </View>
 
             {/* Submit Button */}
             <View
@@ -459,7 +457,7 @@ export const TransferModal = ({
               </TouchableOpacity>
             </View>
           </View>
-        </KeyboardAvoidingView>
+        </KeyboardAwareScrollView>
       </View>
     </Modal>
   );
