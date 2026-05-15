@@ -19,6 +19,15 @@
         "simulator": false
       }
     },
+    "simulator": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "ios": {
+        "simulator": true
+      }
+    },
 
     "preview3": {
       "developmentClient": true
