@@ -109,7 +109,10 @@
             "buildToolsVersion": "36.0.0"
           },
           "ios": {
-            "deploymentTarget": "16.4"
+            "deploymentTarget": "16.4",
+            "extraPodfileProperties": {
+              "ENABLE_USER_SCRIPT_SANDBOXING": "NO"
+            }
           }
         }
       ],
