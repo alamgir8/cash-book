@@ -2,7 +2,7 @@
   "expo": {
     "name": "Hisab Boi",
     "slug": "hisab-boi",
-    "version": "2.0.0",
+    "version": "3.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "scheme": "hisab-boi",
@@ -56,7 +56,7 @@
       },
       "softwareKeyboardLayoutMode": "resize",
       "package": "com.alamgir.hisabboi",
-      "versionCode": 3,
+      "versionCode": 4,
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
