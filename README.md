@@ -1,9 +1,6 @@
-# hisab-boi
-Hisab Boi Documentation
+# Hisab Boi
 
-# 🍽️ React Native POS App (Multi-Tenant)
-
-A sleek, multi-tenant Point of Sale system built using React Native + Expo + MERN stack.
+Hisab Boi is a multi-tenant cash book / POS-style mobile app built with React Native, Expo, Express.js, MongoDB, and Node.js.
 
 ---
 
@@ -19,9 +16,9 @@ A sleek, multi-tenant Point of Sale system built using React Native + Expo + MER
 
 ## 🖼️ UI Preview
 
-| POS Tab | Bar Tab | Cart Tab |
-|--------|---------|----------|
-| ![POS](link-to-image) | ![Bar](link-to-image) | ![Cart](link-to-image) |
+- POS: ![POS](link-to-image)
+- Bar: ![Bar](link-to-image)
+- Cart: ![Cart](link-to-image)
 
 ---
 
@@ -37,259 +34,319 @@ A sleek, multi-tenant Point of Sale system built using React Native + Expo + MER
 
 ## 🧪 Setup Instructions
 
-```bash
-git clone https://github.com/yourname/your-repo.git
-cd your-repo
-npm install
-expo start
+Before running locally, set up the required `.env` / `.env.local` files for the backend and mobile app.
 
-
-# Hisab Boi
-
-## Quick start
-
-
-- To run on local first you need to setup all .env file for backend and store
-
-- Admin all .env.local file key
-```shell
-
-
-```
-
-
-
-- Install Dependency
-(To install node dependency go to the related folder then run this command)
+Install backend dependencies:
 
 ```shell
+cd /Users/alamgirhossain/Themeforest/cash-book/backend
 npm install
 ```
 
-
-- Run on Local
+Install mobile dependencies:
 
 ```shell
-Run Admin : npm start
+cd /Users/alamgirhossain/Themeforest/cash-book/mobile
+npm install
 ```
 
-
-
-
-
-
-- To build apk for android with expo:
-
-
-- To build .apk file
+Run backend locally:
 
 ```shell
+cd /Users/alamgirhossain/Themeforest/cash-book/backend
+npm start
+```
+
+Run mobile locally:
+
+```shell
+cd /Users/alamgirhossain/Themeforest/cash-book/mobile
+npm run dev
+```
+
+---
+
+## 🤖 Android Build Commands
+
+Build Android `.apk`:
+
+```shell
+cd /Users/alamgirhossain/Themeforest/cash-book/mobile
 eas build -p android --profile preview
-eas build -p android --profile preview --clear-cache
-
-- To build .ipa file
-eas build -p ios --profile preview --clear-cache
 ```
 
-- To build .aab file
-
+Build Android `.apk` with clear cache:
 
 ```shell
+cd /Users/alamgirhossain/Themeforest/cash-book/mobile
+eas build -p android --profile preview --clear-cache
+```
+
+Build Android `.aab`:
+
+```shell
+cd /Users/alamgirhossain/Themeforest/cash-book/mobile
 eas build --platform android
 ```
 
-
-- To build .aab file
-
-```shell
-eas build --profile preview2
-
-```
-
-- To build .aab file for production
+Build Android production `.aab`:
 
 ```shell
+cd /Users/alamgirhossain/Themeforest/cash-book/mobile
 eas build -p android --profile production --clear-cache
-
-
 ```
 
+---
 
-- To check all package vulnerabilities and update
+## 🧰 Expo Maintenance Commands
+
+Check package compatibility:
+
 ```shell
+cd /Users/alamgirhossain/Themeforest/cash-book/mobile
 npx expo-doctor
 npx expo install --check
 ```
 
+Login to Expo:
 
-- To Login in expo account from terminal
 ```shell
 expo login
 ```
 
+Logout from Expo:
 
-- To Login out in expo account from terminal
 ```shell
 expo logout
 ```
 
-build locally
-eas build --platform android --local
-
-npm start -- --reset-cache
-
-
+Reset Metro cache:
 
 ```shell
-To start the local server:
+cd /Users/alamgirhossain/Themeforest/cash-book/mobile
+npm start -- --reset-cache
 ```
+
+Start Expo server:
+
+```shell
+cd /Users/alamgirhossain/Themeforest/cash-book/mobile
 npx expo start
+```
 
 ---
 
-## 📱 Install on iPhone for Free (No App Store, No $99/year)
+## 📱 Install on iPhone for Free Using Xcode (No App Store, No Paid Developer Account)
 
-This method uses **AltStore** to sideload the app permanently on your personal iPhone using a free Apple ID.
-The app auto-renews every 7 days in the background — you will never notice the expiry.
+This is the verified free method used for this project. It installs a **Release** build directly from Xcode to your own iPhone, so the app works without keeping the Expo/Metro terminal open.
 
----
-
-### ✅ Prerequisites
-
-- Mac with Xcode installed
-- iPhone connected to the same WiFi as Mac
-- Free Apple ID (can be any Apple ID — does not need to be your main one)
-- USB cable (needed only for first-time AltStore install)
+> Important: iOS does not support Android-style permanent APK installation. With a free Apple ID, the app may expire after about 7 days. If that happens, reconnect the iPhone and install the Release build again.
 
 ---
 
-### 🔧 Step 1 — Install Xcode Command Line Tools
+### ✅ What You Need
 
-Open Terminal on your Mac and run:
+1. A Mac with Xcode installed.
+2. Your iPhone connected to the Mac using USB.
+3. Your normal free Apple ID added in Xcode.
+4. Developer Mode enabled on the iPhone.
+5. The project dependencies installed in `mobile/`.
+
+---
+
+### 1️⃣ First-Time Setup on Mac
+
+Open Terminal and run:
 
 ```shell
 xcode-select --install
 ```
 
-If already installed, it will say "already installed" — skip to next step.
+If it says the tools are already installed, continue.
 
----
-
-### 📦 Step 2 — Build the IPA Locally
-
-Navigate to the mobile folder and build:
+Install mobile dependencies:
 
 ```shell
-cd /path/to/cash-book/mobile
-eas build -p ios --profile preview --local
+cd /Users/alamgirhossain/Themeforest/cash-book/mobile
+npm install
 ```
 
-> This runs the build entirely on your Mac (no EAS cloud, no cost).
-> It will take 5–15 minutes the first time.
-> When done, a `.ipa` file is created inside the `build/` folder or printed as an output path.
-> Note the full path to the `.ipa` file — you will need it in Step 5.
-
----
-
-### 🖥️ Step 3 — Install AltServer on Your Mac
-
-1. Go to **[altstore.io](https://altstore.io)** in your browser
-2. Download **AltServer for Mac**
-3. Open the downloaded `.dmg` file
-4. Drag AltServer into your Applications folder
-5. Open AltServer from Applications
-6. You will see a **diamond icon** appear in your Mac menu bar (top-right)
-7. Click the diamond icon → **Sign In** → enter your free Apple ID email and password
-
-> AltServer only uses your Apple ID to sign apps — it does not post anything or access purchases.
-
----
-
-### 📲 Step 4 — Install AltStore on Your iPhone
-
-1. Connect your iPhone to your Mac with a **USB cable**
-2. Click the AltServer diamond icon in the Mac menu bar
-3. Click **Install AltStore**
-4. Select your iPhone from the list
-5. Enter your Apple ID email and password when prompted
-6. Wait ~30 seconds — AltStore will appear on your iPhone home screen
-
-**Then trust the certificate on your iPhone:**
-
-1. Open **Settings** on iPhone
-2. Go to **General → VPN & Device Management**
-3. Tap your Apple ID email under "Developer App"
-4. Tap **Trust "[your Apple ID]"**
-5. Tap **Trust** again on the confirmation popup
-
-> If you don't do this step, apps will show "Untrusted Developer" and won't open.
-
----
-
-### 📥 Step 5 — Sideload the App onto Your iPhone
-
-**Option A — Via AirDrop (easiest):**
-
-1. Find the `.ipa` file on your Mac (from Step 2)
-2. Right-click the `.ipa` → **Share → AirDrop** → select your iPhone
-3. On iPhone, tap **Accept**
-4. When prompted "Open with...", tap **AltStore**
-5. AltStore signs and installs the app — takes about 30 seconds
-
-**Option B — Via Files app:**
-
-1. AirDrop or copy the `.ipa` to your iPhone's Files app
-2. Open **AltStore** on iPhone
-3. Tap **My Apps** tab (bottom)
-4. Tap the **+** button (top-left corner)
-5. Navigate to the `.ipa` file and tap it
-6. AltStore installs and signs it
-
----
-
-### 🔄 Step 6 — Setup Auto-Renewal (So It Never Expires)
-
-The free Apple certificate expires every 7 days, but AltServer renews it automatically.
-
-**Requirements for auto-renewal:**
-
-- AltServer must be **running on your Mac** (it runs silently in the menu bar)
-- Your Mac and iPhone must be on the **same WiFi network** at least once every 7 days
-
-**Verify AltServer auto-starts on Mac login:**
-
-1. Open **System Settings → General → Login Items**
-2. Check that **AltServer** is in the list
-3. If not, open AltServer manually from Applications — it adds itself automatically
-
-> You never need to do anything manually. AltServer silently refreshes the certificate in the background.
-
----
-
-### 🚀 Step 7 — Updating the App
-
-Every time you add new features and want to update the app on your iPhone:
+Generate the native iOS project if `mobile/ios` does not exist:
 
 ```shell
-# 1. Build a new IPA
-cd /path/to/cash-book/mobile
-eas build -p ios --profile preview --local
+cd /Users/alamgirhossain/Themeforest/cash-book/mobile
+npx expo prebuild -p ios
+```
 
-# 2. AirDrop the new .ipa to iPhone → Open with AltStore
-# AltStore replaces the old version — all your app data is preserved
+Open the iOS project in Xcode:
+
+```shell
+cd /Users/alamgirhossain/Themeforest/cash-book/mobile
+xed ios
 ```
 
 ---
 
-### ❓ Troubleshooting
+### 2️⃣ Add Apple ID in Xcode
+
+1. Open **Xcode**.
+2. Go to **Xcode → Settings → Accounts**.
+3. Click **+**.
+4. Select **Apple ID**.
+5. Sign in with your normal Apple ID.
+6. Close Settings.
+
+---
+
+### 3️⃣ Enable Developer Mode on iPhone
+
+On the iPhone:
+
+1. Open **Settings**.
+2. Go to **Privacy & Security**.
+3. Tap **Developer Mode**.
+4. Turn **Developer Mode ON**.
+5. Restart the iPhone when prompted.
+6. After restart, unlock the iPhone and confirm **Turn On**.
+
+> Keep Developer Mode ON while using this free Xcode-installed app. If you turn it OFF, the app may stop launching and future installs from Xcode can fail.
+
+---
+
+### 4️⃣ Trust This Mac and Trust Developer Profile
+
+1. Connect the iPhone to the Mac using USB.
+2. Unlock the iPhone.
+3. Tap **Trust This Computer** if prompted.
+4. Enter the iPhone passcode.
+5. After installing the app for the first time, open **Settings → General → VPN & Device Management**.
+6. Tap your developer profile, for example `Apple Development: alamgirh389@gmail.com`.
+7. Tap **Trust**.
+8. Tap **Trust** again to confirm.
+
+---
+
+### 5️⃣ Configure Signing in Xcode
+
+In Xcode:
+
+1. Open the `HisabBoi` project.
+2. Select the **HisabBoi** project in the left sidebar.
+3. Select the **HisabBoi** target under **Targets**.
+4. Open **Signing & Capabilities**.
+5. Enable **Automatically manage signing**.
+6. Set **Team** to your **Personal Team**.
+7. Keep the Bundle Identifier as:
+
+```text
+com.alamgir.hisabboi
+```
+
+If Xcode says the bundle identifier is already used, change it to a unique value, for example:
+
+```text
+com.alamgir.hisabboi.local
+```
+
+---
+
+### 6️⃣ Build and Install Release App Without Metro Terminal
+
+Use this command to build a standalone **Release** app:
+
+```shell
+cd /Users/alamgirhossain/Themeforest/cash-book/mobile/ios
+xcodebuild -workspace HisabBoi.xcworkspace \
+  -scheme HisabBoi \
+  -configuration Release \
+  -destination 'id=00008140-0004384608A2201C' \
+  -derivedDataPath /Users/alamgirhossain/Library/Developer/Xcode/DerivedData/HisabBoiRelease \
+  build
+```
+
+Install the Release app on the connected iPhone:
+
+```shell
+xcrun devicectl device install app \
+  --device 43B8F391-1D7E-51F4-B8C3-7B0552CE18DE \
+  /Users/alamgirhossain/Library/Developer/Xcode/DerivedData/HisabBoiRelease/Build/Products/Release-iphoneos/HisabBoi.app
+```
+
+Now unlock the iPhone and open **Hisab Boi** from the home screen.
+
+> This Release install does not need `npx expo start`, Metro, or any terminal open while using the app.
+
+---
+
+### 7️⃣ Optional: Install Release App from Xcode UI
+
+You can also do the same from Xcode:
+
+1. Select your iPhone from the device selector at the top of Xcode.
+2. Go to **Product → Scheme → Edit Scheme**.
+3. Select **Run**.
+4. Change **Build Configuration** from `Debug` to `Release`.
+5. Click **Close**.
+6. Press **Cmd + R**.
+7. If macOS asks for the keychain password, enter your **Mac login password** and click **Always Allow**.
+
+---
+
+## 🔄 Install an Updated Version Later
+
+When you change code and want the updated app on the iPhone:
+
+1. Connect the iPhone to the Mac with USB.
+2. Unlock the iPhone.
+3. Keep Developer Mode ON.
+4. Run the Release build again:
+
+```shell
+cd /Users/alamgirhossain/Themeforest/cash-book/mobile/ios
+xcodebuild -workspace HisabBoi.xcworkspace \
+  -scheme HisabBoi \
+  -configuration Release \
+  -destination 'id=00008140-0004384608A2201C' \
+  -derivedDataPath /Users/alamgirhossain/Library/Developer/Xcode/DerivedData/HisabBoiRelease \
+  build
+```
+
+1. Install the new Release build:
+
+```shell
+xcrun devicectl device install app \
+  --device 43B8F391-1D7E-51F4-B8C3-7B0552CE18DE \
+  /Users/alamgirhossain/Library/Developer/Xcode/DerivedData/HisabBoiRelease/Build/Products/Release-iphoneos/HisabBoi.app
+```
+
+1. Open **Hisab Boi** on the iPhone.
+
+The new install replaces the old app. App data normally stays unless you delete the app manually.
+
+---
+
+## 🧪 Debug Build vs Release Build
+
+| Build Type | Needs Terminal/Metro? | Best For |
+| --- | --- | --- |
+| Debug | Yes, run `npx expo start --dev-client --host lan` | Development and live debugging |
+| Release | No | Normal iPhone use, like an Android APK |
+
+Use Debug only when actively developing. Use Release for normal daily use.
+
+---
+
+## ❓ iPhone Install Troubleshooting
 
 | Problem | Fix |
 | --- | --- |
-| "Untrusted Developer" error | Settings → General → VPN & Device Management → Trust your Apple ID |
-| App not auto-renewing | Make sure AltServer is running on Mac and both devices are on same WiFi |
-| AltStore shows "No Apple ID" | Click AltServer menu bar icon → Sign In again |
-| Build fails with Xcode error | Run `xcode-select --install` and make sure Xcode is fully opened at least once |
-| `.ipa` not showing in Files | Re-send via AirDrop or use a USB cable + Finder to copy to iPhone |
-| "Maximum number of apps" error | Free Apple ID limit is 3 sideloaded apps total — delete one from AltStore first |
+| App stays on splash forever | You probably installed Debug. Install Release using the commands above. |
+| Developer Mode disabled | iPhone → Settings → Privacy & Security → Developer Mode → ON. |
+| Untrusted Developer | iPhone → Settings → General → VPN & Device Management → Trust your Apple Development profile. |
+| Keychain popup appears | Enter the Mac login password, not the Apple ID password, then click **Always Allow**. |
+| Sandbox build error | Confirm `ENABLE_USER_SCRIPT_SANDBOXING = NO`; this repo includes `mobile/plugins/with-ios-user-script-sandboxing.js`. |
+| Device locked error | Unlock the iPhone and run the install/launch command again. |
+| App disappears or stops opening after days | Free Apple signing expired; rebuild and install the Release app again. |
+| iPhone not detected | Reconnect USB, unlock iPhone, tap **Trust This Computer**, then restart Xcode. |
 
 ---

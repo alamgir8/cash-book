@@ -81,6 +81,7 @@
       "expo-secure-store",
       "expo-font",
       "expo-asset",
+      "./plugins/with-ios-user-script-sandboxing",
       [
         "expo-camera",
         {
