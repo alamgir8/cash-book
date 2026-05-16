@@ -271,6 +271,7 @@ export default function AccountDetailScreen() {
       "counterparty",
       "vendor",
       "payment_status",
+      "loan_filter",
       "financialScope",
       "type",
       "search",
@@ -364,6 +365,7 @@ export default function AccountDetailScreen() {
     setFilters((prev) => ({
       ...prev,
       payment_status: status || undefined,
+      loan_filter: undefined,
       page: 1,
     }));
   }, []);

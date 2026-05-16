@@ -44,6 +44,18 @@ export type Transaction = {
         payment_status?: "paid" | "due";
       };
   due_settled_at?: string;
+  loan_summary?: {
+    total_borrowed: number;
+    total_repaid: number;
+    total_given: number;
+    total_received_back: number;
+    outstanding: number;
+    net_owed_by_me: number;
+    owed_by_me: number;
+    owed_by_them: number;
+    transaction_count: number;
+    is_settled: boolean;
+  };
   balance_after_transaction?: number;
   is_deleted?: boolean;
   attachments?: {
@@ -69,6 +81,7 @@ export type TransactionFilters = {
   counterparty?: string;
   vendor?: string;
   payment_status?: "paid" | "due";
+  loan_filter?: "loan_given" | "loan_received";
   financialScope?: "actual" | "income" | "expense" | "both";
   type?: "debit" | "credit";
   q?: string;
@@ -106,6 +119,7 @@ const mapFilters = (filters: TransactionFilters) => {
   if (filters.counterparty) params.counterparty = filters.counterparty;
   if (filters.vendor) params.vendor = filters.vendor;
   if (filters.payment_status) params.payment_status = filters.payment_status;
+  if (filters.loan_filter) params.loan_filter = filters.loan_filter;
   if (filters.financialScope) params.financialScope = filters.financialScope;
   if (filters.type) params.type = filters.type;
   if (filters.q || filters.search) params.q = filters.q ?? filters.search;
@@ -184,6 +198,7 @@ export const normalizeTransaction = (
       : undefined,
     parent_due_id: transaction.parent_due_id ?? undefined,
     due_settled_at: transaction.due_settled_at ?? undefined,
+    loan_summary: transaction.loan_summary ?? undefined,
     balance_after_transaction: transaction.balance_after_transaction,
     is_deleted: transaction.is_deleted,
     attachments: transaction.attachments ?? [],

@@ -245,6 +245,7 @@ export function useDashboard() {
       "counterparty",
       "vendor",
       "payment_status",
+      "loan_filter",
       "financialScope",
       "type",
       "search",
@@ -343,6 +344,7 @@ export function useDashboard() {
     setFilters((prev) => ({
       ...prev,
       payment_status: status || undefined,
+      loan_filter: undefined,
       page: 1,
     }));
   }, []);

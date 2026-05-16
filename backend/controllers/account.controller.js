@@ -4,13 +4,17 @@ import { Admin } from "../models/Admin.js";
 import { Transaction } from "../models/Transaction.js";
 import { Organization } from "../models/Organization.js";
 import { buildTransactionFilters } from "../utils/filters.js";
-import { resolveFinancialCategoryScope } from "../utils/financialCategories.js";
+import {
+  resolveFinancialCategoryScope,
+  resolveCategoryTypeScope,
+} from "../utils/financialCategories.js";
 import { recomputeDescendingBalances } from "../utils/balance.js";
 import {
   checkOrgAccess,
   buildOrgFilter,
   getOrgFromRequest,
 } from "../utils/organization.js";
+import { decorateLoanSummaries } from "../utils/loanLedger.js";
 
 const pickAccountUpdateFields = (payload) => {
   const allowed = [
@@ -482,6 +486,16 @@ export const getAccountTransactions = async (req, res, next) => {
       });
     }
 
+    const loanFilter = String(req.query.loan_filter ?? "").trim();
+    if (loanFilter === "loan_given" || loanFilter === "loan_received") {
+      categoryScope = await resolveCategoryTypeScope({
+        adminId: req.user.id,
+        organizationId: account.organization,
+        types: [loanFilter === "loan_given" ? "loan_out" : "loan_in"],
+        names: [loanFilter === "loan_given" ? "Loan Given" : "Loan Received"],
+      });
+    }
+
     const filter = buildTransactionFilters({
       adminId: req.user.id,
       organizationId: account.organization,
@@ -550,6 +564,12 @@ export const getAccountTransactions = async (req, res, next) => {
         (root) => latestByRootId.get(root._id.toString()) ?? root,
       );
     }
+
+    transactions = await decorateLoanSummaries({
+      transactions,
+      adminId: req.user.id,
+      organizationId: account.organization,
+    });
 
     // Compute running balances for the current page
     if (transactions.length > 0) {

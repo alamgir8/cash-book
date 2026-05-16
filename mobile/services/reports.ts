@@ -23,6 +23,7 @@ type DisplayFilters = {
   counterparty?: string;
   vendor?: string;
   payment_status?: string;
+  loan_filter?: string;
   financialScope?: string;
   type?: string;
   search?: string;
@@ -154,6 +155,12 @@ const parseFilters = (raw: RawFilters): ParsedFilters => {
     filters.payment_status =
       payment_status as TransactionFilters["payment_status"];
     display.payment_status = payment_status;
+  }
+
+  const loan_filter = toStringValue(raw.loan_filter);
+  if (loan_filter === "loan_given" || loan_filter === "loan_received") {
+    filters.loan_filter = loan_filter as TransactionFilters["loan_filter"];
+    display.loan_filter = loan_filter;
   }
 
   const financialScope =
@@ -438,6 +445,12 @@ const buildFiltersSection = (
           ? "Paid"
           : capitalize(display.payment_status);
     chips.push(`Payment Status: ${statusLabel}`);
+  }
+
+  if (display.loan_filter) {
+    const loanLabel =
+      display.loan_filter === "loan_given" ? "Loan Given" : "Loan Received";
+    chips.push(`Loan Filter: ${loanLabel}`);
   }
 
   if (display.financialScope) {

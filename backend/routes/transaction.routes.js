@@ -174,6 +174,7 @@ const listQuerySchema = z.object({
     counterparty: z.string().optional(),
     vendor: z.string().optional(),
     payment_status: z.enum(["paid", "due"]).optional(),
+    loan_filter: z.enum(["loan_given", "loan_received"]).optional(),
     financialScope: z.string().optional(),
     financial_scope: z.string().optional(),
     q: z.string().optional(),

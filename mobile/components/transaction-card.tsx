@@ -37,9 +37,22 @@ const TransactionCardComponent = ({
   const isCredit = transaction.type === "credit";
   const amountColor = isCredit ? colors.success : colors.error;
 
-  const isDue = transaction.payment_status === "due";
-  const isPayment = !!transaction.parent_due_id; // payment linked to a due
-  const hasChain = isDue || isPayment;
+  const isLoanCategory =
+    transaction.category?.type === "loan_in" ||
+    transaction.category?.type === "loan_out";
+  const loanSummary = transaction.loan_summary;
+  const loanOutstanding = loanSummary?.outstanding ?? 0;
+  const loanIsSettled = !!loanSummary && loanSummary.is_settled;
+  const loanDirectionLabel = loanSummary?.owed_by_them
+    ? "they owe"
+    : loanSummary?.owed_by_me
+      ? "you owe"
+      : "settled";
+  const isLoanLedger = isLoanCategory && !!transaction.counterparty;
+
+  const isDue = !isLoanLedger && transaction.payment_status === "due";
+  const isPayment = !isLoanLedger && !!transaction.parent_due_id; // payment linked to a due
+  const hasChain = isDue || isPayment || isLoanLedger;
   const remaining = transaction.due_remaining ?? transaction.amount;
   const isSettled = isDue && remaining === 0;
 
@@ -71,14 +84,42 @@ const TransactionCardComponent = ({
     <View
       style={{
         backgroundColor: colors.bg.secondary,
-        borderColor: isDue && !isSettled ? "#d97706" + "60" : colors.border,
-        borderWidth: isDue && !isSettled ? 1.5 : 1,
+        borderColor:
+          (isDue && !isSettled) || (isLoanLedger && !loanIsSettled)
+            ? "#d97706" + "60"
+            : colors.border,
+        borderWidth:
+          (isDue && !isSettled) || (isLoanLedger && !loanIsSettled) ? 1.5 : 1,
       }}
       className="rounded-2xl p-3 shadow-sm"
     >
       {/* Due / Payment badge row */}
-      {(isDue || isPayment) && (
+      {(isDue || isPayment || isLoanLedger) && (
         <View className="flex-row gap-2 mb-2">
+          {isLoanLedger && (
+            <View
+              className="flex-row items-center gap-1 px-2 py-0.5 rounded-full"
+              style={{
+                backgroundColor: loanIsSettled
+                  ? "#16a34a" + "20"
+                  : "#d97706" + "20",
+              }}
+            >
+              <Ionicons
+                name={loanIsSettled ? "checkmark-circle" : "time-outline"}
+                size={12}
+                color={loanIsSettled ? "#16a34a" : "#d97706"}
+              />
+              <Text
+                className="text-xs font-bold"
+                style={{ color: loanIsSettled ? "#16a34a" : "#d97706" }}
+              >
+                {loanIsSettled
+                  ? "Loan · Settled"
+                  : `Loan Due · ${formatAmount(loanOutstanding)} ${loanDirectionLabel}`}
+              </Text>
+            </View>
+          )}
           {isDue && (
             <View
               className="flex-row items-center gap-1 px-2 py-0.5 rounded-full"
@@ -279,7 +320,26 @@ const TransactionCardComponent = ({
             </Text>
           </TouchableOpacity>
         ) : null}
-        {transaction.payment_status ? (
+        {isLoanLedger ? (
+          <View
+            style={{
+              backgroundColor: loanIsSettled
+                ? "#16a34a" + "20"
+                : "#d97706" + "20",
+              borderColor: loanIsSettled ? "#16a34a" + "40" : "#d97706" + "40",
+            }}
+            className="px-3 py-1 rounded-full border"
+          >
+            <Text
+              style={{ color: loanIsSettled ? "#16a34a" : "#d97706" }}
+              className="text-xs font-semibold"
+            >
+              {loanIsSettled
+                ? "Loan Settled"
+                : `Loan Due · ${formatAmount(loanOutstanding)} ${loanDirectionLabel}`}
+            </Text>
+          </View>
+        ) : transaction.payment_status ? (
           <TouchableOpacity
             activeOpacity={onPaymentStatusPress ? 0.8 : 1}
             onPress={() => {
@@ -455,6 +515,14 @@ export const TransactionCard = memo(
       nextProps.transaction.due_remaining &&
     prevProps.transaction.payment_status ===
       nextProps.transaction.payment_status &&
+    prevProps.transaction.loan_summary?.outstanding ===
+      nextProps.transaction.loan_summary?.outstanding &&
+    prevProps.transaction.loan_summary?.is_settled ===
+      nextProps.transaction.loan_summary?.is_settled &&
+    prevProps.transaction.loan_summary?.owed_by_me ===
+      nextProps.transaction.loan_summary?.owed_by_me &&
+    prevProps.transaction.loan_summary?.owed_by_them ===
+      nextProps.transaction.loan_summary?.owed_by_them &&
     prevProps.transaction.account?.name ===
       nextProps.transaction.account?.name &&
     prevProps.transaction.category?.name ===

@@ -5,9 +5,16 @@ import { Category } from "../models/Category.js";
 import { Transaction } from "../models/Transaction.js";
 import { Transfer } from "../models/Transfer.js";
 import { buildTransactionFilters } from "../utils/filters.js";
-import { resolveFinancialCategoryScope } from "../utils/financialCategories.js";
+import {
+  resolveFinancialCategoryScope,
+  resolveCategoryTypeScope,
+} from "../utils/financialCategories.js";
 import { recomputeDescendingBalances } from "../utils/balance.js";
 import { checkOrgAccess, getOrgFromRequest } from "../utils/organization.js";
+import {
+  decorateLoanSummaries,
+  getCounterpartyLoanLedger,
+} from "../utils/loanLedger.js";
 
 const parseTransactionDate = (value) => {
   if (!value) {
@@ -204,6 +211,16 @@ export const listTransactions = async (req, res, next) => {
       });
     }
 
+    const loanFilter = String(req.query.loan_filter ?? "").trim();
+    if (loanFilter === "loan_given" || loanFilter === "loan_received") {
+      categoryScope = await resolveCategoryTypeScope({
+        adminId: req.user.id,
+        organizationId,
+        types: [loanFilter === "loan_given" ? "loan_out" : "loan_in"],
+        names: [loanFilter === "loan_given" ? "Loan Given" : "Loan Received"],
+      });
+    }
+
     const filter = buildTransactionFilters({
       adminId: req.user.id,
       organizationId,
@@ -271,6 +288,12 @@ export const listTransactions = async (req, res, next) => {
         (root) => latestByRootId.get(root._id.toString()) ?? root,
       );
     }
+
+    transactions = await decorateLoanSummaries({
+      transactions,
+      adminId: req.user.id,
+      organizationId,
+    });
 
     // Compute running balances only for the current page
     if (transactions.length > 0) {
@@ -1482,6 +1505,7 @@ export const listVendors = async (req, res, next) => {
 export const getCounterpartyLedger = async (req, res, next) => {
   try {
     const adminId = req.user.id;
+    const organizationId = getOrgFromRequest(req);
     const { counterparty } = req.query;
 
     if (!counterparty) {
@@ -1490,124 +1514,19 @@ export const getCounterpartyLedger = async (req, res, next) => {
         .json({ message: "counterparty query param required" });
     }
 
-    // ── Resolve the 4 loan category IDs that belong to this admin ────────────
-    // We look up categories by type so we're not hard-coding IDs.
-    const loanCategoryDocs = await Category.find({
-      admin: adminId,
-      type: { $in: ["loan_in", "loan_out"] },
-    })
-      .select("_id name type")
-      .lean();
-
-    // Build lookup maps
-    const loanCategoryIds = loanCategoryDocs.map((c) => c._id);
-    const catTypeById = {};
-    for (const c of loanCategoryDocs) {
-      catTypeById[c._id.toString()] = c.type; // "loan_in" | "loan_out"
-    }
-    const catNameById = {};
-    for (const c of loanCategoryDocs) {
-      catNameById[c._id.toString()] = c.name;
-    }
-
-    // ── Fetch ONLY loan-category transactions for this counterparty ───────────
-    const txns = await Transaction.find({
-      admin: adminId,
-      counterparty: counterparty,
-      category_id: { $in: loanCategoryIds },
-      is_deleted: { $ne: true },
-    })
-      .populate("account", "name kind")
-      .populate("category_id", "name type")
-      .sort({ date: 1, createdAt: 1 })
-      .lean();
-
-    let owedByMe = 0; // I owe the counterparty
-    let owedByThem = 0; // Counterparty owes me
-    let totalBorrowed = 0; // sum of Loan Received
-    let totalRepaid = 0; // sum of Loan Repayment Paid
-    let totalGiven = 0; // sum of Loan Given
-    let totalReceived = 0; // sum of Loan Repayment Received
-
-    // Calculate running balance oldest→newest
-    const timeline = txns.map((t) => {
-      const catId =
-        t.category_id?._id?.toString() ?? t.category_id?.toString() ?? "";
-      const catName = catNameById[catId] ?? "";
-      const catType = catTypeById[catId] ?? "";
-
-      let entry_type;
-
-      if (catName === "Loan Received") {
-        // I borrowed from counterparty → I owe more
-        owedByMe += t.amount;
-        totalBorrowed += t.amount;
-        entry_type = "borrow"; // label: "Borrowed"
-      } else if (catName === "Loan Repayment Paid") {
-        // I paid counterparty back → I owe less
-        // Track full amount paid (even if it temporarily over-clears) for accurate total display
-        totalRepaid += t.amount;
-        owedByMe = Math.max(0, owedByMe - t.amount);
-        entry_type = "repayment"; // label: "Repaid"
-      } else if (catName === "Loan Given") {
-        // I lent to counterparty → they owe me more
-        owedByThem += t.amount;
-        totalGiven += t.amount;
-        entry_type = "loan_given"; // label: "Loan Given"
-      } else if (catName === "Loan Repayment Received") {
-        // Counterparty paid me back → they owe me less
-        // Track full amount received for accurate total display
-        totalReceived += t.amount;
-        owedByThem = Math.max(0, owedByThem - t.amount);
-        entry_type = "loan_received_back"; // label: "Repaid to me"
-      } else {
-        // Fallback by type field (shouldn't normally hit)
-        if (catType === "loan_in") {
-          owedByMe += t.amount;
-          totalBorrowed += t.amount;
-          entry_type = "borrow";
-        } else {
-          owedByThem += t.amount;
-          totalGiven += t.amount;
-          entry_type = "loan_given";
-        }
-      }
-
-      // Net running balance: positive = they owe me, negative = I owe them
-      const running_balance = owedByThem - owedByMe;
-
-      return {
-        ...t,
-        entry_type,
-        running_balance,
-      };
+    const { timeline, summary } = await getCounterpartyLoanLedger({
+      adminId,
+      organizationId,
+      counterparty,
     });
 
     // Reverse for newest-first display
     timeline.reverse();
 
-    const outstanding = owedByThem + owedByMe; // total unsettled on both sides
-    // Net from user's perspective: positive = I owe them, negative = they owe me
-    const netOwedByMe = owedByMe - owedByThem;
-
     res.json({
       counterparty,
       timeline,
-      summary: {
-        // "Borrowed" side: I took loans from them
-        total_borrowed: totalBorrowed,
-        total_repaid: totalRepaid,
-        // "Given" side: I gave loans to them
-        total_given: totalGiven,
-        total_received_back: totalReceived,
-        // Combined outstanding
-        outstanding,
-        net_owed_by_me: netOwedByMe, // positive = I owe them, negative = they owe me
-        owed_by_me: owedByMe,
-        owed_by_them: owedByThem,
-        transaction_count: txns.length,
-        is_settled: owedByMe === 0 && owedByThem === 0,
-      },
+      summary,
     });
   } catch (err) {
     next(err);

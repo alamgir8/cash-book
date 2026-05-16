@@ -19,6 +19,7 @@ const baseReportQuery = z.object({
   account_id: z.string().optional(),
   categoryId: z.string().optional(),
   category_id: z.string().optional(),
+  loan_filter: z.enum(["loan_given", "loan_received"]).optional(),
 });
 
 const summarySchema = z.object({
@@ -73,12 +74,12 @@ router.get("/series", validate(seriesSchema), getSeriesReport);
 router.get(
   "/accounts-balances",
   validate(accountBalanceSchema),
-  getAccountBalancesReport
+  getAccountBalancesReport,
 );
 router.get(
   "/top-categories",
   validate(topCategoriesSchema),
-  getTopCategoriesReport
+  getTopCategoriesReport,
 );
 
 export default router;

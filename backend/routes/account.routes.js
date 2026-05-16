@@ -93,6 +93,9 @@ const transactionQuerySchema = z.object({
   categoryId: z.string().optional(),
   category_id: z.string().optional(),
   counterparty: z.string().optional(),
+  vendor: z.string().optional(),
+  payment_status: z.enum(["paid", "due"]).optional(),
+  loan_filter: z.enum(["loan_given", "loan_received"]).optional(),
   financialScope: z.string().optional(),
   financial_scope: z.string().optional(),
   q: z.string().optional(),
@@ -124,18 +127,18 @@ router.patch("/:accountId/archive", validate(archiveSchema), archiveAccount);
 router.get(
   "/:accountId/detail",
   validate(accountParamsSchema),
-  getAccountDetail
+  getAccountDetail,
 );
 router.get("/:accountId", validate(accountParamsSchema), getAccountDetail);
 router.get(
   "/:accountId/summary",
   validate(accountParamsSchema),
-  getAccountSummary
+  getAccountSummary,
 );
 router.get(
   "/:accountId/transactions",
   validate(accountTransactionsSchema),
-  getAccountTransactions
+  getAccountTransactions,
 );
 
 export default router;

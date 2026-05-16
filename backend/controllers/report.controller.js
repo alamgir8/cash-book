@@ -4,7 +4,10 @@ import { Account } from "../models/Account.js";
 import { Category } from "../models/Category.js";
 import { Transaction } from "../models/Transaction.js";
 import { buildTransactionFilters } from "../utils/filters.js";
-import { resolveFinancialCategoryScope } from "../utils/financialCategories.js";
+import {
+  resolveFinancialCategoryScope,
+  resolveCategoryTypeScope,
+} from "../utils/financialCategories.js";
 import { checkOrgAccess, getOrgFromRequest } from "../utils/organization.js";
 
 const buildScopedFilter = async ({ req, extraQuery = {} }) => {
@@ -17,6 +20,16 @@ const buildScopedFilter = async ({ req, extraQuery = {} }) => {
     categoryScope = await resolveFinancialCategoryScope({
       adminId: req.user.id,
       scope: financialScope,
+    });
+  }
+
+  const loanFilter = String(req.query.loan_filter ?? "").trim();
+  if (loanFilter === "loan_given" || loanFilter === "loan_received") {
+    categoryScope = await resolveCategoryTypeScope({
+      adminId: req.user.id,
+      organizationId,
+      types: [loanFilter === "loan_given" ? "loan_out" : "loan_in"],
+      names: [loanFilter === "loan_given" ? "Loan Given" : "Loan Received"],
     });
   }
 
@@ -43,7 +56,7 @@ export const getSummaryReport = async (req, res, next) => {
       const access = await checkOrgAccess(
         req.user.id,
         organizationId,
-        "view_reports"
+        "view_reports",
       );
       if (!access.hasAccess) {
         return res.status(403).json({ message: access.error });
@@ -79,7 +92,7 @@ export const getSummaryReport = async (req, res, next) => {
         total_credit: 0,
         debit_count: 0,
         credit_count: 0,
-      }
+      },
     );
 
     summary.net = summary.total_credit - summary.total_debit;
@@ -101,7 +114,7 @@ export const getSeriesReport = async (req, res, next) => {
       const access = await checkOrgAccess(
         req.user.id,
         organizationId,
-        "view_reports"
+        "view_reports",
       );
       if (!access.hasAccess) {
         return res.status(403).json({ message: access.error });
@@ -168,7 +181,7 @@ export const getAccountBalancesReport = async (req, res, next) => {
       const access = await checkOrgAccess(
         req.user.id,
         organizationId,
-        "view_reports"
+        "view_reports",
       );
       if (!access.hasAccess) {
         return res.status(403).json({ message: access.error });
@@ -227,7 +240,7 @@ export const getAccountBalancesReport = async (req, res, next) => {
           total_debit: item.total_debit ?? 0,
           total_credit: item.total_credit ?? 0,
         },
-      ])
+      ]),
     );
 
     const balances = accounts.map((account) => {
@@ -270,7 +283,7 @@ export const getTopCategoriesReport = async (req, res, next) => {
       const access = await checkOrgAccess(
         req.user.id,
         organizationId,
-        "view_reports"
+        "view_reports",
       );
       if (!access.hasAccess) {
         return res.status(403).json({ message: access.error });
@@ -284,9 +297,8 @@ export const getTopCategoriesReport = async (req, res, next) => {
         ? { organization: organizationId, type: req.query.type }
         : { admin: req.user.id, type: req.query.type };
 
-      const categoryFilter = await Category.find(categoryQueryFilter).select(
-        "_id"
-      );
+      const categoryFilter =
+        await Category.find(categoryQueryFilter).select("_id");
 
       filter.category_id = {
         $in: categoryFilter.map((category) => category._id),

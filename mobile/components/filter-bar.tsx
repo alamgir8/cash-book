@@ -188,6 +188,7 @@ export const FilterBar = ({
           filters.counterparty ||
           filters.vendor ||
           filters.payment_status ||
+          filters.loan_filter ||
           filters.type ||
           filters.search ||
           filters.q ||
@@ -350,28 +351,59 @@ export const FilterBar = ({
 
       {/* Payment Status quick pills */}
       {showPaymentStatusFilter ? (
-        <View className="flex-row gap-2 mt-3">
+        <View className="flex-row flex-wrap gap-2 mt-3">
           {[
-            { label: "All", value: undefined },
-            { label: "✓ Paid", value: "paid" as const },
-            { label: "⏱ Due", value: "due" as const },
+            {
+              label: "All",
+              paymentStatus: undefined,
+              loanFilter: undefined,
+            },
+            {
+              label: "✓ Paid",
+              paymentStatus: "paid" as const,
+              loanFilter: undefined,
+            },
+            {
+              label: "⏱ Due",
+              paymentStatus: "due" as const,
+              loanFilter: undefined,
+            },
+            {
+              label: "↗ Loan Given",
+              paymentStatus: undefined,
+              loanFilter: "loan_given" as const,
+            },
+            {
+              label: "↙ Loan Received",
+              paymentStatus: undefined,
+              loanFilter: "loan_received" as const,
+            },
           ].map((option) => {
             const isActive =
-              option.value === undefined
-                ? !filters.payment_status
-                : filters.payment_status === option.value;
+              option.paymentStatus === undefined &&
+              option.loanFilter === undefined
+                ? !filters.payment_status && !filters.loan_filter
+                : option.paymentStatus
+                  ? filters.payment_status === option.paymentStatus &&
+                    !filters.loan_filter
+                  : filters.loan_filter === option.loanFilter;
             const activeColor =
-              option.value === "due"
+              option.paymentStatus === "due"
                 ? "#d97706"
-                : option.value === "paid"
+                : option.paymentStatus === "paid"
                   ? "#16a34a"
-                  : colors.info;
+                  : option.loanFilter === "loan_given"
+                    ? "#dc2626"
+                    : option.loanFilter === "loan_received"
+                      ? "#2563eb"
+                      : colors.info;
             return (
               <TouchableOpacity
                 key={option.label}
                 onPress={() =>
                   onChange({
-                    payment_status: option.value,
+                    payment_status: option.paymentStatus,
+                    loan_filter: option.loanFilter,
                     page: 1,
                   })
                 }
@@ -379,7 +411,7 @@ export const FilterBar = ({
                   backgroundColor: isActive ? activeColor : colors.bg.tertiary,
                   borderColor: isActive ? activeColor : colors.border,
                 }}
-                className="flex-1 py-1.5 rounded-full border"
+                className="px-3 py-1.5 rounded-full border"
               >
                 <Text
                   style={{ color: isActive ? "#ffffff" : colors.text.primary }}
@@ -719,6 +751,7 @@ export const FilterBar = ({
                   counterparty,
                   vendor,
                   payment_status,
+                  loan_filter,
                   accountId: selectedAccountId,
                   search: _ignoredSearch,
                   ...other
@@ -742,6 +775,9 @@ export const FilterBar = ({
                 }
                 if (payment_status) {
                   updatedFilters.payment_status = payment_status;
+                }
+                if (loan_filter) {
+                  updatedFilters.loan_filter = loan_filter;
                 }
                 if (searchInput && searchInput.trim().length > 0) {
                   updatedFilters.search = searchInput.trim();
