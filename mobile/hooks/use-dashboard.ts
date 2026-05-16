@@ -307,7 +307,8 @@ export function useDashboard() {
         ],
       );
     },
-    [deleteMutation],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [deleteMutation.mutate],
   );
 
   const handleAttachmentsPress = useCallback(

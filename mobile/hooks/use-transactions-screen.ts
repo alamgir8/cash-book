@@ -305,7 +305,12 @@ export function useTransactionsScreen() {
         ],
       );
     },
-    [deleteMutation],
+    // deleteMutation.mutate is stable across renders (TanStack Query internals)
+    // using the whole `deleteMutation` object would recreate this callback every
+    // render, defeating TransactionCard's memo() and causing the VirtualizedList
+    // slow-update warning.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [deleteMutation.mutate],
   );
 
   const handleAttachmentsPress = useCallback(

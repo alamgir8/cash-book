@@ -120,7 +120,8 @@ export function useAccountsScreen() {
         await createMutation.mutateAsync(payload);
       }
     },
-    [selectedAccount, createMutation, updateMutation],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [selectedAccount, createMutation.mutateAsync, updateMutation.mutateAsync],
   );
 
   const handleViewHistory = useCallback(
