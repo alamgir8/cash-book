@@ -15,9 +15,9 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Ionicons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
-import { useAuth } from "@/hooks/useAuth";
-import { useTheme } from "@/hooks/useTheme";
-import { useBiometric } from "@/hooks/useBiometric";
+import { useAuth } from "@/hooks/use-auth";
+import { useTheme } from "@/hooks/use-theme";
+import { useBiometric } from "@/hooks/use-biometric";
 import {
   getBiometricUsers,
   getBiometricDisplayName as getBiometricDisplayNameStatic,

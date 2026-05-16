@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -10,7 +10,7 @@ import {
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
 import { ActionButton } from "./action-button";
-import { useTheme } from "../hooks/useTheme";
+import { useTheme } from "../hooks/use-theme";
 import type { TransactionFilters } from "../services/transactions";
 import { SearchableSelect, type SelectOption } from "./searchable-select";
 
@@ -119,13 +119,31 @@ export const FilterBar = ({
     ...filters,
     searchInput: filters.search || "",
   });
+  // Track which quick-filter pill is currently active
+  const [activeQuickFilter, setActiveQuickFilter] = useState<string>("all");
+  // Prevent useEffect from resetting form while user is interacting
+  const isUserInteracting = useRef(false);
+
+  // Derive active quick filter from current filters (on external reset)
+  const deriveQuickFilter = useCallback((f: TransactionFilters): string => {
+    if (!f.startDate && !f.endDate) return "all";
+    const today = new Date().toISOString().split("T")[0];
+    if (f.startDate === today && (!f.endDate || f.endDate === today))
+      return "today";
+    return "custom";
+  }, []);
 
   useEffect(() => {
-    setFormFilters({
-      ...filters,
-      searchInput: filters.search ?? "",
-    });
-  }, [filters]);
+    // Only sync from parent when the expanded panel is not open (to avoid
+    // resetting in-progress form edits) OR when it's an external reset
+    if (!expanded || !isUserInteracting.current) {
+      setFormFilters({
+        ...filters,
+        searchInput: filters.search ?? "",
+      });
+      setActiveQuickFilter(deriveQuickFilter(filters));
+    }
+  }, [filters]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Convert date strings to Date objects for the picker
   const startDate = formFilters.startDate
@@ -197,9 +215,7 @@ export const FilterBar = ({
         {ranges.map((range) => (
           <TouchableOpacity
             key={range.value}
-            onPress={() =>
-              onChange({ ...filters, range: range.value, page: 1 })
-            }
+            onPress={() => onChange({ range: range.value, page: 1 })}
             style={{
               backgroundColor:
                 filters.range === range.value
@@ -225,7 +241,15 @@ export const FilterBar = ({
         ))}
 
         <TouchableOpacity
-          onPress={() => setExpanded((prev) => !prev)}
+          onPress={() => {
+            const next = !expanded;
+            setExpanded(next);
+            if (next) {
+              isUserInteracting.current = true;
+            } else {
+              isUserInteracting.current = false;
+            }
+          }}
           style={{
             backgroundColor: expanded ? colors.info + "20" : colors.bg.tertiary,
             borderColor: expanded ? colors.info : colors.border,
@@ -248,6 +272,8 @@ export const FilterBar = ({
         {onReset && derivedHasActiveFilters ? (
           <TouchableOpacity
             onPress={() => {
+              setActiveQuickFilter("all");
+              isUserInteracting.current = false;
               onReset();
               setExpanded(false);
             }}
@@ -300,7 +326,6 @@ export const FilterBar = ({
                 key={option.label}
                 onPress={() =>
                   onChange({
-                    ...filters,
                     type: option.value,
                     page: 1,
                   })
@@ -346,7 +371,6 @@ export const FilterBar = ({
                 key={option.label}
                 onPress={() =>
                   onChange({
-                    ...filters,
                     payment_status: option.value,
                     page: 1,
                   })
@@ -377,18 +401,15 @@ export const FilterBar = ({
           contentContainerStyle={{ paddingRight: 12 }}
         >
           {quickFilters.map((qf) => {
-            const isActive =
-              (qf.value === "today" &&
-                filters.startDate === new Date().toISOString().split("T")[0]) ||
-              (filters.startDate && filters.endDate);
+            const isActive = activeQuickFilter === qf.value;
 
             return (
               <TouchableOpacity
                 key={qf.value}
                 onPress={() => {
+                  setActiveQuickFilter(qf.value);
                   if (qf.value === "all") {
                     onChange({
-                      ...filters,
                       startDate: undefined,
                       endDate: undefined,
                       page: 1,
@@ -397,19 +418,22 @@ export const FilterBar = ({
                   }
                   const dateRange = getDateRangeFromQuickFilter(qf.value);
                   onChange({
-                    ...filters,
                     ...dateRange,
                     page: 1,
                   });
                 }}
                 style={{
-                  backgroundColor: colors.warning + "20",
-                  borderColor: colors.warning + "50",
+                  backgroundColor: isActive
+                    ? colors.warning
+                    : colors.warning + "20",
+                  borderColor: isActive
+                    ? colors.warning
+                    : colors.warning + "50",
                 }}
                 className="px-3 py-1 rounded-full border"
               >
                 <Text
-                  style={{ color: colors.warning }}
+                  style={{ color: isActive ? "#ffffff" : colors.warning }}
                   className="text-xs font-semibold"
                 >
                   {qf.label}
@@ -722,8 +746,14 @@ export const FilterBar = ({
                 if (searchInput && searchInput.trim().length > 0) {
                   updatedFilters.search = searchInput.trim();
                 }
+                // Mark custom filter applied
+                if (updatedFilters.startDate || updatedFilters.endDate) {
+                  setActiveQuickFilter("custom");
+                }
+                isUserInteracting.current = false;
                 onChange(updatedFilters);
                 onApplyFilters?.();
+                setExpanded(false);
               }}
               variant="primary"
               size="small"
@@ -734,6 +764,8 @@ export const FilterBar = ({
               <ActionButton
                 label="Reset"
                 onPress={() => {
+                  setActiveQuickFilter("all");
+                  isUserInteracting.current = false;
                   onReset();
                   setExpanded(false);
                 }}

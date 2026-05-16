@@ -17,7 +17,7 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { PasswordInput } from "../password-input";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useTheme } from "@/hooks/useTheme";
+import { useTheme } from "@/hooks/use-theme";
 
 const ROLES = [
   {

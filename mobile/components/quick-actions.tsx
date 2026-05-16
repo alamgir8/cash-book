@@ -1,6 +1,6 @@
 import { View, Text, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useOrganization } from "../hooks/useOrganization";
+import { useOrganization } from "../hooks/use-organization";
 
 type QuickActionProps = {
   icon: keyof typeof Ionicons.glyphMap;

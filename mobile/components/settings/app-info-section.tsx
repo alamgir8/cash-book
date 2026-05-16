@@ -1,7 +1,7 @@
 import { View, Text } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Constants from "expo-constants";
-import { useTheme } from "@/hooks/useTheme";
+import { useTheme } from "@/hooks/use-theme";
 
 export function AppInfoSection() {
   const { colors } = useTheme();

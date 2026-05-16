@@ -19,7 +19,7 @@ import { CustomInput } from "./custom-input";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ActionButton } from "./action-button";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useTheme } from "../hooks/useTheme";
+import { useTheme } from "../hooks/use-theme";
 
 const BUSINESS_TYPES = [
   { value: "retail_shop", label: "Retail Shop", icon: "storefront" },

@@ -6,6 +6,7 @@ import {
   Modal,
   Platform,
   ScrollView,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
@@ -23,8 +24,8 @@ import { Ionicons } from "@expo/vector-icons";
 import dayjs from "dayjs";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SearchableSelect } from "../searchable-select";
-import { usePreferences } from "@/hooks/usePreferences";
-import { useTheme } from "@/hooks/useTheme";
+import { usePreferences } from "@/hooks/use-preferences";
+import { useTheme } from "@/hooks/use-theme";
 import {
   transactionSchema,
   type TransactionFormValues,
@@ -316,65 +317,93 @@ export const TransactionModal = ({
         className="flex-1 justify-end"
         style={{ backgroundColor: "rgba(0,0,0,0.4)" }}
       >
+        {/* Backdrop — tap to dismiss (absolute so it doesn't compete for flex space) */}
         <TouchableOpacity
           activeOpacity={1}
           onPress={() => {
             Keyboard.dismiss();
             closeModal();
           }}
-          style={{ flex: 1 }}
+          style={{ ...StyleSheet.absoluteFillObject }}
         />
-        <KeyboardAwareScrollView
-          bottomOffset={Platform.OS === "ios" ? 100 : 120}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
+
+        {/* Bottom sheet — explicit height so KeyboardAwareScrollView can flex:1 */}
+        <View
           style={{
-            maxHeight: screenHeight * 0.85,
+            height: screenHeight * 0.88,
             backgroundColor: colors.bg.primary,
             borderTopLeftRadius: 24,
             borderTopRightRadius: 24,
+            // shadow for iOS elevation
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: -4 },
+            shadowOpacity: 0.12,
+            shadowRadius: 16,
+            elevation: 24,
           }}
         >
+          {/* ── FIXED HEADER ─────────────────────────────────────────── */}
           <View
-            className="rounded-t-3xl"
-            style={{ backgroundColor: colors.bg.primary }}
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+              paddingHorizontal: 24,
+              paddingTop: 20,
+              paddingBottom: 16,
+              borderBottomWidth: 1,
+              borderBottomColor: colors.border,
+              borderTopLeftRadius: 24,
+              borderTopRightRadius: 24,
+              backgroundColor: colors.bg.primary,
+            }}
           >
-            {/* Header */}
-            <View
-              className="flex-row justify-between items-center p-6 pb-4 border-b"
-              style={{ borderColor: colors.border }}
-            >
-              <View>
-                <Text
-                  className="text-xl font-bold"
-                  style={{ color: colors.text.primary }}
-                >
-                  {editingTransaction ? "Edit Transaction" : "New Transaction"}
-                </Text>
-                <Text
-                  className="text-sm"
-                  style={{ color: colors.text.secondary }}
-                >
-                  {editingTransaction
-                    ? "Update transaction details"
-                    : "Record your debit or credit"}
-                </Text>
-              </View>
-              <TouchableOpacity
-                onPress={closeModal}
-                className="w-8 h-8 rounded-full items-center justify-center"
-                style={{ backgroundColor: colors.bg.tertiary }}
+            <View>
+              <Text
+                style={{
+                  fontSize: 20,
+                  fontWeight: "700",
+                  color: colors.text.primary,
+                }}
               >
-                <Ionicons
-                  name="close"
-                  size={20}
-                  color={colors.text.secondary}
-                />
-              </TouchableOpacity>
+                {editingTransaction ? "Edit Transaction" : "New Transaction"}
+              </Text>
+              <Text
+                style={{
+                  fontSize: 13,
+                  color: colors.text.secondary,
+                  marginTop: 2,
+                }}
+              >
+                {editingTransaction
+                  ? "Update transaction details"
+                  : "Record your debit or credit"}
+              </Text>
             </View>
+            <TouchableOpacity
+              onPress={closeModal}
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 16,
+                backgroundColor: colors.bg.tertiary,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons name="close" size={20} color={colors.text.secondary} />
+            </TouchableOpacity>
+          </View>
 
-            {/* Form Content */}
-            <View className="px-6 py-4">
+          {/* ── SCROLLABLE FORM CONTENT ───────────────────────────────── */}
+          <KeyboardAwareScrollView
+            bottomOffset={Platform.OS === "ios" ? 100 : 120}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            style={{ flex: 1 }}
+          >
+            <View style={{ paddingHorizontal: 24, paddingVertical: 20 }}>
               <View className="gap-5">
                 {/* Account Selection */}
                 <Controller
@@ -1078,56 +1107,59 @@ export const TransactionModal = ({
                 ) : null}
               </View>
             </View>
+          </KeyboardAwareScrollView>
 
-            {/* Submit Button - Fixed at bottom */}
-            <View
-              className="px-6 pt-4 border-t"
-              style={{
-                borderColor: colors.border,
-                paddingBottom: Math.max(insets.bottom, 16),
-              }}
+          {/* ── FIXED FOOTER ─────────────────────────────────────────── */}
+          <View
+            style={{
+              paddingHorizontal: 24,
+              paddingTop: 12,
+              paddingBottom: Math.max(insets.bottom, 16),
+              borderTopWidth: 1,
+              borderTopColor: colors.border,
+              backgroundColor: colors.bg.primary,
+            }}
+          >
+            <TouchableOpacity
+              onPress={handleSubmit(handleFormSubmit)}
+              disabled={isSubmitting || uploadingAttachments}
+              className="rounded-2xl py-4 items-center shadow-lg"
+              style={{ backgroundColor: colors.info }}
             >
-              <TouchableOpacity
-                onPress={handleSubmit(handleFormSubmit)}
-                disabled={isSubmitting || uploadingAttachments}
-                className="rounded-2xl py-4 items-center shadow-lg"
-                style={{ backgroundColor: colors.info }}
-              >
-                {isSubmitting || uploadingAttachments ? (
-                  <View className="flex-row items-center gap-2">
-                    <ActivityIndicator color="white" />
-                    <Text className="text-white font-bold text-base">
-                      {uploadingAttachments
-                        ? "Uploading attachments…"
-                        : "Saving…"}
-                    </Text>
-                  </View>
-                ) : (
-                  <View className="flex-row items-center gap-2">
-                    <Ionicons
-                      name={
-                        editingTransaction
-                          ? "checkmark-circle"
-                          : stagedFiles.length > 0
-                            ? "attach"
-                            : "checkmark-circle"
-                      }
-                      size={20}
-                      color="white"
-                    />
-                    <Text className="text-white font-bold text-base">
-                      {editingTransaction
-                        ? "Update Transaction"
+              {isSubmitting || uploadingAttachments ? (
+                <View className="flex-row items-center gap-2">
+                  <ActivityIndicator color="white" />
+                  <Text className="text-white font-bold text-base">
+                    {uploadingAttachments
+                      ? "Uploading attachments…"
+                      : "Saving…"}
+                  </Text>
+                </View>
+              ) : (
+                <View className="flex-row items-center gap-2">
+                  <Ionicons
+                    name={
+                      editingTransaction
+                        ? "checkmark-circle"
                         : stagedFiles.length > 0
-                          ? `Save with ${stagedFiles.length} attachment${stagedFiles.length > 1 ? "s" : ""}`
-                          : "Save Transaction"}
-                    </Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            </View>
+                          ? "attach"
+                          : "checkmark-circle"
+                    }
+                    size={20}
+                    color="white"
+                  />
+                  <Text className="text-white font-bold text-base">
+                    {editingTransaction
+                      ? "Update Transaction"
+                      : stagedFiles.length > 0
+                        ? `Save with ${stagedFiles.length} attachment${stagedFiles.length > 1 ? "s" : ""}`
+                        : "Save Transaction"}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
           </View>
-        </KeyboardAwareScrollView>
+        </View>
       </View>
     </Modal>
   );

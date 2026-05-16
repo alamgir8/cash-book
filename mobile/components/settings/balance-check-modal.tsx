@@ -11,7 +11,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useQueryClient } from "@tanstack/react-query";
 import Toast from "react-native-toast-message";
-import { useTheme } from "@/hooks/useTheme";
+import { useTheme } from "@/hooks/use-theme";
 import {
   verifyBalances,
   reconcileBalances,

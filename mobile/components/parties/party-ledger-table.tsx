@@ -1,6 +1,6 @@
 import { Text, View } from "react-native";
 import type { LedgerEntry } from "@/types/party";
-import { useTheme } from "@/hooks/useTheme";
+import { useTheme } from "@/hooks/use-theme";
 
 type PartyLedgerTableProps = {
   entries: LedgerEntry[];

@@ -13,7 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { ScreenHeader } from "@/components/screen-header";
 import { exportInvoicePdf } from "@/services/reports";
 import { getApiErrorMessage } from "@/lib/api";
-import { useTheme } from "@/hooks/useTheme";
+import { useTheme } from "@/hooks/use-theme";
 import {
   useInvoice,
   useUpdateInvoiceStatus,

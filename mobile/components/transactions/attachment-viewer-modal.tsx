@@ -10,12 +10,15 @@ import {
   Alert,
   ActivityIndicator,
   Dimensions,
+  Platform,
+  StatusBar,
 } from "react-native";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useTheme } from "../../hooks/useTheme";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useTheme } from "../../hooks/use-theme";
 import { deleteAttachment, type Attachment } from "../../services/attachments";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -37,6 +40,7 @@ export function AttachmentViewerModal({
   canDelete = true,
 }: Props) {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [loadingImg, setLoadingImg] = useState(false);
@@ -234,11 +238,17 @@ export function AttachmentViewerModal({
         presentationStyle="pageSheet"
         onRequestClose={onClose}
       >
-        <View style={{ backgroundColor: colors.bg.primary }} className="flex-1">
-          {/* Header */}
+        <View style={{ backgroundColor: colors.bg.primary, flex: 1 }}>
+          {/* Header — respects status bar on Android; pageSheet handles iOS notch */}
           <View
-            style={{ borderColor: colors.border }}
-            className="flex-row items-center justify-between px-4 pt-4 pb-3 border-b"
+            style={{
+              borderColor: colors.border,
+              paddingTop:
+                Platform.OS === "android"
+                  ? (StatusBar.currentHeight ?? 0) + 8
+                  : 16,
+            }}
+            className="flex-row items-center justify-between px-4 pb-3 border-b"
           >
             <Text
               style={{ color: colors.text.primary }}
@@ -246,8 +256,19 @@ export function AttachmentViewerModal({
             >
               Attachments ({localAttachments.length})
             </Text>
-            <TouchableOpacity onPress={onClose} className="p-1">
-              <Ionicons name="close" size={24} color={colors.text.primary} />
+            <TouchableOpacity
+              onPress={onClose}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 16,
+                backgroundColor: colors.bg.tertiary,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Ionicons name="close" size={20} color={colors.text.primary} />
             </TouchableOpacity>
           </View>
 
@@ -268,6 +289,9 @@ export function AttachmentViewerModal({
               renderItem={renderItem}
               numColumns={3}
               contentContainerStyle={{ padding: 8 }}
+              removeClippedSubviews
+              initialNumToRender={12}
+              maxToRenderPerBatch={12}
             />
           )}
         </View>
@@ -282,7 +306,15 @@ export function AttachmentViewerModal({
         >
           <View className="flex-1 bg-black items-center justify-center">
             <TouchableOpacity
-              className="absolute top-12 right-4 z-10 p-2 bg-black/50 rounded-full"
+              style={{
+                position: "absolute",
+                top: Math.max(insets.top, 16) + 8,
+                right: 16,
+                zIndex: 10,
+                padding: 8,
+                backgroundColor: "rgba(0,0,0,0.55)",
+                borderRadius: 20,
+              }}
               onPress={() => setPreviewUrl(null)}
             >
               <Ionicons name="close" size={28} color="white" />
@@ -291,7 +323,7 @@ export function AttachmentViewerModal({
               <ActivityIndicator
                 size="large"
                 color="white"
-                className="absolute"
+                style={{ position: "absolute" }}
               />
             )}
             <Image

@@ -19,7 +19,7 @@ import { QUERY_KEYS } from "@/lib/queryKeys";
 import { z } from "zod";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useTheme } from "@/hooks/useTheme";
+import { useTheme } from "@/hooks/use-theme";
 
 // Zod validation schema
 const partySchema = z.object({

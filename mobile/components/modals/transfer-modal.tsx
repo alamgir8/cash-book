@@ -1,14 +1,15 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import {
   ActivityIndicator,
+  Dimensions,
+  Keyboard,
   Modal,
   Platform,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
-  Keyboard,
-  Dimensions,
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -18,8 +19,8 @@ import { Ionicons } from "@expo/vector-icons";
 import dayjs from "dayjs";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SearchableSelect } from "../searchable-select";
-import { usePreferences } from "@/hooks/usePreferences";
-import { useTheme } from "@/hooks/useTheme";
+import { usePreferences } from "@/hooks/use-preferences";
+import { useTheme } from "@/hooks/use-theme";
 import {
   transferSchema,
   type TransferFormValues,
@@ -114,63 +115,90 @@ export const TransferModal = ({
         className="flex-1 justify-end"
         style={{ backgroundColor: "rgba(0,0,0,0.4)" }}
       >
+        {/* Backdrop dismiss (absolute so sheet is the sole flex child) */}
         <TouchableOpacity
           activeOpacity={1}
           onPress={() => {
             Keyboard.dismiss();
             closeModal();
           }}
-          style={{ flex: 1 }}
+          style={{ ...StyleSheet.absoluteFillObject }}
         />
-        <KeyboardAwareScrollView
-          bottomOffset={Platform.OS === "ios" ? 100 : 120}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
+
+        {/* Bottom sheet — explicit height so KeyboardAwareScrollView can flex:1 */}
+        <View
           style={{
-            maxHeight: Dimensions.get("window").height * 0.85,
+            height: Dimensions.get("window").height * 0.88,
             backgroundColor: colors.bg.primary,
             borderTopLeftRadius: 24,
             borderTopRightRadius: 24,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: -4 },
+            shadowOpacity: 0.12,
+            shadowRadius: 16,
+            elevation: 24,
           }}
         >
+          {/* ── FIXED HEADER ─────────────────────────────────────────── */}
           <View
-            className="rounded-t-3xl"
-            style={{ backgroundColor: colors.bg.primary }}
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+              paddingHorizontal: 24,
+              paddingTop: 20,
+              paddingBottom: 16,
+              borderBottomWidth: 1,
+              borderBottomColor: colors.border,
+              borderTopLeftRadius: 24,
+              borderTopRightRadius: 24,
+              backgroundColor: colors.bg.primary,
+            }}
           >
-            {/* Header */}
-            <View
-              className="flex-row justify-between items-center p-6 pb-4 border-b"
-              style={{ borderColor: colors.border }}
-            >
-              <View>
-                <Text
-                  className="text-xl font-bold"
-                  style={{ color: colors.text.primary }}
-                >
-                  Transfer Funds
-                </Text>
-                <Text
-                  className="text-sm"
-                  style={{ color: colors.text.secondary }}
-                >
-                  Move money between your accounts
-                </Text>
-              </View>
-              <TouchableOpacity
-                onPress={closeModal}
-                className="w-8 h-8 rounded-full items-center justify-center"
-                style={{ backgroundColor: colors.bg.tertiary }}
+            <View>
+              <Text
+                style={{
+                  fontSize: 20,
+                  fontWeight: "700",
+                  color: colors.text.primary,
+                }}
               >
-                <Ionicons
-                  name="close"
-                  size={20}
-                  color={colors.text.secondary}
-                />
-              </TouchableOpacity>
+                Transfer Funds
+              </Text>
+              <Text
+                style={{
+                  fontSize: 13,
+                  color: colors.text.secondary,
+                  marginTop: 2,
+                }}
+              >
+                Move money between your accounts
+              </Text>
             </View>
+            <TouchableOpacity
+              onPress={closeModal}
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 16,
+                backgroundColor: colors.bg.tertiary,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons name="close" size={20} color={colors.text.secondary} />
+            </TouchableOpacity>
+          </View>
 
-            {/* Form Content */}
-            <View className="px-6 py-4">
+          {/* ── SCROLLABLE FORM CONTENT ───────────────────────────────── */}
+          <KeyboardAwareScrollView
+            bottomOffset={Platform.OS === "ios" ? 100 : 120}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            style={{ flex: 1 }}
+          >
+            <View style={{ paddingHorizontal: 24, paddingVertical: 20 }}>
               <View className="gap-5">
                 {/* From Account */}
                 <Controller
@@ -427,37 +455,38 @@ export const TransferModal = ({
                 ) : null}
               </View>
             </View>
+          </KeyboardAwareScrollView>
 
-            {/* Submit Button */}
-            <View
-              className="px-6 pt-4 border-t"
-              style={{
-                borderColor: colors.border,
-                paddingBottom: Math.max(insets.bottom, 16),
-              }}
+          {/* ── FIXED FOOTER ─────────────────────────────────────────── */}
+          <View
+            style={{
+              paddingHorizontal: 24,
+              paddingTop: 12,
+              paddingBottom: Math.max(insets.bottom, 16),
+              borderTopWidth: 1,
+              borderTopColor: colors.border,
+              backgroundColor: colors.bg.primary,
+            }}
+          >
+            <TouchableOpacity
+              onPress={handleSubmit(handleFormSubmit)}
+              disabled={isSubmitting}
+              className="rounded-2xl py-4 items-center shadow-lg"
+              style={{ backgroundColor: colors.info }}
             >
-              <TouchableOpacity
-                onPress={handleSubmit(handleFormSubmit)}
-                disabled={isSubmitting}
-                className="rounded-2xl py-4 items-center shadow-lg"
-                style={{
-                  backgroundColor: colors.info,
-                }}
-              >
-                {isSubmitting ? (
-                  <ActivityIndicator color="white" />
-                ) : (
-                  <View className="flex-row items-center gap-2">
-                    <Ionicons name="swap-horizontal" size={20} color="white" />
-                    <Text className="text-white font-bold text-base">
-                      Submit Transfer
-                    </Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            </View>
+              {isSubmitting ? (
+                <ActivityIndicator color="white" />
+              ) : (
+                <View className="flex-row items-center gap-2">
+                  <Ionicons name="swap-horizontal" size={20} color="white" />
+                  <Text className="text-white font-bold text-base">
+                    Submit Transfer
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
           </View>
-        </KeyboardAwareScrollView>
+        </View>
       </View>
     </Modal>
   );

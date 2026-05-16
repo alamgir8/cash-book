@@ -16,9 +16,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { z } from "zod";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useActiveOrgId, useOrganization } from "@/hooks/useOrganization";
+import { useActiveOrgId, useOrganization } from "@/hooks/use-organization";
 import { getApiErrorMessage } from "@/lib/api";
-import { useTheme } from "@/hooks/useTheme";
+import { useTheme } from "@/hooks/use-theme";
 
 // Zod validation schema
 const partySchema = z.object({

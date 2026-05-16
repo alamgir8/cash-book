@@ -14,7 +14,7 @@ import * as DocumentPicker from "expo-document-picker";
 import { Ionicons } from "@expo/vector-icons";
 import { uploadAttachments, deleteAttachment } from "@/services/attachments";
 import type { Attachment } from "@/services/attachments";
-import { useTheme } from "@/hooks/useTheme";
+import { useTheme } from "@/hooks/use-theme";
 
 type AttachmentPickerProps = {
   transactionId: string;

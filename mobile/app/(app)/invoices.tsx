@@ -12,8 +12,8 @@ import { useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import { ScreenHeader } from "@/components/screen-header";
-import { useActiveOrgId, useOrganization } from "@/hooks/useOrganization";
-import { useTheme } from "@/hooks/useTheme";
+import { useActiveOrgId, useOrganization } from "@/hooks/use-organization";
+import { useTheme } from "@/hooks/use-theme";
 import {
   invoicesApi,
   type InvoiceType,

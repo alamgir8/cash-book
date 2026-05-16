@@ -2,8 +2,8 @@ import { useState } from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useOrganization } from "../hooks/useOrganization";
-import { useTheme } from "../hooks/useTheme";
+import { useOrganization } from "../hooks/use-organization";
+import { useTheme } from "../hooks/use-theme";
 
 type FeatureItemProps = {
   icon: keyof typeof Ionicons.glyphMap;

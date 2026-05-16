@@ -3,7 +3,7 @@ import { View, Text, TextInput, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Controller, Control, FieldErrors } from "react-hook-form";
 import type { InvoiceFormData } from "@/lib/validations/invoice";
-import { useTheme } from "@/hooks/useTheme";
+import { useTheme } from "@/hooks/use-theme";
 
 interface LineItemFieldsProps {
   control: Control<InvoiceFormData>;

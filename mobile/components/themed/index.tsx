@@ -1,5 +1,5 @@
 import { View, ViewProps } from "react-native";
-import { useTheme } from "@/hooks/useTheme";
+import { useTheme } from "@/hooks/use-theme";
 
 /**
  * ThemedText - A wrapper for text that respects theme

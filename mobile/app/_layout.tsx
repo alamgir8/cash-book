@@ -6,14 +6,14 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import Toast from "react-native-toast-message";
 import * as SplashScreen from "expo-splash-screen";
 import { KeyboardProvider } from "react-native-keyboard-controller";
-import { AuthProvider, useAuth } from "../hooks/useAuth";
-import { PreferencesProvider } from "../hooks/usePreferences";
-import { ThemeProvider, useTheme } from "../hooks/useTheme";
+import { AuthProvider, useAuth } from "../hooks/use-auth";
+import { PreferencesProvider } from "../hooks/use-preferences";
+import { ThemeProvider, useTheme } from "../hooks/use-theme";
 import {
   OrganizationProvider,
   useOrganization,
-} from "../hooks/useOrganization";
-import { DeleteModeProvider } from "../hooks/useDeleteMode";
+} from "../hooks/use-organization";
+import { DeleteModeProvider } from "../hooks/use-delete-mode";
 import { ErrorBoundary } from "../components/error-boundary";
 import { AuthLoading } from "../components/auth-loading";
 import { queryClient } from "../lib/queryClient";

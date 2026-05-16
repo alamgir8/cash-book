@@ -5,7 +5,7 @@ import {
   ActivityIndicator,
   Platform,
 } from "react-native";
-import { useTheme } from "../hooks/useTheme";
+import { useTheme } from "../hooks/use-theme";
 
 type Props = {
   onResult: (transcript: string) => void;

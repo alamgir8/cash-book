@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { Animated, View, Text } from "react-native";
-import { useTheme } from "@/hooks/useTheme";
+import { useTheme } from "@/hooks/use-theme";
 
 interface AnimatedLoadingProps {
   message: string;

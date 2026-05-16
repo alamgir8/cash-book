@@ -5,7 +5,7 @@ import {
   ActivityIndicator,
   TouchableOpacityProps,
 } from "react-native";
-import { useTheme } from "../hooks/useTheme";
+import { useTheme } from "../hooks/use-theme";
 
 interface CustomButtonProps extends TouchableOpacityProps {
   title: string;

@@ -3,8 +3,8 @@ import { View, Text, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import dayjs from "dayjs";
 import type { Transaction } from "../services/transactions";
-import { usePreferences } from "../hooks/usePreferences";
-import { useTheme } from "../hooks/useTheme";
+import { usePreferences } from "../hooks/use-preferences";
+import { useTheme } from "../hooks/use-theme";
 
 type Props = {
   transaction: Transaction;

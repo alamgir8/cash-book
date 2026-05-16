@@ -12,7 +12,7 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { paymentSchema, type PaymentFormData } from "@/lib/validations/invoice";
 import type { PaymentMethod } from "@/types/invoice";
-import { useTheme } from "@/hooks/useTheme";
+import { useTheme } from "@/hooks/use-theme";
 
 interface PaymentModalProps {
   visible: boolean;

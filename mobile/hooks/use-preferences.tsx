@@ -8,7 +8,7 @@ import {
   ReactNode,
 } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useAuth } from "./useAuth";
+import { useAuth } from "./use-auth";
 
 interface UserPreferences {
   currency: string;

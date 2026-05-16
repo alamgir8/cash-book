@@ -2,7 +2,7 @@ import React from "react";
 import { View, Text, TouchableOpacity, Modal, FlatList } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { Party } from "@/services/parties";
-import { useTheme } from "@/hooks/useTheme";
+import { useTheme } from "@/hooks/use-theme";
 
 interface PartySelectionModalProps {
   visible: boolean;

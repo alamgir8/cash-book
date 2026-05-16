@@ -19,9 +19,9 @@ import Toast from "react-native-toast-message";
 import SearchableSelect, { type SelectOption } from "./searchable-select";
 import { PasswordInput } from "./password-input";
 import { ActionButton } from "./action-button";
-import { useAuth } from "../hooks/useAuth";
+import { useAuth } from "../hooks/use-auth";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useTheme } from "../hooks/useTheme";
+import { useTheme } from "../hooks/use-theme";
 
 const pinValueSchema = z
   .union([

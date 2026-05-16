@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { Animated, View, Text, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useTheme } from "@/hooks/useTheme";
+import { useTheme } from "@/hooks/use-theme";
 
 interface AnimatedErrorProps {
   message: string;

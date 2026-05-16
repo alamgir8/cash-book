@@ -1,7 +1,7 @@
 import React from "react";
 import { View, Text } from "react-native";
 import type { Invoice } from "@/types/invoice";
-import { useTheme } from "@/hooks/useTheme";
+import { useTheme } from "@/hooks/use-theme";
 
 interface InvoiceSummaryProps {
   invoice: Invoice;

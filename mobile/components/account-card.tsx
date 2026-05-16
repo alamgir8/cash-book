@@ -3,8 +3,8 @@ import { View, Text, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import dayjs from "dayjs";
 import { router } from "expo-router";
-import { usePreferences } from "../hooks/usePreferences";
-import { useTheme } from "../hooks/useTheme";
+import { usePreferences } from "../hooks/use-preferences";
+import { useTheme } from "../hooks/use-theme";
 import type { AccountOverview } from "../services/accounts";
 
 type Props = {

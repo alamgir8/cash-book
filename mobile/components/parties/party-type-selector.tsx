@@ -1,7 +1,7 @@
 import { Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { PartyType } from "@/types/party";
-import { useTheme } from "@/hooks/useTheme";
+import { useTheme } from "@/hooks/use-theme";
 
 type PartyTypeOption = {
   value: PartyType;

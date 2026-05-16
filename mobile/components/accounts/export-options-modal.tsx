@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useTheme } from "@/hooks/useTheme";
+import { useTheme } from "@/hooks/use-theme";
 
 export type ExportType = "pdf" | "by-category" | "by-counterparty";
 
@@ -199,9 +199,9 @@ export function ExportOptionsModal({
                       ? option.color
                       : colors.border,
                     backgroundColor: isCurrentExporting
-                      ? option.bgColor
+                      ? colors.bg.secondary
                       : colors.bg.secondary,
-                    opacity: isDisabled ? 0.5 : 1,
+                    opacity: isDisabled ? 0.45 : 1,
                   }}
                 >
                   {/* Icon */}
@@ -210,7 +210,7 @@ export function ExportOptionsModal({
                       width: 44,
                       height: 44,
                       borderRadius: 12,
-                      backgroundColor: option.bgColor,
+                      backgroundColor: option.color + "20",
                       alignItems: "center",
                       justifyContent: "center",
                     }}
@@ -232,7 +232,9 @@ export function ExportOptionsModal({
                       style={{
                         fontSize: 15,
                         fontWeight: "600",
-                        color: colors.text.primary,
+                        color: isCurrentExporting
+                          ? option.color
+                          : colors.text.primary,
                       }}
                     >
                       {option.title}
@@ -240,13 +242,13 @@ export function ExportOptionsModal({
                     <Text
                       style={{
                         fontSize: 12,
-                        color: colors.text.tertiary,
+                        color: isCurrentExporting
+                          ? option.color
+                          : colors.text.tertiary,
                         marginTop: 2,
                       }}
                     >
-                      {isCurrentExporting
-                        ? "Generating PDF..."
-                        : option.subtitle}
+                      {isCurrentExporting ? "Generating PDF…" : option.subtitle}
                     </Text>
                   </View>
 

@@ -1,5 +1,5 @@
 import { Text, View } from "react-native";
-import { useTheme } from "@/hooks/useTheme";
+import { useTheme } from "@/hooks/use-theme";
 
 type PartyBalanceCardProps = {
   balance: number;

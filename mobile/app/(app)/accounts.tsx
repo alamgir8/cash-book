@@ -32,9 +32,9 @@ import {
   type AccountOverview,
 } from "@/services/accounts";
 import { queryKeys } from "@/lib/queryKeys";
-import { usePreferences } from "@/hooks/usePreferences";
-import { useOrganization } from "@/hooks/useOrganization";
-import { useTheme } from "@/hooks/useTheme";
+import { usePreferences } from "@/hooks/use-preferences";
+import { useOrganization } from "@/hooks/use-organization";
+import { useTheme } from "@/hooks/use-theme";
 
 const schema = z.object({
   name: z.string().min(2, "Account name is required"),

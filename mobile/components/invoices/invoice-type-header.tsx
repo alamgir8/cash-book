@@ -2,7 +2,7 @@ import React from "react";
 import { View, Text } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { InvoiceType } from "@/types/invoice";
-import { useTheme } from "@/hooks/useTheme";
+import { useTheme } from "@/hooks/use-theme";
 
 interface InvoiceTypeHeaderProps {
   type: InvoiceType;

@@ -1,15 +1,5 @@
-import { useCallback, useMemo, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  RefreshControl,
-  Text,
-  View,
-} from "react-native";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { router } from "expo-router";
-import Toast from "react-native-toast-message";
+import { useCallback } from "react";
+import { FlatList, RefreshControl, Text, View } from "react-native";
 import { FilterBar } from "@/components/filter-bar";
 import { TransactionCard } from "@/components/transaction-card";
 import { StatsCards } from "@/components/stats-cards";
@@ -28,479 +18,63 @@ import {
   TransactionListSkeleton,
 } from "@/components/skeletons";
 import { LoadMoreButton } from "@/components/load-more-button";
-import type {
-  TransactionFormValues,
-  TransferFormValues,
-  SelectOption,
-} from "@/components/modals/types";
-import { exportTransactionsPdf } from "@/services/reports";
-import {
-  createTransaction,
-  createDuePayment,
-  createTransfer,
-  deleteTransaction,
-  fetchCounterparties,
-  fetchVendors,
-  fetchTransactions,
-  updateTransaction,
-  type Transaction,
-  type TransactionFilters,
-} from "@/services/transactions";
-import { fetchAccounts } from "@/services/accounts";
-import { fetchCategories } from "@/services/categories";
-import { queryKeys } from "@/lib/queryKeys";
-import { usePreferences } from "@/hooks/usePreferences";
-import { useOrganization } from "@/hooks/useOrganization";
-import { usePaginationCache } from "@/hooks/usePaginationCache";
-import { useTheme } from "@/hooks/useTheme";
-import { useDeleteMode } from "@/hooks/useDeleteMode";
-
-const defaultFilters: TransactionFilters = {
-  range: "monthly",
-  page: 1,
-  limit: 20,
-};
+import type { Transaction } from "@/services/transactions";
+import { useTheme } from "@/hooks/use-theme";
+import { useDashboard } from "@/hooks/use-dashboard";
 
 export default function DashboardScreen() {
-  const { formatAmount } = usePreferences();
-  const { canCreateTransactions, activeOrganization, hasPermission } =
-    useOrganization();
-  const canEditTransactions = hasPermission("edit_transactions");
-  const [viewingAttachmentsFor, setViewingAttachmentsFor] =
-    useState<Transaction | null>(null);
-  const handleAttachmentsPress = useCallback(
-    (t: Transaction) => setViewingAttachmentsFor(t),
-    [],
-  );
-  const { mergeTransactionPages } = usePaginationCache();
   const { colors } = useTheme();
-  const { isDeleteModeActive } = useDeleteMode();
-  const queryClient = useQueryClient();
-  const [filters, setFilters] = useState<TransactionFilters>(defaultFilters);
-  const [isModalVisible, setModalVisible] = useState(false);
-  const [isTransferModalVisible, setTransferModalVisible] = useState(false);
-  const [editingTransaction, setEditingTransaction] =
-    useState<Transaction | null>(null);
-  const [payingDueTxn, setPayingDueTxn] = useState<Transaction | null>(null);
-  const [viewingChainFor, setViewingChainFor] = useState<Transaction | null>(
-    null,
-  );
 
-  const accountsQuery = useQuery({
-    queryKey: queryKeys.accounts,
-    queryFn: fetchAccounts,
-  });
-
-  const categoriesQuery = useQuery({
-    queryKey: queryKeys.categories.all,
-    queryFn: () => fetchCategories(),
-  });
-
-  const transactionsQuery = useQuery({
-    queryKey: queryKeys.transactions(filters),
-    queryFn: () => fetchTransactions(filters),
-    placeholderData: (previousData) => previousData,
-  });
-
-  const createMutation = useMutation({
-    mutationFn: createTransaction,
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({
-          predicate: (query) => query.queryKey[0] === "transactions",
-        }),
-        queryClient.invalidateQueries({
-          predicate: (query) => query.queryKey[0] === "accounts",
-        }),
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.counterparties,
-        }),
-      ]);
-      Toast.show({ type: "success", text1: "Transaction added" });
-    },
-    onError: () => {
-      Toast.show({
-        type: "error",
-        text1: "Error saving transaction",
-        text2: "Please try again.",
-      });
-    },
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: updateTransaction,
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({
-          predicate: (query) => query.queryKey[0] === "transactions",
-        }),
-        queryClient.invalidateQueries({
-          predicate: (query) => query.queryKey[0] === "accounts",
-        }),
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.counterparties,
-        }),
-      ]);
-      setModalVisible(false);
-      setEditingTransaction(null);
-      Toast.show({ type: "success", text1: "Transaction updated" });
-    },
-    onError: () => {
-      Toast.show({
-        type: "error",
-        text1: "Error updating transaction",
-        text2: "Please try again.",
-      });
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: deleteTransaction,
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({
-          predicate: (query) => query.queryKey[0] === "transactions",
-        }),
-        queryClient.invalidateQueries({
-          predicate: (query) => query.queryKey[0] === "accounts",
-        }),
-      ]);
-      Toast.show({ type: "success", text1: "Transaction deleted" });
-    },
-    onError: () => {
-      Toast.show({
-        type: "error",
-        text1: "Delete failed",
-        text2: "Please try again.",
-      });
-    },
-  });
-
-  const handleDeleteTransaction = useCallback(
-    (transaction: Transaction) => {
-      Alert.alert(
-        "Delete Transaction?",
-        `Delete "${transaction.description || transaction.account?.name}" (${transaction.type === "credit" ? "+" : "-"}${transaction.amount})? This cannot be undone.`,
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Delete",
-            style: "destructive",
-            onPress: () => deleteMutation.mutate(transaction._id),
-          },
-        ],
-      );
-    },
-    [deleteMutation],
-  );
-
-  const createTransferMutation = useMutation({
-    mutationFn: createTransfer,
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({
-          predicate: (query) => query.queryKey[0] === "transactions",
-        }),
-        queryClient.invalidateQueries({
-          predicate: (query) => query.queryKey[0] === "accounts",
-        }),
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.counterparties,
-        }),
-      ]);
-      setTransferModalVisible(false);
-      Toast.show({ type: "success", text1: "Transfer completed" });
-    },
-    onError: (error) => {
-      console.error("Transfer creation error:", error);
-      Toast.show({
-        type: "error",
-        text1: "Error creating transfer",
-        text2: "Please try again.",
-      });
-    },
-  });
-
-  const accountOptions = useMemo(
-    () =>
-      (accountsQuery.data ?? []).map((account) => ({
-        value: account._id,
-        label: account.name,
-        subtitle: `${formatAmount(account.balance)}${
-          account.currency_symbol ? ` · ${account.currency_symbol}` : ""
-        }`,
-      })),
-    [accountsQuery.data, formatAmount],
-  );
-
-  const formatCategoryGroup = (type: string) =>
-    type
-      .split("_")
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(" ");
-
-  const categoryOptions = useMemo(() => {
-    const categories = (categoriesQuery.data ?? []) as {
-      _id: string;
-      name: string;
-      flow: string;
-      type: string;
-    }[];
-    // Return all categories - the modal will filter by type
-    return [
-      { value: "", label: "No category" },
-      ...categories.map((category) => ({
-        value: category._id,
-        label: category.name,
-        group: formatCategoryGroup(category.type),
-        flow: category.flow,
-      })),
-    ];
-  }, [categoriesQuery.data]);
-
-  const counterpartiesQuery = useQuery({
-    queryKey: queryKeys.counterparties,
-    queryFn: () => fetchCounterparties(),
-  });
-
-  const vendorsQuery = useQuery({
-    queryKey: queryKeys.vendors,
-    queryFn: () => fetchVendors(),
-  });
-
-  // Combine API counterparties with counterparties from loaded transactions
-  const counterpartyOptions: SelectOption[] = useMemo(() => {
-    const apiCounterparties = counterpartiesQuery.data ?? [];
-
-    // Also extract from current transactions as fallback
-    const txnCounterparties = (transactionsQuery.data?.transactions ?? [])
-      .map((txn) => txn.counterparty?.trim())
-      .filter((name): name is string => Boolean(name));
-
-    // Also include the editing transaction's counterparty if it exists
-    const editingCounterparty = editingTransaction?.counterparty?.trim();
-
-    // Merge and deduplicate
-    const allCounterparties = [
-      ...new Set([
-        ...apiCounterparties,
-        ...txnCounterparties,
-        ...(editingCounterparty ? [editingCounterparty] : []),
-      ]),
-    ];
-
-    return allCounterparties
-      .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
-      .map((name) => ({ value: name, label: name }));
-  }, [counterpartiesQuery.data, transactionsQuery.data, editingTransaction]);
-
-  const vendorOptions: SelectOption[] = useMemo(() => {
-    const apiVendors = vendorsQuery.data ?? [];
-    const txnVendors = (transactionsQuery.data?.transactions ?? [])
-      .map((txn) => txn.vendor?.trim())
-      .filter((name): name is string => Boolean(name));
-    const editingVendor = editingTransaction?.vendor?.trim();
-    const allVendors = [
-      ...new Set([
-        ...apiVendors,
-        ...txnVendors,
-        ...(editingVendor ? [editingVendor] : []),
-      ]),
-    ];
-    return allVendors
-      .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
-      .map((name) => ({ value: name, label: name }));
-  }, [vendorsQuery.data, transactionsQuery.data, editingTransaction]);
-
-  const hasActiveFilters = useMemo(() => {
-    if (filters.range && filters.range !== defaultFilters.range) {
-      return true;
-    }
-    const keys: (keyof TransactionFilters)[] = [
-      "accountId",
-      "categoryId",
-      "counterparty",
-      "vendor",
-      "payment_status",
-      "financialScope",
-      "type",
-      "search",
-      "accountName",
-      "startDate",
-      "endDate",
-      "from",
-      "to",
-      "minAmount",
-      "maxAmount",
-      "includeDeleted",
-    ];
-    return keys.some((key) => {
-      const value = filters[key];
-      const defaultValue = defaultFilters[key];
-      if (typeof value === "number") {
-        return value !== undefined && value !== defaultValue;
-      }
-      if (typeof value === "boolean") {
-        return value !== undefined && value !== defaultValue;
-      }
-      return value !== undefined && value !== "" && value !== defaultValue;
-    });
-  }, [filters]);
-
-  const openTransferModal = () => {
-    if (accountsQuery.isLoading) {
-      Toast.show({
-        type: "info",
-        text1: "Loading accounts",
-        text2: "Please wait a moment.",
-      });
-      return;
-    }
-    if (accountOptions.length < 2) {
-      Toast.show({
-        type: "info",
-        text1: "Add another account to transfer funds",
-      });
-      return;
-    }
-    setTransferModalVisible(true);
-  };
-
-  const handleEditTransaction = useCallback(
-    (transaction: Transaction) => {
-      if (!canCreateTransactions) {
-        Toast.show({
-          type: "error",
-          text1: "Permission Denied",
-          text2: "You don't have permission to edit transactions",
-        });
-        return;
-      }
-      setEditingTransaction(transaction);
-      setModalVisible(true);
-    },
-    [canCreateTransactions],
-  );
-
-  const closeModal = useCallback(() => {
-    setModalVisible(false);
-    setEditingTransaction(null);
-  }, []);
-
-  const closeTransferModal = useCallback(() => {
-    setTransferModalVisible(false);
-  }, []);
-
-  const totals = useMemo(() => {
-    const data = transactionsQuery.data as any;
-    if (!data?.transactions) return { debit: 0, credit: 0 };
-    return data.transactions.reduce(
-      (acc: any, txn: any) => {
-        acc[txn.type] += txn.amount;
-        return acc;
-      },
-      { debit: 0, credit: 0 },
-    );
-  }, [transactionsQuery.data]);
-
-  const handleTransactionSubmit = async (values: TransactionFormValues) => {
-    const payload = {
-      ...values,
-      amount: Number(values.amount),
-      date: values.date?.trim() ? values.date.trim() : undefined,
-      description: values.description?.trim()
-        ? values.description.trim()
-        : undefined,
-      comment: values.comment?.trim() ? values.comment.trim() : undefined,
-      categoryId: values.categoryId ? values.categoryId : undefined,
-      counterparty: values.counterparty?.trim()
-        ? values.counterparty.trim()
-        : undefined,
-      vendor: values.vendor?.trim() ? values.vendor.trim() : undefined,
-      payment_status: values.payment_status || "paid",
-      due_date: values.due_date?.trim() ? values.due_date.trim() : undefined,
-    };
-
-    if (editingTransaction) {
-      await updateMutation.mutateAsync({
-        transactionId: editingTransaction._id,
-        ...payload,
-      } as any);
-    } else {
-      const created = await createMutation.mutateAsync(payload as any);
-      return { _id: created._id };
-    }
-  };
-
-  const handleTransferSubmit = async (values: TransferFormValues) => {
-    const payload = {
-      fromAccountId: values.fromAccountId,
-      toAccountId: values.toAccountId,
-      amount: Number(values.amount),
-      date: values.date?.trim() ? values.date.trim() : undefined,
-      description: values.description?.trim()
-        ? values.description.trim()
-        : undefined,
-      comment: values.comment?.trim() ? values.comment.trim() : undefined,
-      counterparty: values.counterparty?.trim()
-        ? values.counterparty.trim()
-        : undefined,
-    };
-
-    await createTransferMutation.mutateAsync(payload as any);
-  };
-
-  const handleCategoryFilter = useCallback((categoryId?: string) => {
-    setFilters((prev) => ({
-      ...prev,
-      categoryId: categoryId || undefined,
-      counterparty: undefined,
-      page: 1,
-    }));
-  }, []);
-
-  const handleCounterpartyFilter = useCallback((counterparty?: string) => {
-    setFilters((prev) => ({
-      ...prev,
-      counterparty: counterparty || undefined,
-      categoryId: undefined,
-      page: 1,
-    }));
-  }, []);
-
-  const handleVendorFilter = useCallback((vendor?: string) => {
-    setFilters((prev) => ({
-      ...prev,
-      vendor: vendor || undefined,
-      page: 1,
-    }));
-  }, []);
-
-  const handlePaymentStatusFilter = useCallback((status?: "paid" | "due") => {
-    setFilters((prev) => ({
-      ...prev,
-      payment_status: status || undefined,
-      page: 1,
-    }));
-  }, []);
-
-  const handleLoadMore = useCallback(() => {
-    setFilters((prev) => ({
-      ...prev,
-      page: (prev.page ?? 1) + 1,
-    }));
-  }, []);
-
-  const totalTransactions = (transactionsQuery.data as any)?.total || 0;
-  const currentTransactions =
-    (transactionsQuery.data as any)?.transactions?.length || 0;
-  const currentPage = filters.page ?? 1;
-  const limit = filters.limit ?? 20;
-  const hasMore =
-    currentTransactions + (currentPage - 1) * limit < totalTransactions;
+  const {
+    filters,
+    isModalVisible,
+    isTransferModalVisible,
+    editingTransaction,
+    payingDueTxn,
+    viewingChainFor,
+    viewingAttachmentsFor,
+    transactionsQuery,
+    accountsQuery,
+    categoriesQuery,
+    accountOptions,
+    categoryOptions,
+    counterpartyOptions,
+    vendorOptions,
+    totals,
+    hasActiveFilters,
+    hasMore,
+    currentTransactions,
+    canCreateTransactions,
+    canEditTransactions,
+    activeOrganization,
+    isDeleteModeActive,
+    isSubmitting,
+    isTransferSubmitting,
+    setPayingDueTxn,
+    setViewingChainFor,
+    setViewingAttachmentsFor,
+    setModalVisible,
+    handleEditTransaction,
+    handleDeleteTransaction,
+    handleAttachmentsPress,
+    handleCategoryFilter,
+    handleCounterpartyFilter,
+    handleVendorFilter,
+    handlePaymentStatusFilter,
+    handleLoadMore,
+    handleFilterChange,
+    handleResetFilters,
+    openTransferModal,
+    handleExportPdf,
+    handleTransactionSubmit,
+    handleTransferSubmit,
+    closeModal,
+    closeTransferModal,
+    DEFAULT_FILTERS,
+  } = useDashboard();
 
   const renderTransactionItem = useCallback(
-    ({ item }: { item: any }) => (
+    ({ item }: { item: Transaction }) => (
       <TransactionCard
         transaction={item}
         onCategoryPress={handleCategoryFilter}
@@ -523,6 +97,8 @@ export default function DashboardScreen() {
       handleDeleteTransaction,
       isDeleteModeActive,
       handleAttachmentsPress,
+      setPayingDueTxn,
+      setViewingChainFor,
     ],
   );
 
@@ -531,22 +107,8 @@ export default function DashboardScreen() {
       (transactionsQuery.data as any)?.transactions?.length || 0;
     const accountCount = accountsQuery.data?.length || 0;
 
-    const handleExportPDF = async () => {
-      try {
-        await exportTransactionsPdf(filters);
-        Toast.show({
-          type: "success",
-          text1: "PDF exported successfully!",
-        });
-      } catch (error) {
-        console.error(error);
-        Toast.show({ type: "error", text1: "Failed to export PDF" });
-      }
-    };
-
     return (
       <View className="gap-6">
-        {/* Enhanced Statistics Cards */}
         {accountsQuery.isLoading || transactionsQuery.isLoading ? (
           <StatsCardsSkeleton />
         ) : (
@@ -559,35 +121,24 @@ export default function DashboardScreen() {
           />
         )}
 
-        {/* Quick Features Grid - bKash Style */}
         {accountsQuery.isLoading ? (
           <QuickFeaturesSkeleton />
         ) : (
           <HomeQuickFeatures
             onAddTransaction={() => setModalVisible(true)}
             onAddTransfer={openTransferModal}
-            onExportPDF={handleExportPDF}
-            onFilterDue={() => {
-              setFilters((prev) => ({
-                ...prev,
-                payment_status: "due",
-                page: 1,
-              }));
-            }}
+            onExportPDF={handleExportPdf}
+            onFilterDue={() => handlePaymentStatusFilter("due")}
           />
         )}
 
-        {/* Filter Bar */}
         <FilterBar
           filters={filters}
-          onChange={(next) => setFilters((prev) => ({ ...prev, ...next }))}
+          onChange={handleFilterChange}
           hasActiveFilters={hasActiveFilters}
           accounts={accountOptions}
           onApplyFilters={() => transactionsQuery.refetch()}
-          onReset={() => {
-            setFilters({ ...defaultFilters });
-            transactionsQuery.refetch();
-          }}
+          onReset={handleResetFilters}
           showCategoryField
           categories={categoryOptions}
           showCounterpartyField
@@ -599,8 +150,6 @@ export default function DashboardScreen() {
       </View>
     );
   };
-
-  // console.log("transactionsQuery", transactionsQuery.data);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg.secondary }}>
@@ -631,10 +180,7 @@ export default function DashboardScreen() {
         refreshControl={
           <RefreshControl
             refreshing={transactionsQuery.isRefetching}
-            onRefresh={() => {
-              setFilters({ ...defaultFilters });
-              transactionsQuery.refetch();
-            }}
+            onRefresh={handleResetFilters}
             tintColor="#1d4ed8"
             colors={["#1d4ed8"]}
           />
@@ -675,7 +221,6 @@ export default function DashboardScreen() {
       {canCreateTransactions && (
         <FloatingActionButton
           onPress={() => {
-            setEditingTransaction(null);
             setModalVisible(true);
           }}
           icon="add"
@@ -693,7 +238,7 @@ export default function DashboardScreen() {
         counterpartyOptions={counterpartyOptions}
         isAccountsLoading={accountsQuery.isLoading}
         isCategoriesLoading={categoriesQuery.isLoading}
-        isSubmitting={createMutation.isPending || updateMutation.isPending}
+        isSubmitting={isSubmitting}
       />
 
       <TransferModal
@@ -703,8 +248,9 @@ export default function DashboardScreen() {
         accountOptions={accountOptions}
         counterpartyOptions={counterpartyOptions}
         isAccountsLoading={accountsQuery.isLoading}
-        isSubmitting={createTransferMutation.isPending}
+        isSubmitting={isTransferSubmitting}
       />
+
       <AttachmentViewerModal
         visible={!!viewingAttachmentsFor}
         onClose={() => setViewingAttachmentsFor(null)}
@@ -712,6 +258,7 @@ export default function DashboardScreen() {
         attachments={viewingAttachmentsFor?.attachments ?? []}
         canDelete={canEditTransactions}
       />
+
       {payingDueTxn && (
         <DuePaymentModal
           visible={!!payingDueTxn}
@@ -721,6 +268,7 @@ export default function DashboardScreen() {
           onSuccess={() => setPayingDueTxn(null)}
         />
       )}
+
       {viewingChainFor && (
         <DueChainSheet
           visible={!!viewingChainFor}

@@ -1,7 +1,7 @@
 import React from "react";
 import { View, Text } from "react-native";
 import type { InvoiceLineItem } from "@/types/invoice";
-import { useTheme } from "@/hooks/useTheme";
+import { useTheme } from "@/hooks/use-theme";
 
 interface InvoiceItemsTableProps {
   items: InvoiceLineItem[];

@@ -3,11 +3,11 @@ import { ScrollView, View, Alert, Text } from "react-native";
 import Toast from "react-native-toast-message";
 import { router } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { useAuth } from "@/hooks/useAuth";
-import { useBiometric } from "@/hooks/useBiometric";
-import { useOrganization } from "@/hooks/useOrganization";
-import { useTheme } from "@/hooks/useTheme";
-import { useDeleteMode } from "@/hooks/useDeleteMode";
+import { useAuth } from "@/hooks/use-auth";
+import { useBiometric } from "@/hooks/use-biometric";
+import { useOrganization } from "@/hooks/use-organization";
+import { useTheme } from "@/hooks/use-theme";
+import { useDeleteMode } from "@/hooks/use-delete-mode";
 import {
   exportTransactionsPdf,
   exportTransactionsByCategoryPdf,

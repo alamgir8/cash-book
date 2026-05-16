@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { Ionicons } from "@expo/vector-icons";
-import { useTheme } from "@/hooks/useTheme";
+import { useTheme } from "@/hooks/use-theme";
 import type { ImportItem, ImportRecord } from "@/services/imports";
 
 // ─── Item Update Payload ──────────────────────────────────────────────────────

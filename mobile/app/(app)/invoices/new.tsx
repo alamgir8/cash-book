@@ -14,7 +14,7 @@ import { useForm, Controller, useFieldArray } from "react-hook-form";
 import { toast } from "@/lib/toast";
 import { useQuery } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
-import { useActiveOrgId } from "@/hooks/useOrganization";
+import { useActiveOrgId } from "@/hooks/use-organization";
 import { useCreateInvoice } from "@/hooks/use-invoices";
 import type { InvoiceType } from "@/types/invoice";
 import { partiesApi, type Party } from "@/services/parties";
@@ -31,7 +31,7 @@ import {
   calculateInvoiceTotals,
   transformInvoiceFormData,
 } from "@/lib/invoice-utils";
-import { useTheme } from "@/hooks/useTheme";
+import { useTheme } from "@/hooks/use-theme";
 
 export default function InvoiceScreen() {
   const { type: typeParam, partyId: partyIdParam } = useLocalSearchParams<{

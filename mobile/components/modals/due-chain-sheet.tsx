@@ -18,8 +18,8 @@ import { Ionicons } from "@expo/vector-icons";
 import dayjs from "dayjs";
 import { useQuery } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useTheme } from "@/hooks/useTheme";
-import { usePreferences } from "@/hooks/usePreferences";
+import { useTheme } from "@/hooks/use-theme";
+import { usePreferences } from "@/hooks/use-preferences";
 import {
   fetchDueChain,
   fetchCounterpartyLedger,

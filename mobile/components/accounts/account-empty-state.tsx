@@ -1,7 +1,7 @@
 import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useTheme } from "@/hooks/useTheme";
+import { useTheme } from "@/hooks/use-theme";
 
 type AccountEmptyStateProps = {
   isLoading: boolean;

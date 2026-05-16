@@ -1,6 +1,6 @@
 import React, { useEffect } from "react";
 import { StatusBar } from "expo-status-bar";
-import { useTheme } from "@/hooks/useTheme";
+import { useTheme } from "@/hooks/use-theme";
 
 /**
  * Hook to set status bar styling based on current theme

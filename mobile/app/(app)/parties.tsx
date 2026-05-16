@@ -14,8 +14,8 @@ import { toast } from "@/lib/toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import { ScreenHeader } from "@/components/screen-header";
-import { useActiveOrgId, useOrganization } from "@/hooks/useOrganization";
-import { useTheme } from "@/hooks/useTheme";
+import { useActiveOrgId, useOrganization } from "@/hooks/use-organization";
+import { useTheme } from "@/hooks/use-theme";
 import { partiesApi, type Party, type PartyType } from "@/services/parties";
 import { getApiErrorMessage } from "@/lib/api";
 

@@ -16,8 +16,8 @@ import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { Ionicons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useBiometric } from "../../hooks/useBiometric";
-import { useTheme } from "@/hooks/useTheme";
+import { useBiometric } from "../../hooks/use-biometric";
+import { useTheme } from "@/hooks/use-theme";
 
 interface BiometricSettingsModalProps {
   visible: boolean;

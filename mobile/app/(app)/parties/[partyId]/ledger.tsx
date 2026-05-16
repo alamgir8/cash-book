@@ -19,7 +19,7 @@ import {
   formatLedgerBalance,
 } from "@/lib/party-utils";
 import { exportPartyLedgerPdf } from "@/services/reports";
-import { useTheme } from "@/hooks/useTheme";
+import { useTheme } from "@/hooks/use-theme";
 
 export default function PartyLedgerScreen() {
   const { partyId } = useLocalSearchParams<{ partyId: string }>();

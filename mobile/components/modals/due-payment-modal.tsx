@@ -8,8 +8,10 @@ import { useState, useEffect } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
   Modal,
   Platform,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
@@ -21,8 +23,8 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import dayjs from "dayjs";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useTheme } from "@/hooks/useTheme";
-import { usePreferences } from "@/hooks/usePreferences";
+import { useTheme } from "@/hooks/use-theme";
+import { usePreferences } from "@/hooks/use-preferences";
 import { createDuePayment, type Transaction } from "@/services/transactions";
 import { queryKeys } from "@/lib/queryKeys";
 import { SearchableSelect } from "../searchable-select";
@@ -115,63 +117,93 @@ export const DuePaymentModal = ({
           justifyContent: "flex-end",
         }}
       >
+        {/* Backdrop dismiss (absolute so sheet container is the sole flex child) */}
         <TouchableOpacity
-          style={{ flex: 1 }}
+          style={{ ...StyleSheet.absoluteFillObject }}
           activeOpacity={1}
           onPress={onClose}
         />
-        <KeyboardAwareScrollView
-          bottomOffset={Platform.OS === "ios" ? 100 : 120}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
+
+        {/* Bottom sheet */}
+        <View
           style={{
-            maxHeight: 620,
+            height: Math.min(680, Dimensions.get("window").height * 0.82),
             backgroundColor: colors.bg.primary,
             borderTopLeftRadius: 24,
             borderTopRightRadius: 24,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: -4 },
+            shadowOpacity: 0.12,
+            shadowRadius: 16,
+            elevation: 24,
           }}
         >
+          {/* ── FIXED HEADER ─────────────────────────────────────────── */}
           <View
-            className="rounded-t-3xl"
-            style={{ backgroundColor: colors.bg.primary }}
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+              paddingHorizontal: 24,
+              paddingTop: 20,
+              paddingBottom: 16,
+              borderBottomWidth: 1,
+              borderBottomColor: colors.border,
+              borderTopLeftRadius: 24,
+              borderTopRightRadius: 24,
+              backgroundColor: colors.bg.primary,
+            }}
           >
-            {/* Header */}
-            <View
-              className="flex-row justify-between items-center px-6 pt-6 pb-4 border-b"
-              style={{ borderColor: colors.border }}
-            >
-              <View style={{ flex: 1 }}>
-                <Text
-                  className="text-lg font-bold"
-                  style={{ color: colors.text.primary }}
-                >
-                  Record Payment
-                </Text>
-                <Text
-                  className="text-xs mt-0.5"
-                  style={{ color: colors.text.tertiary }}
-                >
-                  {dueTxn.vendor
-                    ? `Vendor: ${dueTxn.vendor}`
-                    : dueTxn.counterparty
-                      ? `For: ${dueTxn.counterparty}`
-                      : "Due transaction payment"}
-                </Text>
-              </View>
-              <TouchableOpacity
-                onPress={onClose}
-                className="w-8 h-8 rounded-full items-center justify-center"
-                style={{ backgroundColor: colors.bg.tertiary }}
+            <View style={{ flex: 1 }}>
+              <Text
+                style={{
+                  fontSize: 18,
+                  fontWeight: "700",
+                  color: colors.text.primary,
+                }}
               >
-                <Ionicons
-                  name="close"
-                  size={18}
-                  color={colors.text.secondary}
-                />
-              </TouchableOpacity>
+                Record Payment
+              </Text>
+              <Text
+                style={{
+                  fontSize: 12,
+                  color: colors.text.tertiary,
+                  marginTop: 2,
+                }}
+              >
+                {dueTxn.vendor
+                  ? `Vendor: ${dueTxn.vendor}`
+                  : dueTxn.counterparty
+                    ? `For: ${dueTxn.counterparty}`
+                    : "Due transaction payment"}
+              </Text>
             </View>
+            <TouchableOpacity
+              onPress={onClose}
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 16,
+                backgroundColor: colors.bg.tertiary,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons name="close" size={18} color={colors.text.secondary} />
+            </TouchableOpacity>
+          </View>
 
-            <View className="px-6 py-4">
+          {/* ── SCROLLABLE FORM CONTENT ───────────────────────────────── */}
+          <KeyboardAwareScrollView
+            bottomOffset={Platform.OS === "ios" ? 100 : 120}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            style={{ flex: 1 }}
+          >
+            <View
+              style={{ paddingHorizontal: 24, paddingVertical: 16, gap: 16 }}
+            >
               {/* Due context banner */}
               <View
                 className="rounded-xl p-3"
@@ -361,43 +393,46 @@ export const DuePaymentModal = ({
                 />
               </View>
             </View>
+          </KeyboardAwareScrollView>
 
-            {/* Footer */}
-            <View
-              className="px-6 pt-4 border-t"
+          {/* ── FIXED FOOTER ─────────────────────────────────────────── */}
+          <View
+            style={{
+              paddingHorizontal: 24,
+              paddingTop: 12,
+              paddingBottom: Math.max(insets.bottom, 16),
+              borderTopWidth: 1,
+              borderTopColor: colors.border,
+              backgroundColor: colors.bg.primary,
+            }}
+          >
+            <TouchableOpacity
+              onPress={handleSubmit}
+              disabled={mutation.isPending}
+              className="rounded-2xl py-4 items-center"
               style={{
-                borderColor: colors.border,
-                paddingBottom: Math.max(insets.bottom, 16),
+                backgroundColor: isFullPayment ? "#16a34a" : colors.info,
               }}
             >
-              <TouchableOpacity
-                onPress={handleSubmit}
-                disabled={mutation.isPending}
-                className="rounded-2xl py-4 items-center"
-                style={{
-                  backgroundColor: isFullPayment ? "#16a34a" : colors.info,
-                }}
-              >
-                {mutation.isPending ? (
-                  <ActivityIndicator color="white" />
-                ) : (
-                  <View className="flex-row items-center gap-2">
-                    <Ionicons
-                      name={isFullPayment ? "checkmark-circle" : "cash-outline"}
-                      size={20}
-                      color="white"
-                    />
-                    <Text className="text-white font-bold text-base">
-                      {isFullPayment
-                        ? "Mark as Fully Paid"
-                        : "Record Partial Payment"}
-                    </Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            </View>
+              {mutation.isPending ? (
+                <ActivityIndicator color="white" />
+              ) : (
+                <View className="flex-row items-center gap-2">
+                  <Ionicons
+                    name={isFullPayment ? "checkmark-circle" : "cash-outline"}
+                    size={20}
+                    color="white"
+                  />
+                  <Text className="text-white font-bold text-base">
+                    {isFullPayment
+                      ? "Mark as Fully Paid"
+                      : "Record Partial Payment"}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
           </View>
-        </KeyboardAwareScrollView>
+        </View>
       </View>
     </Modal>
   );

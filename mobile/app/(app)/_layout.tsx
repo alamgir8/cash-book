@@ -2,8 +2,8 @@ import { Tabs } from "expo-router";
 import { View, Text } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useOrganization } from "@/hooks/useOrganization";
-import { useTheme } from "@/hooks/useTheme";
+import { useOrganization } from "@/hooks/use-organization";
+import { useTheme } from "@/hooks/use-theme";
 
 const TabIcon = ({
   icon,

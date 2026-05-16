@@ -2,7 +2,7 @@ import React from "react";
 import { View, Text } from "react-native";
 import type { InvoiceTotals } from "@/types/invoice";
 import { formatInvoiceAmount } from "@/lib/invoice-utils";
-import { useTheme } from "@/hooks/useTheme";
+import { useTheme } from "@/hooks/use-theme";
 
 interface InvoiceTotalsSummaryProps {
   totals: InvoiceTotals;

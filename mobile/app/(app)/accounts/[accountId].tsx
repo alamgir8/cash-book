@@ -34,8 +34,8 @@ import {
   type TransactionFilters,
 } from "@/services/transactions";
 import { queryKeys } from "@/lib/queryKeys";
-import { usePreferences } from "@/hooks/usePreferences";
-import { useTheme } from "@/hooks/useTheme";
+import { usePreferences } from "@/hooks/use-preferences";
+import { useTheme } from "@/hooks/use-theme";
 import { useAccountDetail, useAccountTransactions } from "@/hooks/use-accounts";
 import { calculateAccountNetFlow } from "@/lib/account-utils";
 import type { SelectOption } from "@/components/searchable-select";

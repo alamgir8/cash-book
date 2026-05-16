@@ -19,7 +19,7 @@ import {
 } from "@/components/parties";
 import { useParty, useDeleteParty } from "@/hooks/use-parties";
 import { formatPartyBalance, getPartyBalanceColor } from "@/lib/party-utils";
-import { useTheme } from "@/hooks/useTheme";
+import { useTheme } from "@/hooks/use-theme";
 
 export default function PartyDetailScreen() {
   const { partyId } = useLocalSearchParams<{ partyId: string }>();

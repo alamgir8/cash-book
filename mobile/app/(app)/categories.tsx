@@ -20,8 +20,8 @@ import {
   type Category,
 } from "@/services/categories";
 import { queryKeys } from "@/lib/queryKeys";
-import { useOrganization } from "@/hooks/useOrganization";
-import { useTheme } from "@/hooks/useTheme";
+import { useOrganization } from "@/hooks/use-organization";
+import { useTheme } from "@/hooks/use-theme";
 
 export default function CategoriesScreen() {
   const queryClient = useQueryClient();
