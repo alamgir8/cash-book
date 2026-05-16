@@ -19,6 +19,7 @@ import {
   uploadAttachments,
   deleteAttachment,
 } from "../controllers/upload.controller.js";
+import { asyncHandler } from "../utils/asyncHandler.js";
 import { authenticate } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
 
@@ -229,9 +230,23 @@ router.post(
 router.post(
   "/:transactionId/attachments",
   validate(transactionIdParams),
-  uploadMiddleware,
-  uploadAttachments,
+  // Multer middleware — handle its own errors (LIMIT_FILE_SIZE etc.) here
+  (req, res, next) => {
+    uploadMiddleware(req, res, (err) => {
+      if (err) {
+        // Forward multer errors to the global error handler as proper HTTP errors
+        if (err.code === "LIMIT_FILE_SIZE") {
+          const e = new Error("File too large. Maximum size is 10 MB.");
+          e.statusCode = 413;
+          return next(e);
+        }
+        return next(err);
+      }
+      next();
+    });
+  },
+  asyncHandler(uploadAttachments),
 );
-router.delete("/:transactionId/attachments/*", deleteAttachment);
+router.delete("/:transactionId/attachments/*", asyncHandler(deleteAttachment));
 
 export default router;

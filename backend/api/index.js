@@ -3,6 +3,32 @@ import http from "http";
 import { createApp } from "./app.js";
 import { connectDatabase } from "../config/database.js";
 
+// ── Process-level error logging (catches anything not handled by Express) ──
+process.on("unhandledRejection", (reason, promise) => {
+  console.error(
+    JSON.stringify({
+      level: "fatal",
+      event: "unhandledRejection",
+      message: reason instanceof Error ? reason.message : String(reason),
+      stack: reason instanceof Error ? reason.stack : undefined,
+      timestamp: new Date().toISOString(),
+    }),
+  );
+});
+
+process.on("uncaughtException", (err) => {
+  console.error(
+    JSON.stringify({
+      level: "fatal",
+      event: "uncaughtException",
+      message: err.message,
+      stack: err.stack,
+      timestamp: new Date().toISOString(),
+    }),
+  );
+  process.exit(1);
+});
+
 const port = Number(process.env.PORT) || 4000;
 const mongoUri = process.env.MONGODB_URI;
 
