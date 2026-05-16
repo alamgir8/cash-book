@@ -70,6 +70,17 @@ const optimizeImageBuffer = async (inputBuffer, maxBytes) => {
 // ── Stream a buffer to Cloudinary ─────────────────────────────────────────
 const uploadBufferToCloudinary = (buffer, options) =>
   new Promise((resolve, reject) => {
+    if (!process.env.CLOUDINARY_API_KEY) {
+      return reject(
+        Object.assign(
+          new Error(
+            "Cloudinary is not configured on this server. Set CLOUDINARY_CLOUD_NAME, " +
+              "CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET environment variables.",
+          ),
+          { statusCode: 503 },
+        ),
+      );
+    }
     const uploadStream = cloudinary.uploader.upload_stream(
       options,
       (err, result) => {
