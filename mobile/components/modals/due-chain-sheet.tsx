@@ -2,12 +2,15 @@
  * DueChainSheet
  *
  * Two modes:
- *  1. COUNTERPARTY LEDGER — when the transaction has a `counterparty` field.
- *     Shows ALL borrows + repayments with that party as a single running ledger.
- *  2. SINGLE DUE CHAIN — classic per-loan view (for vendor dues, invoices, etc.)
+ *  1. COUNTERPARTY LEDGER — for loan-type transactions (no payment_status, has
+ *     counterparty). Shows ALL borrows + repayments with running balance.
+ *  2. SINGLE DUE CHAIN — for due/payment transactions. Shows payment progress
+ *     bar and partial payment timeline.
  */
+import React from "react";
 import {
   ActivityIndicator,
+  Alert,
   Modal,
   ScrollView,
   Text,
@@ -18,6 +21,8 @@ import { Ionicons } from "@expo/vector-icons";
 import dayjs from "dayjs";
 import { useQuery } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import * as Print from "expo-print";
+import * as Sharing from "expo-sharing";
 import { useTheme } from "@/hooks/use-theme";
 import { usePreferences } from "@/hooks/use-preferences";
 import {
@@ -37,9 +42,415 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
   const { formatAmount } = usePreferences();
   const insets = useSafeAreaInsets();
 
-  // Use counterparty ledger when the transaction has a counterparty
-  const useCounterpartyMode = !!transaction.counterparty;
+  // Use counterparty ledger ONLY for loan-category transactions.
+  // The backend's counterparty-ledger endpoint only queries loan_in/loan_out
+  // categories — so calling it for a vendor due (expense category with
+  // counterparty tagged) returns 0 results and shows "Fully Settled / 0".
+  //
+  // Discriminator: category type. Loan categories have type "loan_in" or
+  // "loan_out". Everything else (vendor dues, general expenses, etc.) should
+  // use the single due-chain view.
+  //
+  // NOTE: We cannot use payment_status === "due" as the discriminator because
+  // the migration script also sets payment_status: "due" on Loan Received /
+  // Loan Given transactions — those must still use counterparty ledger mode.
+  const isLoanCategory =
+    transaction.category?.type === "loan_in" ||
+    transaction.category?.type === "loan_out";
+  const useCounterpartyMode = !!transaction.counterparty && isLoanCategory;
   const counterparty = transaction.counterparty ?? "";
+
+  // PDF export state
+  const [exportingPdf, setExportingPdf] = React.useState(false);
+
+  const handleExportPdf = async () => {
+    setExportingPdf(true);
+    try {
+      if (!ledger && !chain) {
+        Alert.alert("Nothing to export", "Load the data first.");
+        return;
+      }
+
+      // ── Colour palette (mirrors the in-app theme) ──────────────────────────
+      const C = {
+        borrow: {
+          bg: "#eff6ff",
+          border: "#bfdbfe",
+          text: "#1d4ed8",
+          dot: "#3b82f6",
+        },
+        repayment: {
+          bg: "#f0fdf4",
+          border: "#bbf7d0",
+          text: "#15803d",
+          dot: "#16a34a",
+        },
+        loan_given: {
+          bg: "#fffbeb",
+          border: "#fde68a",
+          text: "#b45309",
+          dot: "#f59e0b",
+        },
+        loan_received_back: {
+          bg: "#f0fdfa",
+          border: "#99f6e4",
+          text: "#0f766e",
+          dot: "#0d9488",
+        },
+        due: {
+          bg: "#fff7ed",
+          border: "#fed7aa",
+          text: "#c2410c",
+          dot: "#f97316",
+        },
+        payment: {
+          bg: "#f0fdf4",
+          border: "#bbf7d0",
+          text: "#15803d",
+          dot: "#16a34a",
+        },
+        final: {
+          bg: "#f0fdf4",
+          border: "#86efac",
+          text: "#15803d",
+          dot: "#16a34a",
+        },
+      } as Record<
+        string,
+        { bg: string; border: string; text: string; dot: string }
+      >;
+
+      const labelMap: Record<string, string> = {
+        borrow: "Borrowed",
+        repayment: "Repaid",
+        loan_given: "Loan Given",
+        loan_received_back: "Returned",
+      };
+
+      const fmt = (n: number) => "৳" + Number(n).toLocaleString("en");
+
+      let title = "";
+      let subtitle = "";
+      let statsHtml = "";
+      let statusHtml = "";
+      let rowsHtml = "";
+      let finalBalanceHtml = "";
+
+      // ── COUNTERPARTY LEDGER MODE ─────────────────────────────────────────
+      if (useCounterpartyMode && ledger) {
+        const s = ledger.summary;
+        title = `${counterparty} — Full Ledger`;
+        subtitle = `${s.transaction_count} transactions`;
+
+        // Stats bar
+        const stats = [
+          s.total_borrowed > 0
+            ? {
+                label: "Total Borrowed",
+                value: fmt(s.total_borrowed),
+                color: "#3b82f6",
+              }
+            : null,
+          s.total_repaid > 0
+            ? {
+                label: "I Repaid",
+                value: fmt(s.total_repaid),
+                color: "#16a34a",
+              }
+            : null,
+          s.total_given > 0
+            ? {
+                label: "Total Given",
+                value: fmt(s.total_given),
+                color: "#f59e0b",
+              }
+            : null,
+          s.total_received_back > 0
+            ? {
+                label: "Returned to Me",
+                value: fmt(s.total_received_back),
+                color: "#0d9488",
+              }
+            : null,
+        ].filter(Boolean) as { label: string; value: string; color: string }[];
+
+        statsHtml = `<div class="stats-bar">${stats
+          .map(
+            (st) => `
+          <div class="stat-box" style="border-top: 3px solid ${st.color}">
+            <div class="stat-label">${st.label}</div>
+            <div class="stat-value" style="color:${st.color}">${st.value}</div>
+          </div>`,
+          )
+          .join("")}</div>`;
+
+        // Status chip
+        const isSettled = s.is_settled;
+        const netAbs = Math.abs(s.net_owed_by_me);
+        const statusColor = isSettled
+          ? "#16a34a"
+          : s.net_owed_by_me > 0
+            ? "#dc2626"
+            : "#d97706";
+        const statusBg = isSettled
+          ? "#f0fdf4"
+          : s.net_owed_by_me > 0
+            ? "#fef2f2"
+            : "#fffbeb";
+        const statusLabel = isSettled
+          ? "✅ Fully Settled"
+          : s.net_owed_by_me > 0
+            ? "⏳ I Owe Them"
+            : "⏳ They Owe Me";
+        statusHtml = `
+          <div class="status-chip" style="background:${statusBg};border-color:${statusColor}40">
+            <span style="color:${statusColor};font-weight:700;font-size:13px">${statusLabel}</span>
+            <span style="color:${statusColor};font-weight:800;font-size:16px;margin-left:auto">${fmt(netAbs)}</span>
+          </div>`;
+
+        // Timeline rows (newest first from backend, reverse to oldest-first for PDF)
+        const chronological = [...ledger.timeline].reverse();
+        rowsHtml = chronological
+          .map((e) => {
+            const cfg = C[e.entry_type] ?? C.borrow;
+            const bal = e.running_balance;
+            const balLabel =
+              bal === 0
+                ? "✓ Clear"
+                : bal > 0
+                  ? `${fmt(bal)} they owe`
+                  : `${fmt(Math.abs(bal))} I owe`;
+            const balColor =
+              bal === 0 ? "#16a34a" : bal > 0 ? "#d97706" : "#dc2626";
+            return `
+            <tr class="entry-row" style="background:${cfg.bg}">
+              <td class="td-date">${dayjs(e.date).format("DD MMM YYYY")}</td>
+              <td class="td-type">
+                <span class="type-chip" style="background:${cfg.dot}20;color:${cfg.text};border:1px solid ${cfg.border}">
+                  ${labelMap[e.entry_type] ?? e.entry_type}
+                </span>
+              </td>
+              <td class="td-note">${e.description ?? "<span style='color:#9ca3af'>—</span>"}</td>
+              <td class="td-amount" style="color:${cfg.text}">${fmt(e.amount)}</td>
+              <td class="td-balance" style="color:${balColor};font-weight:600">${balLabel}</td>
+            </tr>`;
+          })
+          .join("");
+
+        // Final balance row
+        const fb = ledger.summary;
+        const fbBal = fb.owed_by_them - fb.owed_by_me;
+        const fbColor =
+          fbBal === 0 ? "#16a34a" : fbBal > 0 ? "#d97706" : "#dc2626";
+        const fbLabel =
+          fbBal === 0
+            ? "✓ Fully Settled"
+            : fbBal > 0
+              ? `${fmt(fbBal)} — They owe you`
+              : `${fmt(Math.abs(fbBal))} — You owe them`;
+        finalBalanceHtml = `
+          <tr class="final-row">
+            <td colspan="4" style="font-weight:700;font-size:13px;color:#111">Closing Balance</td>
+            <td style="font-weight:800;font-size:14px;color:${fbColor};text-align:right">${fbLabel}</td>
+          </tr>`;
+
+        // ── SINGLE DUE CHAIN MODE ────────────────────────────────────────────
+      } else if (chain) {
+        const s = chain.summary;
+        const rootName =
+          chain.root.vendor ??
+          chain.root.counterparty ??
+          chain.root.description ??
+          "Due Transaction";
+        title = `Payment History`;
+        subtitle = rootName;
+        const pct = Math.round(
+          Math.min(100, (s.total_paid / s.original_amount) * 100),
+        );
+        const isSettled = s.is_settled;
+        const paidColor = "#0d9488";
+        const paidStrongColor = "#059669";
+        const paidLightBg = "#ecfdf5";
+        const paidBorder = "#99f6e4";
+
+        statsHtml = `<div class="stats-bar">
+          <div class="stat-box" style="border-top:3px solid #f97316">
+            <div class="stat-label">Original Due</div>
+            <div class="stat-value" style="color:#f97316">${fmt(s.original_amount)}</div>
+          </div>
+          <div class="stat-box" style="border-top:3px solid ${paidColor}">
+            <div class="stat-label">Total Paid</div>
+            <div class="stat-value" style="color:${paidStrongColor}">${fmt(s.total_paid)}</div>
+          </div>
+          <div class="stat-box" style="border-top:3px solid ${paidColor}">
+            <div class="stat-label">Remaining</div>
+            <div class="stat-value" style="color:${paidStrongColor}">${fmt(s.remaining)}</div>
+          </div>
+          <div class="stat-box" style="border-top:3px solid ${paidColor}">
+            <div class="stat-label">Progress</div>
+            <div class="stat-value" style="color:${paidStrongColor}">${pct}%</div>
+          </div>
+        </div>
+        <div class="progress-wrap">
+          <div class="progress-bar" style="width:${pct}%;background:linear-gradient(90deg, #0d9488, #10b981)"></div>
+        </div>`;
+
+        statusHtml = `
+          <div class="status-chip" style="background:${paidLightBg};border-color:${paidBorder}">
+            <span style="color:${paidStrongColor};font-weight:700;font-size:13px">
+              ${isSettled ? "✅ Fully Settled" : "⏳ Not Yet Fully Paid"}
+            </span>
+            ${s.settled_at ? `<span style="color:${paidColor};font-size:11px;margin-left:8px">Settled on ${dayjs(s.settled_at).format("DD MMM YYYY")}</span>` : ""}
+          </div>`;
+
+        // Due row
+        const dueRow = `
+          <tr class="entry-row" style="background:${C.due.bg}">
+            <td class="td-date">${dayjs(chain.root.date).format("DD MMM YYYY")}</td>
+            <td class="td-type"><span class="type-chip" style="background:${C.due.dot}20;color:${C.due.text};border:1px solid ${C.due.border}">Original Due</span></td>
+            <td class="td-note">${chain.root.description ?? "<span style='color:#9ca3af'>—</span>"}</td>
+            <td class="td-amount" style="color:${C.due.text}">${fmt(chain.root.amount)}</td>
+            <td class="td-balance" style="color:${C.due.text};font-weight:600">${fmt(chain.root.amount)} left</td>
+          </tr>`;
+
+        const payRows = chain.payments
+          .map((p, i) => {
+            const isFinal = p.remaining_after === 0;
+            const cfg = isFinal ? C.final : C.payment;
+            return `
+            <tr class="entry-row" style="background:${cfg.bg}">
+              <td class="td-date">${dayjs(p.date).format("DD MMM YYYY")}</td>
+              <td class="td-type"><span class="type-chip" style="background:${cfg.dot}20;color:${cfg.text};border:1px solid ${cfg.border}">${isFinal ? `Final Payment (#${i + 1})` : `Partial #${i + 1}`}</span></td>
+              <td class="td-note">${p.description ?? "<span style='color:#9ca3af'>—</span>"}</td>
+              <td class="td-amount" style="color:${cfg.text}">${fmt(p.amount)}</td>
+              <td class="td-balance" style="color:${paidStrongColor};font-weight:600">${isFinal ? "✓ Fully paid" : `${fmt(p.remaining_after)} left`}</td>
+            </tr>`;
+          })
+          .join("");
+
+        rowsHtml = dueRow + payRows;
+
+        finalBalanceHtml = `
+          <tr class="final-row">
+            <td colspan="4" style="font-weight:700;font-size:13px;color:#111">Closing Balance</td>
+            <td style="font-weight:800;font-size:14px;color:${paidStrongColor};text-align:right">
+              ${isSettled ? "✓ Fully Settled" : `${fmt(s.remaining)} remaining`}
+            </td>
+          </tr>`;
+      }
+
+      const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif; background: #f8fafc; color: #111; padding: 28px; }
+
+    /* ── Header ── */
+    .header { margin-bottom: 20px; padding-bottom: 16px; border-bottom: 2px solid #e2e8f0; }
+    .header h1 { font-size: 22px; font-weight: 800; color: #0f172a; }
+    .header .subtitle { font-size: 13px; color: #64748b; margin-top: 3px; }
+    .header .exported { font-size: 11px; color: #94a3b8; margin-top: 6px; }
+
+    /* ── Stats bar ── */
+    .stats-bar { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+    .stat-box { flex: 1; min-width: 100px; background: #fff; border-radius: 10px; padding: 10px 14px; border: 1px solid #e2e8f0; }
+    .stat-label { font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+    .stat-value { font-size: 15px; font-weight: 800; }
+
+    /* ── Progress bar (chain mode only) ── */
+    .progress-wrap { height: 8px; background: #e2e8f0; border-radius: 99px; overflow: hidden; margin-bottom: 14px; }
+    .progress-bar  { height: 8px; border-radius: 99px; }
+
+    /* ── Status chip ── */
+    .status-chip { display: flex; align-items: center; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 16px; margin-bottom: 18px; }
+
+    /* ── Table ── */
+    .table-wrap { background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; }
+    table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    thead tr { background: #1e293b; }
+    thead th { color: #e2e8f0; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; padding: 10px 12px; text-align: left; }
+    .entry-row td { padding: 9px 12px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+    .entry-row:last-of-type td { border-bottom: 2px solid #cbd5e1; }
+
+    /* ── Column widths ── */
+    .td-date    { width: 90px; font-size: 11px; color: #94a3b8; white-space: nowrap; font-weight: 500; }
+    .td-type    { width: 120px; }
+    .td-note    { color: #334155; }
+    .td-amount  { width: 80px; font-weight: 700; text-align: right; white-space: nowrap; }
+    .td-balance { width: 130px; text-align: right; font-size: 11.5px; white-space: nowrap; }
+
+    /* ── Type chip ── */
+    .type-chip { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 10.5px; font-weight: 600; white-space: nowrap; }
+
+    /* ── Final / closing row ── */
+    .final-row { background: #1e293b; }
+    .final-row td { padding: 11px 12px; color: #e2e8f0; font-size: 12px; }
+
+    /* ── Footer ── */
+    .footer { margin-top: 28px; padding: 22px 0 10px; border-top: 2px solid #111827; text-align: center; color: #64748b; }
+    .footer-generated { font-size: 12px; font-weight: 600; color: #94a3b8; margin-bottom: 26px; }
+    .footer-dev { font-size: 14px; color: #525252; }
+    .footer-dev a { color: #0284c7; text-decoration: none; font-weight: 600; }
+    .footer-dev .theme { color: #10b981; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>${title}</h1>
+    <div class="subtitle">${subtitle}</div>
+    <div class="exported">Exported on ${dayjs().format("DD MMM YYYY, hh:mm A")}</div>
+  </div>
+
+  ${statsHtml}
+  ${statusHtml}
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th class="td-date">Date</th>
+          <th class="td-type">Type</th>
+          <th>Note / Description</th>
+          <th class="td-amount" style="text-align:right">Amount</th>
+          <th class="td-balance" style="text-align:right">Running Balance</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rowsHtml}
+        ${finalBalanceHtml}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="footer">
+    <div class="footer-generated">Generated by Cash Book — ${dayjs().format("MMMM DD, YYYY hh:mm A")}</div>
+    <div class="footer-dev">
+      Developed By • <a>🔗 Alamgir Hossain</a> &nbsp;|&nbsp; 🐱 GitHub &nbsp;|&nbsp; <span class="theme">🌿 ThemeForest</span>
+    </div>
+  </div>
+</body>
+</html>`;
+
+      const { uri } = await Print.printToFileAsync({ html, base64: false });
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(uri, {
+          mimeType: "application/pdf",
+          dialogTitle: title,
+          UTI: "com.adobe.pdf",
+        });
+      } else {
+        Alert.alert("PDF saved", uri);
+      }
+    } catch (e: any) {
+      Alert.alert("Export failed", e?.message ?? "Unknown error");
+    } finally {
+      setExportingPdf(false);
+    }
+  };
 
   const ledgerQuery = useQuery({
     queryKey: ["counterparty-ledger", counterparty],
@@ -102,9 +513,30 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
                   ? `All transactions with ${counterparty}`
                   : transaction.vendor
                     ? `Vendor: ${transaction.vendor}`
-                    : "Due transaction chain"}
+                    : transaction.counterparty
+                      ? `For: ${transaction.counterparty}`
+                      : "Due transaction chain"}
               </Text>
             </View>
+            {/* PDF export button */}
+            {(ledger || chain) && (
+              <TouchableOpacity
+                onPress={handleExportPdf}
+                disabled={exportingPdf}
+                className="w-8 h-8 rounded-full items-center justify-center mr-2"
+                style={{ backgroundColor: colors.bg.tertiary }}
+              >
+                {exportingPdf ? (
+                  <ActivityIndicator size="small" color={colors.info} />
+                ) : (
+                  <Ionicons
+                    name="share-outline"
+                    size={17}
+                    color={colors.text.secondary}
+                  />
+                )}
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
               onPress={onClose}
               className="w-8 h-8 rounded-full items-center justify-center"
@@ -294,7 +726,9 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
                   >
                     {chain.summary.is_settled
                       ? "✅ Fully Settled"
-                      : "⏳ Partially Paid"}
+                      : chain.summary.payment_count === 0
+                        ? "⏳ Not Yet Paid"
+                        : "⏳ Partially Paid"}
                   </Text>
                   <Text
                     className="text-sm font-bold"

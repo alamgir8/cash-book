@@ -36,10 +36,12 @@ export type Transaction = {
         _id: string;
         amount: number;
         due_remaining?: number;
+        due_settled_at?: string;
         date: string;
         description?: string;
         vendor?: string;
         counterparty?: string;
+        payment_status?: "paid" | "due";
       };
   due_settled_at?: string;
   balance_after_transaction?: number;

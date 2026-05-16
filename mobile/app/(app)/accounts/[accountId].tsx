@@ -14,6 +14,9 @@ import dayjs from "dayjs";
 import Toast from "react-native-toast-message";
 import { FilterBar } from "@/components/filter-bar";
 import { TransactionCard } from "@/components/transaction-card";
+import { DuePaymentModal } from "@/components/modals/due-payment-modal";
+import { DueChainSheet } from "@/components/modals/due-chain-sheet";
+import type { Transaction } from "@/services/transactions";
 import {
   AccountHeader,
   AccountActions,
@@ -29,6 +32,7 @@ import {
   exportTransactionsByCounterpartyPdf,
 } from "@/services/reports";
 import { fetchCategories } from "@/services/categories";
+import { fetchAccounts } from "@/services/accounts";
 import {
   fetchCounterparties,
   type TransactionFilters,
@@ -58,6 +62,10 @@ export default function AccountDetailScreen() {
     ...defaultFilters,
     ...(accountId ? { accountId } : {}),
   });
+  const [payingDueTxn, setPayingDueTxn] = useState<Transaction | null>(null);
+  const [viewingChainFor, setViewingChainFor] = useState<Transaction | null>(
+    null,
+  );
   const [exporting, setExporting] = useState(false);
   const [exportModalVisible, setExportModalVisible] = useState(false);
   const [exportingType, setExportingType] = useState<ExportType | null>(null);
@@ -78,6 +86,24 @@ export default function AccountDetailScreen() {
     queryKey: queryKeys.counterparties,
     queryFn: () => fetchCounterparties(),
   });
+
+  const accountsQuery = useQuery({
+    queryKey: queryKeys.accounts,
+    queryFn: fetchAccounts,
+  });
+
+  const accountOptions: SelectOption[] = useMemo(() => {
+    const accounts = (accountsQuery.data ?? []) as {
+      _id: string;
+      name: string;
+      kind: string;
+    }[];
+    return accounts.map((a) => ({
+      value: a._id,
+      label: a.name,
+      subtitle: a.kind?.replace(/_/g, " "),
+    }));
+  }, [accountsQuery.data]);
 
   const categoryOptions: SelectOption[] = useMemo(() => {
     const categories = categoriesQuery.data ?? [];
@@ -390,6 +416,8 @@ export default function AccountDetailScreen() {
             transaction={item}
             onCategoryPress={handleCategoryFilter}
             onCounterpartyPress={handleCounterpartyFilter}
+            onPayDue={setPayingDueTxn}
+            onViewChain={setViewingChainFor}
           />
         )}
         refreshControl={
@@ -412,6 +440,24 @@ export default function AccountDetailScreen() {
           filters.from || filters.to || filters.startDate || filters.endDate,
         )}
       />
+
+      {payingDueTxn && (
+        <DuePaymentModal
+          visible={!!payingDueTxn}
+          onClose={() => setPayingDueTxn(null)}
+          dueTxn={payingDueTxn}
+          accountOptions={accountOptions}
+          onSuccess={() => setPayingDueTxn(null)}
+        />
+      )}
+
+      {viewingChainFor && (
+        <DueChainSheet
+          visible={!!viewingChainFor}
+          onClose={() => setViewingChainFor(null)}
+          transaction={viewingChainFor}
+        />
+      )}
     </View>
   );
 }

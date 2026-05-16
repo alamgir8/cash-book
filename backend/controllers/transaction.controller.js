@@ -210,23 +210,67 @@ export const listTransactions = async (req, res, next) => {
       query: req.query,
       categoryScope,
     });
+    const isDueFilter = String(req.query.payment_status ?? "").trim() === "due";
+    if (isDueFilter) {
+      filter.parent_due_id = { $exists: false };
+      filter.due_remaining = { $gt: 0 };
+    }
 
     const page = Math.max(Number(req.query.page) || 1, 1);
     const limit = Math.min(Number(req.query.limit) || 50, 200);
     const skip = (page - 1) * limit;
 
     // ── SINGLE query with populate — eliminates the double-query pattern ──
-    const [transactions, total] = await Promise.all([
+    let [transactions, total] = await Promise.all([
       Transaction.find(filter)
         .populate("account", "name kind")
         .populate("category_id", "name type")
         .populate("party", "name code type")
+        .populate(
+          "parent_due_id",
+          "amount due_remaining due_settled_at date description vendor counterparty payment_status",
+        )
         .sort({ date: -1, createdAt: -1, _id: -1 })
         .skip(skip)
         .limit(limit)
         .lean(),
       Transaction.countDocuments(filter),
     ]);
+
+    if (isDueFilter && transactions.length > 0) {
+      const rootIds = transactions.map((txn) => txn._id);
+      const latestPayments = await Transaction.find({
+        ...(organizationId
+          ? { organization: new mongoose.Types.ObjectId(organizationId) }
+          : {
+              admin: new mongoose.Types.ObjectId(req.user.id),
+              organization: { $exists: false },
+            }),
+        parent_due_id: { $in: rootIds },
+        is_deleted: false,
+      })
+        .populate("account", "name kind")
+        .populate("category_id", "name type")
+        .populate("party", "name code type")
+        .populate(
+          "parent_due_id",
+          "amount due_remaining due_settled_at date description vendor counterparty payment_status",
+        )
+        .sort({ date: -1, createdAt: -1, _id: -1 })
+        .lean();
+
+      const latestByRootId = new Map();
+      for (const payment of latestPayments) {
+        const rootId = payment.parent_due_id?._id?.toString?.();
+        if (rootId && !latestByRootId.has(rootId)) {
+          latestByRootId.set(rootId, payment);
+        }
+      }
+
+      transactions = transactions.map(
+        (root) => latestByRootId.get(root._id.toString()) ?? root,
+      );
+    }
 
     // Compute running balances only for the current page
     if (transactions.length > 0) {
@@ -326,6 +370,10 @@ export const getTransaction = async (req, res, next) => {
       .populate("account", "name kind")
       .populate("category_id", "name type")
       .populate("party", "name code type")
+      .populate(
+        "parent_due_id",
+        "amount due_remaining due_settled_at date description vendor counterparty payment_status",
+      )
       .lean();
 
     if (!transaction || transaction.is_deleted) {
@@ -1330,7 +1378,7 @@ export const listCounterparties = async (req, res, next) => {
     // Use aggregation pipeline for better performance on large datasets
     const pipeline = [
       { $match: distinctFilter },
-      { $match: { counterparty: { $exists: true, $ne: null, $ne: "" } } },
+      { $match: { counterparty: { $exists: true, $nin: [null, ""] } } },
       {
         $group: {
           _id: { $toLower: { $trim: { input: "$counterparty" } } },

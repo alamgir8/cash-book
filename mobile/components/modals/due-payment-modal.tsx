@@ -72,9 +72,15 @@ export const DuePaymentModal = ({
   const mutation = useMutation({
     mutationFn: createDuePayment,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.transactions({}) });
+      // Refresh transaction lists (all pages)
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      // Refresh account-specific transaction lists and balances
+      queryClient.invalidateQueries({ queryKey: ["account"] });
       queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
       queryClient.invalidateQueries({ queryKey: queryKeys.summary });
+      // Refresh History modal chain (so due_remaining + payment list update)
+      queryClient.invalidateQueries({ queryKey: ["due-chain"] });
+      queryClient.invalidateQueries({ queryKey: ["counterparty-ledger"] });
       onSuccess?.();
       onClose();
     },

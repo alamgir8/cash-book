@@ -43,6 +43,30 @@ const TransactionCardComponent = ({
   const remaining = transaction.due_remaining ?? transaction.amount;
   const isSettled = isDue && remaining === 0;
 
+  // For payment cards: check if the parent due still has balance outstanding
+  const parentDue =
+    isPayment && typeof transaction.parent_due_id === "object"
+      ? transaction.parent_due_id
+      : null;
+  const parentRemaining = parentDue?.due_remaining ?? parentDue?.amount ?? 0;
+  const parentIsSettled = !!parentDue && parentRemaining === 0;
+  const paymentShowsParentDue = !!parentDue && !parentIsSettled;
+  // Reconstruct a minimal Transaction shape to pass to onPayDue from a payment card
+  const parentAsDueTxn =
+    parentDue && !parentIsSettled
+      ? ({
+          ...transaction,
+          _id: parentDue._id,
+          amount: parentDue.amount ?? transaction.amount,
+          due_remaining: parentRemaining,
+          description: parentDue.description ?? transaction.description,
+          vendor: parentDue.vendor ?? transaction.vendor,
+          counterparty: parentDue.counterparty ?? transaction.counterparty,
+          payment_status: "due" as const,
+          parent_due_id: undefined,
+        } as any)
+      : null;
+
   return (
     <View
       style={{
@@ -82,11 +106,26 @@ const TransactionCardComponent = ({
           {isPayment && (
             <View
               className="flex-row items-center gap-1 px-2 py-0.5 rounded-full"
-              style={{ backgroundColor: "#16a34a" + "20" }}
+              style={{
+                backgroundColor: parentIsSettled
+                  ? "#16a34a" + "20"
+                  : "#d97706" + "20",
+              }}
             >
-              <Ionicons name="cash-outline" size={12} color="#16a34a" />
-              <Text className="text-xs font-bold" style={{ color: "#16a34a" }}>
-                Payment
+              <Ionicons
+                name={parentIsSettled ? "checkmark-circle" : "cash-outline"}
+                size={12}
+                color={parentIsSettled ? "#16a34a" : "#d97706"}
+              />
+              <Text
+                className="text-xs font-bold"
+                style={{ color: parentIsSettled ? "#16a34a" : "#d97706" }}
+              >
+                {parentIsSettled
+                  ? "Payment · Settled"
+                  : parentDue
+                    ? `Payment · ${formatAmount(parentRemaining)} left`
+                    : "Payment"}
               </Text>
             </View>
           )}
@@ -252,11 +291,11 @@ const TransactionCardComponent = ({
             }}
             style={{
               backgroundColor:
-                transaction.payment_status === "due"
+                transaction.payment_status === "due" || paymentShowsParentDue
                   ? "#d97706" + "20"
                   : "#16a34a" + "20",
               borderColor:
-                transaction.payment_status === "due"
+                transaction.payment_status === "due" || paymentShowsParentDue
                   ? "#d97706" + "40"
                   : "#16a34a" + "40",
             }}
@@ -265,11 +304,17 @@ const TransactionCardComponent = ({
             <Text
               style={{
                 color:
-                  transaction.payment_status === "due" ? "#d97706" : "#16a34a",
+                  transaction.payment_status === "due" || paymentShowsParentDue
+                    ? "#d97706"
+                    : "#16a34a",
               }}
               className="text-xs font-semibold"
             >
-              {transaction.payment_status === "due" ? "Due" : "Paid"}
+              {paymentShowsParentDue
+                ? `Due · ${formatAmount(parentRemaining)} left`
+                : transaction.payment_status === "due"
+                  ? "Due"
+                  : "Paid"}
             </Text>
           </TouchableOpacity>
         ) : null}
@@ -282,8 +327,11 @@ const TransactionCardComponent = ({
           className="pt-2 mt-2 border-t"
         >
           {/* Due chain actions (Pay / History) */}
-          {(isDue && !isSettled && onPayDue) || (hasChain && onViewChain) ? (
+          {(isDue && !isSettled && onPayDue) ||
+          (isPayment && !parentIsSettled && parentAsDueTxn && onPayDue) ||
+          (hasChain && onViewChain) ? (
             <View className="flex-row gap-2 mb-2">
+              {/* Pay — on root due card */}
               {isDue && !isSettled && onPayDue && (
                 <TouchableOpacity
                   onPress={() => onPayDue(transaction)}
@@ -296,6 +344,22 @@ const TransactionCardComponent = ({
                     className="text-xs font-semibold"
                   >
                     Pay
+                  </Text>
+                </TouchableOpacity>
+              )}
+              {/* Pay — on payment card when parent due still has balance */}
+              {isPayment && !parentIsSettled && parentAsDueTxn && onPayDue && (
+                <TouchableOpacity
+                  onPress={() => onPayDue(parentAsDueTxn)}
+                  style={{ backgroundColor: "#d97706" + "20" }}
+                  className="flex-1 flex-row justify-center items-center gap-1.5 px-3 py-2 rounded-lg"
+                >
+                  <Ionicons name="cash-outline" size={16} color="#d97706" />
+                  <Text
+                    style={{ color: "#d97706" }}
+                    className="text-xs font-semibold"
+                  >
+                    Pay ({formatAmount(parentRemaining)} left)
                   </Text>
                 </TouchableOpacity>
               )}
