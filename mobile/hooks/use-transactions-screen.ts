@@ -22,6 +22,7 @@ import { exportTransactionsPdf } from "@/services/reports";
 import { fetchCategories } from "@/services/categories";
 import { fetchAccounts } from "@/services/accounts";
 import { queryKeys } from "@/lib/queryKeys";
+import { refreshAppData } from "@/lib/refresh-app-data";
 import { useOrganization } from "@/hooks/use-organization";
 import { useDeleteMode } from "@/hooks/use-delete-mode";
 import type { SelectOption } from "@/components/searchable-select";
@@ -413,9 +414,8 @@ export function useTransactionsScreen() {
     setAllTransactions([]);
     setHasMorePages(true);
     setFilters((prev) => ({ ...prev, page: 1 }));
-    transactionsQuery.refetch();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    void refreshAppData(queryClient);
+  }, [queryClient]);
 
   const closeModal = useCallback(() => {
     setModalVisible(false);

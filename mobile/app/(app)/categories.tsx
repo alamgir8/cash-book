@@ -20,6 +20,7 @@ import {
   type Category,
 } from "@/services/categories";
 import { queryKeys } from "@/lib/queryKeys";
+import { refreshAppData } from "@/lib/refresh-app-data";
 import { useOrganization } from "@/hooks/use-organization";
 import { useTheme } from "@/hooks/use-theme";
 
@@ -44,8 +45,8 @@ export default function CategoriesScreen() {
   });
 
   const onRefresh = useCallback(() => {
-    refetch();
-  }, [refetch]);
+    void refreshAppData(queryClient);
+  }, [queryClient]);
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteCategory(id),

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ScrollView, View, Alert, Text } from "react-native";
+import { RefreshControl, ScrollView, View, Alert, Text } from "react-native";
 import Toast from "react-native-toast-message";
 import { router } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
@@ -21,6 +21,7 @@ import { ActionButton } from "@/components/action-button";
 import { ProfileEditModal } from "@/components/profile-edit-modal";
 import { BiometricSettingsModal } from "@/components/modals/biometric-settings-modal";
 import { queryKeys } from "@/lib/queryKeys";
+import { refreshAppData } from "@/lib/refresh-app-data";
 import {
   ProfileSection,
   SecuritySection,
@@ -246,6 +247,14 @@ export default function SettingsScreen() {
           paddingBottom: 100,
         }}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={false}
+            onRefresh={() => void refreshAppData(queryClient)}
+            tintColor={colors.info}
+            colors={[colors.info]}
+          />
+        }
       >
         {/* Profile Section */}
         <ProfileSection

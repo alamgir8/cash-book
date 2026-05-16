@@ -8,8 +8,10 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import { toast } from "@/lib/toast";
+import { refreshAppData } from "@/lib/refresh-app-data";
 import { ScreenHeader } from "@/components/screen-header";
 import { PartyLedgerTable } from "@/components/parties";
 import { useParty, usePartyLedger } from "@/hooks/use-parties";
@@ -24,6 +26,7 @@ import { useTheme } from "@/hooks/use-theme";
 export default function PartyLedgerScreen() {
   const { partyId } = useLocalSearchParams<{ partyId: string }>();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { colors } = useTheme();
 
   const [page, setPage] = useState(1);
@@ -77,7 +80,9 @@ export default function PartyLedgerScreen() {
             className="flex-row items-center px-3 py-1.5 rounded-lg"
             style={{
               backgroundColor:
-                ledgerEntries.length === 0 ? colors.bg.tertiary : colors.primary,
+                ledgerEntries.length === 0
+                  ? colors.bg.tertiary
+                  : colors.primary,
             }}
             onPress={handleExportPdf}
             disabled={exportingPdf || ledgerEntries.length === 0}
@@ -89,13 +94,19 @@ export default function PartyLedgerScreen() {
                 <Ionicons
                   name="download-outline"
                   size={18}
-                  color={ledgerEntries.length === 0 ? colors.text.tertiary : "#ffffff"}
+                  color={
+                    ledgerEntries.length === 0
+                      ? colors.text.tertiary
+                      : "#ffffff"
+                  }
                 />
                 <Text
                   className="ml-1.5 text-sm font-semibold"
                   style={{
                     color:
-                      ledgerEntries.length === 0 ? colors.text.tertiary : "#ffffff",
+                      ledgerEntries.length === 0
+                        ? colors.text.tertiary
+                        : "#ffffff",
                   }}
                 >
                   Export
@@ -131,8 +142,8 @@ export default function PartyLedgerScreen() {
                     (data?.summary?.opening_balance || 0) > 0
                       ? colors.success
                       : (data?.summary?.opening_balance || 0) < 0
-                      ? colors.error
-                      : colors.text.primary,
+                        ? colors.error
+                        : colors.text.primary,
                 }}
               >
                 {data?.summary?.opening_balance
@@ -203,8 +214,8 @@ export default function PartyLedgerScreen() {
                     (data?.summary?.closing_balance || 0) > 0
                       ? colors.success
                       : (data?.summary?.closing_balance || 0) < 0
-                      ? colors.error
-                      : colors.text.primary,
+                        ? colors.error
+                        : colors.text.primary,
                 }}
               >
                 {data?.summary?.closing_balance
@@ -220,14 +231,20 @@ export default function PartyLedgerScreen() {
       <ScrollView
         className="flex-1 px-4 mt-4"
         refreshControl={
-          <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
+          <RefreshControl
+            refreshing={isRefetching}
+            onRefresh={() => void refreshAppData(queryClient)}
+          />
         }
       >
         <View className="pb-24">
           {ledgerEntries.length === 0 ? (
             <View
               className="rounded-2xl p-12 items-center border"
-              style={{ backgroundColor: colors.card, borderColor: colors.border }}
+              style={{
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+              }}
             >
               <View
                 className="w-20 h-20 rounded-full items-center justify-center mb-4"
@@ -255,7 +272,10 @@ export default function PartyLedgerScreen() {
           ) : (
             <View
               className="rounded-2xl shadow-sm border overflow-hidden mb-4"
-              style={{ backgroundColor: colors.card, borderColor: colors.border }}
+              style={{
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+              }}
             >
               {/* Opening Balance Row */}
               {data?.summary?.opening_balance !== 0 && (
@@ -362,8 +382,8 @@ export default function PartyLedgerScreen() {
                         entry.running_balance > 0
                           ? colors.success
                           : entry.running_balance < 0
-                          ? colors.error
-                          : colors.text.secondary,
+                            ? colors.error
+                            : colors.text.secondary,
                     }}
                   >
                     {formatLedgerBalance(entry.running_balance)}
@@ -379,7 +399,8 @@ export default function PartyLedgerScreen() {
               <TouchableOpacity
                 className="px-5 py-2.5 rounded-xl"
                 style={{
-                  backgroundColor: page <= 1 ? colors.bg.tertiary : colors.primary,
+                  backgroundColor:
+                    page <= 1 ? colors.bg.tertiary : colors.primary,
                   borderWidth: page <= 1 ? 1 : 0,
                   borderColor: colors.border,
                 }}

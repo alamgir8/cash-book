@@ -17,6 +17,7 @@ import { useTheme } from "@/hooks/use-theme";
 import { organizationsApi, type Organization } from "@/services/organizations";
 import { getApiErrorMessage } from "@/lib/api";
 import { toast } from "@/lib/toast";
+import { refreshAppData } from "@/lib/refresh-app-data";
 import { OrganizationFormModal } from "@/components/organization-form-modal";
 
 export default function OrganizationsScreen() {
@@ -151,7 +152,10 @@ export default function OrganizationsScreen() {
       <ScrollView
         className="flex-1"
         refreshControl={
-          <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
+          <RefreshControl
+            refreshing={isRefetching}
+            onRefresh={() => void refreshAppData(queryClient)}
+          />
         }
       >
         {/* Info Card */}

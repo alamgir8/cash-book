@@ -17,6 +17,7 @@ import { useAccounts } from "@/hooks/use-accounts";
 import { useOrganization } from "@/hooks/use-organization";
 import { createAccount } from "@/services/accounts";
 import { queryKeys } from "@/lib/queryKeys";
+import { refreshAppData } from "@/lib/refresh-app-data";
 import { useQueryClient } from "@tanstack/react-query";
 import Toast from "react-native-toast-message";
 import {
@@ -1573,7 +1574,7 @@ export default function ImportScreen() {
           refreshControl={
             <RefreshControl
               refreshing={importListQuery.isRefetching}
-              onRefresh={() => importListQuery.refetch()}
+              onRefresh={() => void refreshAppData(queryClient)}
               tintColor={colors.info}
             />
           }

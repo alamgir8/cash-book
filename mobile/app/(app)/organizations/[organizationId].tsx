@@ -14,6 +14,7 @@ import {
 } from "@/services/organizations";
 import { getApiErrorMessage } from "@/lib/api";
 import { toast } from "@/lib/toast";
+import { refreshAppData } from "@/lib/refresh-app-data";
 import { AddMemberModal } from "@/components/modals/add-member-modal";
 import { OrganizationSettingsModal } from "@/components/organization/organization-settings-modal";
 import { OrganizationInfoCard } from "@/components/organization/organization-info-card";
@@ -136,7 +137,10 @@ export default function OrganizationDetailScreen() {
       <ScrollView
         style={{ flex: 1 }}
         refreshControl={
-          <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
+          <RefreshControl
+            refreshing={isRefetching}
+            onRefresh={() => void refreshAppData(queryClient)}
+          />
         }
       >
         <OrganizationInfoCard

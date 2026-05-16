@@ -9,9 +9,10 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import { ScreenHeader } from "@/components/screen-header";
+import { refreshAppData } from "@/lib/refresh-app-data";
 import { useActiveOrgId, useOrganization } from "@/hooks/use-organization";
 import { useTheme } from "@/hooks/use-theme";
 import {
@@ -49,6 +50,7 @@ const STATUS_OPTIONS: {
 
 export default function InvoicesScreen() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const organizationId = useActiveOrgId();
   const { canManageInvoices, canCreateInvoices } = useOrganization();
 
@@ -246,7 +248,10 @@ export default function InvoicesScreen() {
       <ScrollView
         className="flex-1"
         refreshControl={
-          <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
+          <RefreshControl
+            refreshing={isRefetching}
+            onRefresh={() => void refreshAppData(queryClient)}
+          />
         }
       >
         {invoices.length === 0 ? (

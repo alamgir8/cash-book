@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState, useEffect } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   RefreshControl,
   Text,
@@ -9,11 +10,13 @@ import {
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import dayjs from "dayjs";
 import Toast from "react-native-toast-message";
 import { FilterBar } from "@/components/filter-bar";
 import { TransactionCard } from "@/components/transaction-card";
+import { TransactionModal } from "@/components/modals/transaction-modal";
+import { AttachmentViewerModal } from "@/components/transactions/attachment-viewer-modal";
 import { DuePaymentModal } from "@/components/modals/due-payment-modal";
 import { DueChainSheet } from "@/components/modals/due-chain-sheet";
 import type { Transaction } from "@/services/transactions";
@@ -35,14 +38,21 @@ import { fetchCategories } from "@/services/categories";
 import { fetchAccounts } from "@/services/accounts";
 import {
   fetchCounterparties,
+  fetchVendors,
+  updateTransaction,
+  deleteTransaction,
   type TransactionFilters,
 } from "@/services/transactions";
 import { queryKeys } from "@/lib/queryKeys";
 import { usePreferences } from "@/hooks/use-preferences";
 import { useTheme } from "@/hooks/use-theme";
+import { useOrganization } from "@/hooks/use-organization";
+import { useDeleteMode } from "@/hooks/use-delete-mode";
 import { useAccountDetail, useAccountTransactions } from "@/hooks/use-accounts";
 import { calculateAccountNetFlow } from "@/lib/account-utils";
+import { refreshAppData } from "@/lib/refresh-app-data";
 import type { SelectOption } from "@/components/searchable-select";
+import type { TransactionFormValues } from "@/components/modals/types";
 
 const defaultFilters: TransactionFilters = {
   page: 1,
@@ -53,15 +63,26 @@ export default function AccountDetailScreen() {
   const { formatAmount } = usePreferences();
   const router = useRouter();
   const { colors } = useTheme();
+  const queryClient = useQueryClient();
+  const { hasPermission } = useOrganization();
+  const { isDeleteModeActive } = useDeleteMode();
   const params = useLocalSearchParams<{ accountId?: string }>();
   const accountId = Array.isArray(params.accountId)
     ? params.accountId[0]
     : params.accountId;
 
+  const canEditTransactions = hasPermission("edit_transactions");
+  const canDeleteTransactions = hasPermission("delete_transactions");
+
   const [filters, setFilters] = useState<TransactionFilters>({
     ...defaultFilters,
     ...(accountId ? { accountId } : {}),
   });
+  const [isModalVisible, setModalVisible] = useState(false);
+  const [editingTransaction, setEditingTransaction] =
+    useState<Transaction | null>(null);
+  const [viewingAttachmentsFor, setViewingAttachmentsFor] =
+    useState<Transaction | null>(null);
   const [payingDueTxn, setPayingDueTxn] = useState<Transaction | null>(null);
   const [viewingChainFor, setViewingChainFor] = useState<Transaction | null>(
     null,
@@ -69,7 +90,7 @@ export default function AccountDetailScreen() {
   const [exporting, setExporting] = useState(false);
   const [exportModalVisible, setExportModalVisible] = useState(false);
   const [exportingType, setExportingType] = useState<ExportType | null>(null);
-  const [allTransactions, setAllTransactions] = useState<any[]>([]);
+  const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
   const [hasMorePages, setHasMorePages] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
 
@@ -87,9 +108,52 @@ export default function AccountDetailScreen() {
     queryFn: () => fetchCounterparties(),
   });
 
+  const vendorsQuery = useQuery({
+    queryKey: queryKeys.vendors,
+    queryFn: () => fetchVendors(),
+  });
+
   const accountsQuery = useQuery({
     queryKey: queryKeys.accounts,
     queryFn: fetchAccounts,
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: updateTransaction,
+    onSuccess: async (updated) => {
+      setAllTransactions((prev) =>
+        prev.map((txn) =>
+          txn._id === editingTransaction?._id ? { ...txn, ...updated } : txn,
+        ),
+      );
+      await refreshAppData(queryClient);
+      setModalVisible(false);
+      setEditingTransaction(null);
+      Toast.show({ type: "success", text1: "Transaction updated" });
+    },
+    onError: () =>
+      Toast.show({
+        type: "error",
+        text1: "Error updating transaction",
+        text2: "Please try again.",
+      }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteTransaction,
+    onSuccess: async (_, transactionId) => {
+      setAllTransactions((prev) =>
+        prev.filter((txn) => txn._id !== transactionId),
+      );
+      await refreshAppData(queryClient);
+      Toast.show({ type: "success", text1: "Transaction deleted" });
+    },
+    onError: () =>
+      Toast.show({
+        type: "error",
+        text1: "Delete failed",
+        text2: "Please try again.",
+      }),
   });
 
   const accountOptions: SelectOption[] = useMemo(() => {
@@ -115,6 +179,22 @@ export default function AccountDetailScreen() {
     }));
   }, [categoriesQuery.data]);
 
+  const modalCategoryOptions: SelectOption[] = useMemo(() => {
+    const categories = categoriesQuery.data ?? [];
+    return [
+      { value: "", label: "No category" },
+      ...categories.map((category) => ({
+        value: category._id,
+        label: category.name,
+        group: category.type
+          ? category.type.charAt(0).toUpperCase() +
+            category.type.slice(1).replace(/_/g, " ")
+          : "Other",
+        flow: category.flow,
+      })),
+    ];
+  }, [categoriesQuery.data]);
+
   const counterpartyOptions: SelectOption[] = useMemo(() => {
     const apiCounterparties = counterpartiesQuery.data ?? [];
     const txnCounterparties = allTransactions
@@ -127,6 +207,24 @@ export default function AccountDetailScreen() {
       .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
       .map((name) => ({ value: name, label: name }));
   }, [counterpartiesQuery.data, allTransactions]);
+
+  const vendorOptions: SelectOption[] = useMemo(() => {
+    const apiVendors = vendorsQuery.data ?? [];
+    const txnVendors = allTransactions
+      .map((txn) => txn.vendor?.trim())
+      .filter((name): name is string => Boolean(name));
+    const editingVendor = editingTransaction?.vendor?.trim();
+    const allVendors = [
+      ...new Set([
+        ...apiVendors,
+        ...txnVendors,
+        ...(editingVendor ? [editingVendor] : []),
+      ]),
+    ];
+    return allVendors
+      .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
+      .map((name) => ({ value: name, label: name }));
+  }, [vendorsQuery.data, allTransactions, editingTransaction]);
 
   // Update accumulated transactions when new data arrives
   useEffect(() => {
@@ -144,7 +242,7 @@ export default function AccountDetailScreen() {
       setAllTransactions((prev) => {
         const existingIds = new Set(prev.map((t) => t._id));
         const newTransactions = freshData.filter(
-          (t: any) => !existingIds.has(t._id),
+          (t: Transaction) => !existingIds.has(t._id),
         );
         return [...prev, ...newTransactions];
       });
@@ -171,6 +269,8 @@ export default function AccountDetailScreen() {
     const keys: (keyof TransactionFilters)[] = [
       "categoryId",
       "counterparty",
+      "vendor",
+      "payment_status",
       "financialScope",
       "type",
       "search",
@@ -248,12 +348,85 @@ export default function AccountDetailScreen() {
     }));
   }, []);
 
+  const handleVendorFilter = useCallback((vendor?: string) => {
+    setAllTransactions([]);
+    setHasMorePages(true);
+    setFilters((prev) => ({
+      ...prev,
+      vendor: vendor || undefined,
+      page: 1,
+    }));
+  }, []);
+
+  const handlePaymentStatusFilter = useCallback((status?: "paid" | "due") => {
+    setAllTransactions([]);
+    setHasMorePages(true);
+    setFilters((prev) => ({
+      ...prev,
+      payment_status: status || undefined,
+      page: 1,
+    }));
+  }, []);
+
+  const handleEditTransaction = useCallback((transaction: Transaction) => {
+    setEditingTransaction(transaction);
+    setModalVisible(true);
+  }, []);
+
+  const handleDeleteTransaction = useCallback(
+    (transaction: Transaction) => {
+      Alert.alert(
+        "Delete Transaction?",
+        `Delete "${transaction.description || transaction.account?.name}" (${
+          transaction.type === "credit" ? "+" : "-"
+        }${transaction.amount})? This cannot be undone.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Delete",
+            style: "destructive",
+            onPress: () => deleteMutation.mutate(transaction._id),
+          },
+        ],
+      );
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [deleteMutation.mutate],
+  );
+
+  const handleAttachmentsPress = useCallback((transaction: Transaction) => {
+    setViewingAttachmentsFor(transaction);
+  }, []);
+
+  const handleTransactionSubmit = async (values: TransactionFormValues) => {
+    if (!editingTransaction) return;
+    await updateMutation.mutateAsync({
+      transactionId: editingTransaction._id,
+      ...values,
+      amount: Number(values.amount),
+      date: values.date?.trim() || undefined,
+      description: values.description?.trim() || undefined,
+      comment: values.comment?.trim() || undefined,
+      categoryId: values.categoryId || undefined,
+      counterparty: values.counterparty?.trim() || undefined,
+      vendor: values.vendor?.trim() || undefined,
+      payment_status: values.payment_status || "paid",
+      due_date: values.due_date?.trim() || undefined,
+    } as any);
+  };
+
+  const closeTransactionModal = useCallback(() => {
+    setModalVisible(false);
+    setEditingTransaction(null);
+  }, []);
+
   const handleExport = async (type: ExportType) => {
     if (!accountId) return;
     try {
       setExporting(true);
       setExportingType(type);
-      const exportFilters = { ...filters, accountId };
+      const { page, limit, ...filtersWithoutPagination } = filters;
+      const exportFilters = { ...filtersWithoutPagination, accountId };
 
       switch (type) {
         case "pdf":
@@ -281,8 +454,7 @@ export default function AccountDetailScreen() {
     setAllTransactions([]);
     setHasMorePages(true);
     setFilters((prev) => ({ ...prev, page: 1 }));
-    detailQuery.refetch();
-    transactionsQuery.refetch();
+    void refreshAppData(queryClient);
   };
 
   const handleEdit = () => {
@@ -375,6 +547,9 @@ export default function AccountDetailScreen() {
           categories={categoryOptions}
           showCounterpartyField
           counterparties={counterpartyOptions}
+          showVendorField
+          vendors={vendorOptions}
+          showPaymentStatusFilter
           onReset={handleResetFilters}
           onApplyFilters={() => {
             setAllTransactions([]);
@@ -416,6 +591,15 @@ export default function AccountDetailScreen() {
             transaction={item}
             onCategoryPress={handleCategoryFilter}
             onCounterpartyPress={handleCounterpartyFilter}
+            onVendorPress={handleVendorFilter}
+            onPaymentStatusPress={handlePaymentStatusFilter}
+            onEdit={canEditTransactions ? handleEditTransaction : undefined}
+            onDelete={
+              canDeleteTransactions && isDeleteModeActive
+                ? handleDeleteTransaction
+                : undefined
+            }
+            onAttachmentsPress={handleAttachmentsPress}
             onPayDue={setPayingDueTxn}
             onViewChain={setViewingChainFor}
           />
@@ -427,6 +611,28 @@ export default function AccountDetailScreen() {
             tintColor="#3b82f6"
           />
         }
+      />
+
+      <TransactionModal
+        visible={isModalVisible}
+        onClose={closeTransactionModal}
+        onSubmit={handleTransactionSubmit}
+        editingTransaction={editingTransaction}
+        accountOptions={accountOptions}
+        categoryOptions={modalCategoryOptions}
+        counterpartyOptions={counterpartyOptions}
+        vendorOptions={vendorOptions}
+        isAccountsLoading={accountsQuery.isLoading}
+        isCategoriesLoading={categoriesQuery.isLoading}
+        isSubmitting={updateMutation.isPending}
+      />
+
+      <AttachmentViewerModal
+        visible={!!viewingAttachmentsFor}
+        onClose={() => setViewingAttachmentsFor(null)}
+        transactionId={viewingAttachmentsFor?._id ?? ""}
+        attachments={viewingAttachmentsFor?.attachments ?? []}
+        canDelete={canEditTransactions}
       />
 
       <ExportOptionsModal

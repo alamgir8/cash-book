@@ -23,6 +23,7 @@ import { fetchAccounts } from "@/services/accounts";
 import { fetchCategories } from "@/services/categories";
 import { exportTransactionsPdf } from "@/services/reports";
 import { queryKeys } from "@/lib/queryKeys";
+import { refreshAppData } from "@/lib/refresh-app-data";
 import { usePreferences } from "@/hooks/use-preferences";
 import { useOrganization } from "@/hooks/use-organization";
 import { useDeleteMode } from "@/hooks/use-delete-mode";
@@ -359,7 +360,8 @@ export function useDashboard() {
 
   const handleResetFilters = useCallback(() => {
     setFilters({ ...DEFAULT_FILTERS });
-  }, []);
+    void refreshAppData(queryClient);
+  }, [queryClient]);
 
   const openTransferModal = useCallback(() => {
     if (accountsQuery.isLoading) {
