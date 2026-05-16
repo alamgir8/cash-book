@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import {
   Modal,
   View,
@@ -34,7 +34,7 @@ type Props = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Full-screen carousel (images only, with prev/next and dot indicators)
+// Fullscreen carousel — rendered INLINE (not a nested Modal) to avoid iOS hang
 // ─────────────────────────────────────────────────────────────────────────────
 function FullscreenCarousel({
   imageItems,
@@ -51,20 +51,22 @@ function FullscreenCarousel({
   const flatListRef = useRef<FlatList>(null);
 
   const goPrev = useCallback(() => {
-    if (currentIndex > 0) {
-      const next = currentIndex - 1;
+    setCurrentIndex((prev) => {
+      if (prev <= 0) return prev;
+      const next = prev - 1;
       flatListRef.current?.scrollToIndex({ index: next, animated: true });
-      setCurrentIndex(next);
-    }
-  }, [currentIndex]);
+      return next;
+    });
+  }, []);
 
   const goNext = useCallback(() => {
-    if (currentIndex < imageItems.length - 1) {
-      const next = currentIndex + 1;
+    setCurrentIndex((prev) => {
+      if (prev >= imageItems.length - 1) return prev;
+      const next = prev + 1;
       flatListRef.current?.scrollToIndex({ index: next, animated: true });
-      setCurrentIndex(next);
-    }
-  }, [currentIndex, imageItems.length]);
+      return next;
+    });
+  }, [imageItems.length]);
 
   const renderPage = useCallback(
     ({ item }: { item: Attachment }) => (
@@ -82,134 +84,131 @@ function FullscreenCarousel({
   );
 
   return (
-    <Modal
-      visible
-      animationType="fade"
-      statusBarTranslucent
-      onRequestClose={onClose}
-    >
-      <View style={styles.carouselContainer}>
-        <FlatList
-          ref={flatListRef}
-          data={imageItems}
-          keyExtractor={(item) => item.storage_key}
-          renderItem={renderPage}
-          horizontal
-          pagingEnabled
-          showsHorizontalScrollIndicator={false}
-          scrollEventThrottle={16}
-          onMomentumScrollEnd={(e) => {
-            const idx = Math.round(
-              e.nativeEvent.contentOffset.x / SCREEN_WIDTH,
-            );
-            setCurrentIndex(idx);
-          }}
-          getItemLayout={(_, index) => ({
-            length: SCREEN_WIDTH,
-            offset: SCREEN_WIDTH * index,
-            index,
-          })}
-          initialScrollIndex={initialIndex}
+    <View style={StyleSheet.absoluteFill}>
+      {/* Black background */}
+      <View style={styles.carouselBg} />
+
+      {/* Paged image list */}
+      <FlatList
+        ref={flatListRef}
+        data={imageItems}
+        keyExtractor={(item) => item.storage_key}
+        renderItem={renderPage}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        scrollEventThrottle={16}
+        onMomentumScrollEnd={(e) => {
+          const idx = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
+          setCurrentIndex(idx);
+        }}
+        getItemLayout={(_, index) => ({
+          length: SCREEN_WIDTH,
+          offset: SCREEN_WIDTH * index,
+          index,
+        })}
+        initialScrollIndex={initialIndex}
+      />
+
+      {loadingImg && (
+        <ActivityIndicator
+          size="large"
+          color="white"
+          style={StyleSheet.absoluteFill}
+          pointerEvents="none"
         />
+      )}
 
-        {loadingImg && (
-          <ActivityIndicator
-            size="large"
-            color="white"
-            style={StyleSheet.absoluteFill}
-            pointerEvents="none"
-          />
-        )}
-
-        {/* Top bar */}
-        <View
-          style={[
-            styles.carouselTopBar,
-            { paddingTop: Math.max(insets.top, 16) + 8 },
-          ]}
-          pointerEvents="box-none"
+      {/* Top bar */}
+      <View
+        style={[
+          styles.carouselTopBar,
+          { paddingTop: Math.max(insets.top, 16) + 8 },
+        ]}
+        pointerEvents="box-none"
+      >
+        <TouchableOpacity
+          onPress={onClose}
+          style={styles.carouselCloseBtn}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
         >
-          <TouchableOpacity
-            onPress={onClose}
-            style={styles.carouselCloseBtn}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Ionicons name="close" size={24} color="white" />
-          </TouchableOpacity>
+          <Ionicons name="close" size={24} color="white" />
+        </TouchableOpacity>
 
-          {imageItems.length > 1 && (
-            <View style={styles.carouselCounter}>
-              <Text style={styles.carouselCounterText}>
-                {currentIndex + 1} / {imageItems.length}
-              </Text>
-            </View>
-          )}
-
-          <Text style={styles.carouselFilename} numberOfLines={1}>
-            {imageItems[currentIndex]?.file_name ?? ""}
-          </Text>
-        </View>
-
-        {/* Prev / Next */}
         {imageItems.length > 1 && (
-          <>
-            <TouchableOpacity
-              style={[styles.carouselNavBtn, styles.carouselNavLeft]}
-              onPress={goPrev}
-              disabled={currentIndex === 0}
-            >
-              <Ionicons
-                name="chevron-back"
-                size={28}
-                color={currentIndex === 0 ? "rgba(255,255,255,0.25)" : "white"}
-              />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.carouselNavBtn, styles.carouselNavRight]}
-              onPress={goNext}
-              disabled={currentIndex === imageItems.length - 1}
-            >
-              <Ionicons
-                name="chevron-forward"
-                size={28}
-                color={
-                  currentIndex === imageItems.length - 1
-                    ? "rgba(255,255,255,0.25)"
-                    : "white"
-                }
-              />
-            </TouchableOpacity>
-          </>
-        )}
-
-        {/* Dot indicators (up to 10 items) */}
-        {imageItems.length > 1 && imageItems.length <= 10 && (
-          <View
-            style={[
-              styles.carouselDots,
-              { paddingBottom: Math.max(insets.bottom, 16) + 8 },
-            ]}
-            pointerEvents="none"
-          >
-            {imageItems.map((_, i) => (
-              <View
-                key={i}
-                style={[
-                  styles.dot,
-                  i === currentIndex ? styles.dotActive : styles.dotInactive,
-                ]}
-              />
-            ))}
+          <View style={styles.carouselCounter}>
+            <Text style={styles.carouselCounterText}>
+              {currentIndex + 1} / {imageItems.length}
+            </Text>
           </View>
         )}
+
+        <Text style={styles.carouselFilename} numberOfLines={1}>
+          {imageItems[currentIndex]?.file_name ?? ""}
+        </Text>
       </View>
-    </Modal>
+
+      {/* Prev / Next */}
+      {imageItems.length > 1 && (
+        <>
+          <TouchableOpacity
+            style={[styles.carouselNavBtn, styles.carouselNavLeft]}
+            onPress={goPrev}
+            disabled={currentIndex === 0}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
+            <Ionicons
+              name="chevron-back"
+              size={30}
+              color={currentIndex === 0 ? "rgba(255,255,255,0.25)" : "white"}
+            />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.carouselNavBtn, styles.carouselNavRight]}
+            onPress={goNext}
+            disabled={currentIndex === imageItems.length - 1}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
+            <Ionicons
+              name="chevron-forward"
+              size={30}
+              color={
+                currentIndex === imageItems.length - 1
+                  ? "rgba(255,255,255,0.25)"
+                  : "white"
+              }
+            />
+          </TouchableOpacity>
+        </>
+      )}
+
+      {/* Dot indicators */}
+      {imageItems.length > 1 && imageItems.length <= 10 && (
+        <View
+          style={[
+            styles.carouselDots,
+            { paddingBottom: Math.max(insets.bottom, 16) + 8 },
+          ]}
+          pointerEvents="none"
+        >
+          {imageItems.map((_, i) => (
+            <View
+              key={i}
+              style={[
+                styles.dot,
+                i === currentIndex ? styles.dotActive : styles.dotInactive,
+              ]}
+            />
+          ))}
+        </View>
+      )}
+    </View>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Main component
+// Main component — single Modal, switches between grid and fullscreen views
 // ─────────────────────────────────────────────────────────────────────────────
 export function AttachmentViewerModal({
   visible,
@@ -220,17 +219,24 @@ export function AttachmentViewerModal({
 }: Props) {
   const { colors } = useTheme();
   const queryClient = useQueryClient();
+  // null = grid view; number = fullscreen carousel at that index
   const [carouselIndex, setCarouselIndex] = useState<number | null>(null);
   const [localAttachments, setLocalAttachments] =
     useState<Attachment[]>(attachments);
   const [sharingKey, setSharingKey] = useState<string | null>(null);
 
+  // Sync when modal opens (or switches to a different transaction)
   useEffect(() => {
-    if (visible) setLocalAttachments(attachments);
+    if (visible) {
+      setLocalAttachments(attachments);
+      setCarouselIndex(null); // always start at grid view
+    }
   }, [visible, transactionId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const imageAttachments = localAttachments.filter(
-    (a) => a.mime_type !== "application/pdf",
+  // Memoize so handleThumbnailPress / renderItem don't recreate every render
+  const imageAttachments = useMemo(
+    () => localAttachments.filter((a) => a.mime_type !== "application/pdf"),
+    [localAttachments],
   );
 
   const deleteMutation = useMutation({
@@ -318,105 +324,116 @@ export function AttachmentViewerModal({
   );
 
   const renderItem = useCallback(
-    ({ item }: { item: Attachment }) => (
-      <View
-        style={[
-          styles.thumbContainer,
-          { width: THUMB_SIZE, borderColor: colors.border },
-        ]}
-      >
-        <TouchableOpacity
-          style={styles.thumbTouch}
-          activeOpacity={0.8}
-          onPress={() => handleThumbnailPress(item)}
+    ({ item }: { item: Attachment }) => {
+      const isImg = item.mime_type !== "application/pdf";
+      return (
+        <View
+          style={[
+            styles.thumbContainer,
+            { width: THUMB_SIZE, borderColor: colors.border },
+          ]}
         >
-          {item.mime_type === "application/pdf" ? (
-            <View
-              style={[
-                styles.pdfPlaceholder,
-                {
-                  backgroundColor: colors.bg.tertiary,
-                  width: THUMB_SIZE,
-                  height: THUMB_SIZE,
-                },
-              ]}
-            >
-              <Ionicons
-                name="document-text"
-                size={40}
-                color={colors.text.secondary}
-              />
-              <Text style={[styles.pdfLabel, { color: colors.text.tertiary }]}>
-                PDF
-              </Text>
-            </View>
-          ) : (
-            <>
+          {/* Image / PDF tap area */}
+          <TouchableOpacity
+            style={styles.thumbTouch}
+            activeOpacity={0.75}
+            onPress={() => handleThumbnailPress(item)}
+          >
+            {!isImg ? (
+              <View
+                style={[
+                  styles.pdfPlaceholder,
+                  {
+                    backgroundColor: colors.bg.tertiary,
+                    width: THUMB_SIZE,
+                    height: THUMB_SIZE,
+                  },
+                ]}
+              >
+                <Ionicons
+                  name="document-text"
+                  size={40}
+                  color={colors.text.secondary}
+                />
+                <Text style={[styles.pdfLabel, { color: colors.text.tertiary }]}>
+                  PDF
+                </Text>
+              </View>
+            ) : (
               <Image
                 source={{ uri: item.thumbnail_url ?? item.url }}
                 style={{ width: THUMB_SIZE, height: THUMB_SIZE }}
                 resizeMode="cover"
               />
-              <View style={styles.thumbOverlay} pointerEvents="none">
-                <Ionicons
-                  name="expand-outline"
-                  size={18}
-                  color="rgba(255,255,255,0.85)"
-                />
-              </View>
-            </>
-          )}
-        </TouchableOpacity>
-
-        <View
-          style={[styles.thumbFooter, { backgroundColor: colors.bg.secondary }]}
-        >
-          <TouchableOpacity
-            onPress={() => handleShare(item)}
-            style={styles.thumbIconBtn}
-            disabled={sharingKey === item.storage_key}
-            hitSlop={{ top: 6, bottom: 6, left: 6, right: 4 }}
-          >
-            {sharingKey === item.storage_key ? (
-              <ActivityIndicator size={12} color={colors.text.secondary} />
-            ) : (
-              <Ionicons
-                name="share-outline"
-                size={14}
-                color={colors.text.secondary}
-              />
             )}
           </TouchableOpacity>
 
-          <Text
-            style={[styles.thumbName, { color: colors.text.tertiary }]}
-            numberOfLines={1}
-          >
-            {item.file_name ?? "file"}
-          </Text>
-
-          {canDelete && (
+          {/* Expand icon — TOP RIGHT, own TouchableOpacity so it always works */}
+          {isImg && (
             <TouchableOpacity
-              onPress={() => handleDelete(item)}
-              style={styles.thumbIconBtn}
-              disabled={deleteMutation.isPending}
-              hitSlop={{ top: 6, bottom: 6, left: 4, right: 6 }}
+              style={styles.expandBtn}
+              onPress={() => handleThumbnailPress(item)}
+              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
             >
-              {deleteMutation.isPending &&
-              deleteMutation.variables === item.storage_key ? (
-                <ActivityIndicator size={12} color={colors.error} />
+              <Ionicons
+                name="expand-outline"
+                size={18}
+                color="rgba(255,255,255,0.95)"
+              />
+            </TouchableOpacity>
+          )}
+
+          {/* Footer: share · filename · delete */}
+          <View
+            style={[styles.thumbFooter, { backgroundColor: colors.bg.secondary }]}
+          >
+            <TouchableOpacity
+              onPress={() => handleShare(item)}
+              style={styles.thumbIconBtn}
+              disabled={sharingKey === item.storage_key}
+              hitSlop={{ top: 6, bottom: 6, left: 6, right: 4 }}
+            >
+              {sharingKey === item.storage_key ? (
+                <ActivityIndicator size={12} color={colors.text.secondary} />
               ) : (
                 <Ionicons
-                  name="trash-outline"
+                  name="share-outline"
                   size={14}
-                  color={colors.error}
+                  color={colors.text.secondary}
                 />
               )}
             </TouchableOpacity>
-          )}
+
+            <Text
+              style={[styles.thumbName, { color: colors.text.tertiary }]}
+              numberOfLines={1}
+            >
+              {item.file_name ?? "file"}
+            </Text>
+
+            {canDelete && (
+              <TouchableOpacity
+                onPress={() => handleDelete(item)}
+                style={styles.thumbIconBtn}
+                disabled={deleteMutation.isPending}
+                hitSlop={{ top: 6, bottom: 6, left: 4, right: 6 }}
+              >
+                {deleteMutation.isPending &&
+                deleteMutation.variables === item.storage_key ? (
+                  <ActivityIndicator size={12} color={colors.error} />
+                ) : (
+                  <Ionicons
+                    name="trash-outline"
+                    size={14}
+                    color={colors.error}
+                  />
+                )}
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
-      </View>
-    ),
+      );
+    },
     [
       colors,
       canDelete,
@@ -430,68 +447,74 @@ export function AttachmentViewerModal({
   );
 
   return (
-    <>
-      <Modal
-        visible={visible}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={onClose}
-      >
-        <View style={[styles.sheet, { backgroundColor: colors.bg.primary }]}>
-          <View
-            style={[
-              styles.header,
-              {
-                borderColor: colors.border,
-                paddingTop:
-                  Platform.OS === "android"
-                    ? (StatusBar.currentHeight ?? 0) + 8
-                    : 16,
-              },
-            ]}
+    <Modal
+      visible={visible}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={() => {
+        if (carouselIndex !== null) {
+          setCarouselIndex(null); // back to grid first
+        } else {
+          onClose();
+        }
+      }}
+    >
+      <View style={[styles.sheet, { backgroundColor: colors.bg.primary }]}>
+        {/* ── GRID VIEW ─────────────────────────────────────────────── */}
+        <View
+          style={[
+            styles.header,
+            {
+              borderColor: colors.border,
+              paddingTop:
+                Platform.OS === "android"
+                  ? (StatusBar.currentHeight ?? 0) + 8
+                  : 16,
+            },
+          ]}
+        >
+          <Text style={[styles.headerTitle, { color: colors.text.primary }]}>
+            Attachments ({localAttachments.length})
+          </Text>
+          <TouchableOpacity
+            onPress={onClose}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            style={[styles.closeBtn, { backgroundColor: colors.bg.tertiary }]}
           >
-            <Text style={[styles.headerTitle, { color: colors.text.primary }]}>
-              Attachments ({localAttachments.length})
-            </Text>
-            <TouchableOpacity
-              onPress={onClose}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              style={[styles.closeBtn, { backgroundColor: colors.bg.tertiary }]}
-            >
-              <Ionicons name="close" size={20} color={colors.text.primary} />
-            </TouchableOpacity>
-          </View>
-
-          {localAttachments.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Ionicons name="attach" size={48} color={colors.text.tertiary} />
-              <Text style={[styles.emptyText, { color: colors.text.tertiary }]}>
-                No attachments yet
-              </Text>
-            </View>
-          ) : (
-            <FlatList
-              data={localAttachments}
-              keyExtractor={(item) => item.storage_key}
-              renderItem={renderItem}
-              numColumns={3}
-              contentContainerStyle={{ padding: 8 }}
-              removeClippedSubviews
-              initialNumToRender={12}
-              maxToRenderPerBatch={12}
-            />
-          )}
+            <Ionicons name="close" size={20} color={colors.text.primary} />
+          </TouchableOpacity>
         </View>
-      </Modal>
 
-      {carouselIndex !== null && (
-        <FullscreenCarousel
-          imageItems={imageAttachments}
-          initialIndex={carouselIndex}
-          onClose={() => setCarouselIndex(null)}
-        />
-      )}
-    </>
+        {localAttachments.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Ionicons name="attach" size={48} color={colors.text.tertiary} />
+            <Text style={[styles.emptyText, { color: colors.text.tertiary }]}>
+              No attachments yet
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            data={localAttachments}
+            keyExtractor={(item) => item.storage_key}
+            renderItem={renderItem}
+            numColumns={3}
+            contentContainerStyle={{ padding: 8 }}
+            removeClippedSubviews
+            initialNumToRender={12}
+            maxToRenderPerBatch={12}
+          />
+        )}
+
+        {/* ── FULLSCREEN CAROUSEL — absolute overlay inside same Modal ── */}
+        {carouselIndex !== null && imageAttachments.length > 0 && (
+          <FullscreenCarousel
+            imageItems={imageAttachments}
+            initialIndex={carouselIndex}
+            onClose={() => setCarouselIndex(null)}
+          />
+        )}
+      </View>
+    </Modal>
   );
 }
 
@@ -527,12 +550,20 @@ const styles = StyleSheet.create({
   thumbTouch: { flex: 1 },
   pdfPlaceholder: { alignItems: "center", justifyContent: "center" },
   pdfLabel: { fontSize: 11, marginTop: 4 },
-  thumbOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: "flex-end",
-    justifyContent: "flex-end",
-    padding: 4,
+
+  // Expand icon — top-right corner, own touchable
+  expandBtn: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    alignItems: "center",
+    justifyContent: "center",
   },
+
   thumbFooter: {
     flexDirection: "row",
     alignItems: "center",
@@ -547,8 +578,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 2,
   },
 
-  // Carousel
-  carouselContainer: { flex: 1, backgroundColor: "#000" },
+  // Carousel (absolute fill inside the Modal's View — no nested Modal)
+  carouselBg: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "#000",
+  },
   carouselPage: {
     width: SCREEN_WIDTH,
     height: SCREEN_HEIGHT,
@@ -568,9 +602,9 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.45)",
   },
   carouselCloseBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: "rgba(0,0,0,0.55)",
     alignItems: "center",
     justifyContent: "center",
@@ -593,16 +627,16 @@ const styles = StyleSheet.create({
   carouselNavBtn: {
     position: "absolute",
     top: "50%",
-    marginTop: -24,
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "rgba(0,0,0,0.45)",
+    marginTop: -28,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "rgba(0,0,0,0.5)",
     alignItems: "center",
     justifyContent: "center",
   },
-  carouselNavLeft: { left: 12 },
-  carouselNavRight: { right: 12 },
+  carouselNavLeft: { left: 8 },
+  carouselNavRight: { right: 8 },
   carouselDots: {
     position: "absolute",
     bottom: 0,
