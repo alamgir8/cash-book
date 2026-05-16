@@ -15,6 +15,7 @@ import {
   Dimensions,
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
+import Toast from "react-native-toast-message";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -189,11 +190,18 @@ export const TransactionModal = ({
         setUploadingAttachments(true);
         try {
           await uploadAttachments(result._id, stagedFiles);
-        } catch {
-          Alert.alert(
-            "Attachments Failed",
-            "Transaction was saved but some attachments could not be uploaded. You can add them later from the transaction list.",
-          );
+        } catch (uploadErr) {
+          const isTooBig =
+            (uploadErr as any)?.response?.status === 413 ||
+            (uploadErr as any)?.message?.includes("413");
+          Toast.show({
+            type: "error",
+            text1: "Attachment Upload Failed",
+            text2: isTooBig
+              ? "File too large. Max 10 MB per file."
+              : "Transaction saved, but attachments could not be uploaded. Try again from the transaction list.",
+            visibilityTime: 5000,
+          });
         } finally {
           setUploadingAttachments(false);
         }

@@ -165,8 +165,11 @@ export function AttachmentPicker({
       const response = await uploadAttachments(transactionId, files);
       handleAttachmentsChange(response.attachments);
     } catch (err: unknown) {
+      const status = (err as any)?.response?.status;
       const apiMsg =
-        (err as any)?.response?.data?.message ?? (err as any)?.message;
+        status === 413
+          ? "File too large. Max 10 MB per file."
+          : ((err as any)?.response?.data?.message ?? (err as any)?.message);
       Alert.alert(
         "Upload Failed",
         apiMsg ?? "Could not upload the attachment. Please try again.",

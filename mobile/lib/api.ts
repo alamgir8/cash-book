@@ -75,7 +75,7 @@ const getBaseURL = () => {
 
   for (const candidate of hostCandidates) {
     const hostname = parseHostname(
-      typeof candidate === "string" ? candidate : undefined
+      typeof candidate === "string" ? candidate : undefined,
     );
     const url = hostname ? buildUrlFromHostname(hostname) : null;
     if (url) {
@@ -103,13 +103,13 @@ let tokenRefreshHandler: (() => Promise<string | null>) | null = null;
 let refreshPromise: Promise<string | null> | null = null;
 
 export const setUnauthorizedHandler = (
-  handler?: (() => void | Promise<void>) | null
+  handler?: (() => void | Promise<void>) | null,
 ) => {
   unauthorizedHandler = handler ?? null;
 };
 
 export const setTokenRefreshHandler = (
-  handler?: (() => Promise<string | null>) | null
+  handler?: (() => Promise<string | null>) | null,
 ) => {
   tokenRefreshHandler = handler ?? null;
 };
@@ -137,7 +137,8 @@ api.interceptors.request.use((config) => {
     } else {
       const headers = config.headers as Record<string, unknown>;
       if (headers.Authorization == null) {
-        (headers as Record<string, string>).Authorization = `Bearer ${currentToken}`;
+        (headers as Record<string, string>).Authorization =
+          `Bearer ${currentToken}`;
       }
       config.headers = headers as AxiosRequestHeaders;
     }
@@ -204,18 +205,38 @@ api.interceptors.response.use(
     }
 
     return Promise.reject(error);
-  }
+  },
 );
 
 export const getApiErrorMessage = (
   error: unknown,
-  fallback = "Something went wrong"
+  fallback = "Something went wrong",
 ) => {
   if (axios.isAxiosError(error)) {
+    const status = error.response?.status;
+
+    // Map well-known HTTP status codes to readable messages
+    if (status === 413)
+      return "File too large. Please use a smaller file (max 10 MB).";
+    if (status === 429)
+      return "Too many requests. Please slow down and try again.";
+    if (status === 503) return "Service unavailable. Please try again later.";
+    if (status === 504) return "Request timed out. Please try again.";
+
     const responseData = error.response?.data;
+
+    // Axios sometimes returns the body as a string (e.g. HTML from Vercel/nginx)
     if (typeof responseData === "string" && responseData.trim().length > 0) {
-      return responseData;
+      // Strip HTML tags — Vercel returns a full HTML 413 page
+      const stripped = responseData
+        .replace(/<[^>]+>/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+      // If it still looks like a meaningful short message, use it
+      if (stripped.length > 0 && stripped.length < 200) return stripped;
+      // Otherwise fall through to status-based or fallback
     }
+
     if (
       responseData &&
       typeof responseData === "object" &&
@@ -226,6 +247,10 @@ export const getApiErrorMessage = (
         return message;
       }
     }
+
+    // Network error (no response)
+    if (!error.response)
+      return "Network error. Check your connection and try again.";
   }
 
   if (error instanceof Error && error.message) {
