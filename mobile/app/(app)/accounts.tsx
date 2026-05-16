@@ -1,425 +1,277 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback } from "react";
 import {
   ActivityIndicator,
   FlatList,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
   RefreshControl,
-  ScrollView,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
-import { useForm, Controller } from "react-hook-form";
-import { z } from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { Ionicons } from "@expo/vector-icons";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useLocalSearchParams, useRouter } from "expo-router";
 import dayjs from "dayjs";
-import Toast from "react-native-toast-message";
-import { VoiceInputButton } from "@/components/voice-input-button";
 import { ScreenHeader } from "@/components/screen-header";
 import { EmptyState } from "@/components/empty-state";
-import { ActionButton } from "@/components/action-button";
-import {
-  createAccount,
-  fetchAccountsOverview,
-  updateAccount,
-  type Account,
-  type AccountOverview,
-} from "@/services/accounts";
-import { queryKeys } from "@/lib/queryKeys";
-import { usePreferences } from "@/hooks/use-preferences";
-import { useOrganization } from "@/hooks/use-organization";
+import { AccountFormModal } from "@/components/accounts/account-form-modal";
 import { useTheme } from "@/hooks/use-theme";
-
-const schema = z.object({
-  name: z.string().min(2, "Account name is required"),
-  // type: z.enum(["debit", "credit"]),
-  description: z.string().optional(),
-});
-
-type FormValues = z.infer<typeof schema>;
-
-const DEFAULT_FORM_VALUES: FormValues = {
-  name: "",
-  // type: "debit",
-  description: "",
-};
-
-const parseVoiceForAccount = (transcript: string): Partial<FormValues> => {
-  const lower = transcript.toLowerCase();
-  const parsed: Partial<FormValues> = {
-    description: transcript,
-  };
-
-  const nameMatch = transcript.match(
-    /account (named|called)? ([a-zA-Z0-9 ]+)/i,
-  );
-  if (nameMatch) {
-    parsed.name = nameMatch[2].trim();
-  } else {
-    parsed.name = transcript.split(" account")[0] || transcript;
-  }
-
-  // if (lower.includes("debit")) {
-  //   parsed.type = "debit";
-  // } else if (lower.includes("credit")) {
-  //   parsed.type = "credit";
-  // }
-
-  return parsed;
-};
+import { useAccountsScreen } from "@/hooks/use-accounts-screen";
 
 export default function AccountsScreen() {
-  const { formatAmount } = usePreferences();
-  const { canManageAccounts } = useOrganization();
   const { colors } = useTheme();
-  const queryClient = useQueryClient();
-  const [modalVisible, setModalVisible] = useState(false);
-  const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
-
-  const router = useRouter();
-  const params = useLocalSearchParams<{ accountId?: string }>();
-
-  const accountsQuery = useQuery({
-    queryKey: queryKeys.accountsOverview,
-    queryFn: fetchAccountsOverview,
-  });
-
-  const invalidateAccountData = async (accountId?: string) => {
-    const tasks: Promise<unknown>[] = [
-      queryClient.invalidateQueries({ queryKey: queryKeys.accounts }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.accountsOverview }),
-    ];
-
-    if (accountId) {
-      tasks.push(
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.accountDetail(accountId),
-        }),
-      );
-      tasks.push(
-        queryClient.invalidateQueries({
-          queryKey: ["account", accountId],
-          exact: false,
-        }),
-      );
-    }
-
-    await Promise.all(tasks);
-  };
-
-  const createMutation = useMutation({
-    mutationFn: createAccount,
-    onSuccess: async () => {
-      Toast.show({ type: "success", text1: "Account added" });
-      await invalidateAccountData();
-      setModalVisible(false);
-      setSelectedAccount(null);
-      reset({ ...DEFAULT_FORM_VALUES });
-    },
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: updateAccount,
-    onSuccess: async () => {
-      Toast.show({ type: "success", text1: "Account updated" });
-      await invalidateAccountData(selectedAccount?._id);
-      setModalVisible(false);
-      setSelectedAccount(null);
-      reset({ ...DEFAULT_FORM_VALUES });
-    },
-  });
 
   const {
-    control,
+    modalVisible,
+    selectedAccount,
+    accountsQuery,
+    accounts,
+    totals,
+    lastActivityLabel,
+    canManageAccounts,
+    isSubmitting,
+    openModal,
+    closeModal,
     handleSubmit,
-    reset,
-    setValue,
-    formState: { errors },
-  } = useForm<FormValues>({
-    resolver: zodResolver(schema),
-    defaultValues: { ...DEFAULT_FORM_VALUES },
-  });
+    handleViewHistory,
+    formatAmount,
+    formatSignedAmount,
+  } = useAccountsScreen();
 
-  const openModal = useCallback(
-    (account?: Account | AccountOverview) => {
-      if (account) {
-        const baseAccount: Account = {
-          _id: account._id,
-          name: account.name,
-          // type: account.type,
-          description: account.description,
-          balance: account.balance,
-        };
-        setSelectedAccount(baseAccount);
-        reset({
-          name: account.name,
-          // type: account.type,
-          description: account.description ?? "",
-        });
-      } else {
-        setSelectedAccount(null);
-        reset({ ...DEFAULT_FORM_VALUES });
-      }
-      setModalVisible(true);
-    },
-    [reset],
-  );
-
-  const onSubmit = async (values: FormValues) => {
-    try {
-      const payload = {
-        name: values.name,
-        // type: values.type,
-        description: values.description,
-      };
-      if (selectedAccount) {
-        const { ...updatePayload } = payload;
-        await updateMutation.mutateAsync({
-          accountId: selectedAccount._id,
-          ...updatePayload,
-        });
-      } else {
-        await createMutation.mutateAsync(payload);
-      }
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  const handleVoiceResult = (transcript: string) => {
-    const parsed = parseVoiceForAccount(transcript);
-    Object.entries(parsed).forEach(([key, value]) => {
-      setValue(key as keyof FormValues, value as never, { shouldDirty: true });
-    });
-  };
-
-  useEffect(() => {
-    const accountParam = Array.isArray(params.accountId)
-      ? params.accountId[0]
-      : params.accountId;
-
-    if (!accountParam || !accountsQuery.data) {
-      return;
-    }
-
-    const target = accountsQuery.data.find(
-      (account) => account._id === accountParam,
-    );
-    if (target) {
-      openModal(target);
-      router.replace("/(app)/accounts");
-    }
-  }, [params.accountId, accountsQuery.data, openModal, router]);
-
-  const accounts = useMemo(
-    () => accountsQuery.data ?? [],
-    [accountsQuery.data],
-  );
-
-  const totals = useMemo(() => {
-    const aggregate = {
-      totalAccounts: accounts.length,
-      totalDebit: 0,
-      totalCredit: 0,
-      netBalance: 0,
-      totalTransactions: 0,
-      lastActivity: null as Date | null,
-    };
-
-    accounts.forEach((account) => {
-      aggregate.totalDebit += account.summary.totalDebit ?? 0;
-      aggregate.totalCredit += account.summary.totalCredit ?? 0;
-      aggregate.netBalance += account.balance ?? 0;
-      aggregate.totalTransactions += account.summary.totalTransactions ?? 0;
-
-      if (account.summary.lastTransactionDate) {
-        const activityDate = new Date(account.summary.lastTransactionDate);
-        if (!aggregate.lastActivity || activityDate > aggregate.lastActivity) {
-          aggregate.lastActivity = activityDate;
-        }
-      }
-    });
-
-    return aggregate;
-  }, [accounts]);
-
-  // const formatAmount = (value: number) => prefFormatAmount(value);
-  const formatSignedAmount = (value: number) => {
-    const base = formatAmount(Math.abs(value));
-    return `${value >= 0 ? "+" : "-"}${base}`;
-  };
-
-  const lastActivityLabel = totals.lastActivity
-    ? dayjs(totals.lastActivity).format("MMM D, YYYY")
-    : "No activity yet";
   const netPositive = totals.netBalance >= 0;
 
-  const renderHeader = () => {
-    return (
-      <View className="gap-4 mb-2">
+  const renderHeader = () => (
+    <View className="gap-4 mb-2">
+      <View
+        className="rounded-2xl p-5 border shadow-sm"
+        style={{ backgroundColor: colors.bg.secondary, borderColor: colors.border }}
+      >
+        <View className="flex-row items-center justify-between">
+          <Text className="text-lg font-bold" style={{ color: colors.text.primary }}>
+            Portfolio Overview
+          </Text>
+          <View className="px-3 py-1 rounded-full" style={{ backgroundColor: colors.info + "25" }}>
+            <Text className="text-xs font-semibold" style={{ color: colors.info }}>
+              {totals.totalAccounts} Accounts
+            </Text>
+          </View>
+        </View>
+
+        <View className="flex-row gap-3 mt-4">
+          <View
+            className="flex-1 rounded-xl p-4 border"
+            style={{ backgroundColor: colors.success + "15", borderColor: colors.success + "40" }}
+          >
+            <Text className="text-xs font-semibold uppercase" style={{ color: colors.success }}>
+              Total Credit
+            </Text>
+            <Text className="text-2xl font-bold mt-2" style={{ color: colors.success }}>
+              {formatAmount(totals.totalCredit)}
+            </Text>
+            <Text className="text-xs mt-1" style={{ color: colors.text.secondary }}>
+              Across all accounts
+            </Text>
+          </View>
+          <View
+            className="flex-1 rounded-xl p-4 border"
+            style={{ backgroundColor: colors.error + "15", borderColor: colors.error + "40" }}
+          >
+            <Text className="text-xs font-semibold uppercase" style={{ color: colors.error }}>
+              Total Debit
+            </Text>
+            <Text className="text-2xl font-bold mt-2" style={{ color: colors.error }}>
+              {formatAmount(totals.totalDebit)}
+            </Text>
+            <Text className="text-xs mt-1" style={{ color: colors.text.secondary }}>
+              Overall spending
+            </Text>
+          </View>
+        </View>
+
+        <View className="flex-row gap-3 mt-3">
+          <View
+            className="flex-1 rounded-xl p-4 border"
+            style={{
+              backgroundColor: netPositive ? colors.success + "15" : colors.error + "15",
+              borderColor: netPositive ? colors.success + "40" : colors.error + "40",
+            }}
+          >
+            <Text
+              className="text-xs font-semibold uppercase"
+              style={{ color: netPositive ? colors.success : colors.error }}
+            >
+              Net Balance
+            </Text>
+            <Text
+              className="text-2xl font-bold mt-2"
+              style={{ color: netPositive ? colors.success : colors.error }}
+            >
+              {formatAmount(Math.abs(totals.netBalance))}
+            </Text>
+            <Text className="text-xs mt-1" style={{ color: colors.text.secondary }}>
+              {netPositive ? "Surplus across accounts" : "Outstanding balance"}
+            </Text>
+          </View>
+          <View
+            className="flex-1 rounded-xl p-4 border"
+            style={{ backgroundColor: colors.info + "15", borderColor: colors.info + "40" }}
+          >
+            <Text className="text-xs font-semibold uppercase" style={{ color: colors.info }}>
+              Transactions
+            </Text>
+            <Text className="text-2xl font-bold mt-2" style={{ color: colors.info }}>
+              {formatAmount(totals.totalTransactions, { showCurrency: false })}
+            </Text>
+            <Text className="text-xs mt-1" style={{ color: colors.text.secondary }}>
+              Last activity: {lastActivityLabel}
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      <Text
+        className="text-sm font-semibold uppercase tracking-wide px-1"
+        style={{ color: colors.text.secondary }}
+      >
+        Accounts
+      </Text>
+    </View>
+  );
+
+  const renderItem = useCallback(
+    ({ item }: { item: any }) => {
+      const lastActivity = item.summary.lastTransactionDate
+        ? dayjs(item.summary.lastTransactionDate).format("MMM D, YYYY")
+        : "No activity yet";
+      const netFlow = item.summary.net ?? 0;
+      const netFlowPositive = netFlow >= 0;
+
+      return (
         <View
-          className="rounded-2xl p-5 border shadow-sm"
+          className="rounded-2xl p-4 border shadow-sm"
           style={{
             backgroundColor: colors.bg.secondary,
             borderColor: colors.border,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 3 },
+            shadowOpacity: 0.06,
+            shadowRadius: 10,
+            elevation: 4,
           }}
         >
-          <View className="flex-row items-center justify-between">
-            <Text
-              className="text-lg font-bold"
-              style={{ color: colors.text.primary }}
-            >
-              Portfolio Overview
-            </Text>
-            <View
-              className="px-3 py-1 rounded-full"
-              style={{ backgroundColor: colors.info + "25" }}
-            >
+          <View className="flex-row justify-between items-start">
+            <View className="flex-1 mr-4">
+              <Text className="text-xl font-bold" style={{ color: colors.text.primary }}>
+                {item.name}
+              </Text>
+              <View className="flex-row items-center gap-2 mt-2">
+                <Text className="text-xs" style={{ color: colors.text.secondary }}>
+                  Last activity: {lastActivity}
+                </Text>
+              </View>
+            </View>
+            <View className="items-end">
+              <Text className="text-xs font-medium uppercase" style={{ color: colors.text.secondary }}>
+                Balance
+              </Text>
               <Text
-                className="text-xs font-semibold"
-                style={{ color: colors.info }}
+                className="text-2xl font-bold"
+                style={{ color: item.balance >= 0 ? colors.success : colors.error }}
               >
-                {totals.totalAccounts} Accounts
+                {formatAmount(Math.abs(item.balance))}
               </Text>
             </View>
           </View>
 
+          {item.description ? (
+            <Text className="text-sm mt-4 leading-5" style={{ color: colors.text.secondary }}>
+              {item.description}
+            </Text>
+          ) : null}
+
           <View className="flex-row gap-3 mt-4">
             <View
-              className="flex-1 rounded-xl p-4 border"
-              style={{
-                backgroundColor: colors.success + "15",
-                borderColor: colors.success + "40",
-              }}
+              className="flex-1 rounded-xl p-3 border"
+              style={{ backgroundColor: colors.success + "15", borderColor: colors.success + "40" }}
             >
-              <Text
-                className="text-xs font-semibold uppercase"
-                style={{ color: colors.success }}
-              >
+              <Text className="text-xs font-semibold uppercase" style={{ color: colors.success }}>
                 Total Credit
               </Text>
-              <Text
-                className="text-2xl font-bold mt-2"
-                style={{ color: colors.success }}
-              >
-                {formatAmount(totals.totalCredit)}
-              </Text>
-              <Text
-                className="text-xs mt-1"
-                style={{ color: colors.text.secondary }}
-              >
-                Across all accounts
+              <Text className="text-lg font-bold mt-1" style={{ color: colors.success }}>
+                {formatAmount(item.summary.totalCredit ?? 0)}
               </Text>
             </View>
             <View
-              className="flex-1 rounded-xl p-4 border"
-              style={{
-                backgroundColor: colors.error + "15",
-                borderColor: colors.error + "40",
-              }}
+              className="flex-1 rounded-xl p-3 border"
+              style={{ backgroundColor: colors.error + "15", borderColor: colors.error + "40" }}
             >
-              <Text
-                className="text-xs font-semibold uppercase"
-                style={{ color: colors.error }}
-              >
+              <Text className="text-xs font-semibold uppercase" style={{ color: colors.error }}>
                 Total Debit
               </Text>
-              <Text
-                className="text-2xl font-bold mt-2"
-                style={{ color: colors.error }}
-              >
-                {formatAmount(totals.totalDebit)}
-              </Text>
-              <Text
-                className="text-xs mt-1"
-                style={{ color: colors.text.secondary }}
-              >
-                Overall spending
+              <Text className="text-lg font-bold mt-1" style={{ color: colors.error }}>
+                {formatAmount(item.summary.totalDebit ?? 0)}
               </Text>
             </View>
           </View>
 
           <View className="flex-row gap-3 mt-3">
             <View
-              className="flex-1 rounded-xl p-4 border"
-              style={{
-                backgroundColor: netPositive
-                  ? colors.success + "15"
-                  : colors.error + "15",
-                borderColor: netPositive
-                  ? colors.success + "40"
-                  : colors.error + "40",
-              }}
+              className="flex-1 rounded-xl p-3 border"
+              style={{ backgroundColor: colors.bg.tertiary, borderColor: colors.border }}
             >
-              <Text
-                className="text-xs font-semibold uppercase"
-                style={{ color: netPositive ? colors.success : colors.error }}
-              >
-                Net Balance
+              <Text className="text-xs font-semibold uppercase" style={{ color: colors.text.secondary }}>
+                Transactions
               </Text>
-              <Text
-                className="text-2xl font-bold mt-2"
-                style={{ color: netPositive ? colors.success : colors.error }}
-              >
-                {formatAmount(Math.abs(totals.netBalance))}
-              </Text>
-              <Text
-                className="text-xs mt-1"
-                style={{ color: colors.text.secondary }}
-              >
-                {netPositive
-                  ? "Surplus across accounts"
-                  : "Outstanding balance"}
+              <Text className="text-lg font-bold mt-1" style={{ color: colors.text.primary }}>
+                {formatAmount(item.summary.totalTransactions ?? 0, { showCurrency: false })}
               </Text>
             </View>
             <View
-              className="flex-1 rounded-xl p-4 border"
+              className="flex-1 rounded-xl p-3 border"
               style={{
-                backgroundColor: colors.info + "15",
-                borderColor: colors.info + "40",
+                backgroundColor: netFlowPositive ? colors.success + "15" : colors.error + "15",
+                borderColor: netFlowPositive ? colors.success + "40" : colors.error + "40",
               }}
             >
               <Text
                 className="text-xs font-semibold uppercase"
-                style={{ color: colors.info }}
+                style={{ color: netFlowPositive ? colors.success : colors.error }}
               >
-                Transactions
+                Net Flow
               </Text>
               <Text
-                className="text-2xl font-bold mt-2"
-                style={{ color: colors.info }}
+                className="text-lg font-bold mt-1"
+                style={{ color: netFlowPositive ? colors.success : colors.error }}
               >
-                {formatAmount(totals.totalTransactions, {
-                  showCurrency: false,
-                })}
-              </Text>
-              <Text
-                className="text-xs mt-1"
-                style={{ color: colors.text.secondary }}
-              >
-                Last activity: {lastActivityLabel}
+                {formatSignedAmount(netFlow)}
               </Text>
             </View>
           </View>
+
+          <View className="flex-row gap-3 mt-4">
+            <TouchableOpacity
+              onPress={() => handleViewHistory(item._id)}
+              className="flex-1 flex-row items-center justify-center gap-2 rounded-xl py-2.5 active:opacity-90"
+              style={{ backgroundColor: colors.info }}
+            >
+              <Ionicons name="time-outline" size={18} color="#fff" />
+              <Text className="text-white font-semibold">View History</Text>
+            </TouchableOpacity>
+            {canManageAccounts && (
+              <TouchableOpacity
+                onPress={() => openModal(item)}
+                className="flex-1 flex-row items-center justify-center gap-2 rounded-xl py-2.5"
+                style={{ backgroundColor: colors.bg.tertiary, borderColor: colors.border, borderWidth: 1 }}
+              >
+                <Ionicons name="pencil" size={18} color={colors.text.secondary} />
+                <Text className="font-semibold" style={{ color: colors.text.primary }}>
+                  Edit
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
-
-        <Text
-          className="text-sm font-semibold uppercase tracking-wide px-1"
-          style={{ color: colors.text.secondary }}
-        >
-          Accounts
-        </Text>
-      </View>
-    );
-  };
-
-  // console.log("accounts", accounts);
+      );
+    },
+    [colors, canManageAccounts, formatAmount, formatSignedAmount, handleViewHistory, openModal],
+  );
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg.primary }}>
@@ -428,11 +280,7 @@ export default function AccountsScreen() {
         subtitle="Manage your financial accounts"
         actionButton={
           canManageAccounts
-            ? {
-                label: "Add",
-                onPress: () => openModal(),
-                icon: "add",
-              }
+            ? { label: "Add", onPress: () => openModal(), icon: "add" }
             : undefined
         }
         icon="analytics"
@@ -461,10 +309,7 @@ export default function AccountsScreen() {
           accountsQuery.isLoading ? (
             <View className="items-center mt-12">
               <ActivityIndicator color={colors.info} size="large" />
-              <Text
-                className="mt-4 text-base"
-                style={{ color: colors.text.secondary }}
-              >
+              <Text className="mt-4 text-base" style={{ color: colors.text.secondary }}>
                 Loading accounts...
               </Text>
             </View>
@@ -480,365 +325,26 @@ export default function AccountsScreen() {
               }
               actionButton={
                 canManageAccounts
-                  ? {
-                      label: "Create Account",
-                      onPress: () => openModal(),
-                    }
+                  ? { label: "Create Account", onPress: () => openModal() }
                   : undefined
               }
             />
           )
         }
-        renderItem={({ item }) => {
-          const lastActivity = item.summary.lastTransactionDate
-            ? dayjs(item.summary.lastTransactionDate).format("MMM D, YYYY")
-            : "No activity yet";
-          const netFlow = item.summary.net ?? 0;
-          const netFlowPositive = netFlow >= 0;
-
-          return (
-            <View
-              className="rounded-2xl p-4 border shadow-sm"
-              style={{
-                backgroundColor: colors.bg.secondary,
-                borderColor: colors.border,
-                shadowColor: "#000",
-                shadowOffset: { width: 0, height: 3 },
-                shadowOpacity: 0.06,
-                shadowRadius: 10,
-                elevation: 4,
-              }}
-            >
-              <View className="flex-row justify-between items-start">
-                <View className="flex-1 mr-4">
-                  <Text
-                    className="text-xl font-bold"
-                    style={{ color: colors.text.primary }}
-                  >
-                    {item.name}
-                  </Text>
-                  <View className="flex-row items-center gap-2 mt-2">
-                    <Text
-                      className="text-xs"
-                      style={{ color: colors.text.secondary }}
-                    >
-                      Last activity: {lastActivity}
-                    </Text>
-                  </View>
-                </View>
-                <View className="items-end">
-                  <Text
-                    className="text-xs font-medium uppercase"
-                    style={{ color: colors.text.secondary }}
-                  >
-                    Balance
-                  </Text>
-                  <Text
-                    className="text-2xl font-bold"
-                    style={{
-                      color: item.balance >= 0 ? colors.success : colors.error,
-                    }}
-                  >
-                    {formatAmount(Math.abs(item.balance))}
-                  </Text>
-                </View>
-              </View>
-
-              {item.description ? (
-                <Text
-                  className="text-sm mt-4 leading-5"
-                  style={{ color: colors.text.secondary }}
-                >
-                  {item.description}
-                </Text>
-              ) : null}
-
-              <View className="flex-row gap-3 mt-4">
-                <View
-                  className="flex-1 rounded-xl p-3 border"
-                  style={{
-                    backgroundColor: colors.success + "15",
-                    borderColor: colors.success + "40",
-                  }}
-                >
-                  <Text
-                    className="text-xs font-semibold uppercase"
-                    style={{ color: colors.success }}
-                  >
-                    Total Credit
-                  </Text>
-                  <Text
-                    className="text-lg font-bold mt-1"
-                    style={{ color: colors.success }}
-                  >
-                    {formatAmount(item.summary.totalCredit ?? 0)}
-                  </Text>
-                </View>
-                <View
-                  className="flex-1 rounded-xl p-3 border"
-                  style={{
-                    backgroundColor: colors.error + "15",
-                    borderColor: colors.error + "40",
-                  }}
-                >
-                  <Text
-                    className="text-xs font-semibold uppercase"
-                    style={{ color: colors.error }}
-                  >
-                    Total Debit
-                  </Text>
-                  <Text
-                    className="text-lg font-bold mt-1"
-                    style={{ color: colors.error }}
-                  >
-                    {formatAmount(item.summary.totalDebit ?? 0)}
-                  </Text>
-                </View>
-              </View>
-
-              <View className="flex-row gap-3 mt-3">
-                <View
-                  className="flex-1 rounded-xl p-3 border"
-                  style={{
-                    backgroundColor: colors.bg.tertiary,
-                    borderColor: colors.border,
-                  }}
-                >
-                  <Text
-                    className="text-xs font-semibold uppercase"
-                    style={{ color: colors.text.secondary }}
-                  >
-                    Transactions
-                  </Text>
-                  <Text
-                    className="text-lg font-bold mt-1"
-                    style={{ color: colors.text.primary }}
-                  >
-                    {formatAmount(item.summary.totalTransactions ?? 0, {
-                      showCurrency: false,
-                    })}
-                  </Text>
-                </View>
-                <View
-                  className="flex-1 rounded-xl p-3 border"
-                  style={{
-                    backgroundColor: netFlowPositive
-                      ? colors.success + "15"
-                      : colors.error + "15",
-                    borderColor: netFlowPositive
-                      ? colors.success + "40"
-                      : colors.error + "40",
-                  }}
-                >
-                  <Text
-                    className="text-xs font-semibold uppercase"
-                    style={{
-                      color: netFlowPositive ? colors.success : colors.error,
-                    }}
-                  >
-                    Net Flow
-                  </Text>
-                  <Text
-                    className="text-lg font-bold mt-1"
-                    style={{
-                      color: netFlowPositive ? colors.success : colors.error,
-                    }}
-                  >
-                    {formatSignedAmount(netFlow)}
-                  </Text>
-                </View>
-              </View>
-
-              <View className="flex-row gap-3 mt-4">
-                <TouchableOpacity
-                  onPress={() =>
-                    router.push({
-                      pathname: "/(app)/accounts/[accountId]",
-                      params: { accountId: item._id },
-                    } as any)
-                  }
-                  className="flex-1 flex-row items-center justify-center gap-2 rounded-xl py-2.5 active:opacity-90"
-                  style={{ backgroundColor: colors.info }}
-                >
-                  <Ionicons name="time-outline" size={18} color="#fff" />
-                  <Text className="text-white font-semibold">View History</Text>
-                </TouchableOpacity>
-                {canManageAccounts && (
-                  <TouchableOpacity
-                    onPress={() => openModal(item)}
-                    className="flex-1 flex-row items-center justify-center gap-2 rounded-xl py-2.5"
-                    style={{
-                      backgroundColor: colors.bg.tertiary,
-                      borderColor: colors.border,
-                      borderWidth: 1,
-                    }}
-                  >
-                    <Ionicons
-                      name="pencil"
-                      size={18}
-                      color={colors.text.secondary}
-                    />
-                    <Text
-                      className="font-semibold"
-                      style={{ color: colors.text.primary }}
-                    >
-                      Edit
-                    </Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            </View>
-          );
-        }}
+        renderItem={renderItem}
+        removeClippedSubviews
+        maxToRenderPerBatch={10}
+        initialNumToRender={10}
+        windowSize={10}
       />
 
-      <Modal visible={modalVisible} transparent animationType="slide">
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={{ flex: 1 }}
-        >
-          <View className="flex-1 bg-black/40 justify-end">
-            <View
-              className="rounded-t-3xl flex-1"
-              style={{
-                maxHeight: "90%",
-                backgroundColor: colors.bg.primary,
-              }}
-            >
-              {/* Header */}
-              <View
-                className="flex-row justify-between items-center p-6 pb-4 border-b"
-                style={{ borderColor: colors.border }}
-              >
-                <View>
-                  <Text
-                    className="text-xl font-bold"
-                    style={{ color: colors.text.primary }}
-                  >
-                    {selectedAccount ? "Edit Account" : "New Account"}
-                  </Text>
-                  <Text
-                    className="text-sm"
-                    style={{ color: colors.text.secondary }}
-                  >
-                    {selectedAccount
-                      ? "Update account details"
-                      : "Create a new account to track"}
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  onPress={() => setModalVisible(false)}
-                  className="w-8 h-8 rounded-full items-center justify-center"
-                  style={{ backgroundColor: colors.bg.tertiary }}
-                >
-                  <Ionicons
-                    name="close"
-                    size={20}
-                    color={colors.text.secondary}
-                  />
-                </TouchableOpacity>
-              </View>
-
-              {/* Form Content */}
-              <ScrollView
-                className="flex-1 px-6"
-                showsVerticalScrollIndicator={false}
-                keyboardShouldPersistTaps="handled"
-                contentContainerStyle={{ paddingBottom: 20 }}
-              >
-                <View className="gap-5 py-4">
-                  {/* Account Name */}
-                  <View>
-                    <Text
-                      className="text-sm font-semibold mb-2"
-                      style={{ color: colors.text.primary }}
-                    >
-                      Account Name
-                    </Text>
-                    <Controller
-                      control={control}
-                      name="name"
-                      render={({ field: { onChange, value } }) => (
-                        <TextInput
-                          value={value}
-                          onChangeText={onChange}
-                          placeholder="e.g. Business Checking, Savings Account"
-                          placeholderTextColor={colors.text.tertiary}
-                          style={{
-                            backgroundColor: colors.bg.tertiary,
-                            color: colors.text.primary,
-                            borderColor: colors.border,
-                          }}
-                          className="px-4 py-2.5 rounded-xl border text-base"
-                        />
-                      )}
-                    />
-                    {errors.name ? (
-                      <Text
-                        className="text-sm mt-2"
-                        style={{ color: colors.error }}
-                      >
-                        {errors.name.message}
-                      </Text>
-                    ) : null}
-                  </View>
-
-                  {/* Description */}
-                  <View>
-                    <Text
-                      className="text-sm font-semibold mb-2"
-                      style={{ color: colors.text.primary }}
-                    >
-                      Description
-                    </Text>
-                    <Controller
-                      control={control}
-                      name="description"
-                      render={({ field: { value, onChange } }) => (
-                        <TextInput
-                          value={value || ""}
-                          onChangeText={onChange}
-                          placeholder="Optional details about this account..."
-                          placeholderTextColor={colors.text.tertiary}
-                          style={{
-                            backgroundColor: colors.bg.tertiary,
-                            color: colors.text.primary,
-                            borderColor: colors.border,
-                          }}
-                          className="px-4 py-2.5 rounded-xl border min-h-[80px]"
-                          multiline
-                          textAlignVertical="top"
-                        />
-                      )}
-                    />
-                  </View>
-
-                  {/* Voice Input */}
-                  <VoiceInputButton onResult={handleVoiceResult} />
-                </View>
-              </ScrollView>
-
-              {/* Submit Button - Fixed at bottom */}
-              <View
-                className="p-6 pt-4 pb-8 border-t"
-                style={{ borderColor: colors.border }}
-              >
-                <ActionButton
-                  label={selectedAccount ? "Update Account" : "Create Account"}
-                  onPress={handleSubmit(onSubmit)}
-                  isLoading={
-                    createMutation.isPending || updateMutation.isPending
-                  }
-                  variant="primary"
-                  size="medium"
-                  icon={selectedAccount ? "checkmark-circle" : "add-circle"}
-                  fullWidth
-                />
-              </View>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
+      <AccountFormModal
+        visible={modalVisible}
+        editingAccount={selectedAccount}
+        isSubmitting={isSubmitting}
+        onClose={closeModal}
+        onSubmit={handleSubmit}
+      />
     </View>
   );
 }

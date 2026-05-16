@@ -18,11 +18,7 @@ import Toast from "react-native-toast-message";
 import { useAuth } from "@/hooks/use-auth";
 import { useTheme } from "@/hooks/use-theme";
 import { useBiometric } from "@/hooks/use-biometric";
-import {
-  getBiometricUsers,
-  getBiometricDisplayName as getBiometricDisplayNameStatic,
-  getBiometricIconName as getBiometricIconNameStatic,
-} from "@/services/biometric";
+import { getBiometricUsers } from "@/services/biometric";
 import { CustomInput } from "@/components/custom-input";
 import { PasswordInput } from "@/components/password-input";
 import { CustomButton } from "@/components/custom-button";
@@ -140,7 +136,7 @@ export default function SignInScreen() {
       }, 500);
       return () => clearTimeout(timer);
     }
-  }, [hasBiometricStored, biometricLoading]);
+  }, [hasBiometricStored, biometricLoading, handleBiometricLogin]);
 
   useEffect(() => {
     if (usePinLogin) {
@@ -220,7 +216,7 @@ export default function SignInScreen() {
     }
   };
 
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
 
   return (
     <KeyboardAvoidingView

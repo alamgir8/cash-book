@@ -294,9 +294,7 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
             </View>
 
             {/* Form Content */}
-            <View
-              className="px-6"
-            >
+            <View className="px-6">
               <View className="gap-5 py-4">
                 {/* Personal Information Section */}
                 <View
@@ -557,7 +555,7 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
               </View>
             </View>
 
-            {/* Submit Button - Fixed at bottom */}}
+            {/* Submit Button - Fixed at bottom */}
             <View
               className="px-6 pt-4 border-t"
               style={{

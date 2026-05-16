@@ -6,12 +6,10 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  TouchableOpacity,
 } from "react-native";
 import { useForm, Controller } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/hooks/use-auth";
 import { useTheme } from "@/hooks/use-theme";
 import { CustomInput } from "@/components/custom-input";
@@ -82,7 +80,7 @@ export default function SignUpScreen() {
     }
   };
 
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
 
   return (
     <KeyboardAvoidingView

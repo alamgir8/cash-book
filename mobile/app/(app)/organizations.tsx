@@ -12,12 +12,12 @@ import { useRouter } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import { ScreenHeader } from "@/components/screen-header";
-import { OrganizationFormModal } from "@/components/organization-form-modal";
 import { useOrganization } from "@/hooks/use-organization";
 import { useTheme } from "@/hooks/use-theme";
 import { organizationsApi, type Organization } from "@/services/organizations";
 import { getApiErrorMessage } from "@/lib/api";
 import { toast } from "@/lib/toast";
+import { OrganizationFormModal } from "@/components/organization-form-modal";
 
 export default function OrganizationsScreen() {
   const router = useRouter();
@@ -26,6 +26,7 @@ export default function OrganizationsScreen() {
     useOrganization();
   const [showFormModal, setShowFormModal] = useState(false);
   const [editingOrg, setEditingOrg] = useState<Organization | null>(null);
+  const { colors } = useTheme();
 
   const {
     data: organizations = [],
@@ -105,21 +106,19 @@ export default function OrganizationsScreen() {
     [router],
   );
 
-  const getRoleColor = (role: string) => {
+  const getRoleBadgeStyle = (role: string) => {
     switch (role) {
       case "owner":
-        return "bg-purple-100 text-purple-700";
+        return { bg: "#7c3aed20", text: "#7c3aed" };
       case "admin":
-        return "bg-blue-100 text-blue-700";
+        return { bg: colors.info + "20", text: colors.info };
       case "manager":
-        return "bg-green-100 text-green-700";
+        return { bg: colors.success + "20", text: colors.success };
       default:
-        return "bg-gray-100 text-gray-700";
+        return { bg: colors.bg.tertiary, text: colors.text.secondary };
     }
   };
-
   if (isLoading) {
-    const { colors } = useTheme();
     return (
       <View className="flex-1" style={{ backgroundColor: colors.bg.primary }}>
         <ScreenHeader title="Organizations" showBack />
@@ -129,8 +128,6 @@ export default function OrganizationsScreen() {
       </View>
     );
   }
-
-  const { colors } = useTheme();
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg.primary }}>
@@ -223,100 +220,158 @@ export default function OrganizationsScreen() {
             {organizations.map((org) => (
               <TouchableOpacity
                 key={org._id}
-                className="bg-white rounded-xl p-4 mb-3 border border-gray-100 shadow-sm"
+                className="rounded-xl p-4 mb-3 border shadow-sm"
+                style={{
+                  backgroundColor: colors.bg.secondary,
+                  borderColor: colors.border,
+                }}
                 onPress={() => handleViewDetails(org)}
               >
                 <View className="flex-row items-start">
-                  <View className="w-12 h-12 rounded-xl bg-blue-100 items-center justify-center">
-                    <Ionicons name="business" size={24} color="#3B82F6" />
+                  <View
+                    className="w-12 h-12 rounded-xl items-center justify-center"
+                    style={{ backgroundColor: colors.info + "20" }}
+                  >
+                    <Ionicons name="business" size={24} color={colors.info} />
                   </View>
                   <View className="flex-1 ml-3">
-                    <Text className="text-base font-semibold text-gray-900">
+                    <Text
+                      className="text-base font-semibold"
+                      style={{ color: colors.text.primary }}
+                    >
                       {org.name}
                     </Text>
-                    <Text className="text-sm text-gray-500 capitalize mt-0.5">
+                    <Text
+                      className="text-sm capitalize mt-0.5"
+                      style={{ color: colors.text.secondary }}
+                    >
                       {org.business_type}
                     </Text>
                     {org.description && (
                       <Text
-                        className="text-sm text-gray-400 mt-1"
+                        className="text-sm mt-1"
+                        style={{ color: colors.text.tertiary }}
                         numberOfLines={1}
                       >
                         {org.description}
                       </Text>
                     )}
                   </View>
-                  <View
-                    className={`px-2 py-1 rounded-full ${getRoleColor(
-                      org.role || "owner",
-                    )}`}
-                  >
-                    <Text className="text-xs font-medium capitalize">
-                      {org.role || "Owner"}
-                    </Text>
-                  </View>
+                  {(() => {
+                    const badge = getRoleBadgeStyle(org.role || "owner");
+                    return (
+                      <View
+                        className="px-2 py-1 rounded-full"
+                        style={{ backgroundColor: badge.bg }}
+                      >
+                        <Text
+                          className="text-xs font-medium capitalize"
+                          style={{ color: badge.text }}
+                        >
+                          {org.role || "Owner"}
+                        </Text>
+                      </View>
+                    );
+                  })()}
                 </View>
 
-                {/* Quick Stats */}
-                <View className="flex-row mt-4 pt-3 border-t border-gray-100">
+                <View
+                  className="flex-row mt-4 pt-3 border-t"
+                  style={{ borderColor: colors.border }}
+                >
                   <View className="flex-1 items-center">
-                    <Text className="text-xs text-gray-500">Currency</Text>
-                    <Text className="text-sm font-medium text-gray-700">
+                    <Text
+                      className="text-xs"
+                      style={{ color: colors.text.secondary }}
+                    >
+                      Currency
+                    </Text>
+                    <Text
+                      className="text-sm font-medium"
+                      style={{ color: colors.text.primary }}
+                    >
                       {org.settings?.currency || "USD"}
                     </Text>
                   </View>
-                  <View className="w-px bg-gray-100" />
+                  <View
+                    className="w-px"
+                    style={{ backgroundColor: colors.border }}
+                  />
                   <View className="flex-1 items-center">
-                    <Text className="text-xs text-gray-500">Status</Text>
                     <Text
-                      className={`text-sm font-medium ${
-                        org.status === "active"
-                          ? "text-green-600"
-                          : "text-red-600"
-                      }`}
+                      className="text-xs"
+                      style={{ color: colors.text.secondary }}
+                    >
+                      Status
+                    </Text>
+                    <Text
+                      className="text-sm font-medium"
+                      style={{
+                        color:
+                          org.status === "active"
+                            ? colors.success
+                            : colors.error,
+                      }}
                     >
                       {org.status === "active" ? "Active" : "Inactive"}
                     </Text>
                   </View>
                 </View>
 
-                {/* Actions - Only show management actions to owners/managers */}
-                {(org.role === "owner" ||
-                  org.role === "manager" ||
-                  !org.role) && (
-                  <View className="flex-row mt-3 pt-3 border-t border-gray-100 gap-2">
-                    {(org.role === "owner" || !org.role) && (
-                      <TouchableOpacity
-                        className="flex-1 flex-row items-center justify-center py-2 bg-gray-50 rounded-lg"
-                        onPress={() => handleEdit(org)}
+                <View
+                  className="flex-row mt-3 pt-3 border-t gap-2"
+                  style={{ borderColor: colors.border }}
+                >
+                  {(org.role === "owner" || !org.role) && (
+                    <TouchableOpacity
+                      className="flex-1 flex-row items-center justify-center py-2 rounded-lg"
+                      style={{ backgroundColor: colors.bg.tertiary }}
+                      onPress={() => handleEdit(org)}
+                    >
+                      <Ionicons
+                        name="pencil"
+                        size={16}
+                        color={colors.text.secondary}
+                      />
+                      <Text
+                        className="ml-1 text-sm"
+                        style={{ color: colors.text.primary }}
                       >
-                        <Ionicons name="pencil" size={16} color="#6B7280" />
-                        <Text className="ml-1 text-sm text-gray-600">Edit</Text>
-                      </TouchableOpacity>
-                    )}
-                    {(org.role === "owner" ||
-                      org.role === "manager" ||
-                      !org.role) && (
-                      <TouchableOpacity
-                        className="flex-1 flex-row items-center justify-center py-2 bg-gray-50 rounded-lg"
-                        onPress={() => handleViewDetails(org)}
+                        Edit
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                  {(org.role === "owner" ||
+                    org.role === "manager" ||
+                    !org.role) && (
+                    <TouchableOpacity
+                      className="flex-1 flex-row items-center justify-center py-2 rounded-lg"
+                      style={{ backgroundColor: colors.bg.tertiary }}
+                      onPress={() => handleViewDetails(org)}
+                    >
+                      <Ionicons
+                        name="people"
+                        size={16}
+                        color={colors.text.secondary}
+                      />
+                      <Text
+                        className="ml-1 text-sm"
+                        style={{ color: colors.text.primary }}
                       >
-                        <Ionicons name="people" size={16} color="#6B7280" />
-                        <Text className="ml-1 text-sm text-gray-600">
-                          Members
-                        </Text>
-                      </TouchableOpacity>
-                    )}
-                    {(org.role === "owner" || !org.role) && (
-                      <TouchableOpacity
-                        className="flex-row items-center justify-center py-2 px-3 bg-red-50 rounded-lg"
-                        onPress={() => handleDelete(org)}
-                      >
-                        <Ionicons name="trash" size={16} color="#EF4444" />
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                )}
+                        Members
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                  {(org.role === "owner" || !org.role) && (
+                    <TouchableOpacity
+                      className="flex-row items-center justify-center py-2 px-3 rounded-lg"
+                      style={{ backgroundColor: colors.error + "15" }}
+                      onPress={() => handleDelete(org)}
+                    >
+                      <Ionicons name="trash" size={16} color={colors.error} />
+                    </TouchableOpacity>
+                  )}
+                </View>
               </TouchableOpacity>
             ))}
           </View>

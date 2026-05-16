@@ -47,30 +47,10 @@ const STATUS_OPTIONS: {
   { value: "cancelled", label: "Cancelled", color: "bg-red-100 text-red-700" },
 ];
 
-const getStatusColor = (status: InvoiceStatus) => {
-  switch (status) {
-    case "draft":
-      return "bg-gray-100 text-gray-600";
-    case "pending":
-      return "bg-yellow-100 text-yellow-700";
-    case "partial":
-      return "bg-blue-100 text-blue-700";
-    case "paid":
-      return "bg-green-100 text-green-700";
-    case "cancelled":
-      return "bg-red-100 text-red-700";
-    case "overdue":
-      return "bg-orange-100 text-orange-700";
-    default:
-      return "bg-gray-100 text-gray-600";
-  }
-};
-
 export default function InvoicesScreen() {
   const router = useRouter();
   const organizationId = useActiveOrgId();
-  const { canManageInvoices, canCreateInvoices, canViewInvoices } =
-    useOrganization();
+  const { canManageInvoices, canCreateInvoices } = useOrganization();
 
   const [activeType, setActiveType] = useState<InvoiceType | "all">("all");
   const [activeStatus, setActiveStatus] = useState<InvoiceStatus | "all">(
@@ -87,6 +67,8 @@ export default function InvoicesScreen() {
         status: activeStatus === "all" ? undefined : activeStatus,
       }),
   });
+
+  const { colors } = useTheme();
 
   const invoices = useMemo(() => {
     const list = data?.invoices || [];
@@ -132,8 +114,6 @@ export default function InvoicesScreen() {
       </View>
     );
   }
-
-  const { colors } = useTheme();
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg.primary }}>

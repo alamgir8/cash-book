@@ -237,10 +237,8 @@ export function OrganizationFormModal({
               </TouchableOpacity>
             </View>
 
-            <View
-              className="px-6 py-4"
-            >
-              {/* Business Name */}}
+            <View className="px-6 py-4">
+              {/* Business Name */}
               <Controller
                 control={control}
                 name="name"
@@ -512,7 +510,7 @@ export function OrganizationFormModal({
               </View>
             </View>
 
-            {/* Footer */}}
+            {/* Footer */}
             <View
               className="px-6 pt-4 border-t"
               style={{

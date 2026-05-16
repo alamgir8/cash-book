@@ -146,11 +146,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
           console.warn("Failed to load preferences:", error);
         });
     }
-  }, [
-    state.status,
-    state.user?.settings?.currency,
-    state.user?.settings?.language,
-  ]);
+  }, [state.status, state.user?.settings]);
 
   const updatePreferences = useCallback(
     async (newPrefs: Partial<UserPreferences>) => {
