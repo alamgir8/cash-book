@@ -10,7 +10,7 @@ const MAX_RAW_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB – multer hard cap
 const MAX_ATTACHMENTS_PER_TRANSACTION = 10;
 // Limits applied to the locally-compressed buffer BEFORE any Cloudinary upload
 const MAX_IMAGE_BYTES_AFTER_OPT = 1 * 1024 * 1024; // 1 MB
-const MAX_PDF_BYTES_AFTER_OPT = 1.5 * 1024 * 1024; // 1.5 MB
+const MAX_PDF_BYTES_AFTER_OPT = 5 * 1024 * 1024; // 5 MB
 const ALLOWED_MIME_TYPES = new Set([
   "image/jpeg",
   "image/jpg",
@@ -97,7 +97,10 @@ const uploadBufferToCloudinary = (buffer, options) =>
 
 // ── Derive a thumbnail URL from a Cloudinary public_id ───────────────────
 const makeThumbnailUrl = (publicId, isPdf) => {
-  if (isPdf) return null; // PDF thumbnails need paid plan or separate handling
+  // PDFs are stored as resource_type "raw" — Cloudinary cannot apply image
+  // transformations to raw resources on the free tier, so thumbnails are null.
+  // The mobile app falls back to a PDF icon when thumbnail_url is null.
+  if (isPdf) return null;
   return cloudinary.url(publicId, {
     width: 300,
     height: 300,
@@ -151,7 +154,7 @@ export const uploadAttachments = async (req, res, next) => {
         const sizeLimit = isPdf
           ? MAX_PDF_BYTES_AFTER_OPT
           : MAX_IMAGE_BYTES_AFTER_OPT;
-        const limitLabel = isPdf ? "1.5 MB" : "1 MB";
+        const limitLabel = isPdf ? "5 MB" : "1 MB";
 
         if (isPdf) {
           // PDFs can't be compressed — check raw size
@@ -181,6 +184,8 @@ export const uploadAttachments = async (req, res, next) => {
         }
 
         // ── Step 2: upload the validated buffer to Cloudinary ─────────────
+        // PDFs are stored as resource_type "raw" to preserve the original
+        // PDF bytes — "image" would rasterize it and break downloads.
         const result = await uploadBufferToCloudinary(uploadBuffer, {
           folder: `cash-book/transactions/${transactionId}`,
           resource_type: isPdf ? "raw" : "image",
@@ -249,7 +254,7 @@ export const deleteAttachment = async (req, res, next) => {
     const [removed] = transaction.attachments.splice(targetIndex, 1);
     await transaction.save();
 
-    // Best-effort Cloudinary deletion
+    // Best-effort Cloudinary deletion — PDFs stored as "raw", images as "image"
     const isPdf = removed.mime_type === "application/pdf";
     cloudinary.uploader
       .destroy(removed.storage_key, {

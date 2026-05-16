@@ -224,6 +224,7 @@ export function AttachmentViewerModal({
   const [localAttachments, setLocalAttachments] =
     useState<Attachment[]>(attachments);
   const [sharingKey, setSharingKey] = useState<string | null>(null);
+  const [openingPdfKey, setOpeningPdfKey] = useState<string | null>(null);
 
   // Sync when modal opens (or switches to a different transaction)
   useEffect(() => {
@@ -297,22 +298,48 @@ export function AttachmentViewerModal({
             : "public.image",
       });
     } catch {
-      Alert.alert("Share Failed", "Could not share the file. Please try again.");
+      Alert.alert(
+        "Share Failed",
+        "Could not share the file. Please try again.",
+      );
     } finally {
       setSharingKey(null);
     }
   }, []);
 
-  const openPdf = useCallback((url: string) => {
-    Linking.openURL(url).catch(() =>
-      Alert.alert("Error", "Cannot open this file."),
-    );
+  const openPdf = useCallback(async (attachment: Attachment) => {
+    const canShare = await Sharing.isAvailableAsync();
+    if (!canShare) {
+      // Last-resort fallback: open URL in browser (iOS Safari can render PDFs)
+      Linking.openURL(attachment.url).catch(() =>
+        Alert.alert("Error", "Cannot open this PDF."),
+      );
+      return;
+    }
+    setOpeningPdfKey(attachment.storage_key);
+    try {
+      const fileName = attachment.file_name?.endsWith(".pdf")
+        ? attachment.file_name
+        : (attachment.file_name ?? `document_${Date.now()}`) + ".pdf";
+      const localUri = (FileSystem.cacheDirectory ?? "") + fileName;
+      // Download to local cache so the OS can open it in the native PDF viewer
+      await FileSystem.downloadAsync(attachment.url, localUri);
+      await Sharing.shareAsync(localUri, {
+        mimeType: "application/pdf",
+        dialogTitle: fileName,
+        UTI: "com.adobe.pdf",
+      });
+    } catch {
+      Alert.alert("Error", "Could not open this PDF. Please try again.");
+    } finally {
+      setOpeningPdfKey(null);
+    }
   }, []);
 
   const handleThumbnailPress = useCallback(
     (item: Attachment) => {
       if (item.mime_type === "application/pdf") {
-        openPdf(item.url);
+        openPdf(item);
       } else {
         const idx = imageAttachments.findIndex(
           (a) => a.storage_key === item.storage_key,
@@ -338,6 +365,7 @@ export function AttachmentViewerModal({
             style={styles.thumbTouch}
             activeOpacity={0.75}
             onPress={() => handleThumbnailPress(item)}
+            disabled={openingPdfKey === item.storage_key}
           >
             {!isImg ? (
               <View
@@ -350,14 +378,29 @@ export function AttachmentViewerModal({
                   },
                 ]}
               >
-                <Ionicons
-                  name="document-text"
-                  size={40}
-                  color={colors.text.secondary}
-                />
-                <Text style={[styles.pdfLabel, { color: colors.text.tertiary }]}>
-                  PDF
-                </Text>
+                {openingPdfKey === item.storage_key ? (
+                  <ActivityIndicator size="large" color={colors.primary} />
+                ) : item.thumbnail_url ? (
+                  // Cloudinary-generated page-1 thumbnail
+                  <Image
+                    source={{ uri: item.thumbnail_url }}
+                    style={{ width: THUMB_SIZE, height: THUMB_SIZE }}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <>
+                    <Ionicons
+                      name="document-text"
+                      size={40}
+                      color={colors.text.secondary}
+                    />
+                    <Text
+                      style={[styles.pdfLabel, { color: colors.text.tertiary }]}
+                    >
+                      PDF
+                    </Text>
+                  </>
+                )}
               </View>
             ) : (
               <Image
@@ -368,24 +411,26 @@ export function AttachmentViewerModal({
             )}
           </TouchableOpacity>
 
-          {/* Expand icon — TOP RIGHT, own TouchableOpacity so it always works */}
-          {isImg && (
-            <TouchableOpacity
-              style={styles.expandBtn}
-              onPress={() => handleThumbnailPress(item)}
-              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-            >
-              <Ionicons
-                name="expand-outline"
-                size={18}
-                color="rgba(255,255,255,0.95)"
-              />
-            </TouchableOpacity>
-          )}
+          {/* Expand icon (images) / Open icon (PDFs) — TOP RIGHT */}
+          <TouchableOpacity
+            style={styles.expandBtn}
+            onPress={() => handleThumbnailPress(item)}
+            disabled={openingPdfKey === item.storage_key}
+            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+          >
+            <Ionicons
+              name={isImg ? "expand-outline" : "open-outline"}
+              size={18}
+              color="rgba(255,255,255,0.95)"
+            />
+          </TouchableOpacity>
 
           {/* Footer: share · filename · delete */}
           <View
-            style={[styles.thumbFooter, { backgroundColor: colors.bg.secondary }]}
+            style={[
+              styles.thumbFooter,
+              { backgroundColor: colors.bg.secondary },
+            ]}
           >
             <TouchableOpacity
               onPress={() => handleShare(item)}
@@ -438,6 +483,7 @@ export function AttachmentViewerModal({
       colors,
       canDelete,
       sharingKey,
+      openingPdfKey,
       deleteMutation.isPending,
       deleteMutation.variables,
       handleThumbnailPress,
