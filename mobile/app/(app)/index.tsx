@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { FlatList, RefreshControl, Text, View } from "react-native";
 import { FilterBar } from "@/components/filter-bar";
 import { TransactionCard } from "@/components/transaction-card";
@@ -84,8 +84,8 @@ export default function DashboardScreen() {
         onEdit={handleEditTransaction}
         onDelete={isDeleteModeActive ? handleDeleteTransaction : undefined}
         onAttachmentsPress={handleAttachmentsPress}
-        onPayDue={(t) => setPayingDueTxn(t)}
-        onViewChain={(t) => setViewingChainFor(t)}
+        onPayDue={setPayingDueTxn}
+        onViewChain={setViewingChainFor}
       />
     ),
     [
@@ -102,7 +102,21 @@ export default function DashboardScreen() {
     ],
   );
 
-  const renderHeader = () => {
+  const handleFilterDue = useCallback(
+    () => handlePaymentStatusFilter("due"),
+    [handlePaymentStatusFilter],
+  );
+  const handleAddTransaction = useCallback(
+    () => setModalVisible(true),
+    [setModalVisible],
+  );
+  const handleApplyFilters = useCallback(
+    () => transactionsQuery.refetch(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [transactionsQuery.refetch],
+  );
+
+  const renderHeader = useMemo(() => {
     const transactionCount =
       (transactionsQuery.data as any)?.transactions?.length || 0;
     const accountCount = accountsQuery.data?.length || 0;
@@ -125,10 +139,10 @@ export default function DashboardScreen() {
           <QuickFeaturesSkeleton />
         ) : (
           <HomeQuickFeatures
-            onAddTransaction={() => setModalVisible(true)}
+            onAddTransaction={handleAddTransaction}
             onAddTransfer={openTransferModal}
             onExportPDF={handleExportPdf}
-            onFilterDue={() => handlePaymentStatusFilter("due")}
+            onFilterDue={handleFilterDue}
           />
         )}
 
@@ -137,7 +151,7 @@ export default function DashboardScreen() {
           onChange={handleFilterChange}
           hasActiveFilters={hasActiveFilters}
           accounts={accountOptions}
-          onApplyFilters={() => transactionsQuery.refetch()}
+          onApplyFilters={handleApplyFilters}
           onReset={handleResetFilters}
           showCategoryField
           categories={categoryOptions}
@@ -149,7 +163,26 @@ export default function DashboardScreen() {
         />
       </View>
     );
-  };
+  }, [
+    transactionsQuery.data,
+    transactionsQuery.isLoading,
+    accountsQuery.data,
+    accountsQuery.isLoading,
+    totals,
+    filters,
+    hasActiveFilters,
+    accountOptions,
+    categoryOptions,
+    counterpartyOptions,
+    vendorOptions,
+    handleAddTransaction,
+    openTransferModal,
+    handleExportPdf,
+    handleFilterDue,
+    handleFilterChange,
+    handleApplyFilters,
+    handleResetFilters,
+  ]);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg.secondary }}>
@@ -185,7 +218,7 @@ export default function DashboardScreen() {
             colors={["#1d4ed8"]}
           />
         }
-        ListHeaderComponent={renderHeader}
+        ListHeaderComponent={<>{renderHeader}</>}
         ListEmptyComponent={
           transactionsQuery.isLoading ? (
             <TransactionListSkeleton count={8} />

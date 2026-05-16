@@ -80,8 +80,8 @@ export default function TransactionsScreen() {
         onEdit={canEditTransactions ? handleEditTransaction : undefined}
         onDelete={isDeleteModeActive ? handleDeleteTransaction : undefined}
         onAttachmentsPress={handleAttachmentsPress}
-        onPayDue={(t) => setPayingDueTxn(t)}
-        onViewChain={(t) => setViewingChainFor(t)}
+        onPayDue={setPayingDueTxn}
+        onViewChain={setViewingChainFor}
       />
     ),
     [
