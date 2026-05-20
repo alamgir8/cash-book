@@ -5,6 +5,7 @@ import { useTheme } from "@/hooks/use-theme";
 interface BackupSectionProps {
   backingUp: boolean;
   restoring: boolean;
+  restoreEnabled: boolean;
   onBackup: () => void;
   onRestore: () => void;
 }
@@ -12,6 +13,7 @@ interface BackupSectionProps {
 export function BackupSection({
   backingUp,
   restoring,
+  restoreEnabled,
   onBackup,
   onRestore,
 }: BackupSectionProps) {
@@ -103,43 +105,57 @@ export function BackupSection({
         </TouchableOpacity>
 
         <TouchableOpacity
-          onPress={onRestore}
-          disabled={restoring}
+          onPress={restoreEnabled ? onRestore : undefined}
+          disabled={restoring || !restoreEnabled}
           className="flex-row items-center gap-4 rounded-2xl p-4 active:scale-98"
           style={{
-            backgroundColor: colors.warning + "15",
+            backgroundColor: restoreEnabled
+              ? colors.warning + "15"
+              : colors.bg.primary,
             opacity: restoring ? 0.7 : 1,
+            borderWidth: restoreEnabled ? 0 : 1,
+            borderColor: colors.border,
           }}
         >
           <View
             className="w-12 h-12 rounded-full items-center justify-center"
-            style={{ backgroundColor: colors.warning + "30" }}
+            style={{
+              backgroundColor: restoreEnabled
+                ? colors.warning + "30"
+                : colors.border + "60",
+            }}
           >
             {restoring ? (
               <ActivityIndicator size="small" color={colors.warning} />
             ) : (
               <Ionicons
-                name="cloud-download"
+                name={restoreEnabled ? "cloud-download" : "lock-closed-outline"}
                 size={24}
-                color={colors.warning}
+                color={restoreEnabled ? colors.warning : colors.text.secondary}
               />
             )}
           </View>
           <View className="flex-1">
             <Text
               className="font-bold text-base"
-              style={{ color: colors.text.primary }}
+              style={{
+                color: restoreEnabled
+                  ? colors.text.primary
+                  : colors.text.secondary,
+              }}
             >
               {restoring ? "Restoring..." : "Restore Backup"}
             </Text>
             <Text className="text-sm" style={{ color: colors.text.secondary }}>
-              Import data from JSON file
+              {restoreEnabled
+                ? "Import data from JSON file"
+                : "Import data from JSON file"}
             </Text>
           </View>
           <Ionicons
-            name="chevron-forward"
+            name={restoreEnabled ? "chevron-forward" : "lock-closed"}
             size={20}
-            color={colors.text.tertiary}
+            color={restoreEnabled ? colors.text.tertiary : colors.border}
           />
         </TouchableOpacity>
       </View>

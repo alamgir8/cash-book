@@ -8,6 +8,7 @@ import { useBiometric } from "@/hooks/use-biometric";
 import { useOrganization } from "@/hooks/use-organization";
 import { useTheme } from "@/hooks/use-theme";
 import { useDeleteMode } from "@/hooks/use-delete-mode";
+import { useRestoreMode } from "@/hooks/use-restore-mode";
 import {
   exportTransactionsPdf,
   exportTransactionsByCategoryPdf,
@@ -72,6 +73,11 @@ export default function SettingsScreen() {
   const [showBiometricModal, setShowBiometricModal] = useState(false);
   const [showBalanceCheck, setShowBalanceCheck] = useState(false);
   const { recordTap, isDeleteModeActive, secondsLeft } = useDeleteMode();
+  const {
+    recordRestoreTap,
+    isRestoreModeActive,
+    secondsLeft: restoreSecondsLeft,
+  } = useRestoreMode();
 
   // Auto-backup
   const userId = state.status === "authenticated" ? state.user._id : undefined;
@@ -80,6 +86,8 @@ export default function SettingsScreen() {
     setEnabled: setAutoBackupEnabled,
     lastBackupAt,
     refreshLastBackupAt,
+    isDefaultDevice,
+    setDefaultDevice,
   } = useAutoBackup(userId);
 
   const orgId = activeOrganization?.id;
@@ -262,6 +270,7 @@ export default function SettingsScreen() {
         gradientFrom="from-purple-100"
         gradientTo="to-purple-200"
         onIconPress={recordTap}
+        onTitlePress={recordRestoreTap}
         rightAction={
           isDeleteModeActive ? (
             <View
@@ -277,6 +286,22 @@ export default function SettingsScreen() {
                 className="text-xs font-bold"
               >
                 Delete mode {secondsLeft}s
+              </Text>
+            </View>
+          ) : isRestoreModeActive ? (
+            <View
+              className="flex-row items-center gap-1.5 px-3 py-1.5 rounded-full"
+              style={{ backgroundColor: colors.warning + "25" }}
+            >
+              <View
+                className="w-2 h-2 rounded-full"
+                style={{ backgroundColor: colors.warning }}
+              />
+              <Text
+                style={{ color: colors.warning }}
+                className="text-xs font-bold"
+              >
+                Restore unlocked {restoreSecondsLeft}s
               </Text>
             </View>
           ) : undefined
@@ -338,6 +363,7 @@ export default function SettingsScreen() {
           <BackupSection
             backingUp={backingUp}
             restoring={restoring}
+            restoreEnabled={isRestoreModeActive}
             onBackup={handleBackup}
             onRestore={handleRestore}
           />
@@ -348,6 +374,8 @@ export default function SettingsScreen() {
           enabled={autoBackupEnabled}
           onToggle={(val) => void setAutoBackupEnabled(val)}
           initialLastBackupAt={lastBackupAt}
+          isDefaultDevice={isDefaultDevice}
+          onDefaultDeviceToggle={(val) => void setDefaultDevice(val)}
           onBackupNow={handleAutoBackupNow}
           onShare={handleAutoShare}
         />

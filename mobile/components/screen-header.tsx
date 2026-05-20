@@ -14,6 +14,7 @@ interface ScreenHeaderProps {
   showBack?: boolean;
   onBack?: () => void;
   onIconPress?: () => void;
+  onTitlePress?: () => void;
   rightAction?: React.ReactNode;
   actionButton?: {
     label: string;
@@ -32,6 +33,7 @@ export function ScreenHeader({
   showBack,
   onBack,
   onIconPress,
+  onTitlePress,
   rightAction,
   actionButton,
 }: ScreenHeaderProps) {
@@ -63,12 +65,18 @@ export function ScreenHeader({
         )}
 
         <View className="flex-1">
-          <Text
-            style={{ color: colors.text.primary }}
-            className="text-xl font-bold"
+          <TouchableOpacity
+            onPress={onTitlePress}
+            activeOpacity={onTitlePress ? 0.7 : 1}
+            disabled={!onTitlePress}
           >
-            {title}
-          </Text>
+            <Text
+              style={{ color: colors.text.primary }}
+              className="text-xl font-bold"
+            >
+              {title}
+            </Text>
+          </TouchableOpacity>
           {subtitle && (
             <Text
               style={{ color: colors.text.secondary }}

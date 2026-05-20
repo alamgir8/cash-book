@@ -1,5 +1,5 @@
 import { Link, useRouter } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -22,6 +22,9 @@ import { getBiometricUsers } from "@/services/biometric";
 import { CustomInput } from "@/components/custom-input";
 import { PasswordInput } from "@/components/password-input";
 import { CustomButton } from "@/components/custom-button";
+import { checkAndMarkFreshDevice } from "@/hooks/use-auto-backup";
+import { fetchBackupData } from "@/services/backup";
+import { RestoreFromBackupModal } from "@/components/modals/restore-from-backup-modal";
 
 const schema = z
   .object({
@@ -78,11 +81,57 @@ export default function SignInScreen() {
   // Whether any user on this device has biometric stored (doesn't need userIdentifier)
   const [hasBiometricStored, setHasBiometricStored] = useState(false);
 
+  // First-login restore modal
+  const [restoreModalVisible, setRestoreModalVisible] = useState(false);
+  const [restoreServerData, setRestoreServerData] = useState({
+    accounts: 0,
+    transactions: 0,
+    categories: 0,
+    transfers: 0,
+  });
+  // Prevents triggering the check more than once per session
+  const freshDeviceCheckedRef = useRef(false);
+
   useEffect(() => {
     getBiometricUsers().then((users) =>
       setHasBiometricStored(users.length > 0),
     );
   }, []);
+
+  // After successful login, check if this is a fresh device with server data
+  useEffect(() => {
+    if (state.status !== "authenticated" || freshDeviceCheckedRef.current)
+      return;
+
+    freshDeviceCheckedRef.current = true;
+    const userId = state.user._id;
+
+    void (async () => {
+      try {
+        const isFresh = await checkAndMarkFreshDevice(userId);
+        if (!isFresh) return;
+
+        const backupData = await fetchBackupData();
+        const txCount = backupData.data.transactions?.length ?? 0;
+        const acCount = backupData.data.accounts?.length ?? 0;
+        const catCount = backupData.data.categories?.length ?? 0;
+        const trCount = backupData.data.transfers?.length ?? 0;
+
+        // Only show the modal if the server actually has meaningful data
+        if (txCount + acCount > 0) {
+          setRestoreServerData({
+            accounts: acCount,
+            transactions: txCount,
+            categories: catCount,
+            transfers: trCount,
+          });
+          setRestoreModalVisible(true);
+        }
+      } catch {
+        // Non-fatal — silently skip the prompt on network failure
+      }
+    })();
+  }, [state]);
 
   const {
     control,
@@ -219,199 +268,217 @@ export default function SignInScreen() {
   const { colors } = useTheme();
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "padding"}
-      style={{ flex: 1, backgroundColor: colors.bg.primary }}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
-    >
-      <ScrollView
-        className="flex-1"
-        contentContainerStyle={{
-          flexGrow: 1,
-          paddingHorizontal: 24,
-          paddingBottom: 40,
-        }}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
+    <>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "padding"}
+        style={{ flex: 1, backgroundColor: colors.bg.primary }}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
       >
-        <View className="flex-1 justify-center gap-8 py-12">
-          <View className="items-center mb-8">
-            <Text
-              style={{ color: colors.text.primary }}
-              className="text-4xl font-bold mb-3"
-            >
-              Welcome Back
-            </Text>
-            <Text
-              style={{ color: colors.text.secondary }}
-              className="text-lg text-center leading-6"
-            >
-              Manage your debit and credit accounts effortlessly.
-            </Text>
-            {/* <Image
+        <ScrollView
+          className="flex-1"
+          contentContainerStyle={{
+            flexGrow: 1,
+            paddingHorizontal: 24,
+            paddingBottom: 40,
+          }}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View className="flex-1 justify-center gap-8 py-12">
+            <View className="items-center mb-8">
+              <Text
+                style={{ color: colors.text.primary }}
+                className="text-4xl font-bold mb-3"
+              >
+                Welcome Back
+              </Text>
+              <Text
+                style={{ color: colors.text.secondary }}
+                className="text-lg text-center leading-6"
+              >
+                Manage your debit and credit accounts effortlessly.
+              </Text>
+              {/* <Image
               source={require("../../image/logo.png")}
               className="w-64 h-64 mt-6"
               resizeMode="contain"
             /> */}
-          </View>
+            </View>
 
-          <View className="gap-6">
-            <Controller
-              control={control}
-              name="identifier"
-              render={({ field: { onChange, value } }) => (
-                <CustomInput
-                  label="Email or phone"
-                  value={value}
-                  onChangeText={onChange}
-                  placeholder="Email or phone number"
-                  autoCapitalize="none"
-                  keyboardType="email-address"
-                  error={errors.identifier?.message}
+            <View className="gap-6">
+              <Controller
+                control={control}
+                name="identifier"
+                render={({ field: { onChange, value } }) => (
+                  <CustomInput
+                    label="Email or phone"
+                    value={value}
+                    onChangeText={onChange}
+                    placeholder="Email or phone number"
+                    autoCapitalize="none"
+                    keyboardType="email-address"
+                    error={errors.identifier?.message}
+                  />
+                )}
+              />
+
+              {usePinLogin ? (
+                <Controller
+                  control={control}
+                  name="pin"
+                  render={({ field: { onChange, value } }) => (
+                    <PasswordInput
+                      label="6-digit PIN"
+                      value={value ?? ""}
+                      onChangeText={onChange}
+                      placeholder="Enter PIN"
+                      keyboardType="number-pad"
+                      maxLength={6}
+                      error={errors.pin?.message}
+                    />
+                  )}
+                />
+              ) : (
+                <Controller
+                  control={control}
+                  name="password"
+                  render={({ field: { onChange, value } }) => (
+                    <PasswordInput
+                      label="Password"
+                      value={value ?? ""}
+                      onChangeText={onChange}
+                      placeholder="••••••••"
+                      error={errors.password?.message}
+                    />
+                  )}
                 />
               )}
-            />
 
-            {usePinLogin ? (
-              <Controller
-                control={control}
-                name="pin"
-                render={({ field: { onChange, value } }) => (
-                  <PasswordInput
-                    label="6-digit PIN"
-                    value={value ?? ""}
-                    onChangeText={onChange}
-                    placeholder="Enter PIN"
-                    keyboardType="number-pad"
-                    maxLength={6}
-                    error={errors.pin?.message}
-                  />
-                )}
-              />
-            ) : (
-              <Controller
-                control={control}
-                name="password"
-                render={({ field: { onChange, value } }) => (
-                  <PasswordInput
-                    label="Password"
-                    value={value ?? ""}
-                    onChangeText={onChange}
-                    placeholder="••••••••"
-                    error={errors.password?.message}
-                  />
-                )}
-              />
-            )}
-
-            <TouchableOpacity
-              onPress={() => setUsePinLogin((prev) => !prev)}
-              className="self-end"
-            >
-              <Text className="text-blue-600 font-semibold text-sm">
-                {usePinLogin ? "Use password instead" : "Use PIN instead"}
-              </Text>
-            </TouchableOpacity>
-
-            <CustomButton
-              title="Sign In"
-              onPress={handleSubmit(onSubmit)}
-              loading={loading}
-              containerClassName="mt-4"
-            />
-
-            {/* Biometric / Face ID Login Button */}
-            {(hasBiometricStored || biometricStatus?.isAvailable) && (
               <TouchableOpacity
-                onPress={
-                  hasBiometricStored
-                    ? handleBiometricLogin
-                    : () =>
-                        Toast.show({
-                          type: "info",
-                          text1: `Enable ${getBiometricDisplayName(biometricStatus?.biometricType ?? "none")}`,
-                          text2: "Go to Settings → Security to enable it.",
-                        })
-                }
-                disabled={isAuthenticating || loading}
-                style={{
-                  backgroundColor: hasBiometricStored
-                    ? `${colors.primary}18`
-                    : colors.bg.tertiary,
-                  borderColor: hasBiometricStored
-                    ? colors.primary
-                    : colors.border,
-                  opacity: isAuthenticating || loading ? 0.6 : 1,
-                }}
-                className="flex-row items-center justify-center gap-3 border rounded-xl py-4 mt-3"
+                onPress={() => setUsePinLogin((prev) => !prev)}
+                className="self-end"
               >
-                {isAuthenticating ? (
-                  <ActivityIndicator size="small" color={colors.primary} />
-                ) : (
-                  <Ionicons
-                    name={getBiometricIconName(
-                      biometricStatus?.biometricType ?? "none",
-                    )}
-                    size={26}
-                    color={
-                      hasBiometricStored ? colors.primary : colors.text.tertiary
-                    }
-                  />
-                )}
-                <View>
-                  <Text
-                    style={{
-                      color: hasBiometricStored
-                        ? colors.primary
-                        : colors.text.secondary,
-                    }}
-                    className="font-bold text-base"
-                  >
-                    {isAuthenticating
-                      ? "Authenticating..."
-                      : hasBiometricStored
-                        ? `Login with ${getBiometricDisplayName(biometricStatus?.biometricType ?? "none")}`
-                        : `${getBiometricDisplayName(biometricStatus?.biometricType ?? "none")} Login`}
-                  </Text>
-                  {!hasBiometricStored && (
-                    <Text
-                      style={{ color: colors.text.tertiary }}
-                      className="text-xs mt-0.5"
-                    >
-                      Enable in Settings → Security
-                    </Text>
-                  )}
-                </View>
+                <Text className="text-blue-600 font-semibold text-sm">
+                  {usePinLogin ? "Use password instead" : "Use PIN instead"}
+                </Text>
               </TouchableOpacity>
-            )}
 
-            {formError ? (
+              <CustomButton
+                title="Sign In"
+                onPress={handleSubmit(onSubmit)}
+                loading={loading}
+                containerClassName="mt-4"
+              />
+
+              {/* Biometric / Face ID Login Button */}
+              {(hasBiometricStored || biometricStatus?.isAvailable) && (
+                <TouchableOpacity
+                  onPress={
+                    hasBiometricStored
+                      ? handleBiometricLogin
+                      : () =>
+                          Toast.show({
+                            type: "info",
+                            text1: `Enable ${getBiometricDisplayName(biometricStatus?.biometricType ?? "none")}`,
+                            text2: "Go to Settings → Security to enable it.",
+                          })
+                  }
+                  disabled={isAuthenticating || loading}
+                  style={{
+                    backgroundColor: hasBiometricStored
+                      ? `${colors.primary}18`
+                      : colors.bg.tertiary,
+                    borderColor: hasBiometricStored
+                      ? colors.primary
+                      : colors.border,
+                    opacity: isAuthenticating || loading ? 0.6 : 1,
+                  }}
+                  className="flex-row items-center justify-center gap-3 border rounded-xl py-4 mt-3"
+                >
+                  {isAuthenticating ? (
+                    <ActivityIndicator size="small" color={colors.primary} />
+                  ) : (
+                    <Ionicons
+                      name={getBiometricIconName(
+                        biometricStatus?.biometricType ?? "none",
+                      )}
+                      size={26}
+                      color={
+                        hasBiometricStored
+                          ? colors.primary
+                          : colors.text.tertiary
+                      }
+                    />
+                  )}
+                  <View>
+                    <Text
+                      style={{
+                        color: hasBiometricStored
+                          ? colors.primary
+                          : colors.text.secondary,
+                      }}
+                      className="font-bold text-base"
+                    >
+                      {isAuthenticating
+                        ? "Authenticating..."
+                        : hasBiometricStored
+                          ? `Login with ${getBiometricDisplayName(biometricStatus?.biometricType ?? "none")}`
+                          : `${getBiometricDisplayName(biometricStatus?.biometricType ?? "none")} Login`}
+                    </Text>
+                    {!hasBiometricStored && (
+                      <Text
+                        style={{ color: colors.text.tertiary }}
+                        className="text-xs mt-0.5"
+                      >
+                        Enable in Settings → Security
+                      </Text>
+                    )}
+                  </View>
+                </TouchableOpacity>
+              )}
+
+              {formError ? (
+                <Text
+                  style={{ color: colors.error }}
+                  className="text-sm text-center mt-3"
+                >
+                  {formError}
+                </Text>
+              ) : null}
+            </View>
+
+            <View className="flex-row justify-center items-center gap-2 mt-8">
               <Text
-                style={{ color: colors.error }}
-                className="text-sm text-center mt-3"
+                style={{ color: colors.text.secondary }}
+                className="text-base"
               >
-                {formError}
+                New here?
               </Text>
-            ) : null}
+              <Link
+                href="/(auth)/sign-up"
+                style={{ color: colors.primary }}
+                className="font-semibold text-base"
+              >
+                Create an account
+              </Link>
+            </View>
           </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
 
-          <View className="flex-row justify-center items-center gap-2 mt-8">
-            <Text
-              style={{ color: colors.text.secondary }}
-              className="text-base"
-            >
-              New here?
-            </Text>
-            <Link
-              href="/(auth)/sign-up"
-              style={{ color: colors.primary }}
-              className="font-semibold text-base"
-            >
-              Create an account
-            </Link>
-          </View>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      {/* First-login restore from backup modal */}
+      <RestoreFromBackupModal
+        visible={restoreModalVisible}
+        serverData={restoreServerData}
+        onRestored={() => {
+          setRestoreModalVisible(false);
+          router.replace("/(app)");
+        }}
+        onSkip={() => {
+          setRestoreModalVisible(false);
+          router.replace("/(app)");
+        }}
+      />
+    </>
   );
 }

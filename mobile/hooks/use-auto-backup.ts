@@ -15,6 +15,26 @@ const MAX_LOCAL_BACKUPS = 5;
 
 const tsKey = (uid: string) => `auto_backup_last_ts_${uid}`;
 const enabledKey = (uid: string) => `auto_backup_enabled_${uid}`;
+const defaultDeviceKey = (uid: string) => `auto_backup_default_device_${uid}`;
+/** Set when the user has seen/dismissed the first-login restore prompt */
+const seenRestorePromptKey = (uid: string) => `restore_prompt_seen_${uid}`;
+
+/**
+ * Returns true when this device has never backed up for this user AND the
+ * user has not yet dismissed the restore-from-backup prompt.
+ * Also marks the prompt as seen so it never appears again after this call.
+ */
+export async function checkAndMarkFreshDevice(
+  userId: string,
+): Promise<boolean> {
+  const [lastTs, seen] = await Promise.all([
+    AsyncStorage.getItem(tsKey(userId)),
+    AsyncStorage.getItem(seenRestorePromptKey(userId)),
+  ]);
+  if (seen === "1" || lastTs) return false; // already backed up or already dismissed
+  await AsyncStorage.setItem(seenRestorePromptKey(userId), "1");
+  return true;
+}
 
 export interface BackupStats {
   accounts: number;
@@ -86,6 +106,7 @@ export async function writeBackupFile(
 export function useAutoBackup(userId: string | undefined) {
   const [lastBackupAt, setLastBackupAt] = useState<Date | null>(null);
   const [enabled, setEnabledState] = useState(true);
+  const [isDefaultDevice, setDefaultDeviceState] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const setEnabled = useCallback(
@@ -93,6 +114,15 @@ export function useAutoBackup(userId: string | undefined) {
       setEnabledState(val);
       if (userId)
         await AsyncStorage.setItem(enabledKey(userId), val ? "1" : "0");
+    },
+    [userId],
+  );
+
+  const setDefaultDevice = useCallback(
+    async (val: boolean) => {
+      setDefaultDeviceState(val);
+      if (userId)
+        await AsyncStorage.setItem(defaultDeviceKey(userId), val ? "1" : "0");
     },
     [userId],
   );
@@ -132,12 +162,14 @@ export function useAutoBackup(userId: string | undefined) {
 
     const init = async () => {
       try {
-        const [rawEnabled, rawTs] = await Promise.all([
+        const [rawEnabled, rawTs, rawDefault] = await Promise.all([
           AsyncStorage.getItem(enabledKey(userId)),
           AsyncStorage.getItem(tsKey(userId)),
+          AsyncStorage.getItem(defaultDeviceKey(userId)),
         ]);
         if (rawEnabled !== null) setEnabledState(rawEnabled !== "0");
         if (rawTs) setLastBackupAt(new Date(parseInt(rawTs, 10)));
+        if (rawDefault !== null) setDefaultDeviceState(rawDefault === "1");
         await checkAndRunIfDue(rawEnabled !== "0");
       } catch (e) {
         console.warn("[AutoBackup] init failed:", e);
@@ -159,5 +191,12 @@ export function useAutoBackup(userId: string | undefined) {
     };
   }, [userId, checkAndRunIfDue]);
 
-  return { enabled, setEnabled, lastBackupAt, refreshLastBackupAt };
+  return {
+    enabled,
+    setEnabled,
+    lastBackupAt,
+    refreshLastBackupAt,
+    isDefaultDevice,
+    setDefaultDevice,
+  };
 }

@@ -16,6 +16,9 @@ interface AutoBackupSectionProps {
   onToggle: (value: boolean) => void;
   /** Initial value loaded from AsyncStorage by the hook */
   initialLastBackupAt: Date | null;
+  /** Whether this device is marked as the primary/default backup device */
+  isDefaultDevice: boolean;
+  onDefaultDeviceToggle: (value: boolean) => void;
   /**
    * Called when user taps "Backup Now". Receives an onProgress callback so the
    * component can update its own progress bar. Should return BackupStats on
@@ -67,6 +70,8 @@ export function AutoBackupSection({
   enabled,
   onToggle,
   initialLastBackupAt,
+  isDefaultDevice,
+  onDefaultDeviceToggle,
   onBackupNow,
   onShare,
 }: AutoBackupSectionProps) {
@@ -490,6 +495,55 @@ export function AutoBackupSection({
             color={colors.text.secondary}
           />
         </TouchableOpacity>
+
+        {/* Default Device toggle */}
+        <View
+          className="flex-row items-center gap-4 rounded-2xl p-4"
+          style={{
+            backgroundColor: colors.bg.primary,
+            borderWidth: 1,
+            borderColor: isDefaultDevice ? "#10b981" + "40" : colors.border,
+          }}
+        >
+          <View
+            className="w-12 h-12 rounded-full items-center justify-center"
+            style={{
+              backgroundColor:
+                (isDefaultDevice ? "#10b981" : colors.text.secondary) + "20",
+            }}
+          >
+            <Ionicons
+              name={
+                isDefaultDevice ? "phone-portrait" : "phone-portrait-outline"
+              }
+              size={22}
+              color={isDefaultDevice ? "#10b981" : colors.text.secondary}
+            />
+          </View>
+          <View className="flex-1">
+            <Text
+              className="text-base font-semibold"
+              style={{ color: colors.text.primary }}
+            >
+              Default Device
+            </Text>
+            <Text
+              className="text-sm mt-0.5"
+              style={{ color: colors.text.secondary }}
+            >
+              {isDefaultDevice
+                ? "This is your primary backup device"
+                : "Mark this as your primary backup device"}
+            </Text>
+          </View>
+          <Switch
+            value={isDefaultDevice}
+            onValueChange={onDefaultDeviceToggle}
+            trackColor={{ false: colors.border, true: "#10b981" + "80" }}
+            thumbColor={isDefaultDevice ? "#10b981" : colors.text.secondary}
+            ios_backgroundColor={colors.border}
+          />
+        </View>
       </View>
     </View>
   );
