@@ -84,6 +84,28 @@ export const SearchableSelect = ({
     };
   }, [search, fetchOptions]);
 
+  // Pre-load initial options when the sheet opens (if no static options provided)
+  useEffect(() => {
+    if (!visible || !fetchOptions) return;
+    if (options.length > 0) return; // static options already supplied
+    let cancelled = false;
+    setIsFetching(true);
+    fetchOptions("")
+      .then((results) => {
+        if (!cancelled) setAsyncOptions(results);
+      })
+      .catch(() => {
+        if (!cancelled) setAsyncOptions([]);
+      })
+      .finally(() => {
+        if (!cancelled) setIsFetching(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
+
   // Merge prop options + async results, deduplicating by value
   const mergedOptions = useMemo(() => {
     if (!asyncOptions.length) return options;

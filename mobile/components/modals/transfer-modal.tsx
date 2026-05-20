@@ -1,7 +1,10 @@
 import { useState, useEffect, useMemo, useRef } from "react";
+import Animated, { useAnimatedStyle } from "react-native-reanimated";
 import {
   ActivityIndicator,
+  Alert,
   Dimensions,
+  Image,
   Keyboard,
   Modal,
   Platform,
@@ -11,7 +14,13 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
+import {
+  KeyboardAwareScrollView,
+  useReanimatedKeyboardAnimation,
+} from "react-native-keyboard-controller";
+import * as ImagePicker from "expo-image-picker";
+import * as DocumentPicker from "expo-document-picker";
+import Toast from "react-native-toast-message";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -26,11 +35,15 @@ import {
   type TransferFormValues,
   type SelectOption,
 } from "./types";
+import { uploadAttachments } from "@/services/attachments";
+import { fetchCounterparties } from "@/services/transactions";
 
 type TransferModalProps = {
   visible: boolean;
   onClose: () => void;
-  onSubmit: (values: TransferFormValues) => Promise<void>;
+  onSubmit: (
+    values: TransferFormValues,
+  ) => Promise<{ debit_transaction?: { _id: string } } | void>;
   accountOptions: SelectOption[];
   counterpartyOptions?: SelectOption[];
   isAccountsLoading?: boolean;
@@ -62,6 +75,17 @@ export const TransferModal = ({
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
 
+  type StagedFile = { uri: string; name: string; type: string; size?: number };
+  const [stagedFiles, setStagedFiles] = useState<StagedFile[]>([]);
+  const [uploadingAttachments, setUploadingAttachments] = useState(false);
+  const MAX_STAGED = 10;
+  const MAX_RAW_MB = 10;
+
+  const { height: kbHeight } = useReanimatedKeyboardAnimation();
+  const sheetAnimStyle = useAnimatedStyle(() => ({
+    paddingBottom: -kbHeight.value,
+  }));
+
   const { control, handleSubmit, reset, setValue, watch } =
     useForm<TransferFormValues>({
       resolver: zodResolver(transferSchema),
@@ -82,6 +106,7 @@ export const TransferModal = ({
     if (visible) {
       reset(createTransferDefaults());
       setSelectedDate(new Date());
+      setStagedFiles([]);
     }
   }, [visible, reset]);
 
@@ -96,7 +121,123 @@ export const TransferModal = ({
   };
 
   const handleFormSubmit = async (values: TransferFormValues) => {
-    await onSubmit(values);
+    const result = await onSubmit(values);
+    // Upload staged attachments to the debit transaction created by the transfer
+    const debitId =
+      result && "debit_transaction" in result
+        ? result.debit_transaction?._id
+        : undefined;
+    if (stagedFiles.length > 0 && debitId) {
+      setUploadingAttachments(true);
+      try {
+        await uploadAttachments(debitId, stagedFiles);
+      } catch (uploadErr) {
+        const isTooBig =
+          (uploadErr as any)?.response?.status === 413 ||
+          (uploadErr as any)?.message?.includes("413");
+        Toast.show({
+          type: "error",
+          text1: "Attachment Upload Failed",
+          text2: isTooBig
+            ? "File too large. Max 10 MB per file."
+            : "Transfer saved, but attachments could not be uploaded.",
+          visibilityTime: 5000,
+        });
+      } finally {
+        setUploadingAttachments(false);
+      }
+    }
+    closeModal();
+  };
+
+  // ── Staged file helpers ─────────────────────────────────────────────────
+  const requestCameraPermission = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission Required", "Camera access is needed.");
+      return false;
+    }
+    return true;
+  };
+
+  const requestMediaPermission = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission Required", "Photo library access is needed.");
+      return false;
+    }
+    return true;
+  };
+
+  const mapAsset = (asset: ImagePicker.ImagePickerAsset): StagedFile => ({
+    uri: asset.uri,
+    name: asset.fileName ?? `photo_${Date.now()}.jpg`,
+    type: asset.mimeType ?? "image/jpeg",
+    size: asset.fileSize,
+  });
+
+  const addStaged = (files: StagedFile[]) => {
+    for (const f of files) {
+      if (f.size && f.size > MAX_RAW_MB * 1024 * 1024) {
+        Alert.alert("File Too Large", `"${f.name}" exceeds ${MAX_RAW_MB} MB.`);
+        return;
+      }
+    }
+    setStagedFiles((prev) => [...prev, ...files].slice(0, MAX_STAGED));
+  };
+
+  const handleStagedScan = async () => {
+    if (!(await requestCameraPermission())) return;
+    const r = await ImagePicker.launchCameraAsync({
+      mediaTypes: ["images"],
+      quality: 1,
+      allowsEditing: true,
+      exif: false,
+    });
+    if (!r.canceled && r.assets[0]) addStaged([mapAsset(r.assets[0])]);
+  };
+
+  const handleStagedCamera = async () => {
+    if (!(await requestCameraPermission())) return;
+    const r = await ImagePicker.launchCameraAsync({
+      mediaTypes: ["images"],
+      quality: 0.85,
+      allowsEditing: false,
+      exif: false,
+    });
+    if (!r.canceled && r.assets[0]) addStaged([mapAsset(r.assets[0])]);
+  };
+
+  const handleStagedGallery = async () => {
+    if (!(await requestMediaPermission())) return;
+    const remaining = MAX_STAGED - stagedFiles.length;
+    const r = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsMultipleSelection: true,
+      selectionLimit: remaining,
+      quality: 0.85,
+      exif: false,
+    });
+    if (!r.canceled && r.assets.length) addStaged(r.assets.map(mapAsset));
+  };
+
+  const handleStagedDocument = async () => {
+    const r = await DocumentPicker.getDocumentAsync({
+      type: ["application/pdf"],
+      copyToCacheDirectory: true,
+      multiple: false,
+    });
+    if (!r.canceled && r.assets[0]) {
+      const a = r.assets[0];
+      addStaged([
+        {
+          uri: a.uri,
+          name: a.name,
+          type: a.mimeType ?? "application/pdf",
+          size: a.size,
+        },
+      ]);
+    }
   };
 
   const closeModal = () => {
@@ -126,18 +267,21 @@ export const TransferModal = ({
         />
 
         {/* Bottom sheet — explicit height so KeyboardAwareScrollView can flex:1 */}
-        <View
-          style={{
-            height: Dimensions.get("window").height * 0.88,
-            backgroundColor: colors.bg.primary,
-            borderTopLeftRadius: 24,
-            borderTopRightRadius: 24,
-            shadowColor: "#000",
-            shadowOffset: { width: 0, height: -4 },
-            shadowOpacity: 0.12,
-            shadowRadius: 16,
-            elevation: 24,
-          }}
+        <Animated.View
+          style={[
+            {
+              height: Dimensions.get("window").height * 0.88,
+              backgroundColor: colors.bg.primary,
+              borderTopLeftRadius: 24,
+              borderTopRightRadius: 24,
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: -4 },
+              shadowOpacity: 0.12,
+              shadowRadius: 16,
+              elevation: 24,
+            },
+            sheetAnimStyle,
+          ]}
         >
           {/* ── FIXED HEADER ─────────────────────────────────────────── */}
           <View
@@ -402,6 +546,10 @@ export const TransferModal = ({
                       onSelect={(val) => onChange(val || "")}
                       allowCustomValue={true}
                       customDisplayValue={value || ""}
+                      fetchOptions={async (q) => {
+                        const res = await fetchCounterparties(q);
+                        return res.map((v) => ({ value: v, label: v }));
+                      }}
                     />
                   )}
                 />
@@ -434,6 +582,135 @@ export const TransferModal = ({
                       />
                     )}
                   />
+                </View>
+
+                {/* Attachments */}
+                <View>
+                  <Text
+                    className="text-sm font-semibold mb-2"
+                    style={{ color: colors.text.primary }}
+                  >
+                    Attachments
+                  </Text>
+                  <Text
+                    className="text-xs mb-3"
+                    style={{ color: colors.text.tertiary }}
+                  >
+                    {stagedFiles.length}/10 files · Images ≤1 MB · PDF ≤1.5 MB ·
+                    JPG, PNG, WebP, HEIC, PDF
+                  </Text>
+                  {/* Action buttons */}
+                  <View className="flex-row gap-2 mb-3">
+                    {(
+                      [
+                        {
+                          icon: "scan-outline",
+                          label: "Scan",
+                          handler: handleStagedScan,
+                        },
+                        {
+                          icon: "camera-outline",
+                          label: "Photo",
+                          handler: handleStagedCamera,
+                        },
+                        {
+                          icon: "images-outline",
+                          label: "Gallery",
+                          handler: handleStagedGallery,
+                        },
+                        {
+                          icon: "document-outline",
+                          label: "PDF",
+                          handler: handleStagedDocument,
+                        },
+                      ] as const
+                    ).map(({ icon, label, handler }) => (
+                      <TouchableOpacity
+                        key={label}
+                        onPress={handler}
+                        disabled={stagedFiles.length >= MAX_STAGED}
+                        style={{
+                          flex: 1,
+                          paddingVertical: 10,
+                          borderRadius: 10,
+                          borderWidth: 1,
+                          borderColor: colors.border,
+                          backgroundColor: colors.bg.tertiary,
+                          alignItems: "center",
+                          gap: 4,
+                          opacity: stagedFiles.length >= MAX_STAGED ? 0.4 : 1,
+                        }}
+                      >
+                        <Ionicons
+                          name={icon}
+                          size={20}
+                          color={colors.text.secondary}
+                        />
+                        <Text
+                          style={{ fontSize: 11, color: colors.text.secondary }}
+                        >
+                          {label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  {/* Staged file previews */}
+                  {stagedFiles.length > 0 && (
+                    <View className="flex-row flex-wrap gap-2">
+                      {stagedFiles.map((file, idx) => (
+                        <View
+                          key={idx}
+                          style={{
+                            width: 72,
+                            height: 72,
+                            borderRadius: 8,
+                            overflow: "hidden",
+                            borderWidth: 1,
+                            borderColor: colors.border,
+                            backgroundColor: colors.bg.tertiary,
+                          }}
+                        >
+                          {file.type.startsWith("image") ? (
+                            <Image
+                              source={{ uri: file.uri }}
+                              style={{ width: "100%", height: "100%" }}
+                              resizeMode="cover"
+                            />
+                          ) : (
+                            <View
+                              style={{
+                                flex: 1,
+                                alignItems: "center",
+                                justifyContent: "center",
+                              }}
+                            >
+                              <Ionicons
+                                name="document-text"
+                                size={28}
+                                color={colors.text.tertiary}
+                              />
+                            </View>
+                          )}
+                          <TouchableOpacity
+                            onPress={() =>
+                              setStagedFiles((prev) =>
+                                prev.filter((_, i) => i !== idx),
+                              )
+                            }
+                            style={{
+                              position: "absolute",
+                              top: 2,
+                              right: 2,
+                              backgroundColor: "rgba(0,0,0,0.55)",
+                              borderRadius: 10,
+                            }}
+                          >
+                            <Ionicons name="close" size={16} color="white" />
+                          </TouchableOpacity>
+                        </View>
+                      ))}
+                    </View>
+                  )}
                 </View>
 
                 {/* Transfer Preview */}
@@ -470,23 +747,36 @@ export const TransferModal = ({
           >
             <TouchableOpacity
               onPress={handleSubmit(handleFormSubmit)}
-              disabled={isSubmitting}
+              disabled={isSubmitting || uploadingAttachments}
               className="rounded-2xl py-4 items-center shadow-lg"
               style={{ backgroundColor: colors.info }}
             >
-              {isSubmitting ? (
-                <ActivityIndicator color="white" />
+              {isSubmitting || uploadingAttachments ? (
+                <View className="flex-row items-center gap-2">
+                  <ActivityIndicator color="white" />
+                  <Text className="text-white font-bold text-base">
+                    {uploadingAttachments
+                      ? "Uploading attachments…"
+                      : "Saving…"}
+                  </Text>
+                </View>
               ) : (
                 <View className="flex-row items-center gap-2">
-                  <Ionicons name="swap-horizontal" size={20} color="white" />
+                  <Ionicons
+                    name={stagedFiles.length > 0 ? "attach" : "swap-horizontal"}
+                    size={20}
+                    color="white"
+                  />
                   <Text className="text-white font-bold text-base">
-                    Submit Transfer
+                    {stagedFiles.length > 0
+                      ? `Submit with ${stagedFiles.length} attachment${stagedFiles.length > 1 ? "s" : ""}`
+                      : "Submit Transfer"}
                   </Text>
                 </View>
               )}
             </TouchableOpacity>
           </View>
-        </View>
+        </Animated.View>
       </View>
     </Modal>
   );

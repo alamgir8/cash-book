@@ -156,7 +156,7 @@ export function useDashboard() {
     mutationFn: createTransfer,
     onSuccess: async () => {
       await invalidateAll();
-      setTransferModalVisible(false);
+      // NOTE: modal closes itself after attachment upload completes
       Toast.show({ type: "success", text1: "Transfer completed" });
     },
     onError: () =>
@@ -418,7 +418,7 @@ export function useDashboard() {
   };
 
   const handleTransferSubmit = async (values: TransferFormValues) => {
-    await createTransferMutation.mutateAsync({
+    const transfer = await createTransferMutation.mutateAsync({
       fromAccountId: values.fromAccountId,
       toAccountId: values.toAccountId,
       amount: Number(values.amount),
@@ -427,6 +427,7 @@ export function useDashboard() {
       comment: values.comment?.trim() || undefined,
       counterparty: values.counterparty?.trim() || undefined,
     } as any);
+    return transfer;
   };
 
   const closeModal = useCallback(() => {
