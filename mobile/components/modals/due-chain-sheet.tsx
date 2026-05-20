@@ -25,6 +25,7 @@ import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import { useTheme } from "@/hooks/use-theme";
 import { usePreferences } from "@/hooks/use-preferences";
+import { useTranslation } from "@/hooks/use-translation";
 import {
   fetchDueChain,
   fetchCounterpartyLedger,
@@ -40,6 +41,7 @@ type Props = {
 export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
   const { colors } = useTheme();
   const { formatAmount } = usePreferences();
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
 
   // Use counterparty ledger ONLY for loan-category transactions.
@@ -67,7 +69,7 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
     setExportingPdf(true);
     try {
       if (!ledger && !chain) {
-        Alert.alert("Nothing to export", "Load the data first.");
+        Alert.alert(t("nothingToExport"), t("loadDataFirst"));
         return;
       }
 
@@ -446,7 +448,7 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
         Alert.alert("PDF saved", uri);
       }
     } catch (e: any) {
-      Alert.alert("Export failed", e?.message ?? "Unknown error");
+      Alert.alert(t("exportFailed"), e?.message ?? "Unknown error");
     } finally {
       setExportingPdf(false);
     }
@@ -502,20 +504,20 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
                 style={{ color: colors.text.primary }}
               >
                 {useCounterpartyMode
-                  ? `${counterparty} — Full Ledger`
-                  : "Payment History"}
+                  ? `${counterparty} — ${t("fullLedger")}`
+                  : t("paymentHistory")}
               </Text>
               <Text
                 className="text-xs mt-0.5"
                 style={{ color: colors.text.tertiary }}
               >
                 {useCounterpartyMode
-                  ? `All transactions with ${counterparty}`
+                  ? `${t("allTransactionsWith")} ${counterparty}`
                   : transaction.vendor
-                    ? `Vendor: ${transaction.vendor}`
+                    ? `${t("vendorLabel2")} ${transaction.vendor}`
                     : transaction.counterparty
-                      ? `For: ${transaction.counterparty}`
-                      : "Due transaction chain"}
+                      ? `${t("forLabel2")} ${transaction.counterparty}`
+                      : t("dueTransactionChain")}
               </Text>
             </View>
             {/* PDF export button */}
@@ -553,7 +555,7 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
                 className="text-sm mt-3"
                 style={{ color: colors.text.tertiary }}
               >
-                Loading…
+                {t("loading")}
               </Text>
             </View>
           )}
@@ -565,7 +567,7 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
                 className="text-sm mt-2 text-center"
                 style={{ color: colors.text.secondary }}
               >
-                Could not load history
+                {t("couldNotLoad")}
               </Text>
             </View>
           )}
@@ -580,13 +582,13 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
               {ledger.summary.total_given > 0 && (
                 <View className="flex-row gap-3">
                   <SummaryCard
-                    label="Total Given"
+                    label={t("totalGiven")}
                     value={formatAmount(ledger.summary.total_given)}
                     color="#f59e0b"
                     colors={colors}
                   />
                   <SummaryCard
-                    label="Returned to Me"
+                    label={t("returnedToMe")}
                     value={formatAmount(ledger.summary.total_received_back)}
                     color="#0d9488"
                     colors={colors}
@@ -596,13 +598,13 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
               {ledger.summary.total_borrowed > 0 && (
                 <View className="flex-row gap-3">
                   <SummaryCard
-                    label="Total Borrowed"
+                    label={t("totalBorrowed")}
                     value={formatAmount(ledger.summary.total_borrowed)}
                     color="#3b82f6"
                     colors={colors}
                   />
                   <SummaryCard
-                    label="I Repaid"
+                    label={t("iRepaid")}
                     value={formatAmount(ledger.summary.total_repaid)}
                     color="#16a34a"
                     colors={colors}
@@ -633,10 +635,10 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
                     style={{ color: colors.text.primary }}
                   >
                     {ledger.summary.is_settled
-                      ? "✅ Fully Settled"
+                      ? t("fullySettled")
                       : ledger.summary.net_owed_by_me > 0
-                        ? "⏳ I Owe Them"
-                        : "⏳ They Owe Me"}
+                        ? t("iOweThem")
+                        : t("theyOweMe")}
                   </Text>
                   <Text
                     className="text-base font-bold"
@@ -658,13 +660,15 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
                         className="text-xs mt-0.5"
                         style={{ color: "#ef4444" }}
                       >
-                        I owe them: {formatAmount(ledger.summary.owed_by_me)}
+                        {t("iOweThem2")}{" "}
+                        {formatAmount(ledger.summary.owed_by_me)}
                       </Text>
                       <Text
                         className="text-xs mt-0.5"
                         style={{ color: "#f59e0b" }}
                       >
-                        They owe me: {formatAmount(ledger.summary.owed_by_them)}
+                        {t("theyOweThem2")}{" "}
+                        {formatAmount(ledger.summary.owed_by_them)}
                       </Text>
                     </>
                   )}
@@ -672,7 +676,7 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
                   className="text-xs mt-1"
                   style={{ color: colors.text.tertiary }}
                 >
-                  {ledger.summary.transaction_count} transactions total
+                  {ledger.summary.transaction_count} {t("transactionsTotal")}
                 </Text>
               </View>
 
@@ -681,7 +685,7 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
                 className="text-xs font-semibold uppercase tracking-wide mt-2"
                 style={{ color: colors.text.tertiary }}
               >
-                Full Transaction History
+                {t("fullTransactionHistory")}
               </Text>
 
               {ledger.timeline.map((entry, i) => (
@@ -695,6 +699,7 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
                   isLast={i === ledger.timeline.length - 1}
                   formatAmount={formatAmount}
                   colors={colors}
+                  t={t}
                 />
               ))}
             </ScrollView>
@@ -725,10 +730,10 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
                     style={{ color: colors.text.primary }}
                   >
                     {chain.summary.is_settled
-                      ? "✅ Fully Settled"
+                      ? t("fullySettled")
                       : chain.summary.payment_count === 0
-                        ? "⏳ Not Yet Paid"
-                        : "⏳ Partially Paid"}
+                        ? t("notYetPaid")
+                        : t("partiallyPaid")}
                   </Text>
                   <Text
                     className="text-sm font-bold"
@@ -766,18 +771,18 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
                     className="text-xs"
                     style={{ color: colors.text.secondary }}
                   >
-                    Paid: {formatAmount(chain.summary.total_paid)}
+                    {t("paid2")} {formatAmount(chain.summary.total_paid)}
                   </Text>
                   <Text
                     className="text-xs"
                     style={{ color: colors.text.secondary }}
                   >
-                    Remaining: {formatAmount(chain.summary.remaining)}
+                    {t("remaining")} {formatAmount(chain.summary.remaining)}
                   </Text>
                 </View>
                 {chain.summary.settled_at && (
                   <Text className="text-xs mt-1" style={{ color: "#16a34a" }}>
-                    Settled on{" "}
+                    {t("settledOn")}{" "}
                     {dayjs(chain.summary.settled_at).format("MMM DD, YYYY")}
                   </Text>
                 )}
@@ -787,17 +792,17 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
                 className="text-xs font-semibold uppercase tracking-wide"
                 style={{ color: colors.text.tertiary }}
               >
-                Transaction Timeline
+                {t("transactionTimeline")}
               </Text>
 
               <TimelineRow
                 icon="time-outline"
                 iconBg="#d97706"
-                label="Original Due"
+                label={t("originalDue")}
                 date={chain.root.date}
                 amount={chain.root.amount}
                 note={chain.root.description}
-                sub={`Remaining: ${formatAmount(chain.root.amount)}`}
+                sub={`${t("remaining")} ${formatAmount(chain.root.amount)}`}
                 isFirst
                 formatAmount={formatAmount}
                 colors={colors}
@@ -814,13 +819,13 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
                   iconBg={p.remaining_after === 0 ? "#16a34a" : colors.info}
                   label={
                     p.remaining_after === 0
-                      ? `Final Payment (#${i + 1})`
-                      : `Partial Payment (#${i + 1})`
+                      ? `${t("finalPayment")} (#${i + 1})`
+                      : `${t("partialPayment")} (#${i + 1})`
                   }
                   date={p.date}
                   amount={p.amount}
                   note={p.description}
-                  sub={`After this: ${formatAmount(p.remaining_after)} left`}
+                  sub={`${t("afterThis")} ${formatAmount(p.remaining_after)} ${t("left")}`}
                   isLast={i === chain.payments.length - 1}
                   formatAmount={formatAmount}
                   colors={colors}
@@ -840,7 +845,7 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
                     className="text-sm"
                     style={{ color: colors.text.tertiary }}
                   >
-                    No payments recorded yet
+                    {t("noPaymentsYet")}
                   </Text>
                 </View>
               )}
@@ -901,6 +906,7 @@ type LedgerRowProps = {
   isLast: boolean;
   formatAmount: (n: number) => string;
   colors: any;
+  t: (key: any) => string;
 };
 
 const LedgerRow = ({
@@ -912,8 +918,16 @@ const LedgerRow = ({
   isLast,
   formatAmount,
   colors,
+  t,
 }: LedgerRowProps) => {
   const cfg = ledgerEntryConfig[entryType] ?? ledgerEntryConfig.borrow;
+  const labelMap: Record<LedgerEntryType, string> = {
+    borrow: t("borrowed"),
+    repayment: t("repaid"),
+    loan_given: t("loanGiven"),
+    loan_received_back: t("returned"),
+  };
+  const label = labelMap[entryType] ?? cfg.label;
   return (
     <View className="flex-row gap-3">
       <View className="items-center" style={{ width: 32 }}>
@@ -946,7 +960,7 @@ const LedgerRow = ({
       >
         <View className="flex-row justify-between items-start">
           <Text className="text-xs font-semibold" style={{ color: cfg.color }}>
-            {cfg.label}
+            {label}
           </Text>
           <Text className="text-sm font-bold" style={{ color: cfg.color }}>
             {cfg.sign}
@@ -977,10 +991,10 @@ const LedgerRow = ({
                     : "#16a34a",
             }}
           >
-            Balance:{" "}
+            {t("balance2")}{" "}
             {runningBalance === 0
-              ? "✓ Clear"
-              : `${formatAmount(Math.abs(runningBalance))}${runningBalance < 0 ? " I owe" : " they owe"}`}
+              ? t("fullyPaid")
+              : `${formatAmount(Math.abs(runningBalance))}${runningBalance < 0 ? ` ${t("youOwe")}` : ` ${t("theyOwe")}`}`}
           </Text>
         </View>
       </View>

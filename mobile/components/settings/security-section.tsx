@@ -1,6 +1,7 @@
 import { View, Text, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/use-theme";
+import { useTranslation } from "@/hooks/use-translation";
 
 interface SecuritySectionProps {
   biometricType?: string;
@@ -20,6 +21,7 @@ export function SecuritySection({
   onPress,
 }: SecuritySectionProps) {
   const { colors } = useTheme();
+  const { t } = useTranslation();
 
   return (
     <View
@@ -41,13 +43,13 @@ export function SecuritySection({
             className="text-xl font-bold"
             style={{ color: colors.text.primary }}
           >
-            Security
+            {t("securityTitle")}
           </Text>
           <Text
             className="text-sm mt-1"
             style={{ color: colors.text.secondary }}
           >
-            Protect your account
+            {t("protectYourAccount")}
           </Text>
         </View>
       </View>
@@ -72,14 +74,14 @@ export function SecuritySection({
             className="font-bold text-base"
             style={{ color: colors.text.primary }}
           >
-            {getBiometricDisplayName(biometricType)} Login
+            {getBiometricDisplayName(biometricType)} {t("biometricLogin")}
           </Text>
           <Text className="text-sm" style={{ color: colors.text.secondary }}>
             {isEnabled
-              ? "Enabled - Quick login with biometric"
+              ? t("biometricEnabled")
               : isAvailable
-                ? "Tap to enable quick login"
-                : "Not available on this device"}
+                ? t("tapToEnableBiometric")
+                : t("biometricNotAvailable")}
           </Text>
         </View>
         <View className="flex-row items-center gap-2">

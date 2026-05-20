@@ -1,6 +1,7 @@
 import { View, Text, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/use-theme";
+import { useTranslation } from "@/hooks/use-translation";
 
 interface ProfileSectionProps {
   userName: string;
@@ -39,6 +40,7 @@ export function ProfileSection({
   onPreferences,
 }: ProfileSectionProps) {
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const roleStyle = getRoleBadgeStyle(userRole);
 
   return (
@@ -62,8 +64,8 @@ export function ProfileSection({
             style={{ color: colors.text.secondary }}
           >
             {isPersonalMode
-              ? "Personal Account"
-              : organizationName || "Organization"}
+              ? t("personalAccount")
+              : organizationName || t("organizationLabel")}
           </Text>
           <Text
             className="text-xl font-bold mt-1"
@@ -80,7 +82,7 @@ export function ProfileSection({
                 className="font-bold text-xs uppercase"
                 style={{ color: colors.info }}
               >
-                {userRole}
+                {userRole ?? t("owner")}
               </Text>
             </View>
           ) : isPersonalMode ? (
@@ -92,7 +94,7 @@ export function ProfileSection({
                 className="font-bold text-xs uppercase"
                 style={{ color: colors.info }}
               >
-                Owner
+                {t("owner")}
               </Text>
             </View>
           ) : null}
@@ -128,7 +130,7 @@ export function ProfileSection({
         >
           <Ionicons name="create" size={18} color={colors.info} />
           <Text className="font-bold text-sm" style={{ color: colors.info }}>
-            Edit Profile
+            {t("editProfile")}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -138,7 +140,7 @@ export function ProfileSection({
         >
           <Ionicons name="settings" size={18} color={colors.success} />
           <Text className="font-bold text-sm" style={{ color: colors.success }}>
-            Preferences
+            {t("preferences")}
           </Text>
         </TouchableOpacity>
       </View>

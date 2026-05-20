@@ -2,6 +2,7 @@ import { View, Text } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { usePreferences } from "../hooks/use-preferences";
 import { useTheme } from "../hooks/use-theme";
+import { useTranslation } from "../hooks/use-translation";
 import { useMemo } from "react";
 
 type StatCardProps = {
@@ -149,6 +150,7 @@ export const StatsCards = ({
   previousTransactionCount = 0,
 }: StatsCardsProps) => {
   const { formatAmount } = usePreferences();
+  const { t } = useTranslation();
 
   // Calculate trends
   const incomeTrend = useMemo(
@@ -236,9 +238,9 @@ export const StatsCards = ({
       {/* Top Row - Balance Cards */}
       <View className="flex-row gap-4">
         <StatCard
-          title="Total Income"
+          title={t("totalIncome")}
           value={formatAmount(totalCredit)}
-          subtitle="Credit transactions"
+          subtitle={t("creditTransactions")}
           icon="trending-up"
           iconColor={colors.success}
           iconBgColor="bg-green-50"
@@ -246,9 +248,9 @@ export const StatsCards = ({
           trend={incomeTrend}
         />
         <StatCard
-          title="Total Expenses"
+          title={t("totalExpenses")}
           value={formatAmount(totalDebit)}
-          subtitle="Debit transactions"
+          subtitle={t("debitTransactions")}
           icon="trending-down"
           iconColor={colors.error}
           iconBgColor="bg-red-50"
@@ -275,7 +277,7 @@ export const StatsCards = ({
               style={{ color: colors.text.secondary }}
               className="text-sm font-medium"
             >
-              Net Balance
+              {t("netBalance")}
             </Text>
             <Text
               style={{
@@ -290,8 +292,8 @@ export const StatsCards = ({
               className="text-sm mt-1"
             >
               {isPositiveBalance
-                ? "Surplus this period"
-                : "Deficit this period"}
+                ? t("surplusThisPeriod")
+                : t("deficitThisPeriod")}
             </Text>
           </View>
           <View
@@ -314,9 +316,9 @@ export const StatsCards = ({
       {/* Bottom Row - Activity Cards */}
       <View className="flex-row gap-4">
         <StatCard
-          title="Transactions"
+          title={t("transactions")}
           value={formatAmount(transactionCount, { showCurrency: false })}
-          subtitle="This period"
+          subtitle={t("thisPeriod")}
           icon="receipt"
           iconColor={colors.info}
           iconBgColor="bg-blue-50"
@@ -324,9 +326,9 @@ export const StatsCards = ({
           trend={transactionTrend}
         />
         <StatCard
-          title="Active Accounts"
+          title={t("activeAccounts")}
           value={formatAmount(accountCount, { showCurrency: false })}
-          subtitle="Total accounts"
+          subtitle={t("totalAccounts")}
           icon="wallet"
           iconColor={colors.warning}
           iconBgColor="bg-purple-50"

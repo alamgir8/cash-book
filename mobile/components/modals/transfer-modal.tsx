@@ -30,6 +30,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SearchableSelect } from "../searchable-select";
 import { usePreferences } from "@/hooks/use-preferences";
 import { useTheme } from "@/hooks/use-theme";
+import { useTranslation } from "@/hooks/use-translation";
 import {
   transferSchema,
   type TransferFormValues,
@@ -71,6 +72,7 @@ export const TransferModal = ({
 }: TransferModalProps) => {
   const { formatAmount } = usePreferences();
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -137,10 +139,10 @@ export const TransferModal = ({
           (uploadErr as any)?.message?.includes("413");
         Toast.show({
           type: "error",
-          text1: "Attachment Upload Failed",
+          text1: t("attachmentUploadFailed"),
           text2: isTooBig
-            ? "File too large. Max 10 MB per file."
-            : "Transfer saved, but attachments could not be uploaded.",
+            ? t("fileTooLargeMsg")
+            : t("transferSavedAttachmentsFailed"),
           visibilityTime: 5000,
         });
       } finally {
@@ -154,7 +156,7 @@ export const TransferModal = ({
   const requestCameraPermission = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert("Permission Required", "Camera access is needed.");
+      Alert.alert(t("permissionRequired"), t("cameraPermissionNeeded"));
       return false;
     }
     return true;
@@ -163,7 +165,7 @@ export const TransferModal = ({
   const requestMediaPermission = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert("Permission Required", "Photo library access is needed.");
+      Alert.alert(t("permissionRequired"), t("photoLibraryPermissionNeeded"));
       return false;
     }
     return true;
@@ -179,7 +181,10 @@ export const TransferModal = ({
   const addStaged = (files: StagedFile[]) => {
     for (const f of files) {
       if (f.size && f.size > MAX_RAW_MB * 1024 * 1024) {
-        Alert.alert("File Too Large", `"${f.name}" exceeds ${MAX_RAW_MB} MB.`);
+        Alert.alert(
+          t("fileTooLargeAlert"),
+          `"${f.name}" exceeds ${MAX_RAW_MB} MB.`,
+        );
         return;
       }
     }
@@ -307,7 +312,7 @@ export const TransferModal = ({
                   color: colors.text.primary,
                 }}
               >
-                Transfer Funds
+                {t("transferFundsModal")}
               </Text>
               <Text
                 style={{
@@ -316,7 +321,7 @@ export const TransferModal = ({
                   marginTop: 2,
                 }}
               >
-                Move money between your accounts
+                {t("moveMoneyBetweenAccounts")}
               </Text>
             </View>
             <TouchableOpacity
@@ -351,13 +356,13 @@ export const TransferModal = ({
                   render={({ field: { value, onChange }, fieldState }) => (
                     <View className="gap-2">
                       <SearchableSelect
-                        label="From Account"
+                        label={t("fromAccount")}
                         placeholder={
                           isAccountsLoading
-                            ? "Loading accounts..."
+                            ? t("loadingAccountsPlaceholder")
                             : accountOptions.length > 0
-                              ? "Select source account"
-                              : "No accounts available"
+                              ? t("selectSourceAccount")
+                              : t("noAccountsAvailablePlaceholder")
                         }
                         value={value}
                         options={accountOptions}
@@ -385,13 +390,13 @@ export const TransferModal = ({
                   render={({ field: { value, onChange }, fieldState }) => (
                     <View className="gap-2">
                       <SearchableSelect
-                        label="To Account"
+                        label={t("toAccount")}
                         placeholder={
                           isAccountsLoading
-                            ? "Loading accounts..."
+                            ? t("loadingAccountsPlaceholder")
                             : destinationAccountOptions.length > 0
-                              ? "Select destination account"
-                              : "No destination accounts available"
+                              ? t("selectDestinationAccount")
+                              : t("noDestinationAccounts")
                         }
                         value={value}
                         options={destinationAccountOptions}
@@ -423,7 +428,7 @@ export const TransferModal = ({
                         className="text-sm font-semibold mb-2"
                         style={{ color: colors.text.primary }}
                       >
-                        Amount
+                        {t("amountLabel")}
                       </Text>
                       <TextInput
                         value={
@@ -466,7 +471,7 @@ export const TransferModal = ({
                         className="text-sm font-semibold mb-2"
                         style={{ color: colors.text.primary }}
                       >
-                        Date
+                        {t("dateLabel")}
                       </Text>
                       <TouchableOpacity
                         onPress={() => setShowDatePicker(true)}
@@ -482,7 +487,7 @@ export const TransferModal = ({
                         >
                           {value
                             ? dayjs(value).format("MMM DD, YYYY")
-                            : "Select Date"}
+                            : t("selectDate")}
                         </Text>
                         <Ionicons
                           name="calendar-outline"
@@ -511,7 +516,7 @@ export const TransferModal = ({
                     className="text-sm font-semibold mb-2"
                     style={{ color: colors.text.primary }}
                   >
-                    Description
+                    {t("descriptionLabel")}
                   </Text>
                   <Controller
                     control={control}
@@ -520,7 +525,7 @@ export const TransferModal = ({
                       <TextInput
                         value={value || ""}
                         onChangeText={onChange}
-                        placeholder="What is this transfer for?"
+                        placeholder={t("descriptionTransferPlaceholder")}
                         placeholderTextColor={colors.text.tertiary}
                         style={{
                           backgroundColor: colors.bg.tertiary,
@@ -539,8 +544,8 @@ export const TransferModal = ({
                   name="counterparty"
                   render={({ field: { value, onChange } }) => (
                     <SearchableSelect
-                      label="Counterparty"
-                      placeholder="Select or add counterparty"
+                      label={t("counterpartyLabel")}
+                      placeholder={t("selectOrAddCounterparty")}
                       value={value || ""}
                       options={counterpartyOptions}
                       onSelect={(val) => onChange(val || "")}
@@ -560,7 +565,7 @@ export const TransferModal = ({
                     className="text-sm font-semibold mb-2"
                     style={{ color: colors.text.primary }}
                   >
-                    Additional Notes
+                    {t("additionalNotes")}
                   </Text>
                   <Controller
                     control={control}
@@ -569,7 +574,7 @@ export const TransferModal = ({
                       <TextInput
                         value={value || ""}
                         onChangeText={onChange}
-                        placeholder="Any additional details..."
+                        placeholder={t("additionalDetailsPlaceholder")}
                         placeholderTextColor={colors.text.tertiary}
                         style={{
                           backgroundColor: colors.bg.tertiary,
@@ -590,14 +595,16 @@ export const TransferModal = ({
                     className="text-sm font-semibold mb-2"
                     style={{ color: colors.text.primary }}
                   >
-                    Attachments
+                    {t("attachments")}
                   </Text>
                   <Text
                     className="text-xs mb-3"
                     style={{ color: colors.text.tertiary }}
                   >
-                    {stagedFiles.length}/10 files · Images ≤1 MB · PDF ≤1.5 MB ·
-                    JPG, PNG, WebP, HEIC, PDF
+                    {t("attachmentsHelpText", {
+                      count: String(stagedFiles.length),
+                      max: "10",
+                    })}
                   </Text>
                   {/* Action buttons */}
                   <View className="flex-row gap-2 mb-3">
@@ -605,22 +612,22 @@ export const TransferModal = ({
                       [
                         {
                           icon: "scan-outline",
-                          label: "Scan",
+                          label: t("scan"),
                           handler: handleStagedScan,
                         },
                         {
                           icon: "camera-outline",
-                          label: "Photo",
+                          label: t("photo"),
                           handler: handleStagedCamera,
                         },
                         {
                           icon: "images-outline",
-                          label: "Gallery",
+                          label: t("gallery"),
                           handler: handleStagedGallery,
                         },
                         {
                           icon: "document-outline",
-                          label: "PDF",
+                          label: t("pdf"),
                           handler: handleStagedDocument,
                         },
                       ] as const
@@ -726,7 +733,7 @@ export const TransferModal = ({
                       className="text-sm font-medium text-center"
                       style={{ color: colors.success }}
                     >
-                      🔄 Transfer Preview: {formatAmount(transferAmount)}
+                      {t("transferPreview")} {formatAmount(transferAmount)}
                     </Text>
                   </View>
                 ) : null}
@@ -756,8 +763,8 @@ export const TransferModal = ({
                   <ActivityIndicator color="white" />
                   <Text className="text-white font-bold text-base">
                     {uploadingAttachments
-                      ? "Uploading attachments…"
-                      : "Saving…"}
+                      ? t("uploadingAttachments")
+                      : t("saving")}
                   </Text>
                 </View>
               ) : (
@@ -769,8 +776,11 @@ export const TransferModal = ({
                   />
                   <Text className="text-white font-bold text-base">
                     {stagedFiles.length > 0
-                      ? `Submit with ${stagedFiles.length} attachment${stagedFiles.length > 1 ? "s" : ""}`
-                      : "Submit Transfer"}
+                      ? t("submitWithAttachments", {
+                          n: String(stagedFiles.length),
+                          s: stagedFiles.length > 1 ? "s" : "",
+                        })
+                      : t("submitTransfer")}
                   </Text>
                 </View>
               )}

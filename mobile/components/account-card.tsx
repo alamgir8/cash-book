@@ -5,6 +5,7 @@ import dayjs from "dayjs";
 import { router } from "expo-router";
 import { usePreferences } from "../hooks/use-preferences";
 import { useTheme } from "../hooks/use-theme";
+import { useTranslation } from "../hooks/use-translation";
 import type { AccountOverview } from "../services/accounts";
 
 type Props = {
@@ -16,10 +17,11 @@ type Props = {
 const AccountCardComponent = ({ account, onEdit, onDelete }: Props) => {
   const { formatAmount } = usePreferences();
   const { colors } = useTheme();
+  const { t } = useTranslation();
 
   const lastActivity = account.summary.lastTransactionDate
     ? dayjs(account.summary.lastTransactionDate).format("MMM D, YYYY")
-    : "No activity yet";
+    : t("noActivityYet");
   const netFlow = account.summary.net ?? 0;
   const netFlowPositive = netFlow >= 0;
 
@@ -99,7 +101,7 @@ const AccountCardComponent = ({ account, onEdit, onDelete }: Props) => {
               style={{ color: colors.text.tertiary }}
               className="text-xs mb-1"
             >
-              Total Credit
+              {t("totalCredit")}
             </Text>
             <Text
               style={{ color: colors.success }}
@@ -113,7 +115,7 @@ const AccountCardComponent = ({ account, onEdit, onDelete }: Props) => {
               style={{ color: colors.text.tertiary }}
               className="text-xs mb-1"
             >
-              Total Debit
+              {t("totalDebit")}
             </Text>
             <Text
               style={{ color: colors.error }}
@@ -127,7 +129,7 @@ const AccountCardComponent = ({ account, onEdit, onDelete }: Props) => {
               style={{ color: colors.text.tertiary }}
               className="text-xs mb-1"
             >
-              Transactions
+              {t("transactions")}
             </Text>
             <Text
               style={{ color: colors.text.primary }}
@@ -148,7 +150,7 @@ const AccountCardComponent = ({ account, onEdit, onDelete }: Props) => {
               style={{ color: "#ffffff" }}
               className="font-bold text-center text-sm"
             >
-              View Details
+              {t("viewHistory")}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity

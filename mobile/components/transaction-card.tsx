@@ -375,8 +375,8 @@ const TransactionCardComponent = ({
               {paymentShowsParentDue
                 ? `Due · ${formatAmount(parentRemaining)} left`
                 : transaction.payment_status === "due"
-                  ? "Due"
-                  : "Paid"}
+                  ? t("due")
+                  : t("paid")}
             </Text>
           </TouchableOpacity>
         ) : null}
@@ -405,7 +405,7 @@ const TransactionCardComponent = ({
                     style={{ color: "#d97706" }}
                     className="text-xs font-semibold"
                   >
-                    Pay
+                    {t("pay")}
                   </Text>
                 </TouchableOpacity>
               )}
@@ -462,7 +462,7 @@ const TransactionCardComponent = ({
                 >
                   {attachmentCount > 0
                     ? `${attachmentCount} file${attachmentCount > 1 ? "s" : ""}`
-                    : "Attach"}
+                    : t("attach")}
                 </Text>
               </TouchableOpacity>
             ) : null}
@@ -478,7 +478,7 @@ const TransactionCardComponent = ({
                   style={{ color: colors.info }}
                   className="text-xs font-semibold"
                 >
-                  Edit
+                  {t("edit")}
                 </Text>
               </TouchableOpacity>
             ) : null}
@@ -494,7 +494,7 @@ const TransactionCardComponent = ({
                   style={{ color: colors.error }}
                   className="text-xs font-semibold"
                 >
-                  Delete
+                  {t("delete")}
                 </Text>
               </TouchableOpacity>
             ) : null}

@@ -1,22 +1,24 @@
 import { View, Text, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/use-theme";
+import { useTranslation } from "@/hooks/use-translation";
 
 type ColorScheme = "light" | "dark" | "system";
 
 export function ThemeSection() {
   const { colorScheme, setColorScheme, isDark, colors } = useTheme();
+  const { t } = useTranslation();
 
   const themeOptions: {
     value: ColorScheme;
     label: string;
     icon: React.ComponentProps<typeof Ionicons>["name"];
   }[] = [
-    { value: "light", label: "Light Mode", icon: "sunny-outline" },
-    { value: "dark", label: "Dark Mode", icon: "moon-outline" },
+    { value: "light", label: t("lightMode"), icon: "sunny-outline" },
+    { value: "dark", label: t("darkMode"), icon: "moon-outline" },
     {
       value: "system",
-      label: "System Default",
+      label: t("systemDefault"),
       icon: "phone-portrait-outline",
     },
   ];
@@ -42,13 +44,13 @@ export function ThemeSection() {
             className="text-lg font-semibold"
             style={{ color: colors.text.primary }}
           >
-            Appearance
+            {t("appearanceTitle")}
           </Text>
           <Text
             className="text-sm mt-1"
             style={{ color: colors.text.secondary }}
           >
-            Choose your preferred theme
+            {t("choosePreferredTheme")}
           </Text>
         </View>
       </View>
@@ -128,8 +130,12 @@ export function ThemeSection() {
           style={{ color: colors.text.secondary }}
         >
           {colorScheme === "system"
-            ? `Currently using ${isDark ? "Dark" : "Light"} Mode (from system settings)`
-            : `Theme: ${colorScheme === "light" ? "Light" : "Dark"} Mode`}
+            ? isDark
+              ? t("currentlyUsingDark")
+              : t("currentlyUsingLight")
+            : colorScheme === "light"
+              ? t("themeLight")
+              : t("themeDark")}
         </Text>
       </View>
     </View>

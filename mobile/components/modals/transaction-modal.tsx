@@ -31,6 +31,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SearchableSelect } from "../searchable-select";
 import { usePreferences } from "@/hooks/use-preferences";
 import { useTheme } from "@/hooks/use-theme";
+import { useTranslation } from "@/hooks/use-translation";
 import {
   transactionSchema,
   type TransactionFormValues,
@@ -70,6 +71,7 @@ export const TransactionModal = ({
 }: TransactionModalProps) => {
   const { formatAmount } = usePreferences();
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -201,10 +203,10 @@ export const TransactionModal = ({
             (uploadErr as any)?.message?.includes("413");
           Toast.show({
             type: "error",
-            text1: "Attachment Upload Failed",
+            text1: t("attachmentUploadFailed"),
             text2: isTooBig
-              ? "File too large. Max 10 MB per file."
-              : "Transaction saved, but attachments could not be uploaded. Try again from the transaction list.",
+              ? t("fileTooLargeMsg")
+              : t("transactionSavedAttachmentsFailed"),
             visibilityTime: 5000,
           });
         } finally {
@@ -221,10 +223,7 @@ export const TransactionModal = ({
   const requestCameraPermission = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert(
-        "Permission Required",
-        "Camera access is needed to capture receipts.",
-      );
+      Alert.alert(t("permissionRequired"), t("cameraPermissionNeeded"));
       return false;
     }
     return true;
@@ -233,10 +232,7 @@ export const TransactionModal = ({
   const requestMediaPermission = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert(
-        "Permission Required",
-        "Photo library access is needed to attach images.",
-      );
+      Alert.alert(t("permissionRequired"), t("photoLibraryPermissionNeeded"));
       return false;
     }
     return true;
@@ -252,7 +248,10 @@ export const TransactionModal = ({
   const addStaged = (files: StagedFile[]) => {
     for (const f of files) {
       if (f.size && f.size > MAX_RAW_MB * 1024 * 1024) {
-        Alert.alert("File Too Large", `"${f.name}" exceeds ${MAX_RAW_MB} MB.`);
+        Alert.alert(
+          t("fileTooLargeAlert"),
+          `"${f.name}" exceeds ${MAX_RAW_MB} MB.`,
+        );
         return;
       }
     }
@@ -387,7 +386,9 @@ export const TransactionModal = ({
                   color: colors.text.primary,
                 }}
               >
-                {editingTransaction ? "Edit Transaction" : "New Transaction"}
+                {editingTransaction
+                  ? t("editTransaction")
+                  : t("newTransaction")}
               </Text>
               <Text
                 style={{
@@ -397,8 +398,8 @@ export const TransactionModal = ({
                 }}
               >
                 {editingTransaction
-                  ? "Update transaction details"
-                  : "Record your debit or credit"}
+                  ? t("updateTransactionDetails")
+                  : t("recordDebitOrCredit")}
               </Text>
             </View>
             <TouchableOpacity
@@ -433,13 +434,13 @@ export const TransactionModal = ({
                   render={({ field: { value, onChange }, fieldState }) => (
                     <View className="gap-2">
                       <SearchableSelect
-                        label="Account"
+                        label={t("accountFilter")}
                         placeholder={
                           isAccountsLoading
-                            ? "Loading accounts..."
+                            ? t("loadingAccountsPlaceholder")
                             : accountOptions.length > 0
-                              ? "Select source account"
-                              : "No accounts available"
+                              ? t("selectAccount")
+                              : t("noAccountsAvailablePlaceholder")
                         }
                         value={value}
                         options={accountOptions}
@@ -467,13 +468,13 @@ export const TransactionModal = ({
                   render={({ field: { value, onChange } }) => (
                     <View className="gap-2">
                       <SearchableSelect
-                        label="Category"
+                        label={t("categoryFilter")}
                         placeholder={
                           isCategoriesLoading
-                            ? "Loading categories..."
+                            ? t("loadingCategoriesPlaceholder")
                             : filteredCategoryOptions.length > 0
-                              ? "Select category"
-                              : "No categories available"
+                              ? t("selectCategory")
+                              : t("noCategoriesAvailable")
                         }
                         value={value}
                         options={filteredCategoryOptions}
@@ -502,7 +503,7 @@ export const TransactionModal = ({
                       className="text-sm font-semibold mb-2"
                       style={{ color: colors.text.primary }}
                     >
-                      Amount
+                      {t("amountLabel")}
                     </Text>
                     <Controller
                       control={control}
@@ -539,7 +540,7 @@ export const TransactionModal = ({
                       className="text-sm font-semibold mb-2"
                       style={{ color: colors.text.primary }}
                     >
-                      Type
+                      {t("transactionType")}
                     </Text>
                     <Controller
                       control={control}
@@ -593,7 +594,7 @@ export const TransactionModal = ({
                     className="text-sm font-semibold mb-2"
                     style={{ color: colors.text.primary }}
                   >
-                    Date
+                    {t("dateLabel")}
                   </Text>
                   <Controller
                     control={control}
@@ -614,7 +615,7 @@ export const TransactionModal = ({
                           >
                             {value
                               ? dayjs(value).format("MMM DD, YYYY")
-                              : "Select Date"}
+                              : t("selectDate")}
                           </Text>
                           <Ionicons
                             name="calendar-outline"
@@ -653,7 +654,7 @@ export const TransactionModal = ({
                     className="text-sm font-semibold mb-2"
                     style={{ color: colors.text.primary }}
                   >
-                    Description
+                    {t("descriptionLabel")}
                   </Text>
                   <Controller
                     control={control}
@@ -662,7 +663,7 @@ export const TransactionModal = ({
                       <TextInput
                         value={value || ""}
                         onChangeText={onChange}
-                        placeholder="What is this transaction about?"
+                        placeholder={t("descriptionPlaceholder")}
                         placeholderTextColor={colors.text.tertiary}
                         style={{
                           backgroundColor: colors.bg.tertiary,
@@ -681,13 +682,13 @@ export const TransactionModal = ({
                     className="text-sm font-semibold mb-1"
                     style={{ color: colors.text.primary }}
                   >
-                    Vendor / Seller
+                    {t("vendorSellerLabel")}
                   </Text>
                   <Text
                     className="text-xs mb-2"
                     style={{ color: colors.text.tertiary }}
                   >
-                    Who did you buy from or sell to? (e.g. Jahangir Alam)
+                    {t("vendorHelpText")}
                   </Text>
                   <Controller
                     control={control}
@@ -695,7 +696,7 @@ export const TransactionModal = ({
                     render={({ field: { value, onChange } }) => (
                       <SearchableSelect
                         value={value || ""}
-                        placeholder="Select or add vendor name"
+                        placeholder={t("selectOrAddVendor")}
                         options={vendorOptions}
                         onSelect={(selectedValue) => onChange(selectedValue)}
                         allowCustomValue={true}
@@ -715,7 +716,7 @@ export const TransactionModal = ({
                     className="text-sm font-semibold mb-2"
                     style={{ color: colors.text.primary }}
                   >
-                    Payment Mode
+                    {t("paymentMode")}
                   </Text>
                   <Controller
                     control={control}
@@ -750,7 +751,7 @@ export const TransactionModal = ({
                                   : colors.text.secondary,
                             }}
                           >
-                            Cash / Paid
+                            {t("cashPaid")}
                           </Text>
                         </TouchableOpacity>
 
@@ -787,7 +788,7 @@ export const TransactionModal = ({
                                   : colors.text.secondary,
                             }}
                           >
-                            Due / Unpaid
+                            {t("dueUnpaid")}
                           </Text>
                         </TouchableOpacity>
                       </View>
@@ -811,8 +812,7 @@ export const TransactionModal = ({
                         className="text-xs flex-1"
                         style={{ color: "#d97706" }}
                       >
-                        This transaction will NOT affect account balance until
-                        marked paid.
+                        {t("dueWarning")}
                       </Text>
                     </View>
                   )}
@@ -825,7 +825,7 @@ export const TransactionModal = ({
                       className="text-sm font-semibold mb-2"
                       style={{ color: colors.text.primary }}
                     >
-                      Due Date (Optional)
+                      {t("dueDateOptional")}
                     </Text>
                     <Controller
                       control={control}
@@ -853,7 +853,7 @@ export const TransactionModal = ({
                           >
                             {value
                               ? dayjs(value).format("MMM DD, YYYY")
-                              : "Select due date"}
+                              : t("selectDueDate")}
                           </Text>
                           <Ionicons
                             name="calendar-outline"
@@ -872,13 +872,13 @@ export const TransactionModal = ({
                     className="text-sm font-semibold mb-1"
                     style={{ color: colors.text.primary }}
                   >
-                    For / Beneficiary
+                    {t("forBeneficiaryLabel")}
                   </Text>
                   <Text
                     className="text-xs mb-2"
                     style={{ color: colors.text.tertiary }}
                   >
-                    Who is this expense/income for? (e.g. Wife, Child, Home)
+                    {t("counterpartyHelpText")}
                   </Text>
                   <Controller
                     control={control}
@@ -886,7 +886,7 @@ export const TransactionModal = ({
                     render={({ field: { value, onChange } }) => (
                       <SearchableSelect
                         value={value || ""}
-                        placeholder="Select or add counterparty"
+                        placeholder={t("selectOrAddCounterparty")}
                         options={counterpartyOptions}
                         onSelect={(selectedValue) => onChange(selectedValue)}
                         allowCustomValue={true}
@@ -906,7 +906,7 @@ export const TransactionModal = ({
                     className="text-sm font-semibold mb-2"
                     style={{ color: colors.text.primary }}
                   >
-                    Additional Notes
+                    {t("additionalNotes")}
                   </Text>
                   <Controller
                     control={control}
@@ -915,7 +915,7 @@ export const TransactionModal = ({
                       <TextInput
                         value={value || ""}
                         onChangeText={onChange}
-                        placeholder="Any additional details..."
+                        placeholder={t("additionalDetailsPlaceholder")}
                         placeholderTextColor={colors.text.tertiary}
                         style={{
                           backgroundColor: colors.bg.tertiary,
@@ -936,7 +936,7 @@ export const TransactionModal = ({
                     className="text-sm font-semibold mb-2"
                     style={{ color: colors.text.primary }}
                   >
-                    Attachments
+                    {t("attachments")}
                   </Text>
 
                   {editingTransaction ? (
@@ -1032,7 +1032,7 @@ export const TransactionModal = ({
                               style={{ color: colors.info }}
                               className="text-sm font-semibold"
                             >
-                              Scan
+                              {t("scan")}
                             </Text>
                           </TouchableOpacity>
                           <TouchableOpacity
@@ -1054,7 +1054,7 @@ export const TransactionModal = ({
                               style={{ color: colors.text.secondary }}
                               className="text-sm font-medium"
                             >
-                              Photo
+                              {t("photo")}
                             </Text>
                           </TouchableOpacity>
                           <TouchableOpacity
@@ -1076,7 +1076,7 @@ export const TransactionModal = ({
                               style={{ color: colors.text.secondary }}
                               className="text-sm font-medium"
                             >
-                              Gallery
+                              {t("gallery")}
                             </Text>
                           </TouchableOpacity>
                           {Platform.OS !== "web" && (
@@ -1099,7 +1099,7 @@ export const TransactionModal = ({
                                 style={{ color: colors.text.secondary }}
                                 className="text-sm font-medium"
                               >
-                                PDF
+                                {t("pdf")}
                               </Text>
                             </TouchableOpacity>
                           )}
@@ -1110,8 +1110,10 @@ export const TransactionModal = ({
                         style={{ color: colors.text.tertiary }}
                         className="text-xs"
                       >
-                        {stagedFiles.length}/{MAX_STAGED} files · Images ≤1 MB ·
-                        PDF ≤1.5 MB · JPG, PNG, WebP, HEIC, PDF
+                        {t("attachmentsHelpText", {
+                          count: String(stagedFiles.length),
+                          max: String(MAX_STAGED),
+                        })}
                       </Text>
                     </View>
                   )}
@@ -1130,7 +1132,7 @@ export const TransactionModal = ({
                       className="text-sm font-medium text-center"
                       style={{ color: colors.info }}
                     >
-                      💰 Amount Preview: {formatAmount(currentAmount)}
+                      {t("amountPreview")} {formatAmount(currentAmount)}
                     </Text>
                   </View>
                 ) : null}
@@ -1160,8 +1162,8 @@ export const TransactionModal = ({
                   <ActivityIndicator color="white" />
                   <Text className="text-white font-bold text-base">
                     {uploadingAttachments
-                      ? "Uploading attachments…"
-                      : "Saving…"}
+                      ? t("uploadingAttachments")
+                      : t("saving")}
                   </Text>
                 </View>
               ) : (
@@ -1179,10 +1181,13 @@ export const TransactionModal = ({
                   />
                   <Text className="text-white font-bold text-base">
                     {editingTransaction
-                      ? "Update Transaction"
+                      ? t("updateTransactionBtn")
                       : stagedFiles.length > 0
-                        ? `Save with ${stagedFiles.length} attachment${stagedFiles.length > 1 ? "s" : ""}`
-                        : "Save Transaction"}
+                        ? t("saveWithAttachments", {
+                            n: String(stagedFiles.length),
+                            s: stagedFiles.length > 1 ? "s" : "",
+                          })
+                        : t("saveTransaction")}
                   </Text>
                 </View>
               )}

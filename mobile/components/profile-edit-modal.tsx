@@ -22,6 +22,7 @@ import { ActionButton } from "./action-button";
 import { useAuth } from "../hooks/use-auth";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "../hooks/use-theme";
+import { useTranslation } from "../hooks/use-translation";
 
 const pinValueSchema = z
   .union([
@@ -211,17 +212,15 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
       await updateProfile(payload);
       Toast.show({
         type: "success",
-        text1: "Profile updated",
+        text1: t("profileUpdated"),
       });
       handleClose();
     } catch (error) {
       const message =
-        error instanceof Error
-          ? error.message
-          : "Unable to update profile. Try again.";
+        error instanceof Error ? error.message : t("unableToUpdateProfile");
       Toast.show({
         type: "error",
-        text1: "Update failed",
+        text1: t("updateFailed"),
         text2: message,
       });
     } finally {
@@ -230,6 +229,7 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
   };
 
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
 
   return (
@@ -271,13 +271,13 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
                   style={{ color: colors.text.primary }}
                   className="text-xl font-bold"
                 >
-                  Edit Profile
+                  {t("editProfile")}
                 </Text>
                 <Text
                   style={{ color: colors.text.secondary }}
                   className="text-sm"
                 >
-                  Update your profile information
+                  {t("updateProfileInfo")}
                 </Text>
               </View>
               <TouchableOpacity
@@ -308,7 +308,7 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
                     style={{ color: colors.text.primary }}
                     className="text-base font-semibold mb-3"
                   >
-                    Personal Information
+                    {t("personalInformation")}
                   </Text>
 
                   <View className="gap-4">
@@ -317,7 +317,7 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
                         style={{ color: colors.text.primary }}
                         className="text-sm font-semibold mb-2"
                       >
-                        Full name
+                        {t("fullName")}
                       </Text>
                       <Controller
                         control={control}
@@ -326,7 +326,7 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
                           <TextInput
                             value={value}
                             onChangeText={onChange}
-                            placeholder="Your name"
+                            placeholder={t("yourNamePlaceholder")}
                             placeholderTextColor={colors.text.tertiary}
                             style={{
                               backgroundColor: colors.bg.tertiary,
@@ -352,7 +352,7 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
                         className="text-sm font-semibold mb-2"
                         style={{ color: colors.text.primary }}
                       >
-                        Email
+                        {t("emailLabel")}
                       </Text>
                       <Controller
                         control={control}
@@ -361,7 +361,7 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
                           <TextInput
                             value={value}
                             onChangeText={onChange}
-                            placeholder="you@example.com"
+                            placeholder={t("emailPlaceholder")}
                             placeholderTextColor={colors.text.tertiary}
                             keyboardType="email-address"
                             autoCapitalize="none"
@@ -389,7 +389,7 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
                         className="text-sm font-semibold mb-2"
                         style={{ color: colors.text.primary }}
                       >
-                        Phone (optional)
+                        {t("phoneOptional")}
                       </Text>
                       <Controller
                         control={control}
@@ -398,7 +398,7 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
                           <TextInput
                             value={value ?? ""}
                             onChangeText={onChange}
-                            placeholder="Phone number"
+                            placeholder={t("phonePlaceholder")}
                             placeholderTextColor={colors.text.tertiary}
                             keyboardType="phone-pad"
                             style={{
@@ -427,7 +427,7 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
                       className="text-base font-semibold"
                       style={{ color: colors.text.primary }}
                     >
-                      Security
+                      {t("securitySection")}
                     </Text>
                     <Controller
                       control={control}
@@ -456,10 +456,10 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
                     style={{ color: colors.text.secondary }}
                   >
                     {enablePin
-                      ? "Enter a new 5-digit PIN to enable quick logins."
+                      ? t("enterNew5DigitPin")
                       : hasExistingPin
-                        ? "Your login PIN will be removed when you save changes."
-                        : "Enable a 5-digit PIN to sign in without your password."}
+                        ? t("pinWillBeRemoved")
+                        : t("enable5DigitPin")}
                   </Text>
                   {enablePin ? (
                     <View className="gap-4">
@@ -468,7 +468,7 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
                         name="loginPin"
                         render={({ field: { value, onChange } }) => (
                           <PasswordInput
-                            label="New PIN"
+                            label={t("newPin")}
                             value={value ?? ""}
                             onChangeText={onChange}
                             placeholder="12345"
@@ -483,7 +483,7 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
                         name="confirmPin"
                         render={({ field: { value, onChange } }) => (
                           <PasswordInput
-                            label="Confirm PIN"
+                            label={t("confirmPin")}
                             value={value ?? ""}
                             onChangeText={onChange}
                             placeholder="12345"
@@ -509,7 +509,7 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
                     className="text-base font-semibold mb-3"
                     style={{ color: colors.text.primary }}
                   >
-                    Preferences
+                    {t("preferencesSection")}
                   </Text>
 
                   <View className="gap-4">
@@ -518,8 +518,8 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
                       name="currency"
                       render={({ field: { value, onChange } }) => (
                         <SearchableSelect
-                          label="Currency"
-                          placeholder="Select currency"
+                          label={t("currencyLabel")}
+                          placeholder={t("selectCurrency")}
                           value={value}
                           options={currencyOptions}
                           onSelect={(val) => onChange(val)}
@@ -537,8 +537,8 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
                       name="language"
                       render={({ field: { value, onChange } }) => (
                         <SearchableSelect
-                          label="Language"
-                          placeholder="Select language"
+                          label={t("languageLabel")}
+                          placeholder={t("selectLanguage")}
                           value={value}
                           options={languageOptions}
                           onSelect={(val) => onChange(val)}
@@ -565,7 +565,7 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
               }}
             >
               <ActionButton
-                label="Save changes"
+                label={t("saveChanges")}
                 onPress={handleSubmit(handleSave)}
                 isLoading={submitting}
                 disabled={!isDirty && !submitting}

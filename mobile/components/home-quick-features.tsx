@@ -215,7 +215,7 @@ export const HomeQuickFeatures = ({
     {
       id: "export-pdf",
       icon: "download" as const,
-      label: "Export PDF",
+      label: t("exportPdfTitle"),
       color: "#22c55e",
       bgColor: "bg-green-50",
       onPress: onExportPDF,
@@ -242,7 +242,7 @@ export const HomeQuickFeatures = ({
     {
       id: "settings",
       icon: "settings" as const,
-      label: "Settings",
+      label: t("settings"),
       color: "#64748b",
       bgColor: "bg-slate-50",
       onPress: () => router.push("/(app)/settings"),

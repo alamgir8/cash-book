@@ -293,6 +293,7 @@ export type AppTranslations = {
   selectCategory: string;
   noCategoriesAvailable: string;
   amountLabel: string;
+  transactionType: string;
   dateLabel: string;
   selectDate: string;
   descriptionLabel: string;
@@ -326,6 +327,78 @@ export type AppTranslations = {
   attachmentUploadFailed: string;
   fileTooLargeMsg: string;
   transactionSavedAttachmentsFailed: string;
+
+  // ── Account form modal ─────────────────────────────────────────────────────
+  editAccount: string;
+  createAccountSubtitle: string;
+  updateAccountDetails: string;
+  accountNameLabel: string;
+  accountNamePlaceholder: string;
+  accountDescriptionLabel: string;
+  accountDescriptionOptional: string;
+  accountDescriptionPlaceholder: string;
+  createAccountBtn: string;
+  updateAccountBtn: string;
+
+  // ── Due-chain / Ledger sheet ───────────────────────────────────────────────
+  fullLedger: string;
+  paymentHistory: string;
+  allTransactionsWith: string;
+  vendorLabel2: string;
+  forLabel2: string;
+  dueTransactionChain: string;
+  totalGiven: string;
+  returnedToMe: string;
+  totalBorrowed: string;
+  iRepaid: string;
+  fullySettled: string;
+  iOweThem: string;
+  theyOweMe: string;
+  iOweThem2: string;
+  theyOweThem2: string;
+  transactionsTotal: string;
+  fullTransactionHistory: string;
+  borrowed: string;
+  repaid: string;
+  loanGiven: string;
+  returned: string;
+  balance2: string;
+  fullyPaid: string;
+  notYetPaid: string;
+  partiallyPaid: string;
+  originalDue: string;
+  paid2: string;
+  remaining: string;
+  settledOn: string;
+  transactionTimeline: string;
+  noPaymentsYet: string;
+  finalPayment: string;
+  partialPayment: string;
+  afterThis: string;
+  left: string;
+  couldNotLoad: string;
+  nothingToExport: string;
+  loadDataFirst: string;
+  exportFailed: string;
+
+  // ── Security section ──────────────────────────────────────────────────────
+  securityTitle: string;
+  protectYourAccount: string;
+  biometricLogin: string;
+  biometricEnabled: string;
+  tapToEnableBiometric: string;
+  biometricNotAvailable: string;
+
+  // ── Theme section ─────────────────────────────────────────────────────────
+  appearanceTitle: string;
+  choosePreferredTheme: string;
+  lightMode: string;
+  darkMode: string;
+  systemDefault: string;
+  currentlyUsingDark: string;
+  currentlyUsingLight: string;
+  themeLight: string;
+  themeDark: string;
 
   // ── Transfer modal ────────────────────────────────────────────────────────
   transferFundsModal: string;
@@ -630,6 +703,7 @@ const en: AppTranslations = {
   selectCategory: "Select category",
   noCategoriesAvailable: "No categories available",
   amountLabel: "Amount",
+  transactionType: "Type",
   dateLabel: "Date",
   selectDate: "Select Date",
   descriptionLabel: "Description",
@@ -666,6 +740,78 @@ const en: AppTranslations = {
   fileTooLargeMsg: "File too large. Max 10 MB per file.",
   transactionSavedAttachmentsFailed:
     "Transaction saved, but attachments could not be uploaded. Try again from the transaction list.",
+
+  // Account form modal
+  editAccount: "Edit Account",
+  createAccountSubtitle: "Create a new account to track",
+  updateAccountDetails: "Update account details",
+  accountNameLabel: "Account Name",
+  accountNamePlaceholder: "e.g. Business Checking, Savings Account",
+  accountDescriptionLabel: "Description",
+  accountDescriptionOptional: "(optional)",
+  accountDescriptionPlaceholder: "Optional details about this account...",
+  createAccountBtn: "Create Account",
+  updateAccountBtn: "Update Account",
+
+  // Due-chain / ledger sheet
+  fullLedger: "Full Ledger",
+  paymentHistory: "Payment History",
+  allTransactionsWith: "All transactions with",
+  vendorLabel2: "Vendor:",
+  forLabel2: "For:",
+  dueTransactionChain: "Due transaction chain",
+  totalGiven: "Total Given",
+  returnedToMe: "Returned to Me",
+  totalBorrowed: "Total Borrowed",
+  iRepaid: "I Repaid",
+  fullySettled: "✅ Fully Settled",
+  iOweThem: "⏳ I Owe Them",
+  theyOweMe: "⏳ They Owe Me",
+  iOweThem2: "I owe them:",
+  theyOweThem2: "They owe me:",
+  transactionsTotal: "transactions total",
+  fullTransactionHistory: "Full Transaction History",
+  borrowed: "Borrowed",
+  repaid: "Repaid",
+  loanGiven: "Loan Given",
+  returned: "Returned",
+  balance2: "Balance:",
+  fullyPaid: "✓ Clear",
+  notYetPaid: "⏳ Not Yet Paid",
+  partiallyPaid: "⏳ Partially Paid",
+  originalDue: "Original Due",
+  paid2: "Paid:",
+  remaining: "Remaining:",
+  settledOn: "Settled on",
+  transactionTimeline: "Transaction Timeline",
+  noPaymentsYet: "No payments recorded yet",
+  finalPayment: "Final Payment",
+  partialPayment: "Partial Payment",
+  afterThis: "After this:",
+  left: "left",
+  couldNotLoad: "Could not load history",
+  nothingToExport: "Nothing to export",
+  loadDataFirst: "Load the data first.",
+  exportFailed: "Export failed",
+
+  // Security section
+  securityTitle: "Security",
+  protectYourAccount: "Protect your account",
+  biometricLogin: "Login",
+  biometricEnabled: "Enabled - Quick login with biometric",
+  tapToEnableBiometric: "Tap to enable quick login",
+  biometricNotAvailable: "Not available on this device",
+
+  // Theme section
+  appearanceTitle: "Appearance",
+  choosePreferredTheme: "Choose your preferred theme",
+  lightMode: "Light Mode",
+  darkMode: "Dark Mode",
+  systemDefault: "System Default",
+  currentlyUsingDark: "Currently using Dark Mode (from system settings)",
+  currentlyUsingLight: "Currently using Light Mode (from system settings)",
+  themeLight: "Theme: Light Mode",
+  themeDark: "Theme: Dark Mode",
 
   transferFundsModal: "Transfer Funds",
   moveMoneyBetweenAccounts: "Move money between your accounts",
@@ -969,6 +1115,7 @@ const bn: AppTranslations = {
   selectCategory: "ক্যাটাগরি নির্বাচন করুন",
   noCategoriesAvailable: "কোনো ক্যাটাগরি নেই",
   amountLabel: "পরিমাণ",
+  transactionType: "ধরন",
   dateLabel: "তারিখ",
   selectDate: "তারিখ নির্বাচন করুন",
   descriptionLabel: "বিবরণ",
@@ -1006,6 +1153,78 @@ const bn: AppTranslations = {
   fileTooLargeMsg: "ফাইল অনেক বড়। প্রতিটি ফাইল সর্বোচ্চ ১০ এমবি।",
   transactionSavedAttachmentsFailed:
     "লেনদেন সংরক্ষিত হয়েছে, কিন্তু সংযুক্তি আপলোড হয়নি। লেনদেন তালিকা থেকে আবার চেষ্টা করুন।",
+
+  // Account form modal
+  editAccount: "অ্যাকাউন্ট সম্পাদনা",
+  createAccountSubtitle: "ট্র্যাক করতে নতুন অ্যাকাউন্ট তৈরি করুন",
+  updateAccountDetails: "অ্যাকাউন্টের বিবরণ আপডেট করুন",
+  accountNameLabel: "অ্যাকাউন্টের নাম",
+  accountNamePlaceholder: "যেমন: ব্যবসায়িক চেকিং, সঞ্চয় অ্যাকাউন্ট",
+  accountDescriptionLabel: "বিবরণ",
+  accountDescriptionOptional: "(ঐচ্ছিক)",
+  accountDescriptionPlaceholder: "এই অ্যাকাউন্ট সম্পর্কে ঐচ্ছিক বিবরণ...",
+  createAccountBtn: "অ্যাকাউন্ট তৈরি করুন",
+  updateAccountBtn: "অ্যাকাউন্ট আপডেট করুন",
+
+  // Due-chain / ledger sheet
+  fullLedger: "সম্পূর্ণ লেজার",
+  paymentHistory: "পেমেন্ট ইতিহাস",
+  allTransactionsWith: "সাথে সকল লেনদেন",
+  vendorLabel2: "বিক্রেতা:",
+  forLabel2: "জন্য:",
+  dueTransactionChain: "বকেয়া লেনদেন চেইন",
+  totalGiven: "মোট দিয়েছি",
+  returnedToMe: "আমাকে ফেরত দিয়েছে",
+  totalBorrowed: "মোট ধার নিয়েছি",
+  iRepaid: "আমি পরিশোধ করেছি",
+  fullySettled: "✅ সম্পূর্ণ নিষ্পত্তি হয়েছে",
+  iOweThem: "⏳ আমি তাদের কাছে বকেয়া",
+  theyOweMe: "⏳ তারা আমার কাছে বকেয়া",
+  iOweThem2: "আমি তাদের কাছে বকেয়া:",
+  theyOweThem2: "তারা আমার কাছে বকেয়া:",
+  transactionsTotal: "টি লেনদেন মোট",
+  fullTransactionHistory: "সম্পূর্ণ লেনদেন ইতিহাস",
+  borrowed: "ধার নিয়েছি",
+  repaid: "পরিশোধ করেছি",
+  loanGiven: "ঋণ দিয়েছি",
+  returned: "ফেরত দিয়েছি",
+  balance2: "ব্যালেন্স:",
+  fullyPaid: "✓ পরিষ্কার",
+  notYetPaid: "⏳ এখনো পরিশোধ হয়নি",
+  partiallyPaid: "⏳ আংশিক পরিশোধিত",
+  originalDue: "মূল বকেয়া",
+  paid2: "পরিশোধিত:",
+  remaining: "বাকি:",
+  settledOn: "নিষ্পত্তির তারিখ:",
+  transactionTimeline: "লেনদেন টাইমলাইন",
+  noPaymentsYet: "এখনো কোনো পেমেন্ট রেকর্ড নেই",
+  finalPayment: "চূড়ান্ত পেমেন্ট",
+  partialPayment: "আংশিক পেমেন্ট",
+  afterThis: "এরপর:",
+  left: "বাকি",
+  couldNotLoad: "ইতিহাস লোড করা সম্ভব হয়নি",
+  nothingToExport: "এক্সপোর্ট করার কিছু নেই",
+  loadDataFirst: "প্রথমে ডেটা লোড করুন।",
+  exportFailed: "এক্সপোর্ট ব্যর্থ হয়েছে",
+
+  // Security section
+  securityTitle: "নিরাপত্তা",
+  protectYourAccount: "আপনার অ্যাকাউন্ট সুরক্ষিত করুন",
+  biometricLogin: "লগইন",
+  biometricEnabled: "চালু আছে - বায়োমেট্রিক দিয়ে দ্রুত লগইন",
+  tapToEnableBiometric: "দ্রুত লগইন চালু করতে চাপুন",
+  biometricNotAvailable: "এই ডিভাইসে উপলব্ধ নয়",
+
+  // Theme section
+  appearanceTitle: "চেহারা",
+  choosePreferredTheme: "আপনার পছন্দের থিম বেছে নিন",
+  lightMode: "লাইট মোড",
+  darkMode: "ডার্ক মোড",
+  systemDefault: "সিস্টেম ডিফল্ট",
+  currentlyUsingDark: "বর্তমানে ডার্ক মোড ব্যবহার হচ্ছে (সিস্টেম সেটিংস থেকে)",
+  currentlyUsingLight: "বর্তমানে লাইট মোড ব্যবহার হচ্ছে (সিস্টেম সেটিংস থেকে)",
+  themeLight: "থিম: লাইট মোড",
+  themeDark: "থিম: ডার্ক মোড",
 
   transferFundsModal: "তহবিল স্থানান্তর",
   moveMoneyBetweenAccounts: "আপনার অ্যাকাউন্টগুলোর মধ্যে অর্থ স্থানান্তর করুন",

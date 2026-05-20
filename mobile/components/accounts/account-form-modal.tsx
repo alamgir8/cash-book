@@ -25,6 +25,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ActionButton } from "@/components/action-button";
 import { VoiceInputButton } from "@/components/voice-input-button";
 import { useTheme } from "@/hooks/use-theme";
+import { useTranslation } from "@/hooks/use-translation";
 import type { Account } from "@/services/accounts";
 
 const schema = z.object({
@@ -50,6 +51,7 @@ export function AccountFormModal({
   onSubmit,
 }: Props) {
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
 
   const {
@@ -133,7 +135,7 @@ export function AccountFormModal({
           <View style={[styles.header, { borderBottomColor: colors.border }]}>
             <View>
               <Text style={[styles.title, { color: colors.text.primary }]}>
-                {editingAccount ? "Edit Account" : "New Account"}
+                {editingAccount ? t("editAccount") : t("newAccount")}
               </Text>
               <Text
                 style={{
@@ -143,8 +145,8 @@ export function AccountFormModal({
                 }}
               >
                 {editingAccount
-                  ? "Update account details"
-                  : "Create a new account to track"}
+                  ? t("updateAccountDetails")
+                  : t("createAccountSubtitle")}
               </Text>
             </View>
             <TouchableOpacity
@@ -170,7 +172,7 @@ export function AccountFormModal({
             {/* Account Name */}
             <View>
               <Text style={[styles.label, { color: colors.text.primary }]}>
-                Account Name
+                {t("accountNameLabel")}
               </Text>
               <Controller
                 control={control}
@@ -179,7 +181,7 @@ export function AccountFormModal({
                   <TextInput
                     value={value}
                     onChangeText={onChange}
-                    placeholder="e.g. Business Checking, Savings Account"
+                    placeholder={t("accountNamePlaceholder")}
                     placeholderTextColor={colors.text.tertiary}
                     style={[
                       styles.input,
@@ -204,11 +206,11 @@ export function AccountFormModal({
             {/* Description */}
             <View>
               <Text style={[styles.label, { color: colors.text.primary }]}>
-                Description{" "}
+                {t("accountDescriptionLabel")}{" "}
                 <Text
                   style={{ color: colors.text.tertiary, fontWeight: "400" }}
                 >
-                  (optional)
+                  {t("accountDescriptionOptional")}
                 </Text>
               </Text>
               <Controller
@@ -218,7 +220,7 @@ export function AccountFormModal({
                   <TextInput
                     value={value ?? ""}
                     onChangeText={onChange}
-                    placeholder="Optional details about this account..."
+                    placeholder={t("accountDescriptionPlaceholder")}
                     placeholderTextColor={colors.text.tertiary}
                     style={[
                       styles.input,
@@ -242,7 +244,9 @@ export function AccountFormModal({
           {/* Footer */}
           <View style={[styles.footer, { borderTopColor: colors.border }]}>
             <ActionButton
-              label={editingAccount ? "Update Account" : "Create Account"}
+              label={
+                editingAccount ? t("updateAccountBtn") : t("createAccountBtn")
+              }
               onPress={handleSubmit(onSubmit)}
               isLoading={isSubmitting}
               variant="primary"
