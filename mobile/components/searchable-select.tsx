@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Modal,
   View,
   Text,
@@ -31,6 +32,8 @@ type SearchableSelectProps = {
   label?: string;
   allowCustomValue?: boolean;
   customDisplayValue?: string;
+  /** Called with the current search text; results are merged with `options`. */
+  fetchOptions?: (search: string) => Promise<SelectOption[]>;
 };
 
 type RenderItem =
@@ -46,15 +49,52 @@ export const SearchableSelect = ({
   label,
   allowCustomValue = false,
   customDisplayValue,
+  fetchOptions,
 }: SearchableSelectProps) => {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const [visible, setVisible] = useState(false);
   const [search, setSearch] = useState("");
+  const [asyncOptions, setAsyncOptions] = useState<SelectOption[]>([]);
+  const [isFetching, setIsFetching] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Debounced async search whenever search text changes
+  useEffect(() => {
+    if (!fetchOptions) return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (!search.trim()) {
+      setAsyncOptions([]);
+      setIsFetching(false);
+      return;
+    }
+    setIsFetching(true);
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const results = await fetchOptions(search.trim());
+        setAsyncOptions(results);
+      } catch {
+        setAsyncOptions([]);
+      } finally {
+        setIsFetching(false);
+      }
+    }, 300);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [search, fetchOptions]);
+
+  // Merge prop options + async results, deduplicating by value
+  const mergedOptions = useMemo(() => {
+    if (!asyncOptions.length) return options;
+    const seen = new Set(options.map((o) => o.value.toLowerCase()));
+    const extra = asyncOptions.filter((o) => !seen.has(o.value.toLowerCase()));
+    return [...options, ...extra];
+  }, [options, asyncOptions]);
 
   const selectedOption = useMemo(
-    () => options.find((option) => option.value === value),
-    [options, value],
+    () => mergedOptions.find((option) => option.value === value),
+    [mergedOptions, value],
   );
 
   const { filteredItems, hasMore, totalCount } = useMemo(() => {
@@ -62,7 +102,7 @@ export const SearchableSelect = ({
     const isSearching = normalizedSearch.length > 0;
 
     // Filter options based on search
-    let filtered = options.filter((option) => {
+    let filtered = mergedOptions.filter((option) => {
       if (!isSearching) return true;
       return (
         option.label.toLowerCase().includes(normalizedSearch) ||
@@ -102,7 +142,7 @@ export const SearchableSelect = ({
     });
 
     return { filteredItems: items, hasMore, totalCount };
-  }, [options, search]);
+  }, [mergedOptions, search]);
 
   const handleSelect = (option: SelectOption) => {
     onSelect(option.value, option);
@@ -125,10 +165,10 @@ export const SearchableSelect = ({
   const searchMatchesExisting = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
     if (!normalizedSearch) return true;
-    return options.some(
+    return mergedOptions.some(
       (option) => option.label.toLowerCase() === normalizedSearch,
     );
-  }, [options, search]);
+  }, [mergedOptions, search]);
 
   const handleAddCustom = () => {
     const trimmedSearch = search.trim();
@@ -240,6 +280,13 @@ export const SearchableSelect = ({
                     color={colors.text.tertiary}
                   />
                 </TouchableOpacity>
+              )}
+              {isFetching && (
+                <ActivityIndicator
+                  size="small"
+                  color={colors.info}
+                  style={{ marginLeft: 4 }}
+                />
               )}
             </View>
 

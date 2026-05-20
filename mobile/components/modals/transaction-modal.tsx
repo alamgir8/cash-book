@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
+import Animated, { useAnimatedStyle } from "react-native-reanimated";
 import {
   ActivityIndicator,
   Alert,
@@ -14,7 +15,10 @@ import {
   Keyboard,
   Dimensions,
 } from "react-native";
-import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
+import {
+  KeyboardAwareScrollView,
+  useReanimatedKeyboardAnimation,
+} from "react-native-keyboard-controller";
 import Toast from "react-native-toast-message";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
@@ -33,6 +37,7 @@ import {
   type SelectOption,
 } from "./types";
 import type { Transaction } from "@/services/transactions";
+import { fetchVendors, fetchCounterparties } from "@/services/transactions";
 import { uploadAttachments } from "@/services/attachments";
 import { AttachmentPicker } from "../transactions/attachment-picker";
 
@@ -318,6 +323,11 @@ export const TransactionModal = ({
   };
 
   const screenHeight = Dimensions.get("window").height;
+  const { height: kbHeight } = useReanimatedKeyboardAnimation();
+  const sheetAnimStyle = useAnimatedStyle(() => ({
+    // kbHeight is negative when keyboard is open; negate it for paddingBottom
+    paddingBottom: -kbHeight.value,
+  }));
 
   return (
     <Modal visible={visible} transparent animationType="slide">
@@ -336,19 +346,22 @@ export const TransactionModal = ({
         />
 
         {/* Bottom sheet — explicit height so KeyboardAwareScrollView can flex:1 */}
-        <View
-          style={{
-            height: screenHeight * 0.88,
-            backgroundColor: colors.bg.primary,
-            borderTopLeftRadius: 24,
-            borderTopRightRadius: 24,
-            // shadow for iOS elevation
-            shadowColor: "#000",
-            shadowOffset: { width: 0, height: -4 },
-            shadowOpacity: 0.12,
-            shadowRadius: 16,
-            elevation: 24,
-          }}
+        <Animated.View
+          style={[
+            {
+              height: screenHeight * 0.88,
+              backgroundColor: colors.bg.primary,
+              borderTopLeftRadius: 24,
+              borderTopRightRadius: 24,
+              // shadow for iOS elevation
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: -4 },
+              shadowOpacity: 0.12,
+              shadowRadius: 16,
+              elevation: 24,
+            },
+            sheetAnimStyle,
+          ]}
         >
           {/* ── FIXED HEADER ─────────────────────────────────────────── */}
           <View
@@ -687,6 +700,10 @@ export const TransactionModal = ({
                         onSelect={(selectedValue) => onChange(selectedValue)}
                         allowCustomValue={true}
                         customDisplayValue={value || ""}
+                        fetchOptions={async (q) => {
+                          const res = await fetchVendors(q);
+                          return res.map((v) => ({ value: v, label: v }));
+                        }}
                       />
                     )}
                   />
@@ -874,6 +891,10 @@ export const TransactionModal = ({
                         onSelect={(selectedValue) => onChange(selectedValue)}
                         allowCustomValue={true}
                         customDisplayValue={value || ""}
+                        fetchOptions={async (q) => {
+                          const res = await fetchCounterparties(q);
+                          return res.map((v) => ({ value: v, label: v }));
+                        }}
                       />
                     )}
                   />
@@ -1167,7 +1188,7 @@ export const TransactionModal = ({
               )}
             </TouchableOpacity>
           </View>
-        </View>
+        </Animated.View>
       </View>
     </Modal>
   );

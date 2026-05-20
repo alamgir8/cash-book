@@ -135,6 +135,7 @@ export function useTransactionsScreen() {
           predicate: (q) => q.queryKey[0] === "accounts",
         }),
         queryClient.invalidateQueries({ queryKey: queryKeys.counterparties }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.vendors }),
       ]);
       setModalVisible(false);
       setEditingTransaction(null);
