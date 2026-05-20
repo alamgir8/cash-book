@@ -47,7 +47,7 @@ export const fetchBackupData = async (): Promise<BackupData> => {
  * Import backup data to the API
  */
 export const importBackupData = async (
-  backupData: BackupData
+  backupData: BackupData,
 ): Promise<ImportResult> => {
   const { data } = await api.post<ImportResult>("/backup/import", backupData);
   return data;
@@ -178,4 +178,35 @@ export const importBackupFromFile = async (): Promise<ImportResult> => {
     }
     throw new Error("Failed to import backup. Please try again.");
   }
+};
+
+/**
+ * Share the most recently created auto-backup file via the system share sheet.
+ * The user can choose Google Drive, Gmail, Files, etc.
+ * Returns the filename shared, or null if no auto-backup file exists.
+ */
+export const shareLatestAutoBackup = async (): Promise<string | null> => {
+  const dir = Paths.document;
+  const entries = await (dir as any).list?.();
+  if (!entries) return null;
+
+  const autoFiles: { name: string }[] = (entries as { name: string }[])
+    .filter(
+      (e) => e.name.startsWith("auto-backup-") && e.name.endsWith(".json"),
+    )
+    .sort((a, b) => b.name.localeCompare(a.name)); // newest first
+
+  if (autoFiles.length === 0) return null;
+
+  const latest = new File(dir, autoFiles[0].name);
+  const isSharingAvailable = await Sharing.isAvailableAsync();
+  if (!isSharingAvailable) {
+    throw new Error("Sharing is not available on this device");
+  }
+  await Sharing.shareAsync(latest.uri, {
+    mimeType: "application/json",
+    dialogTitle: "Save or send your backup",
+    UTI: "public.json",
+  });
+  return autoFiles[0].name;
 };

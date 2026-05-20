@@ -56,7 +56,10 @@ export function BackupSection({
           <Ionicons name="information-circle" size={20} color={colors.info} />
           <Text className="text-sm flex-1" style={{ color: colors.info }}>
             Backup exports all your accounts, categories, transactions, and
-            transfers as a JSON file that you can save and restore later.
+            transfers as a JSON file that you can save and restore later.{" "}
+            <Text className="font-semibold">
+              Only your account data is included — not other users.
+            </Text>
           </Text>
         </View>
       </View>

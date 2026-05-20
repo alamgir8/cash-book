@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { RefreshControl, ScrollView, View, Alert, Text } from "react-native";
 import Toast from "react-native-toast-message";
 import { router } from "expo-router";
@@ -14,7 +14,12 @@ import {
   exportTransactionsByCounterpartyPdf,
   exportTransactionsByAccountPdf,
 } from "@/services/reports";
-import { exportBackupToFile, importBackupFromFile } from "@/services/backup";
+import {
+  exportBackupToFile,
+  importBackupFromFile,
+  shareLatestAutoBackup,
+} from "@/services/backup";
+import { useAutoBackup, writeBackupFile } from "@/hooks/use-auto-backup";
 import { BalanceCheckModal } from "@/components/settings/balance-check-modal";
 import { ScreenHeader } from "@/components/screen-header";
 import { ActionButton } from "@/components/action-button";
@@ -27,6 +32,7 @@ import {
   SecuritySection,
   PDFReportsSection,
   BackupSection,
+  AutoBackupSection,
   BusinessManagementSection,
   AppInfoSection,
   ThemeSection,
@@ -66,6 +72,15 @@ export default function SettingsScreen() {
   const [showBiometricModal, setShowBiometricModal] = useState(false);
   const [showBalanceCheck, setShowBalanceCheck] = useState(false);
   const { recordTap, isDeleteModeActive, secondsLeft } = useDeleteMode();
+
+  // Auto-backup
+  const userId = state.status === "authenticated" ? state.user._id : undefined;
+  const {
+    enabled: autoBackupEnabled,
+    setEnabled: setAutoBackupEnabled,
+    lastBackupAt,
+    refreshLastBackupAt,
+  } = useAutoBackup(userId);
 
   const orgId = activeOrganization?.id;
 
@@ -200,6 +215,35 @@ export default function SettingsScreen() {
     }
   };
 
+  const handleAutoShare = async () => {
+    try {
+      const filename = await shareLatestAutoBackup();
+      if (!filename) {
+        Toast.show({
+          type: "info",
+          text1: "No backup yet",
+          text2: "Tap 'Backup Now' first to create a local backup",
+        });
+      }
+    } catch (e: any) {
+      Toast.show({
+        type: "error",
+        text1: "Could not share backup",
+        text2: e?.message,
+      });
+    }
+  };
+
+  // onBackupNow is passed to AutoBackupSection; receives progress callback, returns stats
+  const handleAutoBackupNow = async (
+    onProgress: (step: string, pct: number) => void,
+  ) => {
+    if (!userId) throw new Error("Not logged in");
+    const stats = await writeBackupFile(userId, onProgress);
+    void refreshLastBackupAt(); // update hook's lastBackupAt for share button text
+    return stats;
+  };
+
   // Get user info (userEmail already defined above for biometric)
   const isAuthenticated = state.status === "authenticated";
   const userName = isAuthenticated ? state.user.name : "Unknown User";
@@ -298,6 +342,15 @@ export default function SettingsScreen() {
             onRestore={handleRestore}
           />
         )}
+
+        {/* Auto Backup Section */}
+        <AutoBackupSection
+          enabled={autoBackupEnabled}
+          onToggle={(val) => void setAutoBackupEnabled(val)}
+          initialLastBackupAt={lastBackupAt}
+          onBackupNow={handleAutoBackupNow}
+          onShare={handleAutoShare}
+        />
 
         {/* Balance Integrity Section — always visible to account owners */}
         {(isPersonalMode || isOwner) && (
