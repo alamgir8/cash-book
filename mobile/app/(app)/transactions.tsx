@@ -19,9 +19,11 @@ import { DueChainSheet } from "@/components/modals/due-chain-sheet";
 import type { Transaction } from "@/services/transactions";
 import { useTheme } from "@/hooks/use-theme";
 import { useTransactionsScreen } from "@/hooks/use-transactions-screen";
+import { useTranslation } from "@/hooks/use-translation";
 
 export default function TransactionsScreen() {
   const { colors } = useTheme();
+  const { t } = useTranslation();
 
   const {
     accountId,
@@ -141,7 +143,7 @@ export default function TransactionsScreen() {
                 className="text-sm font-medium"
                 style={{ color: colors.text.secondary }}
               >
-                ✓ All transactions loaded ({allTransactions.length} total)
+                {t("allTransactionsLoaded")}
               </Text>
             </View>
           </View>
@@ -158,7 +160,7 @@ export default function TransactionsScreen() {
             className="text-sm mt-2"
             style={{ color: colors.text.secondary }}
           >
-            Loading more...
+            {t("loadingMore")}
           </Text>
         </View>
       );
@@ -181,12 +183,12 @@ export default function TransactionsScreen() {
           <View className="flex-row items-center gap-2">
             <Ionicons name="arrow-down-circle" size={20} color="white" />
             <Text className="text-white font-semibold text-base">
-              Load More Transactions
+              {t("loadMoreTransactions")}
             </Text>
           </View>
         </TouchableOpacity>
         <Text className="text-xs mt-2" style={{ color: colors.text.tertiary }}>
-          Showing {allTransactions.length} transactions
+          {t("showing")} {allTransactions.length} {t("total")}
         </Text>
       </View>
     );
@@ -195,14 +197,14 @@ export default function TransactionsScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg.primary }}>
       <ScreenHeader
-        title="Transactions"
-        subtitle={accountId ? "Account transactions" : "All transactions"}
+        title={t("transactions")}
+        subtitle={accountId ? "Account transactions" : t("allTransactions")}
         icon="receipt"
         backgroundColor={colors.bg.primary}
         actionButton={
           canExportData
             ? {
-                label: exporting ? "Exporting..." : "Export PDF",
+                label: exporting ? t("exporting") : t("exportPdf"),
                 onPress: handleExport,
                 icon: "document-text",
                 color: "green",
@@ -226,8 +228,8 @@ export default function TransactionsScreen() {
           !transactionsQuery.isLoading && allTransactions.length === 0 ? (
             <EmptyState
               icon="receipt-outline"
-              title="No transactions found"
-              description="No transactions match your current filters"
+              title={t("noTransactionsFound")}
+              description={t("noTransactionsMatchFilters")}
             />
           ) : null
         }

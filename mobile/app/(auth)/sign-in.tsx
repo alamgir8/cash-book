@@ -25,6 +25,7 @@ import { CustomButton } from "@/components/custom-button";
 import { checkAndMarkFreshDevice } from "@/hooks/use-auto-backup";
 import { fetchBackupData } from "@/services/backup";
 import { RestoreFromBackupModal } from "@/components/modals/restore-from-backup-modal";
+import { useTranslation } from "@/hooks/use-translation";
 
 const schema = z
   .object({
@@ -80,6 +81,7 @@ export default function SignInScreen() {
   const [usePinLogin, setUsePinLogin] = useState(false);
   // Whether any user on this device has biometric stored (doesn't need userIdentifier)
   const [hasBiometricStored, setHasBiometricStored] = useState(false);
+  const { t } = useTranslation();
 
   // First-login restore modal
   const [restoreModalVisible, setRestoreModalVisible] = useState(false);
@@ -163,9 +165,7 @@ export default function SignInScreen() {
         });
         router.replace("/(app)");
       } else {
-        setFormError(
-          "No biometric credentials found. Please log in with your password.",
-        );
+        setFormError(t("noBiometricCredentials"));
       }
     } catch (error) {
       console.error("Biometric login failed:", error);
@@ -175,7 +175,7 @@ export default function SignInScreen() {
     } finally {
       setLoading(false);
     }
-  }, [isAuthenticating, loading, findBiometricCredentials, signIn, router]);
+  }, [isAuthenticating, loading, findBiometricCredentials, signIn, router, t]);
 
   // Auto-prompt biometric on mount
   useEffect(() => {
@@ -229,16 +229,16 @@ export default function SignInScreen() {
           biometricStatus.biometricType,
         );
         Alert.alert(
-          `Enable ${biometricName}?`,
-          `Log in faster next time using ${biometricName}. Your credentials will be stored securely on this device.`,
+          t("enableBiometricTitle", { biometricName }),
+          t("enableBiometricMessage", { biometricName }),
           [
             {
-              text: "Not now",
+              text: t("notNow"),
               style: "cancel",
               onPress: () => router.replace("/(app)"),
             },
             {
-              text: `Enable ${biometricName}`,
+              text: `${t("enable")} ${biometricName}`,
               onPress: async () => {
                 const ok = await enableBiometric({
                   identifier: values.identifier.trim(),
@@ -258,7 +258,7 @@ export default function SignInScreen() {
       if (error instanceof Error && error.message) {
         setFormError(error.message);
       } else {
-        setFormError("Something went wrong. Please try again.");
+        setFormError(t("somethingWentWrong"));
       }
     } finally {
       setLoading(false);
@@ -290,13 +290,13 @@ export default function SignInScreen() {
                 style={{ color: colors.text.primary }}
                 className="text-4xl font-bold mb-3"
               >
-                Welcome Back
+                {t("welcomeBack")}
               </Text>
               <Text
                 style={{ color: colors.text.secondary }}
                 className="text-lg text-center leading-6"
               >
-                Manage your debit and credit accounts effortlessly.
+                {t("manageDebitCreditEasily")}
               </Text>
               {/* <Image
               source={require("../../image/logo.png")}
@@ -311,10 +311,10 @@ export default function SignInScreen() {
                 name="identifier"
                 render={({ field: { onChange, value } }) => (
                   <CustomInput
-                    label="Email or phone"
+                    label={t("emailOrPhone")}
                     value={value}
                     onChangeText={onChange}
-                    placeholder="Email or phone number"
+                    placeholder={t("emailOrPhonePlaceholder")}
                     autoCapitalize="none"
                     keyboardType="email-address"
                     error={errors.identifier?.message}
@@ -328,10 +328,10 @@ export default function SignInScreen() {
                   name="pin"
                   render={({ field: { onChange, value } }) => (
                     <PasswordInput
-                      label="6-digit PIN"
+                      label={t("sixDigitPin")}
                       value={value ?? ""}
                       onChangeText={onChange}
-                      placeholder="Enter PIN"
+                      placeholder={t("enterPin")}
                       keyboardType="number-pad"
                       maxLength={6}
                       error={errors.pin?.message}
@@ -344,10 +344,10 @@ export default function SignInScreen() {
                   name="password"
                   render={({ field: { onChange, value } }) => (
                     <PasswordInput
-                      label="Password"
+                      label={t("password")}
                       value={value ?? ""}
                       onChangeText={onChange}
-                      placeholder="••••••••"
+                      placeholder={t("passwordPlaceholder")}
                       error={errors.password?.message}
                     />
                   )}
@@ -359,12 +359,12 @@ export default function SignInScreen() {
                 className="self-end"
               >
                 <Text className="text-blue-600 font-semibold text-sm">
-                  {usePinLogin ? "Use password instead" : "Use PIN instead"}
+                  {usePinLogin ? t("usePasswordInstead") : t("usePinInstead")}
                 </Text>
               </TouchableOpacity>
 
               <CustomButton
-                title="Sign In"
+                title={t("signIn")}
                 onPress={handleSubmit(onSubmit)}
                 loading={loading}
                 containerClassName="mt-4"
@@ -420,9 +420,9 @@ export default function SignInScreen() {
                       className="font-bold text-base"
                     >
                       {isAuthenticating
-                        ? "Authenticating..."
+                        ? t("authenticating")
                         : hasBiometricStored
-                          ? `Login with ${getBiometricDisplayName(biometricStatus?.biometricType ?? "none")}`
+                          ? `${t("loginWith")} ${getBiometricDisplayName(biometricStatus?.biometricType ?? "none")}`
                           : `${getBiometricDisplayName(biometricStatus?.biometricType ?? "none")} Login`}
                     </Text>
                     {!hasBiometricStored && (
@@ -430,7 +430,7 @@ export default function SignInScreen() {
                         style={{ color: colors.text.tertiary }}
                         className="text-xs mt-0.5"
                       >
-                        Enable in Settings → Security
+                        {t("enableInSettings")}
                       </Text>
                     )}
                   </View>
@@ -452,7 +452,7 @@ export default function SignInScreen() {
                 style={{ color: colors.text.secondary }}
                 className="text-base"
               >
-                New here?
+                {t("newHere")}
               </Text>
               <Link
                 href="/(auth)/sign-up"

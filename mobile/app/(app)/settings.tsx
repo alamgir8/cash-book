@@ -38,10 +38,12 @@ import {
   AppInfoSection,
   ThemeSection,
 } from "@/components/settings";
+import { useTranslation } from "@/hooks/use-translation";
 
 type ExportType = "all" | "category" | "counterparty" | "account" | null;
 
 export default function SettingsScreen() {
+  const { t } = useTranslation();
   const { state, signOut } = useAuth();
   const {
     activeOrganization,
@@ -137,13 +139,13 @@ export default function SettingsScreen() {
       const filename = await exportBackupToFile();
       Toast.show({
         type: "success",
-        text1: "Backup created successfully",
+        text1: t("backupCreatedSuccessfully"),
         text2: `Saved as ${filename}`,
       });
     } catch (error: any) {
       Toast.show({
         type: "error",
-        text1: "Failed to create backup",
+        text1: t("failedToCreateBackup"),
         text2: error?.message || "Please try again",
       });
     } finally {
@@ -152,17 +154,13 @@ export default function SettingsScreen() {
   };
 
   const handleRestore = () => {
-    Alert.alert(
-      "Restore Backup",
-      "This will import data from a backup file. Existing data will NOT be deleted, but duplicate categories will be skipped. Continue?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Select File",
-          onPress: performRestore,
-        },
-      ],
-    );
+    Alert.alert(t("pleaseRestoreBackup"), t("restoreBackupMessage"), [
+      { text: t("cancel"), style: "cancel" },
+      {
+        text: t("selectFile"),
+        onPress: performRestore,
+      },
+    ]);
   };
 
   const performRestore = async () => {
@@ -196,8 +194,8 @@ export default function SettingsScreen() {
 
       Toast.show({
         type: "success",
-        text1: "Backup restored successfully",
-        text2: details.join(", ") + balanceText || "No data imported",
+        text1: t("backupRestoredSuccessfully"),
+        text2: details.join(", ") + balanceText || t("noDataImported"),
         visibilityTime: 5000,
       });
     } catch (error: any) {
@@ -207,14 +205,14 @@ export default function SettingsScreen() {
       if (error?.response?.data?.message) {
         message = error.response.data.message;
       } else if (error?.response?.data?.errors) {
-        message = "Invalid backup file format";
+        message = t("invalidBackupFileFormat");
       } else if (error?.message) {
         message = error.message;
       }
 
       Toast.show({
         type: "error",
-        text1: "Failed to restore backup",
+        text1: t("failedToRestoreBackup"),
         text2: message,
         visibilityTime: 4000,
       });
@@ -229,14 +227,14 @@ export default function SettingsScreen() {
       if (!filename) {
         Toast.show({
           type: "info",
-          text1: "No backup yet",
-          text2: "Tap 'Backup Now' first to create a local backup",
+          text1: t("noBackupYet"),
+          text2: t("tapBackupNowFirst"),
         });
       }
     } catch (e: any) {
       Toast.show({
         type: "error",
-        text1: "Could not share backup",
+        text1: t("couldNotShareBackup"),
         text2: e?.message,
       });
     }
@@ -263,8 +261,8 @@ export default function SettingsScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg.primary }}>
       <ScreenHeader
-        title="Settings"
-        subtitle="Profile and app preferences"
+        title={t("settings")}
+        subtitle={t("profileAndAppPreferences")}
         icon="settings"
         iconColor="#8b5cf6"
         gradientFrom="from-purple-100"
@@ -285,7 +283,7 @@ export default function SettingsScreen() {
                 style={{ color: colors.error }}
                 className="text-xs font-bold"
               >
-                Delete mode {secondsLeft}s
+                {t("deleteMode")} {secondsLeft}s
               </Text>
             </View>
           ) : isRestoreModeActive ? (
@@ -301,7 +299,7 @@ export default function SettingsScreen() {
                 style={{ color: colors.warning }}
                 className="text-xs font-bold"
               >
-                Restore unlocked {restoreSecondsLeft}s
+                {t("restoreUnlocked")} {restoreSecondsLeft}s
               </Text>
             </View>
           ) : undefined
@@ -391,8 +389,8 @@ export default function SettingsScreen() {
           >
             <ActionButton
               icon="shield-checkmark-outline"
-              label="Balance Health Check"
-              subLabel="Verify and fix account balances from transaction history"
+              label={t("balanceHealthCheck")}
+              subLabel={t("verifyAndFixBalances")}
               onPress={() => setShowBalanceCheck(true)}
               color="#10b981"
               bgColor="bg-emerald-50"
@@ -411,8 +409,8 @@ export default function SettingsScreen() {
           >
             <ActionButton
               icon="list"
-              label="Manage Categories"
-              subLabel="Add or edit income & expense categories"
+              label={t("manageCategories")}
+              subLabel={t("addOrEditCategories")}
               onPress={() => router.push("/categories")}
               color="#8b5cf6"
               bgColor="bg-purple-50"
@@ -439,7 +437,7 @@ export default function SettingsScreen() {
           }}
         >
           <ActionButton
-            label="Sign Out"
+            label={t("signOut")}
             onPress={signOut}
             variant="danger"
             size="medium"

@@ -16,9 +16,11 @@ import { AccountFormModal } from "@/components/accounts/account-form-modal";
 import { useTheme } from "@/hooks/use-theme";
 import { useAccountsScreen } from "@/hooks/use-accounts-screen";
 import { refreshAppData } from "@/lib/refresh-app-data";
+import { useTranslation } from "@/hooks/use-translation";
 
 export default function AccountsScreen() {
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
 
   const {
@@ -54,7 +56,7 @@ export default function AccountsScreen() {
             className="text-lg font-bold"
             style={{ color: colors.text.primary }}
           >
-            Portfolio Overview
+            {t("portfolioOverview")}
           </Text>
           <View
             className="px-3 py-1 rounded-full"
@@ -81,7 +83,7 @@ export default function AccountsScreen() {
               className="text-xs font-semibold uppercase"
               style={{ color: colors.success }}
             >
-              Total Credit
+              {t("totalCredit")}
             </Text>
             <Text
               className="text-2xl font-bold mt-2"
@@ -93,7 +95,7 @@ export default function AccountsScreen() {
               className="text-xs mt-1"
               style={{ color: colors.text.secondary }}
             >
-              Across all accounts
+              {t("acrossAllAccounts")}
             </Text>
           </View>
           <View
@@ -107,7 +109,7 @@ export default function AccountsScreen() {
               className="text-xs font-semibold uppercase"
               style={{ color: colors.error }}
             >
-              Total Debit
+              {t("totalDebit")}
             </Text>
             <Text
               className="text-2xl font-bold mt-2"
@@ -119,7 +121,7 @@ export default function AccountsScreen() {
               className="text-xs mt-1"
               style={{ color: colors.text.secondary }}
             >
-              Overall spending
+              {t("overallSpending")}
             </Text>
           </View>
         </View>
@@ -140,7 +142,7 @@ export default function AccountsScreen() {
               className="text-xs font-semibold uppercase"
               style={{ color: netPositive ? colors.success : colors.error }}
             >
-              Net Balance
+              {t("netBalance")}
             </Text>
             <Text
               className="text-2xl font-bold mt-2"
@@ -152,7 +154,9 @@ export default function AccountsScreen() {
               className="text-xs mt-1"
               style={{ color: colors.text.secondary }}
             >
-              {netPositive ? "Surplus across accounts" : "Outstanding balance"}
+              {netPositive
+                ? t("surplusAcrossAccounts")
+                : t("outstandingBalance")}
             </Text>
           </View>
           <View
@@ -188,7 +192,7 @@ export default function AccountsScreen() {
         className="text-sm font-semibold uppercase tracking-wide px-1"
         style={{ color: colors.text.secondary }}
       >
-        Accounts
+        {t("accounts")}
       </Text>
     </View>
   );
@@ -270,7 +274,7 @@ export default function AccountsScreen() {
                 className="text-xs font-semibold uppercase"
                 style={{ color: colors.success }}
               >
-                Total Credit
+                {t("totalCredit")}
               </Text>
               <Text
                 className="text-lg font-bold mt-1"
@@ -290,7 +294,7 @@ export default function AccountsScreen() {
                 className="text-xs font-semibold uppercase"
                 style={{ color: colors.error }}
               >
-                Total Debit
+                {t("totalDebit")}
               </Text>
               <Text
                 className="text-lg font-bold mt-1"
@@ -403,11 +407,11 @@ export default function AccountsScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg.primary }}>
       <ScreenHeader
-        title="Accounts"
-        subtitle="Manage your financial accounts"
+        title={t("accounts")}
+        subtitle={t("manageFinancialAccounts")}
         actionButton={
           canManageAccounts
-            ? { label: "Add", onPress: () => openModal(), icon: "add" }
+            ? { label: t("add"), onPress: () => openModal(), icon: "add" }
             : undefined
         }
         icon="analytics"
@@ -447,15 +451,15 @@ export default function AccountsScreen() {
             <EmptyState
               isLoading={false}
               icon="wallet-outline"
-              title="No Accounts Yet"
+              title={t("noAccountsYet")}
               description={
                 canManageAccounts
-                  ? "Create your first account to start tracking your finances."
-                  : "No accounts available. Contact your organization owner to add accounts."
+                  ? t("createFirstAccount")
+                  : t("noAccountsAvailable")
               }
               actionButton={
                 canManageAccounts
-                  ? { label: "Create Account", onPress: () => openModal() }
+                  ? { label: t("createAccount"), onPress: () => openModal() }
                   : undefined
               }
             />

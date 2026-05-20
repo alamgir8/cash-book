@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useOrganization } from "@/hooks/use-organization";
 import { useTheme } from "@/hooks/use-theme";
+import { useTranslation } from "@/hooks/use-translation";
 
 const TabIcon = ({
   icon,
@@ -41,6 +42,7 @@ const TabIcon = ({
 export default function AppLayout() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const { activeOrganization, canManageAccounts, canCreateTransactions } =
     useOrganization();
 
@@ -80,11 +82,11 @@ export default function AppLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "Dashboard",
+          title: t("dashboard"),
           tabBarIcon: ({ focused }) => (
             <TabIcon
               icon="home"
-              label="Home"
+              label={t("tabHome")}
               focused={focused}
               colors={colors}
             />
@@ -94,11 +96,11 @@ export default function AppLayout() {
       <Tabs.Screen
         name="accounts"
         options={{
-          title: "Accounts",
+          title: t("accounts"),
           tabBarIcon: ({ focused }) => (
             <TabIcon
               icon="wallet"
-              label="Accounts"
+              label={t("tabAccounts")}
               focused={focused}
               colors={colors}
             />
@@ -110,11 +112,11 @@ export default function AppLayout() {
       <Tabs.Screen
         name="transactions"
         options={{
-          title: "Transactions",
+          title: t("transactions"),
           tabBarIcon: ({ focused }) => (
             <TabIcon
               icon="receipt"
-              label="History"
+              label={t("tabTransactions")}
               focused={focused}
               colors={colors}
             />
@@ -125,11 +127,11 @@ export default function AppLayout() {
       <Tabs.Screen
         name="settings"
         options={{
-          title: "Settings",
+          title: t("settings"),
           tabBarIcon: ({ focused }) => (
             <TabIcon
               icon="settings"
-              label="Settings"
+              label={t("tabSettings")}
               focused={focused}
               colors={colors}
             />

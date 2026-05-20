@@ -15,6 +15,7 @@ import { useTheme } from "@/hooks/use-theme";
 import { CustomInput } from "@/components/custom-input";
 import { PasswordInput } from "@/components/password-input";
 import { CustomButton } from "@/components/custom-button";
+import { useTranslation } from "@/hooks/use-translation";
 
 const schema = z
   .object({
@@ -73,7 +74,7 @@ export default function SignUpScreen() {
       if (error instanceof Error && error.message) {
         setFormError(error.message);
       } else {
-        setFormError("Something went wrong. Please try again.");
+        setFormError(t("somethingWentWrong"));
       }
     } finally {
       setLoading(false);
@@ -81,6 +82,7 @@ export default function SignUpScreen() {
   };
 
   const { colors } = useTheme();
+  const { t } = useTranslation();
 
   return (
     <KeyboardAvoidingView
@@ -104,13 +106,13 @@ export default function SignUpScreen() {
               style={{ color: colors.text.primary }}
               className="text-4xl font-bold mb-3"
             >
-              Create Account
+              {t("createAccountTitle")}
             </Text>
             <Text
               style={{ color: colors.text.secondary }}
               className="text-lg text-center leading-6"
             >
-              Sign up with your email or phone number to get started.
+              {t("signUpDescription")}
             </Text>
           </View>
 
@@ -126,7 +128,9 @@ export default function SignUpScreen() {
                     value={value ?? ""}
                     onChangeText={onChange}
                     placeholder={
-                      field === "phone" ? "Phone number" : `Your ${field}`
+                      field === "phone"
+                        ? t("phonePlaceholder")
+                        : `Your ${field}`
                     }
                     autoCapitalize={field === "email" ? "none" : "words"}
                     keyboardType={
@@ -151,12 +155,12 @@ export default function SignUpScreen() {
                   <PasswordInput
                     label={
                       field === "confirmPassword"
-                        ? "Confirm password"
-                        : "Password"
+                        ? t("confirmPassword")
+                        : t("password")
                     }
                     value={value}
                     onChangeText={onChange}
-                    placeholder="••••••••"
+                    placeholder={t("passwordPlaceholder")}
                     error={errors[field]?.message}
                   />
                 )}
@@ -164,7 +168,7 @@ export default function SignUpScreen() {
             ))}
 
             <CustomButton
-              title="Create Account"
+              title={t("createAccountTitle")}
               onPress={handleSubmit(onSubmit)}
               loading={loading}
               containerClassName="mt-6"
@@ -184,14 +188,14 @@ export default function SignUpScreen() {
               style={{ color: colors.text.secondary }}
               className="text-base"
             >
-              Already registered?
+              {t("alreadyRegistered")}
             </Text>
             <Link
               href="/(auth)/sign-in"
               style={{ color: colors.primary }}
               className="font-semibold text-base"
             >
-              Sign in
+              {t("signInLink")}
             </Link>
           </View>
         </View>

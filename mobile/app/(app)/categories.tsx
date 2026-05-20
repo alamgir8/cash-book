@@ -23,11 +23,13 @@ import { queryKeys } from "@/lib/queryKeys";
 import { refreshAppData } from "@/lib/refresh-app-data";
 import { useOrganization } from "@/hooks/use-organization";
 import { useTheme } from "@/hooks/use-theme";
+import { useTranslation } from "@/hooks/use-translation";
 
 export default function CategoriesScreen() {
   const queryClient = useQueryClient();
   const { canManageCategories } = useOrganization();
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<"credit" | "debit">("debit");
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(
@@ -54,15 +56,15 @@ export default function CategoriesScreen() {
       queryClient.invalidateQueries({ queryKey: queryKeys.categories.all });
       Toast.show({
         type: "success",
-        text1: "Category deleted successfully",
+        text1: t("categoryDeletedSuccessfully"),
       });
     },
     onError: (error: any) => {
       const message =
-        error?.response?.data?.message || "Failed to delete category";
+        error?.response?.data?.message || t("failedToDeleteCategory");
       Toast.show({
         type: "error",
-        text1: "Cannot delete category",
+        text1: t("cannotDeleteCategory"),
         text2: message,
         visibilityTime: 4000,
       });
@@ -71,12 +73,12 @@ export default function CategoriesScreen() {
 
   const handleDelete = (category: Category) => {
     Alert.alert(
-      "Delete Category",
-      `Are you sure you want to delete "${category.name}"? This cannot be undone.`,
+      t("deleteCategory"),
+      t("deleteCategoryConfirm", { name: category.name }),
       [
-        { text: "Cancel", style: "cancel" },
+        { text: t("cancel"), style: "cancel" },
         {
-          text: "Delete",
+          text: t("delete"),
           style: "destructive",
           onPress: () => deleteMutation.mutate(category._id),
         },
@@ -162,14 +164,14 @@ export default function CategoriesScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg.primary }}>
       <ScreenHeader
-        title="Categories"
-        subtitle="Manage income and expense categories"
+        title={t("categories")}
+        subtitle={t("manageIncomExpenseCategories")}
         icon="list"
         iconColor={colors.info}
         actionButton={
           canManageCategories
             ? {
-                label: "Add New",
+                label: t("addNew"),
                 icon: "add",
                 onPress: handleAdd,
               }
@@ -196,7 +198,7 @@ export default function CategoriesScreen() {
                 activeTab === "debit" ? colors.error : colors.text.secondary,
             }}
           >
-            Expenses
+            {t("expenses")}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -218,7 +220,7 @@ export default function CategoriesScreen() {
                 activeTab === "credit" ? colors.success : colors.text.secondary,
             }}
           >
-            Income
+            {t("income")}
           </Text>
         </TouchableOpacity>
       </View>
@@ -244,8 +246,12 @@ export default function CategoriesScreen() {
           ListEmptyComponent={
             <EmptyState
               icon="list"
-              title="No categories found"
-              description={`Add some ${activeTab} categories to get started`}
+              title={t("noCategoriesFound")}
+              description={
+                activeTab === "debit"
+                  ? t("addSomeCategoriesDebit")
+                  : t("addSomeCategoriesCredit")
+              }
             />
           }
         />

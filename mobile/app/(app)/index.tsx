@@ -21,9 +21,11 @@ import { LoadMoreButton } from "@/components/load-more-button";
 import type { Transaction } from "@/services/transactions";
 import { useTheme } from "@/hooks/use-theme";
 import { useDashboard } from "@/hooks/use-dashboard";
+import { useTranslation } from "@/hooks/use-translation";
 
 export default function DashboardScreen() {
   const { colors } = useTheme();
+  const { t } = useTranslation();
 
   const {
     filters,
@@ -187,14 +189,14 @@ export default function DashboardScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg.secondary }}>
       <ScreenHeader
-        title="Dashboard"
+        title={t("dashboard")}
         subtitle={
           activeOrganization
             ? `${activeOrganization.name} · ${
                 activeOrganization.role.charAt(0).toUpperCase() +
                 activeOrganization.role.slice(1)
               }`
-            : "Track your finances easily"
+            : t("trackFinancesEasily")
         }
         icon="analytics"
         backgroundColor={colors.bg.primary}
@@ -225,10 +227,10 @@ export default function DashboardScreen() {
           ) : (
             <EmptyState
               icon="receipt-outline"
-              title="No transactions yet"
-              description="Start tracking your finances by adding your first transaction"
+              title={t("noTransactionsYet")}
+              description={t("startTrackingDescription")}
               actionButton={{
-                label: "Add Transaction",
+                label: t("addTransaction"),
                 onPress: () => setModalVisible(true),
               }}
             />
