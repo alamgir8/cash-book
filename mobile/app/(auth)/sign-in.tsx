@@ -64,7 +64,7 @@ type FormValues = z.infer<typeof schema>;
 
 export default function SignInScreen() {
   const router = useRouter();
-  const { signIn } = useAuth();
+  const { signIn, state } = useAuth();
   // No userIdentifier passed - use findBiometricCredentials for login screen
   const {
     status: biometricStatus,
