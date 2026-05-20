@@ -11,25 +11,9 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
 import { ActionButton } from "./action-button";
 import { useTheme } from "../hooks/use-theme";
+import { useTranslation } from "../hooks/use-translation";
 import type { TransactionFilters } from "../services/transactions";
 import { SearchableSelect, type SelectOption } from "./searchable-select";
-
-const ranges = [
-  { label: "Daily", value: "daily" },
-  { label: "Weekly", value: "weekly" },
-  { label: "Monthly", value: "monthly" },
-  { label: "Yearly", value: "yearly" },
-];
-
-const quickFilters = [
-  { label: "All", value: "all" },
-  { label: "Today", value: "today" },
-  { label: "Last 7 Days", value: "last7days" },
-  { label: "Last 30 Days", value: "last30days" },
-  { label: "This Month", value: "thismonth" },
-  { label: "Last Month", value: "lastmonth" },
-  { label: "This Year", value: "thisyear" },
-];
 
 const getDateRangeFromQuickFilter = (
   filter: string,
@@ -112,6 +96,25 @@ export const FilterBar = ({
   onApplyFilters,
 }: Props) => {
   const { colors } = useTheme();
+  const { t } = useTranslation();
+
+  const ranges = [
+    { label: t("daily"), value: "daily" },
+    { label: t("weekly"), value: "weekly" },
+    { label: t("monthly"), value: "monthly" },
+    { label: t("yearly"), value: "yearly" },
+  ];
+
+  const quickFilters = [
+    { label: t("filterAll"), value: "all" },
+    { label: t("today"), value: "today" },
+    { label: t("last7Days"), value: "last7days" },
+    { label: t("last30Days"), value: "last30days" },
+    { label: t("thisMonth"), value: "thismonth" },
+    { label: t("lastMonth"), value: "lastmonth" },
+    { label: t("thisYear"), value: "thisyear" },
+  ];
+
   const [expanded, setExpanded] = useState(false);
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
@@ -266,7 +269,7 @@ export const FilterBar = ({
             style={{ color: expanded ? colors.info : colors.text.primary }}
             className="text-sm font-semibold"
           >
-            Filters
+            {t("filters")}
           </Text>
         </TouchableOpacity>
 
@@ -289,7 +292,7 @@ export const FilterBar = ({
               style={{ color: colors.error }}
               className="text-sm font-semibold"
             >
-              Reset
+              {t("reset")}
             </Text>
           </TouchableOpacity>
         ) : null}
@@ -298,9 +301,9 @@ export const FilterBar = ({
       {showTypeToggle ? (
         <View className="flex-row gap-2 mt-3">
           {[
-            { label: "All", value: undefined },
-            { label: "Credit", value: "credit" as const },
-            { label: "Debit", value: "debit" as const },
+            { label: t("filterAll"), value: undefined },
+            { label: t("filterCredit"), value: "credit" as const },
+            { label: t("filterDebit"), value: "debit" as const },
           ].map((option) => {
             const isActive =
               option.value === undefined
@@ -354,27 +357,27 @@ export const FilterBar = ({
         <View className="flex-row flex-wrap gap-2 mt-3">
           {[
             {
-              label: "All",
+              label: t("filterAll"),
               paymentStatus: undefined,
               loanFilter: undefined,
             },
             {
-              label: "✓ Paid",
+              label: t("filterPaid"),
               paymentStatus: "paid" as const,
               loanFilter: undefined,
             },
             {
-              label: "⏱ Due",
+              label: t("filterDue"),
               paymentStatus: "due" as const,
               loanFilter: undefined,
             },
             {
-              label: "↗ Loan Given",
+              label: t("filterLoanGiven"),
               paymentStatus: undefined,
               loanFilter: "loan_given" as const,
             },
             {
-              label: "↙ Loan Received",
+              label: t("filterLoanReceived"),
               paymentStatus: undefined,
               loanFilter: "loan_received" as const,
             },
@@ -484,7 +487,7 @@ export const FilterBar = ({
                 style={{ color: colors.text.primary }}
                 className="text-sm font-semibold mb-1.5"
               >
-                Start Date
+                {t("startDate")}
               </Text>
               <TouchableOpacity
                 onPress={() => setShowStartDatePicker(true)}
@@ -501,7 +504,7 @@ export const FilterBar = ({
                       : colors.text.tertiary,
                   }}
                 >
-                  {formFilters.startDate || "Select start date"}
+                  {formFilters.startDate || t("selectStartDate")}
                 </Text>
                 <Ionicons
                   name="calendar-outline"
@@ -515,7 +518,7 @@ export const FilterBar = ({
                 style={{ color: colors.text.primary }}
                 className="text-sm font-semibold mb-1.5"
               >
-                End Date
+                {t("endDate")}
               </Text>
               <TouchableOpacity
                 onPress={() => setShowEndDatePicker(true)}
@@ -532,7 +535,7 @@ export const FilterBar = ({
                       : colors.text.tertiary,
                   }}
                 >
-                  {formFilters.endDate || "Select end date"}
+                  {formFilters.endDate || t("selectEndDate")}
                 </Text>
                 <Ionicons
                   name="calendar-outline"
@@ -564,15 +567,17 @@ export const FilterBar = ({
           {showAccountField && accounts ? (
             <View>
               <SearchableSelect
-                label="Account"
+                label={t("accountFilter")}
                 placeholder={
-                  accounts.length === 0 ? "No accounts" : "Filter by account"
+                  accounts.length === 0
+                    ? t("noAccountsAvailable")
+                    : t("filterByAccount")
                 }
                 value={formFilters.accountId ?? ""}
                 options={
                   accounts.length > 0
-                    ? [{ value: "", label: "All accounts" }, ...accounts]
-                    : [{ value: "", label: "All accounts" }]
+                    ? [{ value: "", label: t("allAccounts") }, ...accounts]
+                    : [{ value: "", label: t("allAccounts") }]
                 }
                 onSelect={(val) =>
                   setFormFilters({
@@ -588,17 +593,17 @@ export const FilterBar = ({
           {showCategoryField && categories ? (
             <View>
               <SearchableSelect
-                label="Category"
+                label={t("categoryFilter")}
                 placeholder={
                   categories.length === 0
-                    ? "No categories"
-                    : "Filter by category"
+                    ? t("noCategoriesAvailable")
+                    : t("filterByCategory")
                 }
                 value={formFilters.categoryId ?? ""}
                 options={
                   categories.length > 0
-                    ? [{ value: "", label: "All categories" }, ...categories]
-                    : [{ value: "", label: "All categories" }]
+                    ? [{ value: "", label: t("allCategories") }, ...categories]
+                    : [{ value: "", label: t("allCategories") }]
                 }
                 onSelect={(val) =>
                   setFormFilters({
@@ -614,20 +619,20 @@ export const FilterBar = ({
           {showCounterpartyField && counterparties ? (
             <View>
               <SearchableSelect
-                label="Counterparty"
+                label={t("counterpartyFilter")}
                 placeholder={
                   counterparties.length === 0
-                    ? "No counterparties"
-                    : "Filter by counterparty"
+                    ? t("allCounterparties")
+                    : t("filterByCounterparty")
                 }
                 value={formFilters.counterparty ?? ""}
                 options={
                   counterparties.length > 0
                     ? [
-                        { value: "", label: "All counterparties" },
+                        { value: "", label: t("allCounterparties") },
                         ...counterparties,
                       ]
-                    : [{ value: "", label: "All counterparties" }]
+                    : [{ value: "", label: t("allCounterparties") }]
                 }
                 onSelect={(val) =>
                   setFormFilters({
@@ -643,15 +648,15 @@ export const FilterBar = ({
           {showVendorField && vendors ? (
             <View>
               <SearchableSelect
-                label="Vendor / Seller"
+                label={t("vendorFilter")}
                 placeholder={
-                  vendors.length === 0 ? "No vendors" : "Filter by vendor"
+                  vendors.length === 0 ? t("allVendors") : t("filterByVendor")
                 }
                 value={formFilters.vendor ?? ""}
                 options={
                   vendors.length > 0
-                    ? [{ value: "", label: "All vendors" }, ...vendors]
-                    : [{ value: "", label: "All vendors" }]
+                    ? [{ value: "", label: t("allVendors") }, ...vendors]
+                    : [{ value: "", label: t("allVendors") }]
                 }
                 onSelect={(val) =>
                   setFormFilters({
@@ -670,7 +675,7 @@ export const FilterBar = ({
                 style={{ color: colors.text.primary }}
                 className="text-sm font-semibold mb-1.5"
               >
-                Amount Range
+                {t("amountRange")}
               </Text>
               <View className="flex-row gap-2">
                 <TextInput
@@ -684,7 +689,7 @@ export const FilterBar = ({
                     })
                   }
                   keyboardType="numeric"
-                  placeholder="Min"
+                  placeholder={t("minPlaceholder")}
                   placeholderTextColor={colors.text.tertiary}
                   style={{
                     backgroundColor: colors.bg.tertiary,
@@ -704,7 +709,7 @@ export const FilterBar = ({
                     })
                   }
                   keyboardType="numeric"
-                  placeholder="Max"
+                  placeholder={t("maxPlaceholder")}
                   placeholderTextColor={colors.text.tertiary}
                   style={{
                     backgroundColor: colors.bg.tertiary,
@@ -722,14 +727,14 @@ export const FilterBar = ({
               style={{ color: colors.text.primary }}
               className="text-sm font-semibold mb-1.5"
             >
-              Search Keywords
+              {t("searchKeywords")}
             </Text>
             <TextInput
               value={formFilters.searchInput ?? ""}
               onChangeText={(value) =>
                 setFormFilters({ ...formFilters, searchInput: value })
               }
-              placeholder="Search description or comments..."
+              placeholder={t("searchDescriptionPlaceholder")}
               placeholderTextColor={colors.text.tertiary}
               style={{
                 backgroundColor: colors.bg.tertiary,
@@ -743,7 +748,7 @@ export const FilterBar = ({
           {/* Action Buttons */}
           <View className="flex-row gap-3 pt-2">
             <ActionButton
-              label="Apply Filters"
+              label={t("applyFilters")}
               onPress={() => {
                 const { searchInput, ...rest } = formFilters;
                 const {
@@ -798,7 +803,7 @@ export const FilterBar = ({
 
             {onReset && (
               <ActionButton
-                label="Reset"
+                label={t("reset")}
                 onPress={() => {
                   setActiveQuickFilter("all");
                   isUserInteracting.current = false;

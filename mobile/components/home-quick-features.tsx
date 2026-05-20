@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useOrganization } from "../hooks/use-organization";
 import { useTheme } from "../hooks/use-theme";
+import { useTranslation } from "@/hooks/use-translation";
 
 type FeatureItemProps = {
   icon: keyof typeof Ionicons.glyphMap;
@@ -64,6 +65,7 @@ export const HomeQuickFeatures = ({
   onFilterDue,
 }: HomeQuickFeaturesProps) => {
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const [showAll, setShowAll] = useState(false);
   const {
     canCreateTransactions,
@@ -88,7 +90,7 @@ export const HomeQuickFeatures = ({
     {
       id: "add-income",
       icon: "trending-up" as const,
-      label: "Add Income",
+      label: t("addIncome"),
       color: "#10b981",
       bgColor: "bg-emerald-50",
       onPress: onAddTransaction,
@@ -97,7 +99,7 @@ export const HomeQuickFeatures = ({
     {
       id: "add-expense",
       icon: "trending-down" as const,
-      label: "Add Expense",
+      label: t("addExpense"),
       color: "#ef4444",
       bgColor: "bg-red-50",
       onPress: onAddTransaction,
@@ -106,7 +108,7 @@ export const HomeQuickFeatures = ({
     {
       id: "transfer",
       icon: "swap-horizontal" as const,
-      label: "Transfer",
+      label: t("transfer"),
       color: "#8b5cf6",
       bgColor: "bg-purple-50",
       onPress: onAddTransfer,
@@ -115,7 +117,7 @@ export const HomeQuickFeatures = ({
     {
       id: "accounts",
       icon: "wallet" as const,
-      label: "Accounts",
+      label: t("accounts"),
       color: "#3b82f6",
       bgColor: "bg-blue-50",
       onPress: () => router.push("/(app)/accounts"),
@@ -128,7 +130,7 @@ export const HomeQuickFeatures = ({
     {
       id: "due-transactions",
       icon: "time" as const,
-      label: "Due / Unpaid",
+      label: t("dueUnpaidFeature"),
       color: "#d97706",
       bgColor: "bg-amber-50",
       onPress: onFilterDue ?? (() => router.push("/(app)/transactions")),
@@ -137,7 +139,7 @@ export const HomeQuickFeatures = ({
     {
       id: "add-invoice",
       icon: "document-text" as const,
-      label: "Add Invoice",
+      label: t("addInvoice"),
       color: "#ec4899",
       bgColor: "bg-pink-50",
       onPress: () => router.push("/(app)/invoices/new?type=sale"),
@@ -146,7 +148,7 @@ export const HomeQuickFeatures = ({
     {
       id: "add-customer",
       icon: "person-add" as const,
-      label: "Add Customer",
+      label: t("addCustomer"),
       color: "#14b8a6",
       bgColor: "bg-teal-50",
       onPress: () => router.push("/(app)/parties/new?type=customer"),
@@ -155,7 +157,7 @@ export const HomeQuickFeatures = ({
     {
       id: "transactions",
       icon: "receipt" as const,
-      label: "Transactions",
+      label: t("transactions"),
       color: "#6366f1",
       bgColor: "bg-indigo-50",
       onPress: () => router.push("/(app)/transactions"),
@@ -164,7 +166,7 @@ export const HomeQuickFeatures = ({
     {
       id: "invoices",
       icon: "document-text" as const,
-      label: "Invoices",
+      label: t("invoices"),
       color: "#a855f7",
       bgColor: "bg-purple-50",
       onPress: () => router.push("/(app)/invoices"),
@@ -173,7 +175,7 @@ export const HomeQuickFeatures = ({
     {
       id: "import",
       icon: "cloud-upload" as const,
-      label: "Import",
+      label: t("import"),
       color: "#0891b2",
       bgColor: "bg-cyan-50",
       onPress: () => router.push("/(app)/import"),
@@ -186,7 +188,7 @@ export const HomeQuickFeatures = ({
     {
       id: "categories",
       icon: "grid" as const,
-      label: "Categories",
+      label: t("categories"),
       color: "#f59e0b",
       bgColor: "bg-amber-50",
       onPress: () => router.push("/(app)/categories"),
@@ -195,7 +197,7 @@ export const HomeQuickFeatures = ({
     {
       id: "parties",
       icon: "people" as const,
-      label: "Parties",
+      label: t("parties"),
       color: "#14b8a6",
       bgColor: "bg-teal-50",
       onPress: () => router.push("/(app)/parties"),
@@ -204,7 +206,7 @@ export const HomeQuickFeatures = ({
     {
       id: "reports",
       icon: "bar-chart" as const,
-      label: "Reports",
+      label: t("reports"),
       color: "#0ea5e9",
       bgColor: "bg-sky-50",
       onPress: onExportPDF,
@@ -222,7 +224,7 @@ export const HomeQuickFeatures = ({
     {
       id: "backup",
       icon: "cloud-upload" as const,
-      label: "Backup",
+      label: t("backup"),
       color: "#6366f1",
       bgColor: "bg-indigo-50",
       onPress: () => router.push("/(app)/settings"),
@@ -231,7 +233,7 @@ export const HomeQuickFeatures = ({
     {
       id: "organizations",
       icon: "business" as const,
-      label: "Organizations",
+      label: t("organizations"),
       color: "#7c3aed",
       bgColor: "bg-violet-50",
       onPress: () => router.push("/(app)/organizations"),
@@ -249,7 +251,7 @@ export const HomeQuickFeatures = ({
     {
       id: "profile",
       icon: "person" as const,
-      label: "Profile",
+      label: t("profile"),
       color: "#f97316",
       bgColor: "bg-orange-50",
       onPress: () => router.push("/(app)/settings"),
@@ -276,7 +278,7 @@ export const HomeQuickFeatures = ({
           className="text-lg font-bold"
           style={{ color: colors.text.primary }}
         >
-          Quick Features
+          {t("quickFeatures")}
         </Text>
         {activeOrganization && (
           <View
@@ -336,7 +338,7 @@ export const HomeQuickFeatures = ({
             className="font-semibold text-sm mr-1"
             style={{ color: colors.info }}
           >
-            {showAll ? "See Less" : "See More"}
+            {showAll ? t("seeLess") : t("seeMore")}
           </Text>
           <Ionicons
             name={showAll ? "chevron-up" : "chevron-down"}

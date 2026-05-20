@@ -5,6 +5,7 @@ import dayjs from "dayjs";
 import type { Transaction } from "../services/transactions";
 import { usePreferences } from "../hooks/use-preferences";
 import { useTheme } from "../hooks/use-theme";
+import { useTranslation } from "../hooks/use-translation";
 
 type Props = {
   transaction: Transaction;
@@ -34,6 +35,7 @@ const TransactionCardComponent = ({
   const attachmentCount = transaction.attachments?.length ?? 0;
   const { formatAmount } = usePreferences();
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const isCredit = transaction.type === "credit";
   const amountColor = isCredit ? colors.success : colors.error;
 
@@ -44,10 +46,10 @@ const TransactionCardComponent = ({
   const loanOutstanding = loanSummary?.outstanding ?? 0;
   const loanIsSettled = !!loanSummary && loanSummary.is_settled;
   const loanDirectionLabel = loanSummary?.owed_by_them
-    ? "they owe"
+    ? t("theyOwe")
     : loanSummary?.owed_by_me
-      ? "you owe"
-      : "settled";
+      ? t("youOwe")
+      : t("settled");
   const isLoanLedger = isLoanCategory && !!transaction.counterparty;
 
   const isDue = !isLoanLedger && transaction.payment_status === "due";
@@ -115,7 +117,7 @@ const TransactionCardComponent = ({
                 style={{ color: loanIsSettled ? "#16a34a" : "#d97706" }}
               >
                 {loanIsSettled
-                  ? "Loan · Settled"
+                  ? `${t("loanSettledBadge")}`
                   : `Loan Due · ${formatAmount(loanOutstanding)} ${loanDirectionLabel}`}
               </Text>
             </View>
@@ -139,7 +141,7 @@ const TransactionCardComponent = ({
                 style={{ color: isSettled ? "#16a34a" : "#d97706" }}
               >
                 {isSettled
-                  ? "Settled"
+                  ? t("settled")
                   : `Due · ${formatAmount(remaining)} left`}
               </Text>
             </View>
@@ -294,7 +296,7 @@ const TransactionCardComponent = ({
               style={{ color: colors.info }}
               className="text-xs font-semibold"
             >
-              For: {transaction.counterparty}
+              {t("forLabel")} {transaction.counterparty}
             </Text>
           </TouchableOpacity>
         ) : null}
@@ -316,7 +318,7 @@ const TransactionCardComponent = ({
               style={{ color: "#f59e0b" }}
               className="text-xs font-semibold"
             >
-              Vendor: {transaction.vendor}
+              {t("vendorLabel")} {transaction.vendor}
             </Text>
           </TouchableOpacity>
         ) : null}
@@ -335,7 +337,7 @@ const TransactionCardComponent = ({
               className="text-xs font-semibold"
             >
               {loanIsSettled
-                ? "Loan Settled"
+                ? t("loanSettledBadge")
                 : `Loan Due · ${formatAmount(loanOutstanding)} ${loanDirectionLabel}`}
             </Text>
           </View>

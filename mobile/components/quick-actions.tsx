@@ -1,6 +1,7 @@
 import { View, Text, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useOrganization } from "../hooks/use-organization";
+import { useTranslation } from "@/hooks/use-translation";
 
 type QuickActionProps = {
   icon: keyof typeof Ionicons.glyphMap;
@@ -57,6 +58,7 @@ export const QuickActions = ({
   onExportPDF,
   onVoiceInput,
 }: QuickActionsProps) => {
+  const { t } = useTranslation();
   const { canCreateTransactions, canManageAccounts, canViewReports } =
     useOrganization();
 
@@ -64,8 +66,8 @@ export const QuickActions = ({
     {
       id: "add-transaction",
       icon: "add-circle" as const,
-      title: "Add Transaction",
-      subtitle: "Record new entry",
+      title: t("addTransactionTitle"),
+      subtitle: t("recordNewEntry"),
       color: "#3b82f6",
       bgColor: "bg-blue-50",
       onPress: onAddTransaction,
@@ -74,8 +76,8 @@ export const QuickActions = ({
     {
       id: "transfer",
       icon: "swap-horizontal" as const,
-      title: "Transfer Funds",
-      subtitle: "Move between accounts",
+      title: t("transferFundsTitle"),
+      subtitle: t("moveBetweenAccounts"),
       color: "#ec4899",
       bgColor: "bg-pink-50",
       onPress: onAddTransfer,
@@ -84,7 +86,7 @@ export const QuickActions = ({
     {
       id: "add-account",
       icon: "wallet" as const,
-      title: "New Account",
+      title: t("newAccount"),
       subtitle: "Create account",
       color: "#10b981",
       bgColor: "bg-green-50",
@@ -94,8 +96,8 @@ export const QuickActions = ({
     {
       id: "export",
       icon: "document-text" as const,
-      title: "Export PDF",
-      subtitle: "Download report",
+      title: t("exportPdfTitle"),
+      subtitle: t("downloadReport"),
       color: "#f59e0b",
       bgColor: "bg-yellow-50",
       onPress: onExportPDF,
@@ -124,7 +126,7 @@ export const QuickActions = ({
   return (
     <View className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
       <Text className="text-gray-900 text-lg font-bold mb-4">
-        Quick Actions
+        {t("quickActions")}
       </Text>
 
       <View className="flex-row flex-wrap gap-3">
