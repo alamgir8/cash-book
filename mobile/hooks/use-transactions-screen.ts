@@ -127,7 +127,10 @@ export function useTransactionsScreen() {
           t._id === editingTransaction?._id ? { ...t, ...updated } : t,
         ),
       );
-      await Promise.all([
+      setModalVisible(false);
+      setEditingTransaction(null);
+      Toast.show({ type: "success", text1: "Transaction updated" });
+      void Promise.all([
         queryClient.invalidateQueries({
           predicate: (q) => q.queryKey[0] === "transactions",
         }),
@@ -137,9 +140,6 @@ export function useTransactionsScreen() {
         queryClient.invalidateQueries({ queryKey: queryKeys.counterparties }),
         queryClient.invalidateQueries({ queryKey: queryKeys.vendors }),
       ]);
-      setModalVisible(false);
-      setEditingTransaction(null);
-      Toast.show({ type: "success", text1: "Transaction updated" });
     },
     onError: () =>
       Toast.show({
@@ -151,9 +151,9 @@ export function useTransactionsScreen() {
 
   const deleteMutation = useMutation({
     mutationFn: deleteTransaction,
-    onSuccess: async (_, transactionId) => {
+    onSuccess: (_, transactionId) => {
       setAllTransactions((prev) => prev.filter((t) => t._id !== transactionId));
-      await Promise.all([
+      void Promise.all([
         queryClient.invalidateQueries({
           predicate: (q) => q.queryKey[0] === "transactions",
         }),

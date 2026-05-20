@@ -103,8 +103,8 @@ export function useDashboard() {
 
   const createMutation = useMutation({
     mutationFn: createTransaction,
-    onSuccess: async () => {
-      await invalidateAll();
+    onSuccess: () => {
+      void invalidateAll();
       Toast.show({ type: "success", text1: "Transaction added" });
     },
     onError: () =>
@@ -117,10 +117,10 @@ export function useDashboard() {
 
   const updateMutation = useMutation({
     mutationFn: updateTransaction,
-    onSuccess: async () => {
-      await invalidateAll();
+    onSuccess: () => {
       setModalVisible(false);
       setEditingTransaction(null);
+      void invalidateAll();
       Toast.show({ type: "success", text1: "Transaction updated" });
     },
     onError: () =>
@@ -133,8 +133,8 @@ export function useDashboard() {
 
   const deleteMutation = useMutation({
     mutationFn: deleteTransaction,
-    onSuccess: async () => {
-      await Promise.all([
+    onSuccess: () => {
+      void Promise.all([
         queryClient.invalidateQueries({
           predicate: (q) => q.queryKey[0] === "transactions",
         }),
@@ -154,8 +154,8 @@ export function useDashboard() {
 
   const createTransferMutation = useMutation({
     mutationFn: createTransfer,
-    onSuccess: async () => {
-      await invalidateAll();
+    onSuccess: () => {
+      void invalidateAll();
       // NOTE: modal closes itself after attachment upload completes
       Toast.show({ type: "success", text1: "Transfer completed" });
     },
