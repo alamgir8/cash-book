@@ -34,6 +34,10 @@ type SearchableSelectProps = {
   customDisplayValue?: string;
   /** Called with the current search text; results are merged with `options`. */
   fetchOptions?: (search: string) => Promise<SelectOption[]>;
+  /** If provided, called when user taps "Add new". On success returns the new SelectOption. */
+  onAddNew?: (name: string) => Promise<SelectOption | null>;
+  /** Label shown in the "+ Add" button, e.g. "customer" → '+ Add "Alamgir" as customer' */
+  addNewLabel?: string;
 };
 
 type RenderItem =
@@ -50,6 +54,8 @@ export const SearchableSelect = ({
   allowCustomValue = false,
   customDisplayValue,
   fetchOptions,
+  onAddNew,
+  addNewLabel,
 }: SearchableSelectProps) => {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -57,6 +63,7 @@ export const SearchableSelect = ({
   const [search, setSearch] = useState("");
   const [asyncOptions, setAsyncOptions] = useState<SelectOption[]>([]);
   const [isFetching, setIsFetching] = useState(false);
+  const [isAdding, setIsAdding] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Debounced async search whenever search text changes
@@ -192,9 +199,24 @@ export const SearchableSelect = ({
     );
   }, [mergedOptions, search]);
 
-  const handleAddCustom = () => {
+  const handleAddCustom = async () => {
     const trimmedSearch = search.trim();
     if (!trimmedSearch) return;
+    if (onAddNew) {
+      setIsAdding(true);
+      try {
+        const newOption = await onAddNew(trimmedSearch);
+        if (newOption) {
+          onSelect(newOption.value, newOption);
+          closeModal();
+        }
+      } catch {
+        // error handled by caller
+      } finally {
+        setIsAdding(false);
+      }
+      return;
+    }
     const customOption: SelectOption = {
       value: trimmedSearch,
       label: trimmedSearch,
@@ -317,7 +339,9 @@ export const SearchableSelect = ({
               keyExtractor={(item) => item.id}
               style={styles.list}
               ListHeaderComponent={
-                allowCustomValue && search.trim() && !searchMatchesExisting ? (
+                (allowCustomValue || onAddNew) &&
+                search.trim() &&
+                !searchMatchesExisting ? (
                   <TouchableOpacity
                     style={{
                       ...styles.addNewRow,
@@ -325,10 +349,23 @@ export const SearchableSelect = ({
                       borderBottomColor: colors.border,
                     }}
                     onPress={handleAddCustom}
+                    disabled={isAdding}
                   >
-                    <Ionicons name="add-circle" size={20} color={colors.info} />
+                    {isAdding ? (
+                      <ActivityIndicator size="small" color={colors.info} />
+                    ) : (
+                      <Ionicons
+                        name="add-circle"
+                        size={20}
+                        color={colors.info}
+                      />
+                    )}
                     <Text style={{ ...styles.addNewText, color: colors.info }}>
-                      Add &quot;{search.trim()}&quot;
+                      {isAdding
+                        ? "Adding…"
+                        : addNewLabel
+                          ? `+ Add "${search.trim()}" as ${addNewLabel}`
+                          : `Add "${search.trim()}"`}
                     </Text>
                   </TouchableOpacity>
                 ) : null

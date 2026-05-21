@@ -19,6 +19,7 @@ import { useActiveOrgId } from "@/hooks/use-organization";
 import { useCreateInvoice } from "@/hooks/use-invoices";
 import type { InvoiceType } from "@/types/invoice";
 import { partiesApi } from "@/services/parties";
+import { fetchAccounts } from "@/services/accounts";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { invoiceSchema, type InvoiceFormData } from "@/lib/validations/invoice";
 import { LineItemFields, InvoiceTotalsSummary } from "@/components/invoices";
@@ -83,6 +84,11 @@ export default function InvoiceScreen() {
       items: [
         { description: "", quantity: "1", unit_price: "", tax_rate: "0" },
       ],
+      payment_mode: "due",
+      initial_payment_amount: "",
+      initial_payment_account: "",
+      initial_payment_method: "cash",
+      initial_payment_reference: "",
     },
   });
 
@@ -93,8 +99,20 @@ export default function InvoiceScreen() {
   const watchDiscountValue = watch("discount_value");
   const watchDate = watch("date");
   const watchDueDate = watch("due_date");
+  const watchPaymentMode = watch("payment_mode");
 
-  // Pre-load 50 parties for the dropdown
+  // Load accounts for payment
+  const { data: accountsData } = useQuery({
+    queryKey: ["accounts"],
+    queryFn: fetchAccounts,
+  });
+  const accountOptions = (accountsData ?? []).map((a: any) => ({
+    value: a._id,
+    label: a.name,
+    subtitle: a.balance !== undefined ? `Balance: ${a.balance}` : undefined,
+  }));
+
+  // Pre-load 50 parties for the dropdown (include "both" type)
   const { data: partiesData } = useQuery({
     queryKey: [
       "parties",
@@ -116,6 +134,25 @@ export default function InvoiceScreen() {
       subtitle: p.phone ?? p.code,
     }),
   );
+
+  // Inline party creation — creates the party and returns it as a SelectOption
+  const handleAddParty = async (name: string): Promise<SelectOption | null> => {
+    try {
+      const newParty = await partiesApi.create({
+        organization: organizationId || undefined,
+        name: name.trim(),
+        type: invoiceType === "sale" ? "customer" : "supplier",
+      });
+      return {
+        value: newParty._id,
+        label: newParty.name,
+        subtitle: newParty.phone ?? newParty.code,
+      };
+    } catch {
+      toast.error("Failed to add party");
+      return null;
+    }
+  };
 
   // Pre-select party when navigated with partyId param
   const { data: preSelectedParty } = useQuery({
@@ -322,6 +359,8 @@ export default function InvoiceScreen() {
                   value={value}
                   options={partyOptions}
                   onSelect={(val) => onChange(val)}
+                  onAddNew={handleAddParty}
+                  addNewLabel={invoiceType === "sale" ? "customer" : "supplier"}
                   fetchOptions={async (q) => {
                     const res = await partiesApi.list({
                       organization: organizationId || undefined,
@@ -614,6 +653,248 @@ export default function InvoiceScreen() {
         </View>
 
         <InvoiceTotalsSummary totals={totals} />
+
+        {/* ── Payment Mode ─────────────────────────────────────────── */}
+        <View
+          className="mx-4 mt-4 rounded-2xl p-5 shadow-sm"
+          style={{ backgroundColor: colors.card }}
+        >
+          <Text
+            className="text-base font-semibold mb-1"
+            style={{ color: colors.text.primary }}
+          >
+            Payment Mode
+          </Text>
+          <Text
+            className="text-xs mb-4"
+            style={{ color: colors.text.secondary }}
+          >
+            {invoiceType === "sale"
+              ? "How will the customer pay?"
+              : "How are you paying the supplier?"}
+          </Text>
+
+          {/* Toggle: Due / Cash / Partial */}
+          <Controller
+            control={control}
+            name="payment_mode"
+            render={({ field: { value, onChange } }) => (
+              <View className="flex-row gap-2 mb-4">
+                {(
+                  [
+                    {
+                      key: "due",
+                      label: "Due / Halkhata",
+                      icon: "time-outline",
+                    },
+                    {
+                      key: "cash",
+                      label: "Paid Full",
+                      icon: "checkmark-circle-outline",
+                    },
+                    {
+                      key: "partial",
+                      label: "Partial",
+                      icon: "pie-chart-outline",
+                    },
+                  ] as const
+                ).map((opt) => (
+                  <TouchableOpacity
+                    key={opt.key}
+                    className="flex-1 items-center py-3 rounded-xl border"
+                    style={{
+                      borderColor:
+                        value === opt.key ? colors.primary : colors.border,
+                      backgroundColor:
+                        value === opt.key
+                          ? colors.primary + "15"
+                          : colors.bg.secondary,
+                    }}
+                    onPress={() => onChange(opt.key)}
+                  >
+                    <Ionicons
+                      name={opt.icon}
+                      size={20}
+                      color={
+                        value === opt.key
+                          ? colors.primary
+                          : colors.text.secondary
+                      }
+                    />
+                    <Text
+                      className="text-xs font-medium mt-1 text-center"
+                      style={{
+                        color:
+                          value === opt.key
+                            ? colors.primary
+                            : colors.text.secondary,
+                      }}
+                    >
+                      {opt.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          />
+
+          {/* Due mode info */}
+          {watchPaymentMode === "due" && (
+            <View
+              className="flex-row items-start gap-2 rounded-xl p-3"
+              style={{ backgroundColor: colors.warning + "18" }}
+            >
+              <Ionicons
+                name="information-circle-outline"
+                size={18}
+                color={colors.warning}
+                style={{ marginTop: 1 }}
+              />
+              <Text
+                className="flex-1 text-sm"
+                style={{ color: colors.warning }}
+              >
+                No cash movement. The amount will be tracked as due in the party
+                ledger (Halkhata). You can record payment later.
+              </Text>
+            </View>
+          )}
+
+          {/* Cash / Partial: account + method + amount */}
+          {(watchPaymentMode === "cash" || watchPaymentMode === "partial") && (
+            <View className="gap-4">
+              {/* Account */}
+              <Controller
+                control={control}
+                name="initial_payment_account"
+                render={({ field: { value, onChange } }) => (
+                  <SearchableSelect
+                    label="Deposit to Account"
+                    placeholder="Select account..."
+                    value={value ?? ""}
+                    options={accountOptions}
+                    onSelect={(val) => onChange(val)}
+                  />
+                )}
+              />
+
+              {/* Method */}
+              <Controller
+                control={control}
+                name="initial_payment_method"
+                render={({ field: { value, onChange } }) => (
+                  <View>
+                    <Text
+                      className="text-sm font-medium mb-2"
+                      style={{ color: colors.text.secondary }}
+                    >
+                      Payment Method
+                    </Text>
+                    <View className="flex-row flex-wrap gap-2">
+                      {(
+                        [
+                          { key: "cash", label: "Cash" },
+                          { key: "bank", label: "Bank" },
+                          { key: "mobile_wallet", label: "MFS" },
+                          { key: "cheque", label: "Cheque" },
+                          { key: "other", label: "Other" },
+                        ] as const
+                      ).map((m) => (
+                        <TouchableOpacity
+                          key={m.key}
+                          className="px-4 py-2 rounded-lg border"
+                          style={{
+                            borderColor:
+                              value === m.key ? colors.primary : colors.border,
+                            backgroundColor:
+                              value === m.key
+                                ? colors.primary + "15"
+                                : colors.bg.secondary,
+                          }}
+                          onPress={() => onChange(m.key)}
+                        >
+                          <Text
+                            className="text-sm font-medium"
+                            style={{
+                              color:
+                                value === m.key
+                                  ? colors.primary
+                                  : colors.text.secondary,
+                            }}
+                          >
+                            {m.label}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                )}
+              />
+
+              {/* Amount — only for partial */}
+              {watchPaymentMode === "partial" && (
+                <Controller
+                  control={control}
+                  name="initial_payment_amount"
+                  render={({ field: { value, onChange } }) => (
+                    <View>
+                      <Text
+                        className="text-sm font-medium mb-2"
+                        style={{ color: colors.text.secondary }}
+                      >
+                        Amount Paid Now
+                      </Text>
+                      <TextInput
+                        value={value ?? ""}
+                        onChangeText={onChange}
+                        placeholder="0"
+                        placeholderTextColor={colors.inputPlaceholder}
+                        keyboardType="decimal-pad"
+                        className="border rounded-xl px-4 py-3.5 text-base"
+                        style={{
+                          backgroundColor: colors.bg.secondary,
+                          borderColor: colors.inputBorder,
+                          color: colors.text.primary,
+                        }}
+                      />
+                    </View>
+                  )}
+                />
+              )}
+
+              {/* Reference */}
+              <Controller
+                control={control}
+                name="initial_payment_reference"
+                render={({ field: { value, onChange } }) => (
+                  <View>
+                    <Text
+                      className="text-sm font-medium mb-2"
+                      style={{ color: colors.text.secondary }}
+                    >
+                      Reference{" "}
+                      <Text style={{ color: colors.text.tertiary }}>
+                        (optional)
+                      </Text>
+                    </Text>
+                    <TextInput
+                      value={value ?? ""}
+                      onChangeText={onChange}
+                      placeholder="Cheque no, txn ID..."
+                      placeholderTextColor={colors.inputPlaceholder}
+                      className="border rounded-xl px-4 py-3.5 text-base"
+                      style={{
+                        backgroundColor: colors.bg.secondary,
+                        borderColor: colors.inputBorder,
+                        color: colors.text.primary,
+                      }}
+                    />
+                  </View>
+                )}
+              />
+            </View>
+          )}
+        </View>
 
         {/* ── Notes ────────────────────────────────────────────────── */}
         <View

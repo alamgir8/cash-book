@@ -11,7 +11,7 @@ import type { InvoiceTotals } from "@/types/invoice";
 export function calculateLineItemTotal(
   quantity: string | number,
   unitPrice: string | number,
-  taxRate: string | number = 0
+  taxRate: string | number = 0,
 ): number {
   const qty = typeof quantity === "string" ? parseFloat(quantity) : quantity;
   const price =
@@ -36,7 +36,7 @@ export function calculateInvoiceTotals(
     [key: string]: any;
   }[],
   discountType: "percentage" | "fixed" = "percentage",
-  discountValue: string = "0"
+  discountValue: string = "0",
 ): InvoiceTotals {
   let subtotal = 0;
   let totalTax = 0;
@@ -95,6 +95,12 @@ export function transformInvoiceFormData(formData: {
   shipping_charge?: string;
   adjustment?: string;
   adjustment_description?: string;
+  payment_mode?: "cash" | "due" | "partial";
+  initial_payment_amount?: string;
+  initial_payment_account?: string;
+  initial_payment_method?: string;
+  initial_payment_reference?: string;
+  initial_payment_notes?: string;
   items?: {
     description?: string;
     quantity?: string;
@@ -108,7 +114,8 @@ export function transformInvoiceFormData(formData: {
 }) {
   // Filter out invalid items
   const validItems = (formData.items || []).filter(
-    (item) => item.description?.trim() && parseFloat(item.unit_price || "0") > 0
+    (item) =>
+      item.description?.trim() && parseFloat(item.unit_price || "0") > 0,
   );
 
   const items = validItems.map((item) => ({
@@ -125,5 +132,11 @@ export function transformInvoiceFormData(formData: {
     reference: formData.reference?.trim() || undefined,
     notes: formData.notes?.trim() || undefined,
     items,
+    payment_mode: formData.payment_mode || "due",
+    initial_payment_amount: formData.initial_payment_amount,
+    initial_payment_account: formData.initial_payment_account || undefined,
+    initial_payment_method: formData.initial_payment_method || "cash",
+    initial_payment_reference: formData.initial_payment_reference || undefined,
+    initial_payment_notes: formData.initial_payment_notes || undefined,
   };
 }

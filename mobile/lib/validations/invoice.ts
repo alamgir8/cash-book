@@ -33,6 +33,15 @@ export const invoiceSchema = z.object({
   adjustment: z.string().optional(),
   adjustment_description: z.string().optional(),
   items: z.array(lineItemSchema).min(1, "At least one item is required"),
+  // Payment
+  payment_mode: z.enum(["cash", "due", "partial"]).default("due"),
+  initial_payment_amount: z.string().optional(),
+  initial_payment_account: z.string().optional(),
+  initial_payment_method: z
+    .enum(["cash", "bank", "mobile_wallet", "cheque", "other"])
+    .optional(),
+  initial_payment_reference: z.string().optional(),
+  initial_payment_notes: z.string().optional(),
 });
 
 /**

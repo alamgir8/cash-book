@@ -62,6 +62,13 @@ export const createInvoice = async (req, res, next) => {
       terms,
       internal_notes,
       attachments,
+      // Payment mode: "cash" | "due" | "partial"
+      payment_mode = "due",
+      initial_payment_amount,
+      initial_payment_account,
+      initial_payment_method = "cash",
+      initial_payment_reference,
+      initial_payment_notes,
     } = req.body;
 
     if (!type || !INVOICE_TYPE_OPTIONS.includes(type)) {
@@ -118,6 +125,73 @@ export const createInvoice = async (req, res, next) => {
       attachments: attachments || [],
       created_by: userId,
     });
+
+    // ── Handle initial payment (cash / partial) ────────────────────────────
+    if (payment_mode === "cash" || payment_mode === "partial") {
+      const paidAmount =
+        payment_mode === "cash"
+          ? invoice.grand_total
+          : Math.min(
+              parseFloat(initial_payment_amount) || 0,
+              invoice.grand_total,
+            );
+
+      if (paidAmount > 0) {
+        // Create accounting transaction
+        let linkedTxId;
+        if (initial_payment_account) {
+          const accountDoc = await Account.findById(initial_payment_account);
+          if (accountDoc) {
+            const txData = {
+              organization: organization || undefined,
+              admin: userId,
+              account: initial_payment_account,
+              type: type === "sale" ? "credit" : "debit",
+              amount: paidAmount,
+              date: date || new Date(),
+              description: `Payment for invoice ${invoice.invoice_number}`,
+              reference: initial_payment_reference || invoice.invoice_number,
+              party: party || undefined,
+              invoice: invoice._id,
+              created_by: userId,
+            };
+            const tx = await Transaction.create(txData);
+            linkedTxId = tx._id;
+            // Update account balance
+            if (type === "sale") {
+              accountDoc.balance = (accountDoc.balance || 0) + paidAmount;
+            } else {
+              accountDoc.balance = (accountDoc.balance || 0) - paidAmount;
+            }
+            await accountDoc.save();
+          }
+        }
+
+        // Record payment on invoice
+        invoice.payments.push({
+          date: date || new Date(),
+          amount: paidAmount,
+          method: initial_payment_method,
+          account: initial_payment_account || undefined,
+          transaction: linkedTxId || undefined,
+          reference: initial_payment_reference || undefined,
+          notes: initial_payment_notes || undefined,
+          recorded_by: userId,
+        });
+        invoice.amount_paid = paidAmount;
+        invoice.balance_due = Math.max(0, invoice.grand_total - paidAmount);
+        invoice.status =
+          invoice.balance_due <= 0
+            ? "paid"
+            : paidAmount > 0
+              ? "partial"
+              : "pending";
+        if (linkedTxId) {
+          invoice.linked_transactions.push(linkedTxId);
+        }
+        await invoice.save();
+      }
+    }
 
     // ── Auto stock movements ────────────────────────────────────────────────
     const movementType = type === "purchase" ? "purchase" : "sale";

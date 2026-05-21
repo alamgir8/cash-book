@@ -137,7 +137,8 @@ export const getParties = async (req, res, next) => {
     }
 
     if (type && PARTY_TYPE_OPTIONS.includes(type)) {
-      query.type = type;
+      // Include parties with type "both" when filtering by customer or supplier
+      query.type = type === "both" ? "both" : { $in: [type, "both"] };
     }
 
     if (archived === "true") {
