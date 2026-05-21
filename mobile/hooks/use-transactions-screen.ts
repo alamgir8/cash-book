@@ -25,6 +25,12 @@ import { queryKeys } from "@/lib/queryKeys";
 import { refreshAppData } from "@/lib/refresh-app-data";
 import { useOrganization } from "@/hooks/use-organization";
 import { useDeleteMode } from "@/hooks/use-delete-mode";
+import { usePreferences } from "@/hooks/use-preferences";
+import {
+  translateCategoryName,
+  translateCategoryGroup,
+  translateFlow,
+} from "@/lib/i18n/category-translations";
 import type { SelectOption } from "@/components/searchable-select";
 import type { TransactionFormValues } from "@/components/modals/types";
 
@@ -44,6 +50,8 @@ export function useTransactionsScreen() {
   const queryClient = useQueryClient();
   const { hasPermission } = useOrganization();
   const { isDeleteModeActive } = useDeleteMode();
+  const { preferences } = usePreferences();
+  const language = preferences.language ?? "en";
 
   const canEditTransactions = hasPermission("edit_transactions");
   const canDeleteTransactions = hasPermission("delete_transactions");
@@ -193,15 +201,21 @@ export function useTransactionsScreen() {
       type: string;
     }[];
     return [
-      { value: "", label: "No category" },
-      ...cats.map((c) => ({
-        value: c._id,
-        label: c.name,
-        group: formatCategoryGroup(c.type),
-        flow: c.flow,
-      })),
+      {
+        value: "",
+        label: language === "bn" ? "কোনো ক্যাটাগরি নেই" : "No category",
+      },
+      ...cats.map((c) => {
+        const rawGroup = formatCategoryGroup(c.type);
+        return {
+          value: c._id,
+          label: translateCategoryName(c.name, language),
+          group: translateCategoryGroup(c.type, rawGroup, language),
+          flow: c.flow,
+        };
+      }),
     ];
-  }, [categoriesQuery.data]);
+  }, [categoriesQuery.data, language]);
 
   const categoryOptions: SelectOption[] = useMemo(() => {
     const cats = (categoriesQuery.data ?? []) as {
@@ -209,13 +223,16 @@ export function useTransactionsScreen() {
       name: string;
       flow: string;
     }[];
-    return cats.map((c) => ({
-      value: c._id,
-      label: c.name,
-      subtitle: c.flow === "credit" ? "Credit" : "Debit",
-      group: c.flow === "credit" ? "Credit" : "Debit",
-    }));
-  }, [categoriesQuery.data]);
+    return cats.map((c) => {
+      const flowLabel = c.flow === "credit" ? "Credit" : "Debit";
+      return {
+        value: c._id,
+        label: translateCategoryName(c.name, language),
+        subtitle: translateFlow(flowLabel, language),
+        group: translateFlow(flowLabel, language),
+      };
+    });
+  }, [categoriesQuery.data, language]);
 
   const counterpartyOptions: SelectOption[] = useMemo(() => {
     const api = counterpartiesQuery.data ?? [];

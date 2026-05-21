@@ -6,6 +6,7 @@ import type { Transaction } from "../services/transactions";
 import { usePreferences } from "../hooks/use-preferences";
 import { useTheme } from "../hooks/use-theme";
 import { useTranslation } from "../hooks/use-translation";
+import { translateCategoryName } from "../lib/i18n/category-translations";
 
 type Props = {
   transaction: Transaction;
@@ -33,7 +34,8 @@ const TransactionCardComponent = ({
   onViewChain,
 }: Props) => {
   const attachmentCount = transaction.attachments?.length ?? 0;
-  const { formatAmount } = usePreferences();
+  const { formatAmount, preferences } = usePreferences();
+  const language = preferences.language ?? "en";
   const { colors } = useTheme();
   const { t } = useTranslation();
   const isCredit = transaction.type === "credit";
@@ -274,7 +276,7 @@ const TransactionCardComponent = ({
               style={{ color: colors.info }}
               className="text-xs font-semibold"
             >
-              {transaction.category.name}
+              {translateCategoryName(transaction.category.name, language)}
             </Text>
           </TouchableOpacity>
         ) : null}

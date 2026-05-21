@@ -26,6 +26,11 @@ import { queryKeys } from "@/lib/queryKeys";
 import { refreshAppData } from "@/lib/refresh-app-data";
 import { usePreferences } from "@/hooks/use-preferences";
 import { useOrganization } from "@/hooks/use-organization";
+import {
+  translateCategoryName,
+  translateCategoryGroup,
+  translateFlow,
+} from "@/lib/i18n/category-translations";
 import { useDeleteMode } from "@/hooks/use-delete-mode";
 import type {
   TransactionFormValues,
@@ -40,7 +45,8 @@ const DEFAULT_FILTERS: TransactionFilters = {
 };
 
 export function useDashboard() {
-  const { formatAmount } = usePreferences();
+  const { formatAmount, preferences } = usePreferences();
+  const language = preferences.language ?? "en";
   const { canCreateTransactions, activeOrganization, hasPermission } =
     useOrganization();
   const canEditTransactions = hasPermission("edit_transactions");
@@ -194,15 +200,21 @@ export function useDashboard() {
       type: string;
     }[];
     return [
-      { value: "", label: "No category" },
-      ...categories.map((c) => ({
-        value: c._id,
-        label: c.name,
-        group: formatCategoryGroup(c.type),
-        flow: c.flow,
-      })),
+      {
+        value: "",
+        label: language === "bn" ? "কোনো ক্যাটাগরি নেই" : "No category",
+      },
+      ...categories.map((c) => {
+        const rawGroup = formatCategoryGroup(c.type);
+        return {
+          value: c._id,
+          label: translateCategoryName(c.name, language),
+          group: translateCategoryGroup(c.type, rawGroup, language),
+          flow: c.flow,
+        };
+      }),
     ];
-  }, [categoriesQuery.data]);
+  }, [categoriesQuery.data, language]);
 
   const counterpartyOptions: SelectOption[] = useMemo(() => {
     const api = counterpartiesQuery.data ?? [];

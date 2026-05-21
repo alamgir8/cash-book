@@ -48,6 +48,11 @@ import { usePreferences } from "@/hooks/use-preferences";
 import { useTheme } from "@/hooks/use-theme";
 import { useOrganization } from "@/hooks/use-organization";
 import { useDeleteMode } from "@/hooks/use-delete-mode";
+import {
+  translateCategoryName,
+  translateCategoryGroup,
+  translateFlow,
+} from "@/lib/i18n/category-translations";
 import { useAccountDetail, useAccountTransactions } from "@/hooks/use-accounts";
 import { calculateAccountNetFlow } from "@/lib/account-utils";
 import { refreshAppData } from "@/lib/refresh-app-data";
@@ -60,7 +65,8 @@ const defaultFilters: TransactionFilters = {
 };
 
 export default function AccountDetailScreen() {
-  const { formatAmount } = usePreferences();
+  const { formatAmount, preferences } = usePreferences();
+  const language = preferences.language ?? "en";
   const router = useRouter();
   const { colors } = useTheme();
   const queryClient = useQueryClient();
@@ -171,29 +177,42 @@ export default function AccountDetailScreen() {
 
   const categoryOptions: SelectOption[] = useMemo(() => {
     const categories = categoriesQuery.data ?? [];
-    return categories.map((category) => ({
-      value: category._id,
-      label: category.name,
-      subtitle: category.flow === "credit" ? "Credit" : "Debit",
-      group: category.flow === "credit" ? "Credit" : "Debit",
-    }));
-  }, [categoriesQuery.data]);
+    return categories.map((category) => {
+      const flowLabel = category.flow === "credit" ? "Credit" : "Debit";
+      return {
+        value: category._id,
+        label: translateCategoryName(category.name, language),
+        subtitle: translateFlow(flowLabel, language),
+        group: translateFlow(flowLabel, language),
+      };
+    });
+  }, [categoriesQuery.data, language]);
 
   const modalCategoryOptions: SelectOption[] = useMemo(() => {
     const categories = categoriesQuery.data ?? [];
     return [
-      { value: "", label: "No category" },
-      ...categories.map((category) => ({
-        value: category._id,
-        label: category.name,
-        group: category.type
+      {
+        value: "",
+        label: language === "bn" ? "কোনো ক্যাটাগরি নেই" : "No category",
+      },
+      ...categories.map((category) => {
+        const rawGroup = category.type
           ? category.type.charAt(0).toUpperCase() +
             category.type.slice(1).replace(/_/g, " ")
-          : "Other",
-        flow: category.flow,
-      })),
+          : "Other";
+        return {
+          value: category._id,
+          label: translateCategoryName(category.name, language),
+          group: translateCategoryGroup(
+            category.type ?? "",
+            rawGroup,
+            language,
+          ),
+          flow: category.flow,
+        };
+      }),
     ];
-  }, [categoriesQuery.data]);
+  }, [categoriesQuery.data, language]);
 
   const counterpartyOptions: SelectOption[] = useMemo(() => {
     const apiCounterparties = counterpartiesQuery.data ?? [];
