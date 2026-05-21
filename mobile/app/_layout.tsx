@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { Slot, useRouter, useSegments } from "expo-router";
+import { Slot, Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -129,7 +129,7 @@ const RootContent = () => {
         style={isDark ? "light" : "dark"}
         backgroundColor={colors.bg.primary}
       />
-      <Slot />
+      <Stack screenOptions={{ headerShown: false }} />
       <Toast />
     </SafeAreaView>
   );

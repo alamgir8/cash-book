@@ -130,7 +130,7 @@ export default function ShopDashboard() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg.primary }}>
-      <ScreenHeader title="Shop" showBack={false} />
+      <ScreenHeader title="Shop" showBack />
 
       <ScrollView
         contentContainerStyle={{ padding: 16 }}
@@ -234,7 +234,7 @@ export default function ShopDashboard() {
               icon="trending-up"
               iconBg={colors.success + "20"}
               iconColor={colors.success}
-              onPress={() => router.push("/(app)/shop/products" as any)}
+              onPress={() => router.push("/(app)/invoices?type=sale" as any)}
             />
           )}
           {purchaseLoading ? (
@@ -283,7 +283,7 @@ export default function ShopDashboard() {
               icon="cube"
               iconBg={colors.info + "20"}
               iconColor={colors.info}
-              onPress={() => router.push("/(app)/shop/products")}
+              onPress={() => router.push("/(app)/shop/products" as any)}
             />
             <StatCard
               label="Low Stock"

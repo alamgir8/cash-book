@@ -30,6 +30,7 @@ export default function PartiesScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const organizationId = useActiveOrgId();
+  const { colors } = useTheme();
   const { canManageParties, canManageCustomers, canManageSuppliers } =
     useOrganization();
 
@@ -88,7 +89,7 @@ export default function PartiesScreen() {
 
   const handleViewLedger = useCallback(
     (party: Party) => {
-      router.push(`/parties/${party._id}/ledger`);
+      router.push(`/(app)/parties/${party._id}/ledger` as any);
     },
     [router],
   );
@@ -109,16 +110,14 @@ export default function PartiesScreen() {
 
   if (isLoading) {
     return (
-      <View className="flex-1 bg-white">
+      <View style={{ flex: 1, backgroundColor: colors.bg.primary }}>
         <ScreenHeader title="Parties" showBack />
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#3B82F6" />
+          <ActivityIndicator size="large" color={colors.info} />
         </View>
       </View>
     );
   }
-
-  const { colors } = useTheme();
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg.primary }}>
@@ -129,7 +128,7 @@ export default function PartiesScreen() {
           canManageParties ? (
             <TouchableOpacity
               className="p-2"
-              onPress={() => router.push("/parties/new")}
+              onPress={() => router.push("/(app)/parties/new" as any)}
             >
               <Ionicons name="add-circle" size={28} color={colors.info} />
             </TouchableOpacity>
@@ -237,7 +236,7 @@ export default function PartiesScreen() {
               <TouchableOpacity
                 className="mt-6 px-6 py-3 rounded-lg"
                 style={{ backgroundColor: colors.info }}
-                onPress={() => router.push("/parties/new")}
+                onPress={() => router.push("/(app)/parties/new" as any)}
               >
                 <Text className="text-white font-medium">Add Party</Text>
               </TouchableOpacity>
@@ -253,7 +252,9 @@ export default function PartiesScreen() {
                   backgroundColor: colors.bg.secondary,
                   borderColor: colors.border,
                 }}
-                onPress={() => router.push(`/parties/${party._id}`)}
+                onPress={() =>
+                  router.push(`/(app)/parties/${party._id}` as any)
+                }
               >
                 <View className="flex-row items-start">
                   <View
@@ -356,7 +357,7 @@ export default function PartiesScreen() {
                         className="flex-1 flex-row items-center justify-center py-2 rounded-lg"
                         style={{ backgroundColor: colors.bg.tertiary }}
                         onPress={() =>
-                          router.push(`/parties/${party._id}/edit`)
+                          router.push(`/(app)/parties/${party._id}/edit` as any)
                         }
                       >
                         <Ionicons

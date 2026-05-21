@@ -51,15 +51,15 @@ export default function PartyDetailScreen() {
   };
 
   const handleViewLedger = () => {
-    router.push(`/parties/${partyId}/ledger`);
+    router.push(`/(app)/parties/${partyId}/ledger` as any);
   };
 
   const handleNewInvoice = () => {
-    router.push(`/invoices/new?partyId=${partyId}`);
+    router.push(`/(app)/invoices/new?partyId=${partyId}` as any);
   };
 
   const handleEdit = () => {
-    router.push(`/parties/${partyId}/edit`);
+    router.push(`/(app)/parties/${partyId}/edit` as any);
   };
 
   if (isLoading || !party) {

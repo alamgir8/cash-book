@@ -138,16 +138,16 @@ export const partiesApi = {
 
   // Update party
   update: async (partyId: string, params: UpdatePartyParams) => {
-    const response = await api.put<{ party: Party }>(
+    const response = await api.patch<{ party: Party }>(
       `/parties/${partyId}`,
-      params
+      params,
     );
     return response.data.party;
   },
 
   // Delete party
   delete: async (partyId: string) => {
-    await api.delete(`/parties/${partyId}`);
+    await api.post(`/parties/${partyId}/archive`);
   },
 
   // Get party ledger (all transactions for this party)
@@ -158,11 +158,11 @@ export const partiesApi = {
       endDate?: string;
       page?: number;
       limit?: number;
-    }
+    },
   ) => {
     const response = await api.get<PartyLedgerResponse>(
       `/parties/${partyId}/ledger`,
-      { params }
+      { params },
     );
     return response.data;
   },
