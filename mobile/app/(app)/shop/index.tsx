@@ -153,7 +153,9 @@ export default function ShopDashboard() {
         </Text>
         <View style={{ flexDirection: "row", gap: 10, marginBottom: 20 }}>
           <TouchableOpacity
-            onPress={() => router.push("/(app)/invoices/new?type=sale")}
+            onPress={() =>
+              router.push("/(app)/shop/invoices/new?type=sale" as any)
+            }
             style={{
               flex: 1,
               backgroundColor: colors.success,
@@ -170,7 +172,9 @@ export default function ShopDashboard() {
           </TouchableOpacity>
 
           <TouchableOpacity
-            onPress={() => router.push("/(app)/invoices/new?type=purchase")}
+            onPress={() =>
+              router.push("/(app)/shop/invoices/new?type=purchase" as any)
+            }
             style={{
               flex: 1,
               backgroundColor: colors.warning,
@@ -234,7 +238,9 @@ export default function ShopDashboard() {
               icon="trending-up"
               iconBg={colors.success + "20"}
               iconColor={colors.success}
-              onPress={() => router.push("/(app)/invoices?type=sale" as any)}
+              onPress={() =>
+                router.push("/(app)/shop/invoices?type=sale" as any)
+              }
             />
           )}
           {purchaseLoading ? (
@@ -247,7 +253,7 @@ export default function ShopDashboard() {
               iconBg={colors.warning + "20"}
               iconColor={colors.warning}
               onPress={() =>
-                router.push("/(app)/invoices?type=purchase" as any)
+                router.push("/(app)/shop/invoices?type=purchase" as any)
               }
             />
           )}
@@ -334,17 +340,17 @@ export default function ShopDashboard() {
           {
             label: "Sales Invoices",
             icon: "receipt-outline" as const,
-            route: "/(app)/invoices?type=sale",
+            route: "/(app)/shop/invoices?type=sale",
           },
           {
             label: "Purchase Invoices",
             icon: "document-text-outline" as const,
-            route: "/(app)/invoices?type=purchase",
+            route: "/(app)/shop/invoices?type=purchase",
           },
           {
             label: "Parties / Suppliers",
             icon: "people-outline" as const,
-            route: "/(app)/parties",
+            route: "/(app)/shop/parties",
           },
         ].map((item) => (
           <TouchableOpacity

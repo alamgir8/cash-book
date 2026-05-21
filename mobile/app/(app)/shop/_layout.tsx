@@ -7,6 +7,9 @@ export default function ShopLayout() {
       <Stack.Screen name="products" />
       <Stack.Screen name="products/new" />
       <Stack.Screen name="products/[productId]" />
+      <Stack.Screen name="invoices" />
+      <Stack.Screen name="invoices/new" />
+      <Stack.Screen name="parties" />
     </Stack>
   );
 }
