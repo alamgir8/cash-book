@@ -4,12 +4,15 @@
  * Bottom-sheet modal for creating or editing an account.
  * Extracted from accounts.tsx to keep the screen file lean.
  */
+import Animated, { useAnimatedStyle } from "react-native-reanimated";
 import {
+  useReanimatedKeyboardAnimation,
+  KeyboardAwareScrollView,
+} from "react-native-keyboard-controller";
+import {
+  Dimensions,
   Keyboard,
-  KeyboardAvoidingView,
   Modal,
-  Platform,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -53,6 +56,10 @@ export function AccountFormModal({
   const { colors } = useTheme();
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
+  const { height: kbHeight } = useReanimatedKeyboardAnimation();
+  const sheetAnimStyle = useAnimatedStyle(() => ({
+    paddingBottom: -kbHeight.value,
+  }));
 
   const {
     control,
@@ -107,28 +114,33 @@ export function AccountFormModal({
       animationType="slide"
       onRequestClose={handleClose}
     >
-      {/* Backdrop */}
-      <TouchableOpacity
-        activeOpacity={1}
-        onPress={handleClose}
-        style={{
-          ...StyleSheet.absoluteFillObject,
-          backgroundColor: "rgba(0,0,0,0.4)",
-        }}
-      />
-
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.kavContainer}
-        pointerEvents="box-none"
+      <View
+        className="flex-1 justify-end"
+        style={{ backgroundColor: "rgba(0,0,0,0.4)" }}
       >
-        <View
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={() => {
+            Keyboard.dismiss();
+            handleClose();
+          }}
+          style={{ ...StyleSheet.absoluteFillObject }}
+        />
+
+        <Animated.View
           style={[
-            styles.sheet,
             {
+              height: Dimensions.get("window").height * 0.85,
               backgroundColor: colors.bg.primary,
-              paddingBottom: Math.max(insets.bottom, 16),
+              borderTopLeftRadius: 24,
+              borderTopRightRadius: 24,
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: -4 },
+              shadowOpacity: 0.12,
+              shadowRadius: 16,
+              elevation: 24,
             },
+            sheetAnimStyle,
           ]}
         >
           {/* Header */}
@@ -159,15 +171,16 @@ export function AccountFormModal({
           </View>
 
           {/* Form */}
-          <ScrollView
+          <KeyboardAwareScrollView
+            bottomOffset={100}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
             style={{ flex: 1 }}
             contentContainerStyle={{
               paddingHorizontal: 24,
               paddingVertical: 20,
               gap: 20,
             }}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
           >
             {/* Account Name */}
             <View>
@@ -239,10 +252,18 @@ export function AccountFormModal({
             </View>
 
             <VoiceInputButton onResult={handleVoiceResult} />
-          </ScrollView>
+          </KeyboardAwareScrollView>
 
           {/* Footer */}
-          <View style={[styles.footer, { borderTopColor: colors.border }]}>
+          <View
+            style={[
+              styles.footer,
+              {
+                borderTopColor: colors.border,
+                paddingBottom: Math.max(insets.bottom, 16),
+              },
+            ]}
+          >
             <ActionButton
               label={
                 editingAccount ? t("updateAccountBtn") : t("createAccountBtn")
@@ -255,27 +276,13 @@ export function AccountFormModal({
               fullWidth
             />
           </View>
-        </View>
-      </KeyboardAvoidingView>
+        </Animated.View>
+      </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  kavContainer: {
-    flex: 1,
-    justifyContent: "flex-end",
-  },
-  sheet: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: "85%",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 16,
-    elevation: 24,
-  },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",

@@ -15,6 +15,7 @@ import { ProductSearchModal } from "./product-search-modal";
 import { productsApi } from "@/services/products";
 import { useActiveOrgId } from "@/hooks/use-organization";
 import type { Product } from "@/types/product";
+import { lookupBarcode, formatLookupResult } from "@/lib/barcode-lookup";
 
 interface LineItemFieldsProps {
   control: Control<InvoiceFormData>;
@@ -68,7 +69,7 @@ export function LineItemFields({
       setScannerVisible(false);
       setScanLoading(true);
       try {
-        // 1. Try local product database first
+        // 1. Try local product catalog first
         const product = await productsApi.getByBarcode(
           barcode,
           organizationId || undefined,
@@ -76,56 +77,16 @@ export function LineItemFields({
         fillFromProduct(product);
         toast.success(`Product "${product.name}" found in your catalog`);
       } catch {
-        // 2. Local not found — fetch from Open Food Facts v2 API
-        let foundOnline = false;
-        try {
-          const res = await fetch(
-            `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(barcode)}?fields=product_name,product_name_en,abbreviated_product_name,brands,quantity`,
-            { signal: AbortSignal.timeout(10000) },
-          );
-          const json = await res.json();
-          if (json.status === 1 && json.product) {
-            const p = json.product;
-            const name: string =
-              p.product_name_en ||
-              p.product_name ||
-              p.abbreviated_product_name ||
-              barcode;
-            const brand: string = p.brands ? ` (${p.brands})` : "";
-            setValue(`items.${index}.description`, `${name}${brand}`);
-            toast.success(`Product info pulled: ${name}`);
-            foundOnline = true;
-          }
-        } catch {
-          // Open Food Facts failed, try next source
-        }
-
-        if (!foundOnline) {
-          // 3. Try UPC Item DB as a fallback
-          try {
-            const res2 = await fetch(
-              `https://api.upcitemdb.com/prod/trial/lookup?upc=${encodeURIComponent(barcode)}`,
-              { signal: AbortSignal.timeout(8000) },
-            );
-            const json2 = await res2.json();
-            if (json2.code === "OK" && json2.items && json2.items.length > 0) {
-              const item = json2.items[0];
-              const name: string = item.title || item.description || barcode;
-              const brand: string = item.brand ? ` (${item.brand})` : "";
-              setValue(`items.${index}.description`, `${name}${brand}`);
-              toast.success(`Product info pulled: ${name}`);
-              foundOnline = true;
-            }
-          } catch {
-            // UPC Item DB also failed
-          }
-        }
-
-        if (!foundOnline) {
-          // 4. Nothing found anywhere — pre-fill barcode so user can edit
+        // 2. Search all global barcode databases in parallel
+        const result = await lookupBarcode(barcode);
+        if (result) {
+          setValue(`items.${index}.description`, formatLookupResult(result));
+          toast.success(`Found via ${result.source}: ${result.name}`);
+        } else {
+          // 3. Nothing found anywhere — prefill barcode for manual entry
           setValue(`items.${index}.description`, barcode);
           toast.info(
-            "Product not found online. Barcode prefilled — please enter details.",
+            "Product not found. Barcode prefilled — please enter details.",
           );
         }
       } finally {
