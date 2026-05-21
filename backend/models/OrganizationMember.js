@@ -28,6 +28,8 @@ const ROLE_PERMISSIONS = {
     view_reports: true,
     export_data: true,
     backup_restore: true,
+    manage_products: true,
+    view_products: true,
   },
   manager: {
     // Management access without org settings
@@ -48,6 +50,8 @@ const ROLE_PERMISSIONS = {
     view_reports: true,
     export_data: true,
     backup_restore: false,
+    manage_products: true,
+    view_products: true,
   },
   cashier: {
     // Operational access only
@@ -68,6 +72,8 @@ const ROLE_PERMISSIONS = {
     view_reports: false,
     export_data: false,
     backup_restore: false,
+    manage_products: false,
+    view_products: true,
   },
   viewer: {
     // Read-only access
@@ -88,6 +94,8 @@ const ROLE_PERMISSIONS = {
     view_reports: true,
     export_data: false,
     backup_restore: false,
+    manage_products: false,
+    view_products: true,
   },
 };
 
@@ -110,8 +118,10 @@ const permissionsSchema = new Schema(
     view_reports: { type: Boolean, default: false },
     export_data: { type: Boolean, default: false },
     backup_restore: { type: Boolean, default: false },
+    manage_products: { type: Boolean, default: false },
+    view_products: { type: Boolean, default: true },
   },
-  { _id: false }
+  { _id: false },
 );
 
 const memberSchema = new Schema(
@@ -178,7 +188,7 @@ const memberSchema = new Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 // Unique index for active members (user is not null)
@@ -188,7 +198,7 @@ memberSchema.index(
   {
     unique: true,
     partialFilterExpression: { user: { $type: "objectId" } },
-  }
+  },
 );
 
 // Unique index for pending email invitations
@@ -200,7 +210,7 @@ memberSchema.index(
       pending_email: { $exists: true, $ne: null },
       user: null,
     },
-  }
+  },
 );
 
 // Unique index for pending phone invitations
@@ -212,7 +222,7 @@ memberSchema.index(
       pending_phone: { $exists: true, $ne: null },
       user: null,
     },
-  }
+  },
 );
 
 memberSchema.index({ user: 1, status: 1 });
@@ -248,7 +258,7 @@ memberSchema.statics.getDefaultPermissions = function (role) {
 export const OrganizationMember = mongoose.model(
   "OrganizationMember",
   memberSchema,
-  "organization_members"
+  "organization_members",
 );
 
 export const MEMBER_ROLE_OPTIONS = MEMBER_ROLES;

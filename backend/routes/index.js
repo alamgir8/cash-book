@@ -10,6 +10,7 @@ import partyRoutes from "./party.routes.js";
 import invoiceRoutes from "./invoice.routes.js";
 import importRoutes from "./import.routes.js";
 import reconciliationRoutes from "./reconciliation.routes.js";
+import productRoutes from "./product.routes.js";
 
 const router = Router();
 
@@ -24,5 +25,6 @@ router.use("/parties", partyRoutes);
 router.use("/invoices", invoiceRoutes);
 router.use("/imports", importRoutes);
 router.use("/reconciliation", reconciliationRoutes);
+router.use("/products", productRoutes);
 
 export default router;

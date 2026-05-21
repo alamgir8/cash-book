@@ -8,6 +8,8 @@ import { Party } from "../models/Party.js";
 import { Transaction } from "../models/Transaction.js";
 import { Account } from "../models/Account.js";
 import { OrganizationMember } from "../models/OrganizationMember.js";
+import { Product } from "../models/Product.js";
+import { StockMovement } from "../models/StockMovement.js";
 
 /**
  * Check organization access and permission
@@ -59,6 +61,7 @@ export const createInvoice = async (req, res, next) => {
       notes,
       terms,
       internal_notes,
+      attachments,
     } = req.body;
 
     if (!type || !INVOICE_TYPE_OPTIONS.includes(type)) {
@@ -112,8 +115,46 @@ export const createInvoice = async (req, res, next) => {
       notes,
       terms,
       internal_notes,
+      attachments: attachments || [],
       created_by: userId,
     });
+
+    // ── Auto stock movements ────────────────────────────────────────────────
+    const movementType = type === "purchase" ? "purchase" : "sale";
+    const stockPromises = [];
+    for (const item of invoice.items) {
+      if (!item.product) continue;
+      const delta = type === "purchase" ? item.quantity : -item.quantity;
+      const product = await Product.findById(item.product);
+      if (!product || !product.track_inventory) continue;
+      product.current_stock += delta;
+      if (type === "purchase") {
+        product.total_purchased += item.quantity;
+        product.last_purchase_date = invoice.date || new Date();
+      } else {
+        product.total_sold += item.quantity;
+        product.last_sale_date = invoice.date || new Date();
+      }
+      stockPromises.push(
+        product.save(),
+        StockMovement.create({
+          organization: organization || undefined,
+          admin: userId,
+          product: item.product,
+          type: movementType,
+          quantity: delta,
+          unit_cost:
+            type === "purchase" ? item.unit_price : product.purchase_price,
+          stock_after: product.current_stock,
+          invoice: invoice._id,
+          party: party || undefined,
+          notes: `${type === "purchase" ? "Purchase" : "Sale"} invoice ${invoice.invoice_number}`,
+          date: invoice.date || new Date(),
+          created_by: userId,
+        }),
+      );
+    }
+    await Promise.all(stockPromises);
 
     // Update party stats
     if (party) {
@@ -543,6 +584,36 @@ export const cancelInvoice = async (req, res, next) => {
 
     invoice.cancel(userId, reason);
     await invoice.save();
+
+    // Reverse stock movements on cancellation
+    const reverseType =
+      invoice.type === "purchase" ? "purchase_return" : "sale_return";
+    const reversePromises = [];
+    for (const item of invoice.items) {
+      if (!item.product) continue;
+      const product = await Product.findById(item.product);
+      if (!product || !product.track_inventory) continue;
+      // Reverse the original delta
+      const delta =
+        invoice.type === "purchase" ? -item.quantity : item.quantity;
+      product.current_stock += delta;
+      reversePromises.push(
+        product.save(),
+        StockMovement.create({
+          organization: invoice.organization,
+          admin: userId,
+          product: item.product,
+          type: reverseType,
+          quantity: delta,
+          stock_after: product.current_stock,
+          invoice: invoice._id,
+          notes: `Cancellation of invoice ${invoice.invoice_number}`,
+          date: new Date(),
+          created_by: userId,
+        }),
+      );
+    }
+    await Promise.all(reversePromises);
 
     res.json({
       message: "Invoice cancelled successfully",

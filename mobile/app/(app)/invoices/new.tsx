@@ -113,17 +113,17 @@ export default function InvoiceScreen() {
   const totals = calculateInvoiceTotals(
     watchItems,
     watchDiscountType,
-    watchDiscountValue
+    watchDiscountValue,
   );
 
   const onSubmit = (data: InvoiceFormData) => {
     const validItems = data.items.filter(
-      (item) => item.description.trim() && parseFloat(item.unit_price) > 0
+      (item) => item.description.trim() && parseFloat(item.unit_price) > 0,
     );
 
     if (validItems.length === 0) {
       toast.error(
-        "Please add at least one valid item with description and price"
+        "Please add at least one valid item with description and price",
       );
       return;
     }
@@ -151,7 +151,10 @@ export default function InvoiceScreen() {
         {/* Header */}
         <View
           className="flex-row items-center justify-between px-5 py-3 border-b"
-          style={{ backgroundColor: colors.bg.primary, borderColor: colors.border }}
+          style={{
+            backgroundColor: colors.bg.primary,
+            borderColor: colors.border,
+          }}
         >
           <TouchableOpacity
             onPress={() => router.back()}
@@ -159,7 +162,10 @@ export default function InvoiceScreen() {
           >
             <Ionicons name="arrow-back" size={24} color={colors.text.primary} />
           </TouchableOpacity>
-          <Text className="text-lg font-bold" style={{ color: colors.text.primary }}>
+          <Text
+            className="text-lg font-bold"
+            style={{ color: colors.text.primary }}
+          >
             New {invoiceType === "sale" ? "Sales" : "Purchase"} Invoice
           </Text>
           <View className="w-10" />
@@ -177,7 +183,10 @@ export default function InvoiceScreen() {
             className="mx-4 mt-4 rounded-2xl p-5 shadow-sm"
             style={{ backgroundColor: colors.card }}
           >
-            <Text className="text-base font-semibold mb-3" style={{ color: colors.text.primary }}>
+            <Text
+              className="text-base font-semibold mb-3"
+              style={{ color: colors.text.primary }}
+            >
               {invoiceType === "sale" ? "Customer" : "Supplier"}{" "}
               <Text style={{ color: colors.error }}>*</Text>
             </Text>
@@ -185,7 +194,9 @@ export default function InvoiceScreen() {
               className="flex-row items-center p-4 rounded-xl border-2"
               style={{
                 borderColor: errors.party_id ? colors.error : colors.border,
-                backgroundColor: errors.party_id ? (colors.error + '10') : colors.bg.secondary,
+                backgroundColor: errors.party_id
+                  ? colors.error + "10"
+                  : colors.bg.secondary,
               }}
               onPress={() => setPartyModalVisible(true)}
             >
@@ -203,16 +214,26 @@ export default function InvoiceScreen() {
                     />
                   </View>
                   <View className="flex-1 ml-3">
-                    <Text className="text-base font-semibold" style={{ color: colors.text.primary }}>
+                    <Text
+                      className="text-base font-semibold"
+                      style={{ color: colors.text.primary }}
+                    >
                       {selectedParty.name}
                     </Text>
                     {selectedParty.code && (
-                      <Text className="text-sm" style={{ color: colors.text.secondary }}>
+                      <Text
+                        className="text-sm"
+                        style={{ color: colors.text.secondary }}
+                      >
                         {selectedParty.code}
                       </Text>
                     )}
                   </View>
-                  <Ionicons name="chevron-forward" size={22} color={colors.text.tertiary} />
+                  <Ionicons
+                    name="chevron-forward"
+                    size={22}
+                    color={colors.text.tertiary}
+                  />
                 </>
               ) : (
                 <>
@@ -220,12 +241,23 @@ export default function InvoiceScreen() {
                     className="w-12 h-12 rounded-xl items-center justify-center"
                     style={{ backgroundColor: colors.bg.tertiary }}
                   >
-                    <Ionicons name="person-add" size={24} color={colors.text.tertiary} />
+                    <Ionicons
+                      name="person-add"
+                      size={24}
+                      color={colors.text.tertiary}
+                    />
                   </View>
-                  <Text className="flex-1 ml-3 text-base" style={{ color: colors.text.tertiary }}>
+                  <Text
+                    className="flex-1 ml-3 text-base"
+                    style={{ color: colors.text.tertiary }}
+                  >
                     Select {invoiceType === "sale" ? "customer" : "supplier"}...
                   </Text>
-                  <Ionicons name="chevron-forward" size={22} color={colors.text.tertiary} />
+                  <Ionicons
+                    name="chevron-forward"
+                    size={22}
+                    color={colors.text.tertiary}
+                  />
                 </>
               )}
             </TouchableOpacity>
@@ -242,13 +274,19 @@ export default function InvoiceScreen() {
             className="mx-4 mt-4 rounded-2xl p-5 shadow-sm"
             style={{ backgroundColor: colors.card }}
           >
-            <Text className="text-base font-semibold mb-4" style={{ color: colors.text.primary }}>
+            <Text
+              className="text-base font-semibold mb-4"
+              style={{ color: colors.text.primary }}
+            >
               Invoice Details
             </Text>
 
             <View className="flex-row gap-3 mb-4">
               <View className="flex-1">
-                <Text className="text-sm font-medium mb-2" style={{ color: colors.text.secondary }}>
+                <Text
+                  className="text-sm font-medium mb-2"
+                  style={{ color: colors.text.secondary }}
+                >
                   Date <Text style={{ color: colors.error }}>*</Text>
                 </Text>
                 <Controller
@@ -264,20 +302,28 @@ export default function InvoiceScreen() {
                       className="border rounded-xl px-4 py-3.5 text-base"
                       style={{
                         backgroundColor: colors.bg.secondary,
-                        borderColor: errors.date ? colors.error : colors.inputBorder,
+                        borderColor: errors.date
+                          ? colors.error
+                          : colors.inputBorder,
                         color: colors.text.primary,
                       }}
                     />
                   )}
                 />
                 {errors.date && (
-                  <Text className="text-sm mt-1" style={{ color: colors.error }}>
+                  <Text
+                    className="text-sm mt-1"
+                    style={{ color: colors.error }}
+                  >
                     {errors.date.message}
                   </Text>
                 )}
               </View>
               <View className="flex-1">
-                <Text className="text-sm font-medium mb-2" style={{ color: colors.text.secondary }}>
+                <Text
+                  className="text-sm font-medium mb-2"
+                  style={{ color: colors.text.secondary }}
+                >
                   Due Date
                 </Text>
                 <Controller
@@ -303,7 +349,10 @@ export default function InvoiceScreen() {
             </View>
 
             <View>
-              <Text className="text-sm font-medium mb-2" style={{ color: colors.text.secondary }}>
+              <Text
+                className="text-sm font-medium mb-2"
+                style={{ color: colors.text.secondary }}
+              >
                 Reference
               </Text>
               <Controller
@@ -334,12 +383,15 @@ export default function InvoiceScreen() {
             style={{ backgroundColor: colors.card }}
           >
             <View className="flex-row items-center justify-between mb-4">
-              <Text className="text-base font-semibold" style={{ color: colors.text.primary }}>
+              <Text
+                className="text-base font-semibold"
+                style={{ color: colors.text.primary }}
+              >
                 Line Items <Text style={{ color: colors.error }}>*</Text>
               </Text>
               <TouchableOpacity
                 className="flex-row items-center px-3 py-2 rounded-lg"
-                style={{ backgroundColor: colors.primary + '15' }}
+                style={{ backgroundColor: colors.primary + "15" }}
                 onPress={() =>
                   append({
                     description: "",
@@ -350,7 +402,10 @@ export default function InvoiceScreen() {
                 }
               >
                 <Ionicons name="add-circle" size={20} color={colors.primary} />
-                <Text className="ml-1 text-sm font-medium" style={{ color: colors.primary }}>
+                <Text
+                  className="ml-1 text-sm font-medium"
+                  style={{ color: colors.primary }}
+                >
                   Add Item
                 </Text>
               </TouchableOpacity>
@@ -373,6 +428,8 @@ export default function InvoiceScreen() {
                 onRemove={() => remove(index)}
                 canRemove={fields.length > 1}
                 onCalculateTotal={calculateLineItemTotal}
+                setValue={setValue}
+                invoiceType={invoiceType}
               />
             ))}
           </View>
@@ -382,7 +439,10 @@ export default function InvoiceScreen() {
             className="mx-4 mt-4 rounded-2xl p-5 shadow-sm"
             style={{ backgroundColor: colors.card }}
           >
-            <Text className="text-base font-semibold mb-4" style={{ color: colors.text.primary }}>
+            <Text
+              className="text-base font-semibold mb-4"
+              style={{ color: colors.text.primary }}
+            >
               Discount (Optional)
             </Text>
 
@@ -395,14 +455,25 @@ export default function InvoiceScreen() {
                     <TouchableOpacity
                       className="px-4 py-2 rounded-lg border"
                       style={{
-                        borderColor: value === "percentage" ? colors.primary : colors.border,
-                        backgroundColor: value === "percentage" ? (colors.primary + '15') : colors.bg.primary,
+                        borderColor:
+                          value === "percentage"
+                            ? colors.primary
+                            : colors.border,
+                        backgroundColor:
+                          value === "percentage"
+                            ? colors.primary + "15"
+                            : colors.bg.primary,
                       }}
                       onPress={() => onChange("percentage")}
                     >
                       <Text
                         className="font-medium"
-                        style={{ color: value === "percentage" ? colors.primary : colors.text.secondary }}
+                        style={{
+                          color:
+                            value === "percentage"
+                              ? colors.primary
+                              : colors.text.secondary,
+                        }}
                       >
                         %
                       </Text>
@@ -410,14 +481,23 @@ export default function InvoiceScreen() {
                     <TouchableOpacity
                       className="px-4 py-2 rounded-lg border"
                       style={{
-                        borderColor: value === "fixed" ? colors.primary : colors.border,
-                        backgroundColor: value === "fixed" ? (colors.primary + '15') : colors.bg.primary,
+                        borderColor:
+                          value === "fixed" ? colors.primary : colors.border,
+                        backgroundColor:
+                          value === "fixed"
+                            ? colors.primary + "15"
+                            : colors.bg.primary,
                       }}
                       onPress={() => onChange("fixed")}
                     >
                       <Text
                         className="font-medium"
-                        style={{ color: value === "fixed" ? colors.primary : colors.text.secondary }}
+                        style={{
+                          color:
+                            value === "fixed"
+                              ? colors.primary
+                              : colors.text.secondary,
+                        }}
                       >
                         ৳
                       </Text>
@@ -456,7 +536,10 @@ export default function InvoiceScreen() {
             className="mx-4 mt-4 rounded-2xl p-5 shadow-sm"
             style={{ backgroundColor: colors.card }}
           >
-            <Text className="text-base font-semibold mb-3" style={{ color: colors.text.primary }}>
+            <Text
+              className="text-base font-semibold mb-3"
+              style={{ color: colors.text.primary }}
+            >
               Notes
             </Text>
             <Controller
@@ -487,13 +570,20 @@ export default function InvoiceScreen() {
         {/* Submit Button */}
         <View
           className="absolute bottom-0 left-0 right-0 px-5 py-4 border-t"
-          style={{ backgroundColor: colors.bg.primary, borderColor: colors.border }}
+          style={{
+            backgroundColor: colors.bg.primary,
+            borderColor: colors.border,
+          }}
         >
           <TouchableOpacity
             onPress={handleSubmit(onSubmit)}
             disabled={mutation.isPending}
             className="rounded-xl py-4 items-center"
-            style={{ backgroundColor: mutation.isPending ? (colors.primary + '60') : colors.primary }}
+            style={{
+              backgroundColor: mutation.isPending
+                ? colors.primary + "60"
+                : colors.primary,
+            }}
           >
             {mutation.isPending ? (
               <ActivityIndicator color="white" size="small" />

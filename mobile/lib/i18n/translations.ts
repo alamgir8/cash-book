@@ -44,6 +44,7 @@ export type AppTranslations = {
   tabHome: string;
   tabAccounts: string;
   tabTransactions: string;
+  tabShop: string;
   tabSettings: string;
 
   // ── Auth ─────────────────────────────────────────────────────────────────
@@ -457,7 +458,8 @@ const en: AppTranslations = {
 
   tabHome: "Home",
   tabAccounts: "Accounts",
-  tabTransactions: "Transactions",
+  tabTransactions: "Ledger",
+  tabShop: "Shop",
   tabSettings: "Settings",
 
   welcomeBack: "Welcome Back",
@@ -869,9 +871,10 @@ const bn: AppTranslations = {
   somethingWentWrong: "কিছু একটা ভুল হয়েছে। আবার চেষ্টা করুন।",
 
   tabHome: "হোম",
-  tabAccounts: "অ্যাকাউন্ট",
+  tabAccounts: "একাউন্ট",
   tabTransactions: "লেনদেন",
-  tabSettings: "সেটিংস",
+  tabShop: "শপ",
+  tabSettings: "সেটিং",
 
   welcomeBack: "স্বাগতম",
   manageDebitCreditEasily:

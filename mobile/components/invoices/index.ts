@@ -13,3 +13,5 @@ export { InvoiceTypeHeader } from "./invoice-type-header";
 export { PartySelectionModal } from "./party-selection-modal";
 export { LineItemFields } from "./line-item-fields";
 export { InvoiceTotalsSummary } from "./invoice-totals-summary";
+export { BarcodeScannerModal } from "./barcode-scanner-modal";
+export { ProductSearchModal } from "./product-search-modal";

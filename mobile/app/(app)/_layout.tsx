@@ -139,6 +139,12 @@ export default function AppLayout() {
         }}
       />
       <Tabs.Screen
+        name="shop"
+        options={{
+          href: null, // This hides the dynamic route from tabs
+        }}
+      />
+      <Tabs.Screen
         name="accounts/[accountId]"
         options={{
           href: null, // This hides the dynamic route from tabs

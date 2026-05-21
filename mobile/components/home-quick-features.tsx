@@ -128,6 +128,15 @@ export const HomeQuickFeatures = ({
   // Secondary actions - second row
   const secondaryFeatures = [
     {
+      id: "shop",
+      icon: "storefront" as const,
+      label: "Shop",
+      color: "#0f766e",
+      bgColor: "bg-teal-50",
+      onPress: () => router.push("/(app)/shop"),
+      permission: true,
+    },
+    {
       id: "due-transactions",
       icon: "time" as const,
       label: t("dueUnpaidFeature"),

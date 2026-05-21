@@ -76,13 +76,23 @@ const invoiceItemSchema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "Category",
     },
+    // Link to product catalog (optional)
+    product: {
+      type: Schema.Types.ObjectId,
+      ref: "Product",
+    },
+    // barcode captured at time of entry
+    barcode: {
+      type: String,
+      trim: true,
+    },
     // Optional notes
     notes: {
       type: String,
       trim: true,
     },
   },
-  { _id: true }
+  { _id: true },
 );
 
 // Calculate item totals before save
@@ -140,7 +150,7 @@ const paymentSchema = new Schema(
       ref: "Admin",
     },
   },
-  { _id: true, timestamps: true }
+  { _id: true, timestamps: true },
 );
 
 const invoiceSchema = new Schema(
@@ -248,6 +258,18 @@ const invoiceSchema = new Schema(
     },
     // Payments
     payments: [paymentSchema],
+    // Attachments (receipts, bills, photos)
+    attachments: [
+      {
+        url: { type: String, required: true },
+        thumbnail_url: { type: String },
+        file_name: { type: String, trim: true },
+        file_size: { type: Number },
+        mime_type: { type: String, trim: true },
+        storage_key: { type: String, trim: true },
+        uploaded_at: { type: Date, default: () => new Date() },
+      },
+    ],
     // Notes
     notes: {
       type: String,
@@ -297,7 +319,7 @@ const invoiceSchema = new Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 // Indexes
@@ -372,7 +394,7 @@ invoiceSchema.methods.cancel = function (userId, reason) {
 // Static method to generate next invoice number
 invoiceSchema.statics.generateInvoiceNumber = async function (
   organizationId,
-  type
+  type,
 ) {
   const Organization = mongoose.model("Organization");
   const org = await Organization.findById(organizationId);
