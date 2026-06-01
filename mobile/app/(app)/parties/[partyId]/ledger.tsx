@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -32,6 +32,14 @@ export default function PartyLedgerScreen() {
   const [page, setPage] = useState(1);
   const [exportingPdf, setExportingPdf] = useState(false);
   const limit = 50;
+  const scrollViewRef = useRef<ScrollView>(null);
+
+  // Scroll to top whenever page changes and new data loads
+  useEffect(() => {
+    if (!isLoading && !isRefetching) {
+      scrollViewRef.current?.scrollTo({ y: 0, animated: false });
+    }
+  }, [data, isLoading, isRefetching]);
 
   const { data: party } = useParty(partyId!);
   const { data, isLoading, refetch, isRefetching } = usePartyLedger(partyId!, {
@@ -229,6 +237,7 @@ export default function PartyLedgerScreen() {
 
       {/* Ledger Entries */}
       <ScrollView
+        ref={scrollViewRef}
         className="flex-1 px-4 mt-4"
         refreshControl={
           <RefreshControl

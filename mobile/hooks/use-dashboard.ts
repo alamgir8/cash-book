@@ -4,7 +4,7 @@
  * Encapsulates all business logic for the Dashboard (Home) screen.
  * The screen component imports this hook and only contains JSX.
  */
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Toast from "react-native-toast-message";
@@ -29,7 +29,6 @@ import { useOrganization } from "@/hooks/use-organization";
 import {
   translateCategoryName,
   translateCategoryGroup,
-  translateFlow,
 } from "@/lib/i18n/category-translations";
 import { useDeleteMode } from "@/hooks/use-delete-mode";
 import type {
@@ -54,6 +53,9 @@ export function useDashboard() {
 
   // ── UI state ────────────────────────────────────────────────────────────
   const [filters, setFilters] = useState<TransactionFilters>(DEFAULT_FILTERS);
+  const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
+  const [hasMorePages, setHasMorePages] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [isModalVisible, setModalVisible] = useState(false);
   const [isTransferModalVisible, setTransferModalVisible] = useState(false);
   const [editingTransaction, setEditingTransaction] =
@@ -217,14 +219,14 @@ export function useDashboard() {
 
   const counterpartyOptions: SelectOption[] = useMemo(() => {
     const api = counterpartiesQuery.data ?? [];
-    const fromTxns = (transactionsQuery.data?.transactions ?? [])
+    const fromTxns = allTransactions
       .map((t) => t.counterparty?.trim())
       .filter((n): n is string => Boolean(n));
     const editing = editingTransaction?.counterparty?.trim();
     return [...new Set([...api, ...fromTxns, ...(editing ? [editing] : [])])]
       .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
       .map((n) => ({ value: n, label: n }));
-  }, [counterpartiesQuery.data, transactionsQuery.data, editingTransaction]);
+  }, [counterpartiesQuery.data, allTransactions, editingTransaction]);
 
   const partyOptions: SelectOption[] = useMemo(() => {
     const parties = vendorsQuery.data ?? [];
@@ -288,7 +290,42 @@ export function useDashboard() {
     currentTransactions + (currentPage - 1) * (filters.limit ?? 20) <
     totalTransactions;
 
-  // ── Handlers ──────────────────────────────────────────────────────────────
+  // ── Accumulate transactions across pages ──────────────────────────────
+  useEffect(() => {
+    if (!transactionsQuery.data || transactionsQuery.isLoading) return;
+
+    const freshData = (transactionsQuery.data as any)?.transactions ?? [];
+    const pagination = (transactionsQuery.data as any)?.pagination;
+
+    if ((filters.page ?? 1) === 1) {
+      setAllTransactions(freshData);
+      if (pagination) {
+        setHasMorePages(pagination.page < pagination.pages);
+      } else {
+        setHasMorePages(freshData.length === (filters.limit ?? 20));
+      }
+    } else {
+      setAllTransactions((prev) => {
+        const existingIds = new Set(prev.map((t) => t._id));
+        const newItems = freshData.filter(
+          (t: Transaction) => !existingIds.has(t._id),
+        );
+        return [...prev, ...newItems];
+      });
+      if (pagination) {
+        setHasMorePages(pagination.page < pagination.pages);
+      } else {
+        setHasMorePages(freshData.length === (filters.limit ?? 20));
+      }
+      setLoadingMore(false);
+    }
+  }, [
+    transactionsQuery.data,
+    filters.page,
+    transactionsQuery.isLoading,
+    filters.limit,
+  ]);
+
   const handleEditTransaction = useCallback(
     (transaction: Transaction) => {
       if (!canCreateTransactions) {
@@ -332,6 +369,8 @@ export function useDashboard() {
   );
 
   const handleCategoryFilter = useCallback((categoryId?: string) => {
+    setAllTransactions([]);
+    setHasMorePages(true);
     setFilters((prev) => ({
       ...prev,
       categoryId: categoryId || undefined,
@@ -341,6 +380,8 @@ export function useDashboard() {
   }, []);
 
   const handleCounterpartyFilter = useCallback((counterparty?: string) => {
+    setAllTransactions([]);
+    setHasMorePages(true);
     setFilters((prev) => ({
       ...prev,
       counterparty: counterparty || undefined,
@@ -350,6 +391,8 @@ export function useDashboard() {
   }, []);
 
   const handleVendorFilter = useCallback((partyId?: string) => {
+    setAllTransactions([]);
+    setHasMorePages(true);
     setFilters((prev) => ({
       ...prev,
       party_id: partyId || undefined,
@@ -358,6 +401,8 @@ export function useDashboard() {
   }, []);
 
   const handlePaymentStatusFilter = useCallback((status?: "paid" | "due") => {
+    setAllTransactions([]);
+    setHasMorePages(true);
     setFilters((prev) => ({
       ...prev,
       payment_status: status || undefined,
@@ -367,17 +412,23 @@ export function useDashboard() {
   }, []);
 
   const handleLoadMore = useCallback(() => {
+    if (loadingMore || !hasMorePages || transactionsQuery.isFetching) return;
+    setLoadingMore(true);
     setFilters((prev) => ({ ...prev, page: (prev.page ?? 1) + 1 }));
-  }, []);
+  }, [loadingMore, hasMorePages, transactionsQuery.isFetching]);
 
   const handleFilterChange = useCallback(
     (next: Partial<TransactionFilters>) => {
-      setFilters((prev) => ({ ...prev, ...next }));
+      setAllTransactions([]);
+      setHasMorePages(true);
+      setFilters((prev) => ({ ...prev, ...next, page: 1 }));
     },
     [],
   );
 
   const handleResetFilters = useCallback(() => {
+    setAllTransactions([]);
+    setHasMorePages(true);
     setFilters({ ...DEFAULT_FILTERS });
     void refreshAppData(queryClient);
   }, [queryClient]);
@@ -459,6 +510,9 @@ export function useDashboard() {
   return {
     // state
     filters,
+    allTransactions,
+    hasMorePages,
+    loadingMore,
     isModalVisible,
     isTransferModalVisible,
     editingTransaction,

@@ -516,7 +516,44 @@ export default function AccountDetailScreen() {
     ? dayjs(summary.lastTransactionDate).format("MMM D, YYYY")
     : "No activity yet";
 
-  const renderHeader = () => {
+  const renderTransactionItem = useCallback(
+    ({ item }: { item: Transaction }) => (
+      <TransactionCard
+        transaction={item}
+        onCategoryPress={handleCategoryFilter}
+        onCounterpartyPress={handleCounterpartyFilter}
+        onPartyPress={handlePartyFilter}
+        onPaymentStatusPress={handlePaymentStatusFilter}
+        onEdit={canEditTransactions ? handleEditTransaction : undefined}
+        onDelete={
+          canDeleteTransactions && isDeleteModeActive
+            ? handleDeleteTransaction
+            : undefined
+        }
+        onAttachmentsPress={handleAttachmentsPress}
+        onPayDue={setPayingDueTxn}
+        onViewChain={setViewingChainFor}
+        onViewHistory={handleViewHistory}
+      />
+    ),
+    [
+      handleCategoryFilter,
+      handleCounterpartyFilter,
+      handlePartyFilter,
+      handlePaymentStatusFilter,
+      canEditTransactions,
+      handleEditTransaction,
+      canDeleteTransactions,
+      isDeleteModeActive,
+      handleDeleteTransaction,
+      handleAttachmentsPress,
+      setPayingDueTxn,
+      setViewingChainFor,
+      handleViewHistory,
+    ],
+  );
+
+  const renderHeader = useCallback(() => {
     return (
       <View className="gap-4">
         <View className="flex-row items-center gap-3">
@@ -597,7 +634,29 @@ export default function AccountDetailScreen() {
           )}
       </View>
     );
-  };
+  }, [
+    account,
+    lastActivityLabel,
+    formatAmount,
+    summary,
+    netFlow,
+    filters,
+    handleFilterChange,
+    hasActiveFilters,
+    categoryOptions,
+    counterpartyOptions,
+    vendorOptions,
+    handleResetFilters,
+    transactionsQuery.isFetching,
+    transactionsQuery.isLoading,
+    transactionsQuery.refetch,
+    loadingMore,
+    colors,
+    t,
+    setAllTransactions,
+    setHasMorePages,
+    setFilters,
+  ]);
 
   return (
     <View className="flex-1" style={{ backgroundColor: colors.bg.primary }}>
@@ -610,6 +669,12 @@ export default function AccountDetailScreen() {
           gap: 16,
           paddingBottom: 80,
         }}
+        showsVerticalScrollIndicator={false}
+        removeClippedSubviews={true}
+        maxToRenderPerBatch={10}
+        updateCellsBatchingPeriod={50}
+        initialNumToRender={10}
+        windowSize={10}
         ListHeaderComponent={renderHeader}
         ListFooterComponent={
           <AccountLoadMoreFooter
@@ -623,25 +688,7 @@ export default function AccountDetailScreen() {
         ListEmptyComponent={
           <AccountEmptyState isLoading={transactionsQuery.isLoading} />
         }
-        renderItem={({ item }) => (
-          <TransactionCard
-            transaction={item}
-            onCategoryPress={handleCategoryFilter}
-            onCounterpartyPress={handleCounterpartyFilter}
-            onPartyPress={handlePartyFilter}
-            onPaymentStatusPress={handlePaymentStatusFilter}
-            onEdit={canEditTransactions ? handleEditTransaction : undefined}
-            onDelete={
-              canDeleteTransactions && isDeleteModeActive
-                ? handleDeleteTransaction
-                : undefined
-            }
-            onAttachmentsPress={handleAttachmentsPress}
-            onPayDue={setPayingDueTxn}
-            onViewChain={setViewingChainFor}
-            onViewHistory={handleViewHistory}
-          />
-        )}
+        renderItem={renderTransactionItem}
         refreshControl={
           <RefreshControl
             refreshing={transactionsQuery.isRefetching && filters.page === 1}

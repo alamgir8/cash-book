@@ -33,6 +33,9 @@ export default function DashboardScreen() {
 
   const {
     filters,
+    allTransactions,
+    hasMorePages,
+    loadingMore,
     isModalVisible,
     isTransferModalVisible,
     editingTransaction,
@@ -48,8 +51,6 @@ export default function DashboardScreen() {
     vendorOptions,
     totals,
     hasActiveFilters,
-    hasMore,
-    currentTransactions,
     canCreateTransactions,
     canEditTransactions,
     activeOrganization,
@@ -210,7 +211,7 @@ export default function DashboardScreen() {
       />
 
       <FlatList
-        data={(transactionsQuery.data as any)?.transactions ?? []}
+        data={allTransactions}
         keyExtractor={(item) => item._id}
         contentContainerStyle={{
           paddingHorizontal: 16,
@@ -221,13 +222,15 @@ export default function DashboardScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            refreshing={transactionsQuery.isRefetching}
+            refreshing={
+              transactionsQuery.isRefetching && (filters.page ?? 1) === 1
+            }
             onRefresh={handleResetFilters}
             tintColor="#1d4ed8"
             colors={["#1d4ed8"]}
           />
         }
-        ListHeaderComponent={<>{renderHeader}</>}
+        ListHeaderComponent={renderHeader}
         ListEmptyComponent={
           transactionsQuery.isLoading ? (
             <TransactionListSkeleton count={8} />
@@ -244,11 +247,11 @@ export default function DashboardScreen() {
           )
         }
         ListFooterComponent={
-          currentTransactions > 0 ? (
+          allTransactions.length > 0 ? (
             <LoadMoreButton
               onPress={handleLoadMore}
-              isLoading={transactionsQuery.isLoading && filters.page !== 1}
-              hasMore={hasMore}
+              isLoading={loadingMore}
+              hasMore={hasMorePages}
             />
           ) : null
         }
