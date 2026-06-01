@@ -12,7 +12,6 @@ import type { InvoiceFormData } from "@/lib/validations/invoice";
 import { useTheme } from "@/hooks/use-theme";
 import { BarcodeScannerModal } from "./barcode-scanner-modal";
 import { ProductSearchModal } from "./product-search-modal";
-import { productsApi } from "@/services/products";
 import { useActiveOrgId } from "@/hooks/use-organization";
 import type { Product } from "@/types/product";
 import { lookupBarcode, formatLookupResult } from "@/lib/barcode-lookup";
@@ -69,31 +68,23 @@ export function LineItemFields({
       setScannerVisible(false);
       setScanLoading(true);
       try {
-        // 1. Try local product catalog first
-        const product = await productsApi.getByBarcode(
-          barcode,
-          organizationId || undefined,
-        );
-        fillFromProduct(product);
-        toast.success(`Product "${product.name}" found in your catalog`);
-      } catch {
-        // 2. Search all global barcode databases in parallel
+        // Search online barcode databases in parallel (Food Facts, Beauty Facts, UPC, etc.)
         const result = await lookupBarcode(barcode);
         if (result) {
           setValue(`items.${index}.description`, formatLookupResult(result));
           toast.success(`Found via ${result.source}: ${result.name}`);
         } else {
-          // 3. Nothing found anywhere — prefill barcode for manual entry
+          // Nothing found — prefill barcode for manual entry
           setValue(`items.${index}.description`, barcode);
           toast.info(
-            "Product not found. Barcode prefilled — please enter details.",
+            "Product not found online. Barcode prefilled — please enter details.",
           );
         }
       } finally {
         setScanLoading(false);
       }
     },
-    [organizationId, index, setValue, fillFromProduct],
+    [index, setValue],
   );
 
   return (

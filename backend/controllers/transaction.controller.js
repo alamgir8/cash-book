@@ -2,6 +2,7 @@ import dayjs from "dayjs";
 import mongoose from "mongoose";
 import { Account } from "../models/Account.js";
 import { Category } from "../models/Category.js";
+import { Party } from "../models/Party.js";
 import { Transaction } from "../models/Transaction.js";
 import { Transfer } from "../models/Transfer.js";
 import { buildTransactionFilters } from "../utils/filters.js";
@@ -58,6 +59,44 @@ const adjustAccountBalanceAtomic = async ({
     });
   }
   return updated.current_balance;
+};
+
+/**
+ * Atomically adjust a Party's current_balance when a transaction is applied or reverted.
+ *
+ * Convention (matches the party ledger running-balance formula):
+ *   customer type  → credit = +amount (receivable grows), debit = -amount (receivable shrinks)
+ *   supplier/both  → debit  = +amount (payable grows),    credit = -amount (payable shrinks)
+ *
+ * Returns the new current_balance, or null if the party was not found.
+ */
+const adjustPartyBalanceAtomic = async ({
+  partyId,
+  amount,
+  type,
+  direction = "apply",
+}) => {
+  if (!partyId) return null;
+  // Fetch party type — small, indexed lookup
+  const partyDoc = await Party.findById(partyId).select("type").lean();
+  if (!partyDoc) return null;
+
+  const isCustomer = partyDoc.type === "customer";
+  const rawDelta = isCustomer
+    ? type === "credit"
+      ? Number(amount)
+      : -Number(amount)
+    : type === "debit"
+      ? Number(amount)
+      : -Number(amount);
+  const delta = direction === "revert" ? -rawDelta : rawDelta;
+
+  const updated = await Party.findByIdAndUpdate(
+    partyId,
+    { $inc: { current_balance: delta } },
+    { new: true },
+  );
+  return updated?.current_balance ?? null;
 };
 
 const loadAccount = async ({ adminId, accountId, organizationId }) => {
@@ -591,6 +630,21 @@ export const createTransaction = async (req, res, next) => {
       transaction.balance_after_transaction =
         freshAccount?.current_balance ?? account.current_balance;
     }
+
+    // ── Update party balance (if linked) ────────────────────────────────
+    // Due transactions don't move cash, so don't affect party balance yet.
+    // Payments against a due DO move cash, so they count.
+    if (party && resolvedStatus !== "due") {
+      const newPartyBalance = await adjustPartyBalanceAtomic({
+        partyId: party,
+        amount: Number(amount),
+        type,
+        direction: "apply",
+      });
+      if (newPartyBalance !== null) {
+        transaction.party_balance_after = newPartyBalance;
+      }
+    }
     await transaction.save();
 
     // ── Update parent due transaction's remaining balance ───────────────
@@ -819,6 +873,7 @@ export const updateTransaction = async (req, res, next) => {
       keyword,
       counterparty,
       vendor,
+      party: incomingParty,
       payment_status: newPaymentStatus,
       due_date,
       meta_data: metaData,
@@ -1009,6 +1064,8 @@ export const updateTransaction = async (req, res, next) => {
         if (keyword !== undefined) transaction.keyword = keyword;
         if (counterparty !== undefined) transaction.counterparty = counterparty;
         if (vendor !== undefined) transaction.vendor = vendor;
+        if (incomingParty !== undefined)
+          transaction.party = incomingParty || undefined;
         if (due_date !== undefined)
           transaction.due_date = due_date ? new Date(due_date) : null;
         if (newPaymentStatus !== undefined)
@@ -1046,6 +1103,41 @@ export const updateTransaction = async (req, res, next) => {
       });
     } finally {
       await session.endSession();
+    }
+
+    // 5. Update party balances outside session (party collection is independent)
+    const savedTxn = await Transaction.findById(savedTransaction)
+      .select("party type amount payment_status party_balance_after")
+      .lean();
+    const partyId = savedTxn?.party;
+    if (partyId && (savedTxn.payment_status || "paid") !== "due") {
+      // Revert old party impact then apply new (handles amount/type/party changes)
+      const oldPartyId = transaction.party; // before update
+      if (oldPartyId) {
+        await adjustPartyBalanceAtomic({
+          partyId: oldPartyId,
+          amount: originalAmount,
+          type: originalType,
+          direction: "revert",
+        });
+      }
+      if (partyId.toString() !== (oldPartyId?.toString() ?? "")) {
+        // Party changed — apply with new party
+        await adjustPartyBalanceAtomic({
+          partyId,
+          amount: savedTxn.amount,
+          type: savedTxn.type,
+          direction: "apply",
+        });
+      } else if (oldPartyId) {
+        // Same party but amount/type might have changed
+        await adjustPartyBalanceAtomic({
+          partyId,
+          amount: savedTxn.amount,
+          type: savedTxn.type,
+          direction: "apply",
+        });
+      }
     }
 
     const populated = await Transaction.findById(savedTransaction)
@@ -1104,6 +1196,16 @@ export const deleteTransaction = async (req, res, next) => {
             direction: "revert",
             session,
           });
+
+          // Revert party balance if linked
+          if (transaction.party) {
+            await adjustPartyBalanceAtomic({
+              partyId: transaction.party,
+              amount: transaction.amount,
+              type: transaction.type,
+              direction: "revert",
+            });
+          }
         }
 
         // Handle Transfer deletion — revert sibling leg atomically

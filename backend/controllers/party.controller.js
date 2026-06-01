@@ -374,11 +374,13 @@ export const getPartyLedger = async (req, res, next) => {
     ]);
 
     // Calculate running balance
+    // customer: credit = +amount (receivable grows), debit = -amount (receivable shrinks)
+    // supplier/both: debit = +amount (payable grows), credit = -amount (payable shrinks)
+    // For "both" type: unified net balance (positive = payable to them, negative = receivable from them)
+    const isCustomer = party.type === "customer";
     let runningBalance = party.opening_balance;
     const ledgerEntries = transactions.reverse().map((txn) => {
-      // For customers: credit increases balance (they owe more), debit decreases (they paid)
-      // For suppliers: debit increases balance (we owe more), credit decreases (we paid)
-      if (party.type === "customer") {
+      if (isCustomer) {
         runningBalance += txn.type === "credit" ? txn.amount : -txn.amount;
       } else {
         runningBalance += txn.type === "debit" ? txn.amount : -txn.amount;
@@ -389,14 +391,148 @@ export const getPartyLedger = async (req, res, next) => {
       };
     });
 
+    // Net balance interpretation for the response
+    let balanceLabel;
+    if (isCustomer) {
+      balanceLabel =
+        runningBalance >= 0 ? "receivable" : "advance_paid_to_customer";
+    } else {
+      balanceLabel =
+        runningBalance >= 0 ? "payable" : "advance_paid_to_supplier";
+    }
+
     res.json({
       party,
+      net_balance: runningBalance,
+      balance_direction: balanceLabel,
       ledger: ledgerEntries.reverse(),
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
         total,
         pages: Math.ceil(total / parseInt(limit)),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /parties/:partyId/net-balance
+ *
+ * Returns a full breakdown of all transactions with this party:
+ *  - Total credit (sales / money in from party)
+ *  - Total debit (purchases / money out to party)
+ *  - Net balance (who owes whom and how much)
+ *
+ * Works for all party types — especially useful for type="both" (Lutfor scenario)
+ * where the same person is both a buyer and a seller.
+ */
+export const getPartyNetBalance = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const { partyId } = req.params;
+
+    const party = await Party.findById(partyId);
+    if (!party) {
+      return res.status(404).json({ message: "Party not found" });
+    }
+
+    if (party.organization) {
+      const access = await checkOrgAccess(
+        userId,
+        party.organization,
+        "view_transactions",
+      );
+      if (!access.hasAccess) {
+        return res.status(403).json({ message: access.error });
+      }
+    } else if (party.admin.toString() !== userId) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    const [agg] = await Transaction.aggregate([
+      {
+        $match: {
+          party: party._id,
+          is_deleted: false,
+          payment_status: { $ne: "due" }, // only settled cash transactions
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          total_credit: {
+            $sum: { $cond: [{ $eq: ["$type", "credit"] }, "$amount", 0] },
+          },
+          total_debit: {
+            $sum: { $cond: [{ $eq: ["$type", "debit"] }, "$amount", 0] },
+          },
+          count: { $sum: 1 },
+          last_transaction_at: { $max: "$date" },
+        },
+      },
+    ]);
+
+    const totalCredit = agg?.total_credit ?? 0;
+    const totalDebit = agg?.total_debit ?? 0;
+    const isCustomer = party.type === "customer";
+
+    // Net balance: positive = we have a receivable from them, negative = we have a payable to them
+    // customer convention: net = credit - debit (credit = they owe more, debit = they paid)
+    // supplier/both convention: net = debit - credit (debit = we owe more, credit = we paid)
+    const netBalance = isCustomer
+      ? totalCredit - totalDebit + (party.opening_balance ?? 0)
+      : totalDebit - totalCredit + (party.opening_balance ?? 0);
+
+    let owingMessage;
+    if (Math.abs(netBalance) < 0.01) {
+      owingMessage = "settled";
+    } else if (isCustomer) {
+      owingMessage = netBalance > 0 ? "they_owe_you" : "you_owe_them"; // advance
+    } else {
+      owingMessage = netBalance > 0 ? "you_owe_them" : "they_owe_you";
+    }
+
+    // Outstanding dues (payment_status=due, not yet settled)
+    const [dueAgg] = await Transaction.aggregate([
+      {
+        $match: {
+          party: party._id,
+          is_deleted: false,
+          payment_status: "due",
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          total_due: { $sum: { $ifNull: ["$due_remaining", "$amount"] } },
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    res.json({
+      party: {
+        _id: party._id,
+        name: party.name,
+        type: party.type,
+        code: party.code,
+        phone: party.phone,
+        opening_balance: party.opening_balance,
+      },
+      summary: {
+        total_credit: totalCredit,
+        total_debit: totalDebit,
+        net_balance: netBalance,
+        owing: owingMessage,
+        transaction_count: agg?.count ?? 0,
+        last_transaction_at: agg?.last_transaction_at ?? null,
+      },
+      outstanding_dues: {
+        total: dueAgg?.total_due ?? 0,
+        count: dueAgg?.count ?? 0,
       },
     });
   } catch (error) {

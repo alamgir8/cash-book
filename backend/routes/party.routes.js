@@ -23,4 +23,7 @@ router.post("/:partyId/archive", partyController.archiveParty);
 // Ledger
 router.get("/:partyId/ledger", partyController.getPartyLedger);
 
+// Net cross-balance (for "both" type — shows who owes whom overall)
+router.get("/:partyId/net-balance", partyController.getPartyNetBalance);
+
 export default router;

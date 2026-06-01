@@ -1,227 +1,172 @@
 import { Tabs } from "expo-router";
-import { View, Text } from "react-native";
+import { View, Text, TouchableOpacity, Dimensions } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useOrganization } from "@/hooks/use-organization";
 import { useTheme } from "@/hooks/use-theme";
 import { useTranslation } from "@/hooks/use-translation";
+import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 
-const TabIcon = ({
-  icon,
-  label,
-  focused,
-  colors,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  label: string;
-  focused: boolean;
-  colors: ReturnType<typeof useTheme>["colors"];
-}) => (
-  <View className="items-center justify-center px-1 py-1 gap-0.5 min-w-[60px]">
-    <View
-      className="p-1.5 rounded-lg"
-      style={{ backgroundColor: focused ? colors.info + "20" : "transparent" }}
-    >
-      <Ionicons
-        name={icon}
-        size={20}
-        color={focused ? colors.info : colors.text.secondary}
-      />
-    </View>
-    <Text
-      className="text-xs font-medium text-center"
-      style={{ color: focused ? colors.info : colors.text.secondary }}
-      numberOfLines={1}
-      adjustsFontSizeToFit
-    >
-      {label}
-    </Text>
-  </View>
-);
-
-export default function AppLayout() {
-  const insets = useSafeAreaInsets();
+function CustomTabBar({ state, navigation }: BottomTabBarProps) {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const { t } = useTranslation();
   const { activeOrganization, canManageAccounts, canCreateTransactions } =
     useOrganization();
 
-  // If user is in an organization with viewer role (no permissions), show limited tabs
   const showLimitedTabs =
     activeOrganization && !canCreateTransactions && !canManageAccounts;
 
-  return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarInactiveTintColor: colors.text.secondary,
-        tabBarActiveTintColor: colors.info,
-        tabBarStyle: {
-          backgroundColor: colors.bg.primary,
-          borderTopWidth: 1,
-          borderTopColor: colors.border,
-          height: 60 + insets.bottom,
-          paddingBottom: insets.bottom,
-          paddingTop: 5,
-          elevation: 0,
-          shadowOpacity: 0,
-          shadowColor: "transparent",
-        },
-        tabBarLabelStyle: {
-          fontSize: 14,
-          fontWeight: "600",
-        },
-        tabBarBadgeStyle: {
-          top: -5,
-          right: -10,
-        },
+  const TABS: {
+    name: string;
+    label: string;
+    icon: keyof typeof Ionicons.glyphMap;
+    iconFocused: keyof typeof Ionicons.glyphMap;
+  }[] = [
+    {
+      name: "index",
+      label: t("tabHome"),
+      icon: "home-outline",
+      iconFocused: "home",
+    },
+    {
+      name: "accounts",
+      label: t("tabAccounts"),
+      icon: "wallet-outline",
+      iconFocused: "wallet",
+    },
+    {
+      name: "transactions",
+      label: t("tabTransactions"),
+      icon: "receipt-outline",
+      iconFocused: "receipt",
+    },
+    {
+      name: "shop",
+      label: "Shop",
+      icon: "bag-handle-outline",
+      iconFocused: "bag-handle",
+    },
+    {
+      name: "settings",
+      label: t("tabSettings"),
+      icon: "settings-outline",
+      iconFocused: "settings",
+    },
+  ];
 
-        tabBarShowLabel: false,
+  const visibleTabs = TABS.filter((tab) => {
+    if (tab.name === "accounts" && showLimitedTabs) return false;
+    return true;
+  });
+
+  const screenWidth = Dimensions.get("window").width;
+  const tabWidth = Math.floor(screenWidth / visibleTabs.length);
+
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        backgroundColor: colors.bg.primary,
+        borderTopWidth: 1,
+        borderTopColor: colors.border,
+        paddingBottom: insets.bottom,
+        height: 60 + insets.bottom,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: -3 },
+        shadowOpacity: 0.07,
+        shadowRadius: 6,
+        elevation: 10,
       }}
     >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: t("dashboard"),
-          tabBarIcon: ({ focused }) => (
-            <TabIcon
-              icon="home"
-              label={t("tabHome")}
-              focused={focused}
-              colors={colors}
-            />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="accounts"
-        options={{
-          title: t("accounts"),
-          tabBarIcon: ({ focused }) => (
-            <TabIcon
-              icon="wallet"
-              label={t("tabAccounts")}
-              focused={focused}
-              colors={colors}
-            />
-          ),
-          // Hide if user doesn't have account management permissions and is in an organization
-          href: showLimitedTabs ? null : undefined,
-        }}
-      />
-      <Tabs.Screen
-        name="transactions"
-        options={{
-          title: t("transactions"),
-          tabBarIcon: ({ focused }) => (
-            <TabIcon
-              icon="receipt"
-              label={t("tabTransactions")}
-              focused={focused}
-              colors={colors}
-            />
-          ),
-          // Always show transactions (viewers can see, just not create)
-        }}
-      />
-      <Tabs.Screen
-        name="settings"
-        options={{
-          title: t("settings"),
-          tabBarIcon: ({ focused }) => (
-            <TabIcon
-              icon="settings"
-              label={t("tabSettings")}
-              focused={focused}
-              colors={colors}
-            />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="shop"
-        options={{
-          href: null, // This hides the dynamic route from tabs
-        }}
-      />
-      <Tabs.Screen
-        name="accounts/[accountId]"
-        options={{
-          href: null, // This hides the dynamic route from tabs
-        }}
-      />
-      <Tabs.Screen
-        name="categories"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="organizations"
-        options={{
-          href: null,
-        }}
-      />
+      {visibleTabs.map((tab) => {
+        const route = state.routes.find((r) => r.name === tab.name);
+        if (!route) return null;
+        const isFocused = state.routes[state.index]?.name === tab.name;
+
+        const onPress = () => {
+          const event = navigation.emit({
+            type: "tabPress",
+            target: route.key,
+            canPreventDefault: true,
+          });
+          if (!isFocused && !event.defaultPrevented) {
+            navigation.navigate(tab.name);
+          }
+        };
+
+        return (
+          <TouchableOpacity
+            key={tab.name}
+            onPress={onPress}
+            activeOpacity={0.75}
+            style={{
+              width: tabWidth,
+              alignItems: "center",
+              justifyContent: "center",
+              paddingTop: 6,
+            }}
+          >
+            <View
+              style={{
+                paddingHorizontal: 14,
+                paddingVertical: 3,
+                borderRadius: 10,
+                backgroundColor: isFocused ? colors.info + "1A" : "transparent",
+              }}
+            >
+              <Ionicons
+                name={isFocused ? tab.iconFocused : tab.icon}
+                size={22}
+                color={isFocused ? colors.info : colors.text.secondary}
+              />
+            </View>
+            <Text
+              style={{
+                fontSize: 10,
+                fontWeight: "600",
+                marginTop: 1,
+                color: isFocused ? colors.info : colors.text.secondary,
+                textAlign: "center",
+              }}
+              numberOfLines={1}
+            >
+              {tab.label}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+}
+
+export default function AppLayout() {
+  return (
+    <Tabs
+      tabBar={(props) => <CustomTabBar {...props} />}
+      screenOptions={{ headerShown: false }}
+    >
+      <Tabs.Screen name="index" />
+      <Tabs.Screen name="accounts" />
+      <Tabs.Screen name="transactions" />
+      <Tabs.Screen name="shop" />
+      <Tabs.Screen name="settings" />
+      <Tabs.Screen name="accounts/[accountId]" options={{ href: null }} />
+      <Tabs.Screen name="categories" options={{ href: null }} />
+      <Tabs.Screen name="organizations" options={{ href: null }} />
       <Tabs.Screen
         name="organizations/[organizationId]"
-        options={{
-          href: null,
-        }}
+        options={{ href: null }}
       />
-      <Tabs.Screen
-        name="parties"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="parties/new"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="parties/[partyId]"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="parties/[partyId]/edit"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="parties/[partyId]/ledger"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="invoices"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="invoices/new"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="invoices/[invoiceId]"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="import"
-        options={{
-          href: null,
-        }}
-      />
+      <Tabs.Screen name="parties" options={{ href: null }} />
+      <Tabs.Screen name="parties/new" options={{ href: null }} />
+      <Tabs.Screen name="parties/[partyId]" options={{ href: null }} />
+      <Tabs.Screen name="parties/[partyId]/edit" options={{ href: null }} />
+      <Tabs.Screen name="parties/[partyId]/ledger" options={{ href: null }} />
+      <Tabs.Screen name="invoices" options={{ href: null }} />
+      <Tabs.Screen name="invoices/new" options={{ href: null }} />
+      <Tabs.Screen name="invoices/[invoiceId]" options={{ href: null }} />
+      <Tabs.Screen name="import" options={{ href: null }} />
     </Tabs>
   );
 }
