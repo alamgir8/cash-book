@@ -65,6 +65,8 @@ export const SearchableSelect = ({
   const [isFetching, setIsFetching] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Cache selected labels by value so display doesn't go blank after asyncOptions are cleared
+  const [labelCache, setLabelCache] = useState<Record<string, string>>({});
 
   // Debounced async search whenever search text changes
   useEffect(() => {
@@ -91,10 +93,9 @@ export const SearchableSelect = ({
     };
   }, [search, fetchOptions]);
 
-  // Pre-load initial options when the sheet opens (if no static options provided)
+  // Pre-load first 50 options every time the sheet opens (fresh server data merged with static options)
   useEffect(() => {
     if (!visible || !fetchOptions) return;
-    if (options.length > 0) return; // static options already supplied
     let cancelled = false;
     setIsFetching(true);
     fetchOptions("")
@@ -174,6 +175,8 @@ export const SearchableSelect = ({
   }, [mergedOptions, search]);
 
   const handleSelect = (option: SelectOption) => {
+    // Cache label so the trigger can display it even after asyncOptions are cleared
+    setLabelCache((prev) => ({ ...prev, [option.value]: option.label }));
     onSelect(option.value, option);
     closeModal();
   };
@@ -183,12 +186,13 @@ export const SearchableSelect = ({
     setSearch("");
   };
 
-  // For custom values, show the customDisplayValue if provided and no option matches
+  // Resolve display label: matched option → cached label → customDisplayValue fallback
   const displayText = useMemo(() => {
     if (selectedOption) return selectedOption.label;
-    if (allowCustomValue && customDisplayValue) return customDisplayValue;
+    if (value && labelCache[value]) return labelCache[value];
+    if (customDisplayValue) return customDisplayValue;
     return null;
-  }, [selectedOption, allowCustomValue, customDisplayValue]);
+  }, [selectedOption, value, labelCache, customDisplayValue]);
 
   // Check if search text matches any existing option
   const searchMatchesExisting = useMemo(() => {

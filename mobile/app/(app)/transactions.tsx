@@ -16,6 +16,7 @@ import { TransactionModal } from "@/components/modals/transaction-modal";
 import { AttachmentViewerModal } from "@/components/transactions/attachment-viewer-modal";
 import { DuePaymentModal } from "@/components/modals/due-payment-modal";
 import { DueChainSheet } from "@/components/modals/due-chain-sheet";
+import { VendorHistorySheet } from "@/components/modals/vendor-history-sheet";
 import type { Transaction } from "@/services/transactions";
 import { useTheme } from "@/hooks/use-theme";
 import { useTransactionsScreen } from "@/hooks/use-transactions-screen";
@@ -36,6 +37,7 @@ export default function TransactionsScreen() {
     editingTransaction,
     payingDueTxn,
     viewingChainFor,
+    viewingVendorHistoryFor,
     viewingAttachmentsFor,
     transactionsQuery,
     accountsQuery,
@@ -54,6 +56,7 @@ export default function TransactionsScreen() {
     isUpdating,
     setPayingDueTxn,
     setViewingChainFor,
+    setViewingVendorHistoryFor,
     setViewingAttachmentsFor,
     handleEditTransaction,
     handleDeleteTransaction,
@@ -61,6 +64,7 @@ export default function TransactionsScreen() {
     handleCategoryPress,
     handleCounterpartyPress,
     handleVendorPress,
+    handlePartyPress,
     handlePaymentStatusPress,
     handleFilterChange,
     handleResetFilters,
@@ -78,6 +82,8 @@ export default function TransactionsScreen() {
         onCategoryPress={handleCategoryPress}
         onCounterpartyPress={handleCounterpartyPress}
         onVendorPress={handleVendorPress}
+        onPartyPress={handlePartyPress}
+        onViewHistory={setViewingVendorHistoryFor}
         onPaymentStatusPress={handlePaymentStatusPress}
         onEdit={canEditTransactions ? handleEditTransaction : undefined}
         onDelete={isDeleteModeActive ? handleDeleteTransaction : undefined}
@@ -90,6 +96,8 @@ export default function TransactionsScreen() {
       handleCategoryPress,
       handleCounterpartyPress,
       handleVendorPress,
+      handlePartyPress,
+      setViewingVendorHistoryFor,
       handlePaymentStatusPress,
       handleEditTransaction,
       handleDeleteTransaction,
@@ -127,6 +135,19 @@ export default function TransactionsScreen() {
         onReset={handleResetFilters}
         onApplyFilters={() => transactionsQuery.refetch()}
       />
+      {transactionsQuery.isFetching &&
+        !transactionsQuery.isLoading &&
+        !loadingMore && (
+          <View
+            className="flex-row items-center justify-center gap-2 py-2 rounded-xl"
+            style={{ backgroundColor: colors.info + "15" }}
+          >
+            <ActivityIndicator size="small" color={colors.info} />
+            <Text className="text-sm" style={{ color: colors.info }}>
+              {t("loading")}
+            </Text>
+          </View>
+        )}
     </View>
   );
 
@@ -281,6 +302,14 @@ export default function TransactionsScreen() {
           visible={!!viewingChainFor}
           onClose={() => setViewingChainFor(null)}
           transaction={viewingChainFor}
+        />
+      )}
+
+      {viewingVendorHistoryFor && (
+        <VendorHistorySheet
+          visible={!!viewingVendorHistoryFor}
+          onClose={() => setViewingVendorHistoryFor(null)}
+          transaction={viewingVendorHistoryFor}
         />
       )}
     </View>

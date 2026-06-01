@@ -177,8 +177,8 @@ export const DuePaymentModal = ({
                   marginTop: 2,
                 }}
               >
-                {dueTxn.vendor
-                  ? `Vendor: ${dueTxn.vendor}`
+                {dueTxn.party?.name
+                  ? `Party: ${dueTxn.party.name}`
                   : dueTxn.counterparty
                     ? `For: ${dueTxn.counterparty}`
                     : "Due transaction payment"}

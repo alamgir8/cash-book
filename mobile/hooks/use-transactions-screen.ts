@@ -45,8 +45,14 @@ const formatCategoryGroup = (type?: string) => {
 };
 
 export function useTransactionsScreen() {
-  const searchParams = useLocalSearchParams<{ accountId?: string }>();
+  const searchParams = useLocalSearchParams<{
+    accountId?: string;
+    party_id?: string;
+    counterparty?: string;
+  }>();
   const accountId = searchParams?.accountId as string | undefined;
+  const initialPartyId = searchParams?.party_id as string | undefined;
+  const initialCounterparty = searchParams?.counterparty as string | undefined;
   const queryClient = useQueryClient();
   const { hasPermission } = useOrganization();
   const { isDeleteModeActive } = useDeleteMode();
@@ -61,6 +67,8 @@ export function useTransactionsScreen() {
   const [filters, setFilters] = useState<TransactionFilters>({
     ...DEFAULT_FILTERS,
     ...(accountId ? { accountId } : {}),
+    ...(initialPartyId ? { party_id: initialPartyId } : {}),
+    ...(initialCounterparty ? { counterparty: initialCounterparty } : {}),
   });
   const [exporting, setExporting] = useState(false);
   const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
@@ -73,6 +81,8 @@ export function useTransactionsScreen() {
   const [viewingChainFor, setViewingChainFor] = useState<Transaction | null>(
     null,
   );
+  const [viewingVendorHistoryFor, setViewingVendorHistoryFor] =
+    useState<Transaction | null>(null);
   const [viewingAttachmentsFor, setViewingAttachmentsFor] =
     useState<Transaction | null>(null);
 
@@ -245,16 +255,17 @@ export function useTransactionsScreen() {
       .map((n) => ({ value: n, label: n }));
   }, [counterpartiesQuery.data, allTransactions, editingTransaction]);
 
-  const vendorOptions: SelectOption[] = useMemo(() => {
-    const api = vendorsQuery.data ?? [];
-    const fromTxns = allTransactions
-      .map((t) => t.vendor?.trim())
-      .filter((n): n is string => Boolean(n));
-    const editing = editingTransaction?.vendor?.trim();
-    return [...new Set([...api, ...fromTxns, ...(editing ? [editing] : [])])]
-      .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
-      .map((n) => ({ value: n, label: n }));
-  }, [vendorsQuery.data, allTransactions, editingTransaction]);
+  const partyOptions: SelectOption[] = useMemo(() => {
+    const parties = vendorsQuery.data ?? [];
+    return parties
+      .map((p) => ({ value: p._id, label: p.name }))
+      .sort((a, b) =>
+        a.label.toLowerCase().localeCompare(b.label.toLowerCase()),
+      );
+  }, [vendorsQuery.data]);
+
+  // Keep vendorOptions as alias for backward-compat with modal prop
+  const vendorOptions = partyOptions;
 
   // ── Computed values ───────────────────────────────────────────────────────
   const summaryTotals = useMemo(
@@ -280,7 +291,7 @@ export function useTransactionsScreen() {
       "accountId",
       "categoryId",
       "counterparty",
-      "vendor",
+      "party_id",
       "payment_status",
       "loan_filter",
       "financialScope",
@@ -362,10 +373,20 @@ export function useTransactionsScreen() {
     }));
   }, []);
 
-  const handleVendorPress = useCallback((vendor?: string) => {
+  const handleVendorPress = useCallback((partyId?: string) => {
     setAllTransactions([]);
     setHasMorePages(true);
-    setFilters((prev) => ({ ...prev, vendor: vendor || undefined, page: 1 }));
+    setFilters((prev) => ({
+      ...prev,
+      party_id: partyId || undefined,
+      page: 1,
+    }));
+  }, []);
+
+  const handlePartyPress = handleVendorPress;
+
+  const handleViewHistory = useCallback((transaction: Transaction) => {
+    setViewingVendorHistoryFor(transaction);
   }, []);
 
   const handlePaymentStatusPress = useCallback((status?: "paid" | "due") => {
@@ -425,8 +446,8 @@ export function useTransactionsScreen() {
       description: values.description?.trim() || undefined,
       comment: values.comment?.trim() || undefined,
       categoryId: values.categoryId || undefined,
-      counterparty: values.counterparty?.trim() || undefined,
-      vendor: values.vendor?.trim() || undefined,
+      party: values.party || undefined,
+      for_party: (values as any).for_party || undefined,
       payment_status: values.payment_status || "paid",
       due_date: values.due_date?.trim() || undefined,
     } as any);
@@ -457,6 +478,7 @@ export function useTransactionsScreen() {
     editingTransaction,
     payingDueTxn,
     viewingChainFor,
+    viewingVendorHistoryFor,
     viewingAttachmentsFor,
     // queries
     transactionsQuery,
@@ -468,6 +490,7 @@ export function useTransactionsScreen() {
     categoryOptions,
     counterpartyOptions,
     vendorOptions,
+    partyOptions,
     summaryTotals,
     totalTransactionCount,
     hasActiveFilters,
@@ -481,6 +504,7 @@ export function useTransactionsScreen() {
     // setters
     setPayingDueTxn,
     setViewingChainFor,
+    setViewingVendorHistoryFor,
     setViewingAttachmentsFor,
     setModalVisible,
     setFilters,
@@ -491,6 +515,8 @@ export function useTransactionsScreen() {
     handleCategoryPress,
     handleCounterpartyPress,
     handleVendorPress,
+    handlePartyPress,
+    handleViewHistory,
     handlePaymentStatusPress,
     handleFilterChange,
     handleResetFilters,

@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { FlatList, RefreshControl, Text, View } from "react-native";
 import { FilterBar } from "@/components/filter-bar";
 import { TransactionCard } from "@/components/transaction-card";
@@ -12,6 +12,7 @@ import { AttachmentViewerModal } from "@/components/transactions/attachment-view
 import { TransferModal } from "@/components/modals/transfer-modal";
 import { DuePaymentModal } from "@/components/modals/due-payment-modal";
 import { DueChainSheet } from "@/components/modals/due-chain-sheet";
+import { VendorHistorySheet } from "@/components/modals/vendor-history-sheet";
 import {
   StatsCardsSkeleton,
   QuickFeaturesSkeleton,
@@ -26,6 +27,9 @@ import { useTranslation } from "@/hooks/use-translation";
 export default function DashboardScreen() {
   const { colors } = useTheme();
   const { t } = useTranslation();
+
+  const [viewingVendorHistoryFor, setViewingVendorHistoryFor] =
+    useState<Transaction | null>(null);
 
   const {
     filters,
@@ -82,6 +86,8 @@ export default function DashboardScreen() {
         onCategoryPress={handleCategoryFilter}
         onCounterpartyPress={handleCounterpartyFilter}
         onVendorPress={handleVendorFilter}
+        onPartyPress={handleVendorFilter}
+        onViewHistory={setViewingVendorHistoryFor}
         onPaymentStatusPress={handlePaymentStatusFilter}
         onEdit={handleEditTransaction}
         onDelete={isDeleteModeActive ? handleDeleteTransaction : undefined}
@@ -101,6 +107,7 @@ export default function DashboardScreen() {
       handleAttachmentsPress,
       setPayingDueTxn,
       setViewingChainFor,
+      setViewingVendorHistoryFor,
     ],
   );
 
@@ -309,6 +316,14 @@ export default function DashboardScreen() {
           visible={!!viewingChainFor}
           onClose={() => setViewingChainFor(null)}
           transaction={viewingChainFor}
+        />
+      )}
+
+      {viewingVendorHistoryFor && (
+        <VendorHistorySheet
+          visible={!!viewingVendorHistoryFor}
+          onClose={() => setViewingVendorHistoryFor(null)}
+          transaction={viewingVendorHistoryFor}
         />
       )}
     </View>

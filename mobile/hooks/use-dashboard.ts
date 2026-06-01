@@ -39,7 +39,6 @@ import type {
 } from "@/components/modals/types";
 
 const DEFAULT_FILTERS: TransactionFilters = {
-  range: "monthly",
   page: 1,
   limit: 20,
 };
@@ -227,16 +226,17 @@ export function useDashboard() {
       .map((n) => ({ value: n, label: n }));
   }, [counterpartiesQuery.data, transactionsQuery.data, editingTransaction]);
 
-  const vendorOptions: SelectOption[] = useMemo(() => {
-    const api = vendorsQuery.data ?? [];
-    const fromTxns = (transactionsQuery.data?.transactions ?? [])
-      .map((t) => t.vendor?.trim())
-      .filter((n): n is string => Boolean(n));
-    const editing = editingTransaction?.vendor?.trim();
-    return [...new Set([...api, ...fromTxns, ...(editing ? [editing] : [])])]
-      .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
-      .map((n) => ({ value: n, label: n }));
-  }, [vendorsQuery.data, transactionsQuery.data, editingTransaction]);
+  const partyOptions: SelectOption[] = useMemo(() => {
+    const parties = vendorsQuery.data ?? [];
+    return parties
+      .map((p) => ({ value: p._id, label: p.name }))
+      .sort((a, b) =>
+        a.label.toLowerCase().localeCompare(b.label.toLowerCase()),
+      );
+  }, [vendorsQuery.data]);
+
+  // Keep vendorOptions as alias for backward-compat with modal prop
+  const vendorOptions = partyOptions;
 
   // ── Computed values ───────────────────────────────────────────────────────
   const totals = useMemo(() => {
@@ -256,7 +256,7 @@ export function useDashboard() {
       "accountId",
       "categoryId",
       "counterparty",
-      "vendor",
+      "party_id",
       "payment_status",
       "loan_filter",
       "financialScope",
@@ -349,8 +349,12 @@ export function useDashboard() {
     }));
   }, []);
 
-  const handleVendorFilter = useCallback((vendor?: string) => {
-    setFilters((prev) => ({ ...prev, vendor: vendor || undefined, page: 1 }));
+  const handleVendorFilter = useCallback((partyId?: string) => {
+    setFilters((prev) => ({
+      ...prev,
+      party_id: partyId || undefined,
+      page: 1,
+    }));
   }, []);
 
   const handlePaymentStatusFilter = useCallback((status?: "paid" | "due") => {
@@ -412,8 +416,8 @@ export function useDashboard() {
       description: values.description?.trim() || undefined,
       comment: values.comment?.trim() || undefined,
       categoryId: values.categoryId || undefined,
-      counterparty: values.counterparty?.trim() || undefined,
-      vendor: values.vendor?.trim() || undefined,
+      party: values.party || undefined,
+      for_party: (values as any).for_party || undefined,
       payment_status: values.payment_status || "paid",
       due_date: values.due_date?.trim() || undefined,
     };
@@ -470,6 +474,7 @@ export function useDashboard() {
     categoryOptions,
     counterpartyOptions,
     vendorOptions,
+    partyOptions,
     totals,
     hasActiveFilters,
     hasMore,

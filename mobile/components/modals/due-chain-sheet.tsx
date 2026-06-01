@@ -59,8 +59,33 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
   const isLoanCategory =
     transaction.category?.type === "loan_in" ||
     transaction.category?.type === "loan_out";
-  const useCounterpartyMode = !!transaction.counterparty && isLoanCategory;
+  const partyId = transaction.party
+    ? typeof transaction.party === "object"
+      ? transaction.party._id
+      : transaction.party
+    : undefined;
+  const forPartyId = transaction.for_party
+    ? typeof transaction.for_party === "object"
+      ? transaction.for_party._id
+      : transaction.for_party
+    : undefined;
+  const useCounterpartyMode =
+    !!(partyId || transaction.counterparty) && isLoanCategory;
   const counterparty = transaction.counterparty ?? "";
+
+  // Display name for the sheet header = the "other" party (not self).
+  // loan_out: party=self, for_party=borrower → show for_party
+  // loan_in:  party=lender, for_party=self   → show party
+  const partyDisplayName =
+    transaction.category?.type === "loan_out" && transaction.for_party
+      ? ((typeof transaction.for_party === "object"
+          ? transaction.for_party?.name
+          : undefined) ?? "")
+      : ((typeof transaction.party === "object"
+          ? transaction.party?.name
+          : undefined) ??
+        transaction.counterparty ??
+        "");
 
   // PDF export state
   const [exportingPdf, setExportingPdf] = React.useState(false);
@@ -141,8 +166,8 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
       // ── COUNTERPARTY LEDGER MODE ─────────────────────────────────────────
       if (useCounterpartyMode && ledger) {
         const s = ledger.summary;
-        title = `${counterparty} — Full Ledger`;
-        subtitle = `${s.transaction_count} transactions`;
+        title = `${partyDisplayName} — Full Ledger`;
+        subtitle = `${s.transaction_count} transactions (Me ↔ ${partyDisplayName})`;
 
         // Stats bar
         const stats = [
@@ -455,8 +480,9 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
   };
 
   const ledgerQuery = useQuery({
-    queryKey: ["counterparty-ledger", counterparty],
-    queryFn: () => fetchCounterpartyLedger(counterparty),
+    queryKey: ["counterparty-ledger", partyId, forPartyId, counterparty],
+    queryFn: () =>
+      fetchCounterpartyLedger({ partyId, forPartyId, counterparty }),
     enabled: visible && useCounterpartyMode,
   });
 
@@ -504,7 +530,7 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
                 style={{ color: colors.text.primary }}
               >
                 {useCounterpartyMode
-                  ? `${counterparty} — ${t("fullLedger")}`
+                  ? `${partyDisplayName} — ${t("fullLedger")}`
                   : t("paymentHistory")}
               </Text>
               <Text
@@ -512,11 +538,11 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
                 style={{ color: colors.text.tertiary }}
               >
                 {useCounterpartyMode
-                  ? `${t("allTransactionsWith")} ${counterparty}`
+                  ? `${t("allTransactionsWith")} ${partyDisplayName}`
                   : transaction.vendor
                     ? `${t("vendorLabel2")} ${transaction.vendor}`
-                    : transaction.counterparty
-                      ? `${t("forLabel2")} ${transaction.counterparty}`
+                    : partyDisplayName
+                      ? `${t("forLabel2")} ${partyDisplayName}`
                       : t("dueTransactionChain")}
               </Text>
             </View>

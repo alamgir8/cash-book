@@ -8,8 +8,8 @@ export const transactionSchema = z.object({
   description: z.string().optional(),
   comment: z.string().optional(),
   categoryId: z.string().optional().or(z.literal("")),
-  counterparty: z.string().optional(), // For / Beneficiary (who the money is spent FOR)
-  vendor: z.string().optional(), // Vendor / Seller (who you buy FROM / sell TO)
+  party: z.string().optional(), // vendor/supplier Party ObjectId
+  for_party: z.string().optional(), // beneficiary/for-whom Party ObjectId
   payment_status: z.enum(["paid", "due"]).default("paid"),
   due_date: z.string().optional(),
 });

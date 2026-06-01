@@ -12,6 +12,7 @@ type Props = {
   transaction: Transaction;
   onCategoryPress?: (categoryId: string) => void;
   onCounterpartyPress?: (counterparty: string) => void;
+  onPartyPress?: (partyId: string) => void;
   onVendorPress?: (vendor: string) => void;
   onPaymentStatusPress?: (status: "paid" | "due") => void;
   onEdit?: (transaction: Transaction) => void;
@@ -19,12 +20,14 @@ type Props = {
   onAttachmentsPress?: (transaction: Transaction) => void;
   onPayDue?: (transaction: Transaction) => void;
   onViewChain?: (transaction: Transaction) => void;
+  onViewHistory?: (transaction: Transaction) => void;
 };
 
 const TransactionCardComponent = ({
   transaction,
   onCategoryPress,
   onCounterpartyPress,
+  onPartyPress,
   onVendorPress,
   onPaymentStatusPress,
   onEdit,
@@ -32,6 +35,7 @@ const TransactionCardComponent = ({
   onAttachmentsPress,
   onPayDue,
   onViewChain,
+  onViewHistory,
 }: Props) => {
   const attachmentCount = transaction.attachments?.length ?? 0;
   const { formatAmount, preferences } = usePreferences();
@@ -52,7 +56,9 @@ const TransactionCardComponent = ({
     : loanSummary?.owed_by_me
       ? t("youOwe")
       : t("settled");
-  const isLoanLedger = isLoanCategory && !!transaction.counterparty;
+  const isLoanLedger =
+    isLoanCategory &&
+    !!(transaction.counterparty || transaction.party || transaction.for_party);
 
   const isDue = !isLoanLedger && transaction.payment_status === "due";
   const isPayment = !isLoanLedger && !!transaction.parent_due_id; // payment linked to a due
@@ -79,6 +85,8 @@ const TransactionCardComponent = ({
           description: parentDue.description ?? transaction.description,
           vendor: parentDue.vendor ?? transaction.vendor,
           counterparty: parentDue.counterparty ?? transaction.counterparty,
+          party: parentDue.party ?? transaction.party,
+          for_party: (parentDue as any).for_party ?? transaction.for_party,
           payment_status: "due" as const,
           parent_due_id: undefined,
         } as any)
@@ -280,7 +288,34 @@ const TransactionCardComponent = ({
             </Text>
           </TouchableOpacity>
         ) : null}
-        {transaction.counterparty ? (
+        {transaction.party ? (
+          <TouchableOpacity
+            activeOpacity={onPartyPress ? 0.8 : 1}
+            onPress={() => {
+              const pid =
+                typeof transaction.party === "object"
+                  ? transaction.party?._id
+                  : transaction.party;
+              if (pid && onPartyPress) onPartyPress(pid);
+            }}
+            style={{
+              backgroundColor: colors.info + "25",
+              borderColor: colors.info + "40",
+            }}
+            className="px-3 py-1 rounded-full border"
+          >
+            <Text
+              style={{ color: colors.info }}
+              className="text-xs font-semibold"
+            >
+              {t("vendorLabel") ?? "Vendor"}
+              {": "}
+              {typeof transaction.party === "object"
+                ? transaction.party?.name
+                : transaction.party}
+            </Text>
+          </TouchableOpacity>
+        ) : transaction.counterparty ? (
           <TouchableOpacity
             activeOpacity={onCounterpartyPress ? 0.8 : 1}
             onPress={() => {
@@ -298,29 +333,35 @@ const TransactionCardComponent = ({
               style={{ color: colors.info }}
               className="text-xs font-semibold"
             >
-              {t("forLabel")} {transaction.counterparty}
+              {transaction.counterparty}
             </Text>
           </TouchableOpacity>
         ) : null}
-        {transaction.vendor ? (
+        {transaction.for_party ? (
           <TouchableOpacity
-            activeOpacity={onVendorPress ? 0.8 : 1}
+            activeOpacity={onPartyPress ? 0.8 : 1}
             onPress={() => {
-              if (transaction.vendor && onVendorPress) {
-                onVendorPress(transaction.vendor);
-              }
+              const pid =
+                typeof transaction.for_party === "object"
+                  ? transaction.for_party?._id
+                  : transaction.for_party;
+              if (pid && onPartyPress) onPartyPress(pid);
             }}
             style={{
-              backgroundColor: "#f59e0b" + "25",
-              borderColor: "#f59e0b" + "40",
+              backgroundColor: "#7c3aed" + "25",
+              borderColor: "#7c3aed" + "40",
             }}
             className="px-3 py-1 rounded-full border"
           >
             <Text
-              style={{ color: "#f59e0b" }}
+              style={{ color: "#7c3aed" }}
               className="text-xs font-semibold"
             >
-              {t("vendorLabel")} {transaction.vendor}
+              {t("forLabel") ?? "For"}
+              {": "}
+              {typeof transaction.for_party === "object"
+                ? transaction.for_party?.name
+                : transaction.for_party}
             </Text>
           </TouchableOpacity>
         ) : null}
@@ -449,6 +490,31 @@ const TransactionCardComponent = ({
             </View>
           ) : null}
 
+          {/* Vendor / Counterparty History */}
+          {onViewHistory &&
+          (transaction.party || transaction.counterparty) &&
+          !hasChain ? (
+            <View className="flex-row gap-2 mb-2">
+              <TouchableOpacity
+                onPress={() => onViewHistory(transaction)}
+                style={{ backgroundColor: colors.bg.tertiary }}
+                className="flex-1 flex-row justify-center items-center gap-1.5 px-3 py-2 rounded-lg"
+              >
+                <Ionicons
+                  name="time-outline"
+                  size={16}
+                  color={colors.text.secondary}
+                />
+                <Text
+                  style={{ color: colors.text.secondary }}
+                  className="text-xs font-semibold"
+                >
+                  History
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+
           {/* Attach / Edit / Delete — spread between */}
           <View className="flex-row items-center gap-2">
             {onAttachmentsPress ? (
@@ -532,17 +598,24 @@ export const TransactionCard = memo(
     prevProps.transaction.category?.name ===
       nextProps.transaction.category?.name &&
     prevProps.transaction.counterparty === nextProps.transaction.counterparty &&
-    prevProps.transaction.vendor === nextProps.transaction.vendor &&
+    (typeof prevProps.transaction.party === "object"
+      ? prevProps.transaction.party?._id
+      : prevProps.transaction.party) ===
+      (typeof nextProps.transaction.party === "object"
+        ? nextProps.transaction.party?._id
+        : nextProps.transaction.party) &&
     prevProps.transaction.payment_status ===
       nextProps.transaction.payment_status &&
     (prevProps.transaction.attachments?.length ?? 0) ===
       (nextProps.transaction.attachments?.length ?? 0) &&
     prevProps.onCategoryPress === nextProps.onCategoryPress &&
     prevProps.onCounterpartyPress === nextProps.onCounterpartyPress &&
+    prevProps.onPartyPress === nextProps.onPartyPress &&
     prevProps.onVendorPress === nextProps.onVendorPress &&
     prevProps.onPaymentStatusPress === nextProps.onPaymentStatusPress &&
     prevProps.onDelete === nextProps.onDelete &&
     prevProps.onPayDue === nextProps.onPayDue &&
     prevProps.onViewChain === nextProps.onViewChain &&
+    prevProps.onViewHistory === nextProps.onViewHistory &&
     prevProps.onAttachmentsPress === nextProps.onAttachmentsPress,
 );

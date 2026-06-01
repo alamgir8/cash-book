@@ -73,6 +73,15 @@ export const buildTransactionFilters = ({
     filter.type = query.type;
   }
 
+  // Primary: party ObjectId ref (post-migration)
+  if (query.party || query.party_id) {
+    const partyValue = query.party ?? query.party_id;
+    if (partyValue && mongoose.isValidObjectId(partyValue)) {
+      filter.party = new mongoose.Types.ObjectId(partyValue);
+    }
+  }
+
+  // Legacy fallback: counterparty/vendor string filters (pre-migration data)
   if (query.counterparty) {
     const normalized = String(query.counterparty).trim();
     if (normalized.length > 0) {

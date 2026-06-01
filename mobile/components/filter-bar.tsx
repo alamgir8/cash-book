@@ -189,7 +189,7 @@ export const FilterBar = ({
           filters.accountId ||
           filters.categoryId ||
           filters.counterparty ||
-          filters.vendor ||
+          filters.party_id ||
           filters.payment_status ||
           filters.loan_filter ||
           filters.type ||
@@ -447,6 +447,7 @@ export const FilterBar = ({
                     onChange({
                       startDate: undefined,
                       endDate: undefined,
+                      range: undefined,
                       page: 1,
                     });
                     return;
@@ -652,7 +653,7 @@ export const FilterBar = ({
                 placeholder={
                   vendors.length === 0 ? t("allVendors") : t("filterByVendor")
                 }
-                value={formFilters.vendor ?? ""}
+                value={formFilters.party_id ?? ""}
                 options={
                   vendors.length > 0
                     ? [{ value: "", label: t("allVendors") }, ...vendors]
@@ -661,7 +662,7 @@ export const FilterBar = ({
                 onSelect={(val) =>
                   setFormFilters({
                     ...formFilters,
-                    vendor: val || undefined,
+                    party_id: val || undefined,
                   })
                 }
                 disabled={vendors.length === 0}
@@ -754,7 +755,7 @@ export const FilterBar = ({
                 const {
                   categoryId,
                   counterparty,
-                  vendor,
+                  party_id,
                   payment_status,
                   loan_filter,
                   accountId: selectedAccountId,
@@ -775,8 +776,8 @@ export const FilterBar = ({
                 if (counterparty) {
                   updatedFilters.counterparty = counterparty;
                 }
-                if (vendor) {
-                  updatedFilters.vendor = vendor;
+                if (party_id) {
+                  updatedFilters.party_id = party_id;
                 }
                 if (payment_status) {
                   updatedFilters.payment_status = payment_status;

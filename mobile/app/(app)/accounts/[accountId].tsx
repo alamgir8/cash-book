@@ -19,6 +19,7 @@ import { TransactionModal } from "@/components/modals/transaction-modal";
 import { AttachmentViewerModal } from "@/components/transactions/attachment-viewer-modal";
 import { DuePaymentModal } from "@/components/modals/due-payment-modal";
 import { DueChainSheet } from "@/components/modals/due-chain-sheet";
+import { VendorHistorySheet } from "@/components/modals/vendor-history-sheet";
 import type { Transaction } from "@/services/transactions";
 import {
   AccountHeader,
@@ -46,6 +47,7 @@ import {
 import { queryKeys } from "@/lib/queryKeys";
 import { usePreferences } from "@/hooks/use-preferences";
 import { useTheme } from "@/hooks/use-theme";
+import { useTranslation } from "@/hooks/use-translation";
 import { useOrganization } from "@/hooks/use-organization";
 import { useDeleteMode } from "@/hooks/use-delete-mode";
 import {
@@ -69,6 +71,7 @@ export default function AccountDetailScreen() {
   const language = preferences.language ?? "en";
   const router = useRouter();
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { hasPermission } = useOrganization();
   const { isDeleteModeActive } = useDeleteMode();
@@ -93,6 +96,8 @@ export default function AccountDetailScreen() {
   const [viewingChainFor, setViewingChainFor] = useState<Transaction | null>(
     null,
   );
+  const [viewingVendorHistoryFor, setViewingVendorHistoryFor] =
+    useState<Transaction | null>(null);
   const [exporting, setExporting] = useState(false);
   const [exportModalVisible, setExportModalVisible] = useState(false);
   const [exportingType, setExportingType] = useState<ExportType | null>(null);
@@ -228,22 +233,16 @@ export default function AccountDetailScreen() {
   }, [counterpartiesQuery.data, allTransactions]);
 
   const vendorOptions: SelectOption[] = useMemo(() => {
-    const apiVendors = vendorsQuery.data ?? [];
-    const txnVendors = allTransactions
-      .map((txn) => txn.vendor?.trim())
-      .filter((name): name is string => Boolean(name));
-    const editingVendor = editingTransaction?.vendor?.trim();
-    const allVendors = [
-      ...new Set([
-        ...apiVendors,
-        ...txnVendors,
-        ...(editingVendor ? [editingVendor] : []),
-      ]),
-    ];
-    return allVendors
-      .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
-      .map((name) => ({ value: name, label: name }));
-  }, [vendorsQuery.data, allTransactions, editingTransaction]);
+    const parties = vendorsQuery.data ?? [];
+    return parties
+      .map((p) => ({ value: p._id, label: p.name }))
+      .sort((a, b) =>
+        a.label.toLowerCase().localeCompare(b.label.toLowerCase()),
+      );
+  }, [vendorsQuery.data]);
+
+  // Alias for places that expect partyOptions
+  const partyOptions = vendorOptions;
 
   // Update accumulated transactions when new data arrives
   useEffect(() => {
@@ -288,7 +287,7 @@ export default function AccountDetailScreen() {
     const keys: (keyof TransactionFilters)[] = [
       "categoryId",
       "counterparty",
-      "vendor",
+      "party_id",
       "payment_status",
       "loan_filter",
       "financialScope",
@@ -368,14 +367,18 @@ export default function AccountDetailScreen() {
     }));
   }, []);
 
-  const handleVendorFilter = useCallback((vendor?: string) => {
+  const handlePartyFilter = useCallback((partyId?: string) => {
     setAllTransactions([]);
     setHasMorePages(true);
     setFilters((prev) => ({
       ...prev,
-      vendor: vendor || undefined,
+      party_id: partyId || undefined,
       page: 1,
     }));
+  }, []);
+
+  const handleViewHistory = useCallback((txn: Transaction) => {
+    setViewingVendorHistoryFor(txn);
   }, []);
 
   const handlePaymentStatusFilter = useCallback((status?: "paid" | "due") => {
@@ -429,8 +432,8 @@ export default function AccountDetailScreen() {
       description: values.description?.trim() || undefined,
       comment: values.comment?.trim() || undefined,
       categoryId: values.categoryId || undefined,
-      counterparty: values.counterparty?.trim() || undefined,
-      vendor: values.vendor?.trim() || undefined,
+      party: values.party || undefined,
+      for_party: (values as any).for_party || undefined,
       payment_status: values.payment_status || "paid",
       due_date: values.due_date?.trim() || undefined,
     } as any);
@@ -579,6 +582,19 @@ export default function AccountDetailScreen() {
             transactionsQuery.refetch();
           }}
         />
+        {transactionsQuery.isFetching &&
+          !transactionsQuery.isLoading &&
+          !loadingMore && (
+            <View
+              className="flex-row items-center justify-center gap-2 py-2 rounded-xl"
+              style={{ backgroundColor: colors.info + "15" }}
+            >
+              <ActivityIndicator size="small" color={colors.info} />
+              <Text className="text-sm" style={{ color: colors.info }}>
+                {t("loading")}
+              </Text>
+            </View>
+          )}
       </View>
     );
   };
@@ -612,7 +628,7 @@ export default function AccountDetailScreen() {
             transaction={item}
             onCategoryPress={handleCategoryFilter}
             onCounterpartyPress={handleCounterpartyFilter}
-            onVendorPress={handleVendorFilter}
+            onPartyPress={handlePartyFilter}
             onPaymentStatusPress={handlePaymentStatusFilter}
             onEdit={canEditTransactions ? handleEditTransaction : undefined}
             onDelete={
@@ -623,6 +639,7 @@ export default function AccountDetailScreen() {
             onAttachmentsPress={handleAttachmentsPress}
             onPayDue={setPayingDueTxn}
             onViewChain={setViewingChainFor}
+            onViewHistory={handleViewHistory}
           />
         )}
         refreshControl={
@@ -643,6 +660,7 @@ export default function AccountDetailScreen() {
         categoryOptions={modalCategoryOptions}
         counterpartyOptions={counterpartyOptions}
         vendorOptions={vendorOptions}
+        partyOptions={partyOptions}
         isAccountsLoading={accountsQuery.isLoading}
         isCategoriesLoading={categoriesQuery.isLoading}
         isSubmitting={updateMutation.isPending}
@@ -683,6 +701,14 @@ export default function AccountDetailScreen() {
           visible={!!viewingChainFor}
           onClose={() => setViewingChainFor(null)}
           transaction={viewingChainFor}
+        />
+      )}
+
+      {viewingVendorHistoryFor && (
+        <VendorHistorySheet
+          visible={!!viewingVendorHistoryFor}
+          onClose={() => setViewingVendorHistoryFor(null)}
+          transaction={viewingVendorHistoryFor}
         />
       )}
     </View>

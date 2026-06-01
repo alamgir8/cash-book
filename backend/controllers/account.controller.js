@@ -520,6 +520,8 @@ export const getAccountTransactions = async (req, res, next) => {
       Transaction.find(filter)
         .populate("account", "name kind")
         .populate("category_id", "name type")
+        .populate("party", "name code type")
+        .populate("for_party", "name code type")
         .populate(
           "parent_due_id",
           "amount due_remaining due_settled_at date description vendor counterparty payment_status",
@@ -545,6 +547,8 @@ export const getAccountTransactions = async (req, res, next) => {
       })
         .populate("account", "name kind")
         .populate("category_id", "name type")
+        .populate("party", "name code type")
+        .populate("for_party", "name code type")
         .populate(
           "parent_due_id",
           "amount due_remaining due_settled_at date description vendor counterparty payment_status",

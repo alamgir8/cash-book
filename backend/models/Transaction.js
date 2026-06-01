@@ -35,6 +35,12 @@ const transactionSchema = new Schema(
       ref: "Party",
       index: true,
     },
+    // Link to beneficiary/for-whom party ledger
+    for_party: {
+      type: Schema.Types.ObjectId,
+      ref: "Party",
+      index: true,
+    },
     // Link to invoice if this transaction is a payment
     invoice: {
       type: Schema.Types.ObjectId,
@@ -178,9 +184,11 @@ transactionSchema.index({ admin: 1, counterparty: 1 }); // for counterparty aggr
 transactionSchema.index({ organization: 1, date: -1 });
 transactionSchema.index({ organization: 1, account: 1, date: -1 });
 transactionSchema.index({ organization: 1, party: 1, date: -1 });
+transactionSchema.index({ organization: 1, for_party: 1, date: -1 });
 transactionSchema.index({ organization: 1, invoice: 1 });
 transactionSchema.index({ organization: 1, is_deleted: 1, date: -1 }); // for org filtered listing
 transactionSchema.index({ party: 1, is_deleted: 1, date: -1 }); // for party ledger queries
+transactionSchema.index({ for_party: 1, is_deleted: 1, date: -1 }); // for beneficiary ledger queries
 transactionSchema.index(
   { admin: 1, client_request_id: 1, is_deleted: 1 },
   {

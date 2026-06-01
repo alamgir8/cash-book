@@ -13,6 +13,7 @@ import {
   listVendors,
   getDueChain,
   getCounterpartyLedger,
+  getVendorLedger,
 } from "../controllers/transaction.controller.js";
 import {
   uploadMiddleware,
@@ -50,8 +51,8 @@ const createSchema = z.object({
     date: dateValidator,
     description: z.string().optional(),
     keyword: z.string().optional(),
-    counterparty: z.string().optional(),
-    vendor: z.string().optional(),
+    party: z.string().trim().optional(),
+    for_party: z.string().trim().optional(),
     payment_status: z.enum(["paid", "due"]).optional(),
     due_date: dateValidator,
     parent_due_id: z.string().trim().optional(), // link payment to a due transaction
@@ -121,8 +122,8 @@ const updateSchema = z.object({
       date: dateValidator,
       description: z.string().optional(),
       keyword: z.string().optional(),
-      counterparty: z.string().optional(),
-      vendor: z.string().optional(),
+      party: z.string().trim().optional(),
+      for_party: z.string().trim().optional(),
       payment_status: z.enum(["paid", "due"]).optional(),
       due_date: dateValidator,
       categoryId: z.string().optional(),
@@ -138,8 +139,8 @@ const updateSchema = z.object({
         data.date === undefined &&
         data.description === undefined &&
         data.keyword === undefined &&
-        data.counterparty === undefined &&
-        data.vendor === undefined &&
+        data.party === undefined &&
+        data.for_party === undefined &&
         data.payment_status === undefined &&
         data.due_date === undefined &&
         data.categoryId === undefined &&
@@ -172,7 +173,8 @@ const listQuerySchema = z.object({
     categoryId: z.string().optional(),
     category_id: z.string().optional(),
     counterparty: z.string().optional(),
-    vendor: z.string().optional(),
+    party: z.string().optional(),
+    party_id: z.string().optional(),
     payment_status: z.enum(["paid", "due"]).optional(),
     loan_filter: z.enum(["loan_given", "loan_received"]).optional(),
     financialScope: z.string().optional(),
@@ -204,6 +206,7 @@ router.use(authenticate);
 router.get("/counterparties", listCounterparties);
 router.get("/vendors", listVendors);
 router.get("/counterparty-ledger", getCounterpartyLedger);
+router.get("/vendor-ledger", getVendorLedger);
 router.get("/", validate(listQuerySchema), listTransactions);
 router.get(
   "/:transactionId/due-chain",

@@ -1,5 +1,12 @@
 import { api } from "../lib/api";
 
+export type PartyRef = {
+  _id: string;
+  name: string;
+  type: string;
+  code?: string;
+};
+
 export type TransactionAccount = {
   _id: string;
   name: string;
@@ -24,8 +31,10 @@ export type Transaction = {
   description?: string;
   keyword?: string;
   comment?: string;
-  counterparty?: string; // For / Beneficiary
-  vendor?: string; // Vendor / Seller (who you buy from / sell to)
+  counterparty?: string; // legacy — cleared after migration
+  vendor?: string; // legacy — cleared after migration
+  party?: PartyRef | null; // vendor/supplier Party ObjectId ref (post-migration)
+  for_party?: PartyRef | null; // beneficiary/for-whom Party ObjectId ref
   payment_status?: "paid" | "due";
   due_date?: string;
   due_remaining?: number; // remaining unpaid (lives on the root due transaction)
@@ -39,8 +48,7 @@ export type Transaction = {
         due_settled_at?: string;
         date: string;
         description?: string;
-        vendor?: string;
-        counterparty?: string;
+        party?: PartyRef | null;
         payment_status?: "paid" | "due";
       };
   due_settled_at?: string;
@@ -80,6 +88,7 @@ export type TransactionFilters = {
   categoryId?: string;
   counterparty?: string;
   vendor?: string;
+  party_id?: string;
   payment_status?: "paid" | "due";
   loan_filter?: "loan_given" | "loan_received";
   financialScope?: "actual" | "income" | "expense" | "both";
@@ -117,7 +126,7 @@ const mapFilters = (filters: TransactionFilters) => {
   if (filters.accountId) params.accountId = filters.accountId;
   if (filters.categoryId) params.categoryId = filters.categoryId;
   if (filters.counterparty) params.counterparty = filters.counterparty;
-  if (filters.vendor) params.vendor = filters.vendor;
+  if (filters.party_id) params.party_id = filters.party_id;
   if (filters.payment_status) params.payment_status = filters.payment_status;
   if (filters.loan_filter) params.loan_filter = filters.loan_filter;
   if (filters.financialScope) params.financialScope = filters.financialScope;
@@ -190,6 +199,8 @@ export const normalizeTransaction = (
     comment: transaction.comment ?? transaction.keyword ?? undefined,
     counterparty: transaction.counterparty ?? undefined,
     vendor: transaction.vendor ?? undefined,
+    party: transaction.party ?? null,
+    for_party: transaction.for_party ?? null,
     payment_status: transaction.payment_status ?? undefined,
     due_date: transaction.due_date ?? undefined,
     due_remaining: transaction.due_remaining ?? undefined,
@@ -234,12 +245,14 @@ export const fetchCounterparties = async (
   return data;
 };
 
-export const fetchVendors = async (search?: string): Promise<string[]> => {
+export const fetchVendors = async (search?: string): Promise<PartyRef[]> => {
   const params: Record<string, string> = {};
   if (search?.trim()) {
     params.search = search.trim();
   }
-  const { data } = await api.get<string[]>("/transactions/vendors", { params });
+  const { data } = await api.get<PartyRef[]>("/transactions/vendors", {
+    params,
+  });
   return data;
 };
 
@@ -251,8 +264,8 @@ type CreateTransactionPayload = {
   description?: string;
   comment?: string;
   categoryId?: string;
-  counterparty?: string;
-  vendor?: string;
+  party?: string; // vendor/supplier Party ObjectId
+  for_party?: string; // beneficiary/for-whom Party ObjectId
   payment_status?: "paid" | "due";
   due_date?: string;
 };
@@ -268,8 +281,9 @@ export const createTransaction = async (payload: CreateTransactionPayload) => {
   if (payload.description) requestBody.description = payload.description;
   if (payload.comment) requestBody.keyword = payload.comment;
   if (payload.categoryId) requestBody.categoryId = payload.categoryId;
-  if (payload.counterparty) requestBody.counterparty = payload.counterparty;
-  if (payload.vendor !== undefined) requestBody.vendor = payload.vendor;
+  if (payload.party !== undefined) requestBody.party = payload.party || null;
+  if (payload.for_party !== undefined)
+    requestBody.for_party = payload.for_party || null;
   if (payload.payment_status)
     requestBody.payment_status = payload.payment_status;
   if (payload.due_date !== undefined) requestBody.due_date = payload.due_date;
@@ -343,8 +357,8 @@ type UpdateTransactionPayload = {
   description?: string;
   comment?: string;
   categoryId?: string;
-  counterparty?: string;
-  vendor?: string;
+  party?: string; // vendor/supplier Party ObjectId
+  for_party?: string; // beneficiary/for-whom Party ObjectId
   payment_status?: "paid" | "due";
   due_date?: string;
 };
@@ -368,8 +382,9 @@ export const updateTransaction = async ({
   if (payload.description) requestBody.description = payload.description;
   if (payload.comment) requestBody.keyword = payload.comment;
   if (payload.categoryId) requestBody.categoryId = payload.categoryId;
-  if (payload.counterparty) requestBody.counterparty = payload.counterparty;
-  if (payload.vendor !== undefined) requestBody.vendor = payload.vendor;
+  if (payload.party !== undefined) requestBody.party = payload.party || null;
+  if (payload.for_party !== undefined)
+    requestBody.for_party = payload.for_party || null;
   if (payload.payment_status)
     requestBody.payment_status = payload.payment_status;
   if (payload.due_date !== undefined) requestBody.due_date = payload.due_date;
@@ -447,17 +462,28 @@ export const fetchDueChain = async (
  * Fetch a unified running ledger for ALL transactions with a counterparty.
  * Shows every borrow and repayment in chronological order with running balance.
  */
-export const fetchCounterpartyLedger = async (
-  counterparty: string,
-): Promise<CounterpartyLedger> => {
+export const fetchCounterpartyLedger = async ({
+  partyId,
+  forPartyId,
+  counterparty,
+}: {
+  partyId?: string;
+  forPartyId?: string;
+  counterparty?: string;
+}): Promise<CounterpartyLedger> => {
+  const params: Record<string, string> = {};
+  if (partyId) params.party_id = partyId;
+  if (forPartyId) params.for_party_id = forPartyId;
+  if (!partyId && counterparty) params.counterparty = counterparty;
   const { data } = await api.get<{
-    counterparty: string;
+    party_id?: string | null;
+    counterparty?: string | null;
     timeline: Record<string, any>[];
     summary: CounterpartyLedger["summary"];
-  }>(`/transactions/counterparty-ledger`, { params: { counterparty } });
+  }>(`/transactions/counterparty-ledger`, { params });
 
   return {
-    counterparty: data.counterparty,
+    counterparty: data.party_id ?? data.counterparty ?? "",
     timeline: data.timeline.map((t) => ({
       ...normalizeTransaction(t),
       entry_type: t.entry_type,
@@ -467,9 +493,60 @@ export const fetchCounterpartyLedger = async (
   };
 };
 
+export type VendorLedgerEntry = Transaction & {
+  entry_type: "credit" | "debit";
+  running_balance: number;
+};
+
+export type VendorLedger = {
+  party_id: string | null;
+  party_name: string;
+  counterparty: string | null;
+  timeline: VendorLedgerEntry[];
+  summary: {
+    total_credit: number;
+    total_debit: number;
+    net_balance: number;
+    transaction_count: number;
+  };
+};
+
+/**
+ * Fetch ALL transactions (any category) for a party or counterparty,
+ * with running balance. Used by the Vendor History ledger sheet.
+ */
+export const fetchVendorLedger = async ({
+  partyId,
+  counterparty,
+}: {
+  partyId?: string;
+  counterparty?: string;
+}): Promise<VendorLedger> => {
+  const params: Record<string, string> = {};
+  if (partyId) params.party_id = partyId;
+  else if (counterparty) params.counterparty = counterparty;
+  const { data } = await api.get<{
+    party_id?: string | null;
+    party_name?: string;
+    counterparty?: string | null;
+    timeline: Record<string, any>[];
+    summary: VendorLedger["summary"];
+  }>(`/transactions/vendor-ledger`, { params });
+
+  return {
+    party_id: data.party_id ?? null,
+    party_name: data.party_name ?? data.counterparty ?? "",
+    counterparty: data.counterparty ?? null,
+    timeline: data.timeline.map((t) => ({
+      ...normalizeTransaction(t),
+      entry_type: t.entry_type as "credit" | "debit",
+      running_balance: t.running_balance,
+    })),
+    summary: data.summary,
+  };
+};
+
 type CreateDuePaymentPayload = {
-  parentDueId: string;
-  accountId: string;
   amount: number;
   type: "debit" | "credit";
   date?: string;

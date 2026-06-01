@@ -282,9 +282,10 @@ export const listTransactions = async (req, res, next) => {
         .populate("account", "name kind")
         .populate("category_id", "name type")
         .populate("party", "name code type")
+        .populate("for_party", "name code type")
         .populate(
           "parent_due_id",
-          "amount due_remaining due_settled_at date description vendor counterparty payment_status",
+          "amount due_remaining due_settled_at date description party payment_status",
         )
         .sort({ date: -1, createdAt: -1, _id: -1 })
         .skip(skip)
@@ -308,9 +309,10 @@ export const listTransactions = async (req, res, next) => {
         .populate("account", "name kind")
         .populate("category_id", "name type")
         .populate("party", "name code type")
+        .populate("for_party", "name code type")
         .populate(
           "parent_due_id",
-          "amount due_remaining due_settled_at date description vendor counterparty payment_status",
+          "amount due_remaining due_settled_at date description party payment_status",
         )
         .sort({ date: -1, createdAt: -1, _id: -1 })
         .lean();
@@ -432,9 +434,10 @@ export const getTransaction = async (req, res, next) => {
       .populate("account", "name kind")
       .populate("category_id", "name type")
       .populate("party", "name code type")
+      .populate("for_party", "name code type")
       .populate(
         "parent_due_id",
-        "amount due_remaining due_settled_at date description vendor counterparty payment_status",
+        "amount due_remaining due_settled_at date description party payment_status",
       )
       .lean();
 
@@ -472,8 +475,6 @@ export const createTransaction = async (req, res, next) => {
       date,
       description,
       keyword,
-      counterparty,
-      vendor,
       payment_status = "paid",
       due_date,
       parent_due_id, // link this payment to an existing due transaction
@@ -482,6 +483,7 @@ export const createTransaction = async (req, res, next) => {
       meta_data: metaData,
       organization,
       party,
+      for_party,
     } = req.body;
 
     // Check organization access if provided
@@ -576,25 +578,24 @@ export const createTransaction = async (req, res, next) => {
       account: account._id,
       category_id: categoryDocument?._id,
       party,
+      for_party,
       type,
       amount,
       date: txnDate,
       description,
       keyword,
-      counterparty,
-      vendor,
       payment_status: parent_due_id ? "paid" : payment_status, // payments against due are always "paid"
       due_date: due_date ? new Date(due_date) : undefined,
       meta_data: metaData,
     };
 
-    // Inherit vendor/counterparty from parent due if not explicitly provided
+    // Inherit party / for_party from parent due if not explicitly provided
     if (parentDue) {
-      if (!transactionPayload.vendor && parentDue.vendor) {
-        transactionPayload.vendor = parentDue.vendor;
+      if (!transactionPayload.party && parentDue.party) {
+        transactionPayload.party = parentDue.party;
       }
-      if (!transactionPayload.counterparty && parentDue.counterparty) {
-        transactionPayload.counterparty = parentDue.counterparty;
+      if (!transactionPayload.for_party && parentDue.for_party) {
+        transactionPayload.for_party = parentDue.for_party;
       }
       transactionPayload.parent_due_id = parentDue._id;
       transactionPayload.due_group_id = parentDue.due_group_id ?? parentDue._id;
@@ -664,7 +665,7 @@ export const createTransaction = async (req, res, next) => {
       .populate("category_id", "name type")
       .populate(
         "parent_due_id",
-        "amount due_remaining date description vendor counterparty",
+        "amount due_remaining date description party payment_status",
       )
       .lean();
 
@@ -871,9 +872,8 @@ export const updateTransaction = async (req, res, next) => {
       date,
       description,
       keyword,
-      counterparty,
-      vendor,
       party: incomingParty,
+      for_party: incomingForParty,
       payment_status: newPaymentStatus,
       due_date,
       meta_data: metaData,
@@ -1062,10 +1062,10 @@ export const updateTransaction = async (req, res, next) => {
         if (parsedDate !== undefined) transaction.date = parsedDate;
         if (description !== undefined) transaction.description = description;
         if (keyword !== undefined) transaction.keyword = keyword;
-        if (counterparty !== undefined) transaction.counterparty = counterparty;
-        if (vendor !== undefined) transaction.vendor = vendor;
         if (incomingParty !== undefined)
           transaction.party = incomingParty || undefined;
+        if (incomingForParty !== undefined)
+          transaction.for_party = incomingForParty || undefined;
         if (due_date !== undefined)
           transaction.due_date = due_date ? new Date(due_date) : null;
         if (newPaymentStatus !== undefined)
@@ -1143,6 +1143,8 @@ export const updateTransaction = async (req, res, next) => {
     const populated = await Transaction.findById(savedTransaction)
       .populate("account", "name kind")
       .populate("category_id", "name type")
+      .populate("party", "name code type")
+      .populate("for_party", "name code type")
       .lean();
 
     res.json({ transaction: populated });
@@ -1543,46 +1545,30 @@ export const listVendors = async (req, res, next) => {
   try {
     const adminId = req.user.id;
     const organizationId = getOrgFromRequest(req);
-    const searchQuery = req.query.search?.trim().toLowerCase() || "";
+    const searchQuery = req.query.search?.trim() || "";
 
-    const distinctFilter = organizationId
-      ? {
-          organization: new mongoose.Types.ObjectId(organizationId),
-          is_deleted: { $ne: true },
-        }
+    const partyFilter = organizationId
+      ? { organization: new mongoose.Types.ObjectId(organizationId) }
       : {
           admin: new mongoose.Types.ObjectId(adminId),
-          is_deleted: { $ne: true },
+          organization: { $exists: false },
         };
 
-    const pipeline = [
-      { $match: distinctFilter },
-      { $match: { vendor: { $exists: true, $nin: [null, ""] } } },
-      {
-        $group: {
-          _id: { $toLower: { $trim: { input: "$vendor" } } },
-          name: { $first: { $trim: { input: "$vendor" } } },
-        },
-      },
-      ...(searchQuery
-        ? [
-            {
-              $match: {
-                _id: {
-                  $regex: searchQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
-                  $options: "i",
-                },
-              },
-            },
-          ]
-        : []),
-      { $sort: { _id: 1 } },
-      { $limit: 200 },
-      { $project: { _id: 0, name: 1 } },
-    ];
+    const query = Party.find(partyFilter)
+      .select("_id name type code")
+      .sort({ name: 1 })
+      .limit(200);
 
-    const results = await Transaction.aggregate(pipeline);
-    res.json(results.map((r) => r.name));
+    if (searchQuery) {
+      query
+        .where("name")
+        .regex(
+          new RegExp(searchQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"),
+        );
+    }
+
+    const parties = await query.lean();
+    res.json(parties);
   } catch (error) {
     next(error);
   }
@@ -1604,29 +1590,128 @@ export const listVendors = async (req, res, next) => {
  *
  * Combined running_balance = owedByThem − owedByMe  (positive = net they owe me)
  */
+
+/**
+ * GET /transactions/vendor-ledger?party_id=xxx  OR  ?counterparty=xxx
+ *
+ * Returns ALL transactions (any category) for a party/counterparty, with:
+ *   - timeline in newest-first order, each entry has running_balance
+ *   - summary: total_credit, total_debit, net_balance, transaction_count
+ */
+export const getVendorLedger = async (req, res, next) => {
+  try {
+    const adminId = req.user.id;
+    const organizationId = getOrgFromRequest(req);
+    const { party_id, counterparty } = req.query;
+
+    if (!party_id && !counterparty) {
+      return res
+        .status(400)
+        .json({ message: "party_id or counterparty query param required" });
+    }
+
+    const scopeFilter = organizationId
+      ? { organization: organizationId }
+      : { admin: adminId, organization: { $exists: false } };
+
+    let partyFilter;
+    if (party_id) {
+      const oid = new mongoose.Types.ObjectId(party_id);
+      partyFilter = {
+        $or: [{ party: oid }, { for_party: oid }],
+      };
+    } else {
+      partyFilter = { counterparty: counterparty.trim() };
+    }
+
+    const transactions = await Transaction.find({
+      ...scopeFilter,
+      ...partyFilter,
+      is_deleted: { $ne: true },
+    })
+      .populate("account", "name kind")
+      .populate("category_id", "name type")
+      .populate("party", "name")
+      .populate("for_party", "name")
+      .sort({ date: 1, createdAt: 1, _id: 1 })
+      .lean();
+
+    // Compute running balance: credit = +, debit = -
+    let runningBalance = 0;
+    let totalCredit = 0;
+    let totalDebit = 0;
+
+    const timeline = transactions.map((txn) => {
+      const amt = Number(txn.amount ?? 0);
+      if (txn.type === "credit") {
+        runningBalance += amt;
+        totalCredit += amt;
+      } else {
+        runningBalance -= amt;
+        totalDebit += amt;
+      }
+      runningBalance = Math.round(runningBalance * 100) / 100;
+      return {
+        ...txn,
+        entry_type: txn.type,
+        running_balance: runningBalance,
+      };
+    });
+
+    // Newest-first for display
+    timeline.reverse();
+
+    // Resolve display name
+    const firstWithParty = transactions.find((t) => t.party);
+    const partyName =
+      firstWithParty?.party?.name ??
+      firstWithParty?.for_party?.name ??
+      counterparty ??
+      "";
+
+    res.json({
+      party_id: party_id ?? null,
+      party_name: partyName,
+      counterparty: counterparty ?? null,
+      timeline,
+      summary: {
+        total_credit: Math.round(totalCredit * 100) / 100,
+        total_debit: Math.round(totalDebit * 100) / 100,
+        net_balance: Math.round((totalCredit - totalDebit) * 100) / 100,
+        transaction_count: transactions.length,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 export const getCounterpartyLedger = async (req, res, next) => {
   try {
     const adminId = req.user.id;
     const organizationId = getOrgFromRequest(req);
-    const { counterparty } = req.query;
+    const { party_id, for_party_id, counterparty } = req.query;
 
-    if (!counterparty) {
+    if (!party_id && !counterparty) {
       return res
         .status(400)
-        .json({ message: "counterparty query param required" });
+        .json({ message: "party_id or counterparty query param required" });
     }
 
     const { timeline, summary } = await getCounterpartyLoanLedger({
       adminId,
       organizationId,
-      counterparty,
+      partyId: party_id ?? null,
+      forPartyId: for_party_id ?? null,
+      counterparty: counterparty ?? null,
     });
 
     // Reverse for newest-first display
     timeline.reverse();
 
     res.json({
-      counterparty,
+      party_id: party_id ?? null,
+      counterparty: counterparty ?? null,
       timeline,
       summary,
     });

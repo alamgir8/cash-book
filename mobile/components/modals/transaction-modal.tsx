@@ -38,7 +38,7 @@ import {
   type SelectOption,
 } from "./types";
 import type { Transaction } from "@/services/transactions";
-import { fetchVendors, fetchCounterparties } from "@/services/transactions";
+import { fetchVendors } from "@/services/transactions";
 import { uploadAttachments } from "@/services/attachments";
 import { AttachmentPicker } from "../transactions/attachment-picker";
 
@@ -51,6 +51,7 @@ type TransactionModalProps = {
   categoryOptions: SelectOption[];
   counterpartyOptions?: SelectOption[];
   vendorOptions?: SelectOption[];
+  partyOptions?: SelectOption[];
   isAccountsLoading?: boolean;
   isCategoriesLoading?: boolean;
   isSubmitting?: boolean;
@@ -65,6 +66,7 @@ export const TransactionModal = ({
   categoryOptions,
   counterpartyOptions = [],
   vendorOptions = [],
+  partyOptions = [],
   isAccountsLoading = false,
   isCategoriesLoading = false,
   isSubmitting = false,
@@ -100,8 +102,8 @@ export const TransactionModal = ({
       description: "",
       comment: "",
       categoryId: "",
-      counterparty: "",
-      vendor: "",
+      party: "",
+      for_party: "",
       payment_status: "paid",
       due_date: "",
     },
@@ -111,6 +113,8 @@ export const TransactionModal = ({
   const selectedType = watch("type");
   const selectedCategoryId = watch("categoryId");
   const paymentStatus = watch("payment_status");
+  const selectedVendor = watch("party");
+  const selectedForParty = watch("for_party");
 
   // Filter categories based on selected transaction type (debit/credit)
   const filteredCategoryOptions = useMemo(() => {
@@ -132,8 +136,8 @@ export const TransactionModal = ({
           description: editingTransaction.description || "",
           comment: editingTransaction.keyword || "",
           categoryId: editingTransaction.category?._id || "",
-          counterparty: editingTransaction.counterparty || "",
-          vendor: editingTransaction.vendor || "",
+          party: editingTransaction.party?._id || "",
+          for_party: editingTransaction.for_party?._id || "",
           payment_status: editingTransaction.payment_status || "paid",
           due_date: editingTransaction.due_date
             ? dayjs(editingTransaction.due_date).format("YYYY-MM-DD")
@@ -149,8 +153,8 @@ export const TransactionModal = ({
           description: "",
           comment: "",
           categoryId: "",
-          counterparty: "",
-          vendor: "",
+          party: "",
+          for_party: "",
           payment_status: "paid",
           due_date: "",
         });
@@ -676,37 +680,114 @@ export const TransactionModal = ({
                   />
                 </View>
 
-                {/* Vendor / Seller */}
+                {/* Vendor / Supplier */}
                 <View>
                   <Text
                     className="text-sm font-semibold mb-1"
                     style={{ color: colors.text.primary }}
                   >
-                    {t("vendorSellerLabel")}
+                    {t("vendorLabel") ?? "Vendor / Supplier"}
                   </Text>
                   <Text
                     className="text-xs mb-2"
                     style={{ color: colors.text.tertiary }}
                   >
-                    {t("vendorHelpText")}
+                    {t("vendorHelpText") ?? "Who you bought from / sold to"}
                   </Text>
                   <Controller
                     control={control}
-                    name="vendor"
-                    render={({ field: { value, onChange } }) => (
-                      <SearchableSelect
-                        value={value || ""}
-                        placeholder={t("selectOrAddVendor")}
-                        options={vendorOptions}
-                        onSelect={(selectedValue) => onChange(selectedValue)}
-                        allowCustomValue={true}
-                        customDisplayValue={value || ""}
-                        fetchOptions={async (q) => {
-                          const res = await fetchVendors(q);
-                          return res.map((v) => ({ value: v, label: v }));
-                        }}
-                      />
-                    )}
+                    name="party"
+                    render={({ field: { value, onChange } }) => {
+                      // Exclude the party already selected as beneficiary
+                      const vendorOpts = (
+                        partyOptions.length > 0 ? partyOptions : vendorOptions
+                      ).filter((p) => p.value !== selectedForParty);
+                      return (
+                        <SearchableSelect
+                          value={value || ""}
+                          placeholder={
+                            t("selectOrAddVendor") ?? "Select vendor"
+                          }
+                          options={vendorOpts}
+                          onSelect={(selectedValue) =>
+                            onChange(selectedValue || "")
+                          }
+                          allowCustomValue={false}
+                          customDisplayValue={
+                            (partyOptions.length > 0
+                              ? partyOptions
+                              : vendorOptions
+                            ).find((p) => p.value === value)?.label ||
+                            (typeof editingTransaction?.party === "object"
+                              ? editingTransaction?.party?.name
+                              : undefined) ||
+                            ""
+                          }
+                          fetchOptions={async (q) => {
+                            const res = await fetchVendors(q);
+                            return res
+                              .filter((v) => v._id !== selectedForParty)
+                              .map((v) => ({ value: v._id, label: v.name }));
+                          }}
+                        />
+                      );
+                    }}
+                  />
+                </View>
+
+                {/* For / Beneficiary */}
+                <View>
+                  <Text
+                    className="text-sm font-semibold mb-1"
+                    style={{ color: colors.text.primary }}
+                  >
+                    {t("counterpartyLabel") ?? "For / Beneficiary"}
+                  </Text>
+                  <Text
+                    className="text-xs mb-2"
+                    style={{ color: colors.text.tertiary }}
+                  >
+                    {t("counterpartyHelpText") ??
+                      "Who this expense/income is on behalf of"}
+                  </Text>
+                  <Controller
+                    control={control}
+                    name="for_party"
+                    render={({ field: { value, onChange } }) => {
+                      // Exclude the party already selected as vendor
+                      const forOpts = (
+                        partyOptions.length > 0 ? partyOptions : vendorOptions
+                      ).filter((p) => p.value !== selectedVendor);
+                      return (
+                        <SearchableSelect
+                          value={value || ""}
+                          placeholder={
+                            t("selectOrAddCounterparty") ?? "Select beneficiary"
+                          }
+                          options={forOpts}
+                          onSelect={(selectedValue) =>
+                            onChange(selectedValue || "")
+                          }
+                          allowCustomValue={false}
+                          customDisplayValue={
+                            (partyOptions.length > 0
+                              ? partyOptions
+                              : vendorOptions
+                            ).find((p) => p.value === value)?.label ||
+                            (typeof editingTransaction?.for_party === "object"
+                              ? editingTransaction?.for_party?.name
+                              : undefined) ||
+                            ""
+                          }
+                          fetchOptions={async (q) => {
+                            const res = await fetchVendors(q);
+                            return res
+                              .filter((v) => v._id !== selectedVendor)
+                              .map((v) => ({ value: v._id, label: v.name }));
+                          }}
+                        />
+                      );
+                    }}
                   />
                 </View>
 
@@ -865,40 +946,6 @@ export const TransactionModal = ({
                     />
                   </View>
                 )}
-
-                {/* Counterparty / Beneficiary */}
-                <View>
-                  <Text
-                    className="text-sm font-semibold mb-1"
-                    style={{ color: colors.text.primary }}
-                  >
-                    {t("forBeneficiaryLabel")}
-                  </Text>
-                  <Text
-                    className="text-xs mb-2"
-                    style={{ color: colors.text.tertiary }}
-                  >
-                    {t("counterpartyHelpText")}
-                  </Text>
-                  <Controller
-                    control={control}
-                    name="counterparty"
-                    render={({ field: { value, onChange } }) => (
-                      <SearchableSelect
-                        value={value || ""}
-                        placeholder={t("selectOrAddCounterparty")}
-                        options={counterpartyOptions}
-                        onSelect={(selectedValue) => onChange(selectedValue)}
-                        allowCustomValue={true}
-                        customDisplayValue={value || ""}
-                        fetchOptions={async (q) => {
-                          const res = await fetchCounterparties(q);
-                          return res.map((v) => ({ value: v, label: v }));
-                        }}
-                      />
-                    )}
-                  />
-                </View>
 
                 {/* Additional Notes */}
                 <View>
