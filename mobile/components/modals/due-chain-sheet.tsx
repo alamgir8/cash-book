@@ -351,15 +351,15 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
     body { font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif; background: #f8fafc; color: #111; padding: 28px; }
 
     /* ── Header ── */
-    .header { margin-bottom: 20px; padding-bottom: 16px; border-bottom: 2px solid #e2e8f0; }
+    .header { margin-bottom: 20px; padding-bottom: 16px; border-bottom: 2px solid #cbd5e1; }
     .header h1 { font-size: 22px; font-weight: 800; color: #0f172a; }
-    .header .subtitle { font-size: 13px; color: #64748b; margin-top: 3px; }
-    .header .exported { font-size: 11px; color: #94a3b8; margin-top: 6px; }
+    .header .subtitle { font-size: 13px; color: #374151; margin-top: 3px; font-weight: 500; }
+    .header .exported { font-size: 12px; color: #374151; margin-top: 6px; font-weight: 500; }
 
     /* ── Stats bar ── */
     .stats-bar { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
-    .stat-box { flex: 1; min-width: 100px; background: #fff; border-radius: 10px; padding: 10px 14px; border: 1px solid #e2e8f0; }
-    .stat-label { font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+    .stat-box { flex: 1; min-width: 100px; background: #fff; border-radius: 10px; padding: 10px 14px; border: 1px solid #cbd5e1; }
+    .stat-label { font-size: 10px; color: #374151; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; font-weight: 600; }
     .stat-value { font-size: 15px; font-weight: 800; }
 
     /* ── Progress bar (chain mode only) ── */
@@ -367,36 +367,36 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
     .progress-bar  { height: 8px; border-radius: 99px; }
 
     /* ── Status chip ── */
-    .status-chip { display: flex; align-items: center; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 16px; margin-bottom: 18px; }
+    .status-chip { display: flex; align-items: center; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 10px; padding: 10px 16px; margin-bottom: 18px; }
 
     /* ── Table ── */
-    .table-wrap { background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; }
+    .table-wrap { background: #fff; border-radius: 12px; border: 1px solid #cbd5e1; overflow: hidden; }
     table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-    thead tr { background: #1e293b; }
-    thead th { color: #e2e8f0; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; padding: 10px 12px; text-align: left; }
-    .entry-row td { padding: 9px 12px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
-    .entry-row:last-of-type td { border-bottom: 2px solid #cbd5e1; }
+    thead tr { background: #0f172a; }
+    thead th { color: #f1f5f9; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; padding: 11px 12px; text-align: left; }
+    .entry-row td { padding: 10px 12px; border-bottom: 1px solid #e2e8f0; vertical-align: middle; }
+    .entry-row:last-of-type td { border-bottom: 2px solid #94a3b8; }
 
     /* ── Column widths ── */
-    .td-date    { width: 90px; font-size: 11px; color: #94a3b8; white-space: nowrap; font-weight: 500; }
+    .td-date    { width: 90px; font-size: 11.5px; color: #1e293b; white-space: nowrap; font-weight: 600; }
     .td-type    { width: 120px; }
-    .td-note    { color: #334155; }
-    .td-amount  { width: 80px; font-weight: 700; text-align: right; white-space: nowrap; }
-    .td-balance { width: 130px; text-align: right; font-size: 11.5px; white-space: nowrap; }
+    .td-note    { color: #1e293b; font-weight: 500; }
+    .td-amount  { width: 80px; font-weight: 700; text-align: right; white-space: nowrap; color: #111827; }
+    .td-balance { width: 130px; text-align: right; font-size: 11.5px; white-space: nowrap; font-weight: 600; }
 
     /* ── Type chip ── */
     .type-chip { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 10.5px; font-weight: 600; white-space: nowrap; }
 
     /* ── Final / closing row ── */
-    .final-row { background: #1e293b; }
-    .final-row td { padding: 11px 12px; color: #e2e8f0; font-size: 12px; }
+    .final-row { background: #0f172a; }
+    .final-row td { padding: 12px 12px; color: #f1f5f9; font-size: 13px; font-weight: 700; }
 
     /* ── Footer ── */
-    .footer { margin-top: 28px; padding: 22px 0 10px; border-top: 2px solid #111827; text-align: center; color: #64748b; }
-    .footer-generated { font-size: 12px; font-weight: 600; color: #94a3b8; margin-bottom: 26px; }
-    .footer-dev { font-size: 14px; color: #525252; }
-    .footer-dev a { color: #0284c7; text-decoration: none; font-weight: 600; }
-    .footer-dev .theme { color: #10b981; font-weight: 600; }
+    .footer { margin-top: 32px; padding: 22px 0 10px; border-top: 2px solid #374151; text-align: center; }
+    .footer-generated { font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 10px; }
+    .footer-dev { font-size: 14px; color: #111827; font-weight: 500; }
+    .footer-dev a { color: #0ea5e9; text-decoration: none; font-weight: 700; }
+    .footer-dev .theme { color: #0d9488; font-weight: 700; }
   </style>
 </head>
 <body>

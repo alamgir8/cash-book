@@ -259,12 +259,13 @@ cd /Users/alamgirhossain/Themeforest/cash-book/mobile/ios
 xcodebuild -workspace HisabBoi.xcworkspace \
   -scheme HisabBoi \
   -configuration Release \
-  -destination 'id=00008140-0004384608A2201C' \
+  -destination generic/platform=iOS \
   -derivedDataPath /Users/alamgirhossain/Library/Developer/Xcode/DerivedData/HisabBoiRelease \
+  -allowProvisioningUpdates \
   build
 ```
 
-Install the Release app on the connected iPhone:
+Install the Release app on the connected iPhone (unlock iPhone first):
 
 ```shell
 xcrun devicectl device install app \
@@ -306,8 +307,9 @@ cd /Users/alamgirhossain/Themeforest/cash-book/mobile/ios
 xcodebuild -workspace HisabBoi.xcworkspace \
   -scheme HisabBoi \
   -configuration Release \
-  -destination 'id=00008140-0004384608A2201C' \
+  -destination generic/platform=iOS \
   -derivedDataPath /Users/alamgirhossain/Library/Developer/Xcode/DerivedData/HisabBoiRelease \
+  -allowProvisioningUpdates \
   build
 ```
 
