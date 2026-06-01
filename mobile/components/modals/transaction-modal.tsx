@@ -183,17 +183,47 @@ export const TransactionModal = ({
   const selectedVendor = watch("party");
   const selectedForParty = watch("for_party");
 
-  // Stable fetchOptions for vendor search
-  const fetchVendorOptions = useCallback(async (q: string) => {
-    const res = await fetchVendors(q);
-    return res.map((v) => ({ value: v._id, label: v.name }));
-  }, []);
+  // Resolve the human-readable name for the currently selected vendor/for_party.
+  // Used for name-based cross-exclusion in fetchOptions (handles temp-ID phase too).
+  const allKnownParties = useMemo(() => {
+    const base = partyOptions.length > 0 ? partyOptions : vendorOptions;
+    return [...base, ...newlyAddedParties].filter(
+      (p, i, arr) => arr.findIndex((x) => x.value === p.value) === i,
+    );
+  }, [partyOptions, vendorOptions, newlyAddedParties]);
 
-  // Stable fetchOptions for for_party search
-  const fetchForPartyOptions = useCallback(async (q: string) => {
-    const res = await fetchVendors(q);
-    return res.map((v) => ({ value: v._id, label: v.name }));
-  }, []);
+  const selectedVendorName = allKnownParties.find(
+    (p) => p.value === selectedVendor,
+  )?.label;
+  const selectedForPartyName = allKnownParties.find(
+    (p) => p.value === selectedForParty,
+  )?.label;
+
+  // Stable fetchOptions for vendor search (excludes selected for_party by ID and name)
+  const fetchVendorOptions = useCallback(
+    async (q: string) => {
+      const res = await fetchVendors(q);
+      return res
+        .filter(
+          (v) => v._id !== selectedForParty && v.name !== selectedForPartyName,
+        )
+        .map((v) => ({ value: v._id, label: v.name }));
+    },
+    [selectedForParty, selectedForPartyName],
+  );
+
+  // Stable fetchOptions for for_party search (excludes selected vendor by ID and name)
+  const fetchForPartyOptions = useCallback(
+    async (q: string) => {
+      const res = await fetchVendors(q);
+      return res
+        .filter(
+          (v) => v._id !== selectedVendor && v.name !== selectedVendorName,
+        )
+        .map((v) => ({ value: v._id, label: v.name }));
+    },
+    [selectedVendor, selectedVendorName],
+  );
 
   // Filter categories based on selected transaction type (debit/credit)
   const filteredCategoryOptions = useMemo(() => {
@@ -206,9 +236,14 @@ export const TransactionModal = ({
   // Reset form when opening/closing or when editing transaction changes
   useEffect(() => {
     if (visible) {
-      // Clear any locally-staged party creations from the previous open
-      setNewlyAddedParties([]);
-      pendingCreationsRef.current.clear();
+      // Only remove unresolved temp entries ("__new__:..."); keep confirmed ones
+      // so newly-created parties remain available when opening the next transaction.
+      setNewlyAddedParties((prev) =>
+        prev.filter((p) => !p.value.startsWith("__new__:")),
+      );
+      pendingCreationsRef.current.forEach((_, key) => {
+        if (key.startsWith("__new__:")) pendingCreationsRef.current.delete(key);
+      });
       if (editingTransaction) {
         reset({
           accountId: editingTransaction.account._id,
@@ -805,14 +840,17 @@ export const TransactionModal = ({
                     render={({ field: { value, onChange } }) => {
                       const baseOpts =
                         partyOptions.length > 0 ? partyOptions : vendorOptions;
-                      // Merge locally-added parties; show all (no cross-field exclusion)
-                      const vendorOpts = [
-                        ...baseOpts,
-                        ...newlyAddedParties,
-                      ].filter(
-                        (p, i, arr) =>
-                          arr.findIndex((x) => x.value === p.value) === i,
-                      );
+                      // Merge locally-added parties; exclude current beneficiary
+                      const vendorOpts = [...baseOpts, ...newlyAddedParties]
+                        .filter(
+                          (p, i, arr) =>
+                            arr.findIndex((x) => x.value === p.value) === i,
+                        )
+                        .filter(
+                          (p) =>
+                            p.value !== selectedForParty &&
+                            p.label !== selectedForPartyName,
+                        );
                       return (
                         <SearchableSelect
                           value={value || ""}
@@ -861,14 +899,17 @@ export const TransactionModal = ({
                     render={({ field: { value, onChange } }) => {
                       const baseOpts =
                         partyOptions.length > 0 ? partyOptions : vendorOptions;
-                      // Merge locally-added parties; show all (no cross-field exclusion)
-                      const forOpts = [
-                        ...baseOpts,
-                        ...newlyAddedParties,
-                      ].filter(
-                        (p, i, arr) =>
-                          arr.findIndex((x) => x.value === p.value) === i,
-                      );
+                      // Merge locally-added parties; exclude current vendor
+                      const forOpts = [...baseOpts, ...newlyAddedParties]
+                        .filter(
+                          (p, i, arr) =>
+                            arr.findIndex((x) => x.value === p.value) === i,
+                        )
+                        .filter(
+                          (p) =>
+                            p.value !== selectedVendor &&
+                            p.label !== selectedVendorName,
+                        );
                       return (
                         <SearchableSelect
                           value={value || ""}
