@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import Animated, { useAnimatedStyle } from "react-native-reanimated";
 import {
   ActivityIndicator,
@@ -39,6 +39,10 @@ import {
 } from "./types";
 import type { Transaction } from "@/services/transactions";
 import { fetchVendors } from "@/services/transactions";
+import { partiesApi } from "@/services/parties";
+import { useActiveOrgId } from "@/hooks/use-organization";
+import { useQueryClient } from "@tanstack/react-query";
+import { QUERY_KEYS } from "@/lib/queryKeys";
 import { uploadAttachments } from "@/services/attachments";
 import { AttachmentPicker } from "../transactions/attachment-picker";
 
@@ -75,6 +79,68 @@ export const TransactionModal = ({
   const { colors } = useTheme();
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
+  const organizationId = useActiveOrgId();
+  const queryClient = useQueryClient();
+
+  // Newly added parties: staged locally, created in background
+  const [newlyAddedParties, setNewlyAddedParties] = useState<SelectOption[]>(
+    [],
+  );
+  const pendingCreationsRef = useRef<
+    Map<string, Promise<{ _id: string; name: string }>>
+  >(new Map());
+
+  // Optimistic add-party: selects the name immediately (no loading),
+  // fires the API call in the background, swaps to the real _id when done.
+  const handleAddParty = useCallback(
+    async (name: string): Promise<SelectOption | null> => {
+      const trimmed = name.trim();
+      const tempId = `__new__:${trimmed}:${Date.now()}`;
+
+      // Immediately show in the local options list for display
+      setNewlyAddedParties((prev) => [
+        ...prev,
+        { value: tempId, label: trimmed },
+      ]);
+
+      // Fire API creation in background (no await)
+      const promise = partiesApi.create({
+        organization: organizationId || undefined,
+        name: trimmed,
+        type: "both",
+      });
+      pendingCreationsRef.current.set(tempId, promise);
+
+      promise
+        .then((party) => {
+          pendingCreationsRef.current.delete(tempId);
+          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.parties });
+          // Replace temp entry with the real party
+          setNewlyAddedParties((prev) =>
+            prev.map((p) =>
+              p.value === tempId ? { value: party._id, label: party.name } : p,
+            ),
+          );
+          // Update form if the field still holds the temp ID
+          if (getValues("party") === tempId) setValue("party", party._id);
+          if (getValues("for_party") === tempId)
+            setValue("for_party", party._id);
+        })
+        .catch(() => {
+          pendingCreationsRef.current.delete(tempId);
+          setNewlyAddedParties((prev) =>
+            prev.filter((p) => p.value !== tempId),
+          );
+          if (getValues("party") === tempId) setValue("party", "");
+          if (getValues("for_party") === tempId) setValue("for_party", "");
+        });
+
+      // Return temp option immediately — SearchableSelect selects it with no spinner
+      return { value: tempId, label: trimmed };
+    },
+    [organizationId, queryClient, getValues, setValue],
+  );
+
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [pickingDueDate, setPickingDueDate] = useState(false);
@@ -90,6 +156,7 @@ export const TransactionModal = ({
     handleSubmit,
     reset,
     setValue,
+    getValues,
     watch,
     formState: { errors },
   } = useForm<TransactionFormValues>({
@@ -116,6 +183,18 @@ export const TransactionModal = ({
   const selectedVendor = watch("party");
   const selectedForParty = watch("for_party");
 
+  // Stable fetchOptions for vendor search
+  const fetchVendorOptions = useCallback(async (q: string) => {
+    const res = await fetchVendors(q);
+    return res.map((v) => ({ value: v._id, label: v.name }));
+  }, []);
+
+  // Stable fetchOptions for for_party search
+  const fetchForPartyOptions = useCallback(async (q: string) => {
+    const res = await fetchVendors(q);
+    return res.map((v) => ({ value: v._id, label: v.name }));
+  }, []);
+
   // Filter categories based on selected transaction type (debit/credit)
   const filteredCategoryOptions = useMemo(() => {
     const targetFlow = selectedType === "credit" ? "credit" : "debit";
@@ -127,6 +206,9 @@ export const TransactionModal = ({
   // Reset form when opening/closing or when editing transaction changes
   useEffect(() => {
     if (visible) {
+      // Clear any locally-staged party creations from the previous open
+      setNewlyAddedParties([]);
+      pendingCreationsRef.current.clear();
       if (editingTransaction) {
         reset({
           accountId: editingTransaction.account._id,
@@ -194,7 +276,30 @@ export const TransactionModal = ({
   };
 
   const handleFormSubmit = async (values: TransactionFormValues) => {
-    const result = await onSubmit(values);
+    // Safety net: if a party was created in the background and the user
+    // submitted before the API resolved, await the real _id now.
+    const resolved = { ...values };
+    const partyPending = pendingCreationsRef.current.get(values.party ?? "");
+    if (partyPending) {
+      try {
+        resolved.party = (await partyPending)._id;
+      } catch {
+        resolved.party = "";
+      }
+    } else if (values.party?.startsWith("__new__:")) {
+      resolved.party = ""; // creation already failed and was cleaned up
+    }
+    const forPending = pendingCreationsRef.current.get(values.for_party ?? "");
+    if (forPending) {
+      try {
+        resolved.for_party = (await forPending)._id;
+      } catch {
+        resolved.for_party = "";
+      }
+    } else if (values.for_party?.startsWith("__new__:")) {
+      resolved.for_party = "";
+    }
+    const result = await onSubmit(resolved);
     if (result && "_id" in result && !editingTransaction) {
       // Upload any staged files right after creation
       if (stagedFiles.length > 0) {
@@ -698,10 +803,16 @@ export const TransactionModal = ({
                     control={control}
                     name="party"
                     render={({ field: { value, onChange } }) => {
-                      // Exclude the party already selected as beneficiary
-                      const vendorOpts = (
-                        partyOptions.length > 0 ? partyOptions : vendorOptions
-                      ).filter((p) => p.value !== selectedForParty);
+                      const baseOpts =
+                        partyOptions.length > 0 ? partyOptions : vendorOptions;
+                      // Merge locally-added parties; show all (no cross-field exclusion)
+                      const vendorOpts = [
+                        ...baseOpts,
+                        ...newlyAddedParties,
+                      ].filter(
+                        (p, i, arr) =>
+                          arr.findIndex((x) => x.value === p.value) === i,
+                      );
                       return (
                         <SearchableSelect
                           value={value || ""}
@@ -714,21 +825,15 @@ export const TransactionModal = ({
                           }
                           allowCustomValue={false}
                           customDisplayValue={
-                            (partyOptions.length > 0
-                              ? partyOptions
-                              : vendorOptions
-                            ).find((p) => p.value === value)?.label ||
+                            vendorOpts.find((p) => p.value === value)?.label ||
                             (typeof editingTransaction?.party === "object"
                               ? editingTransaction?.party?.name
                               : undefined) ||
                             ""
                           }
-                          fetchOptions={async (q) => {
-                            const res = await fetchVendors(q);
-                            return res
-                              .filter((v) => v._id !== selectedForParty)
-                              .map((v) => ({ value: v._id, label: v.name }));
-                          }}
+                          fetchOptions={fetchVendorOptions}
+                          onAddNew={handleAddParty}
+                          addNewLabel="party"
                         />
                       );
                     }}
@@ -754,10 +859,16 @@ export const TransactionModal = ({
                     control={control}
                     name="for_party"
                     render={({ field: { value, onChange } }) => {
-                      // Exclude the party already selected as vendor
-                      const forOpts = (
-                        partyOptions.length > 0 ? partyOptions : vendorOptions
-                      ).filter((p) => p.value !== selectedVendor);
+                      const baseOpts =
+                        partyOptions.length > 0 ? partyOptions : vendorOptions;
+                      // Merge locally-added parties; show all (no cross-field exclusion)
+                      const forOpts = [
+                        ...baseOpts,
+                        ...newlyAddedParties,
+                      ].filter(
+                        (p, i, arr) =>
+                          arr.findIndex((x) => x.value === p.value) === i,
+                      );
                       return (
                         <SearchableSelect
                           value={value || ""}
@@ -770,21 +881,15 @@ export const TransactionModal = ({
                           }
                           allowCustomValue={false}
                           customDisplayValue={
-                            (partyOptions.length > 0
-                              ? partyOptions
-                              : vendorOptions
-                            ).find((p) => p.value === value)?.label ||
+                            forOpts.find((p) => p.value === value)?.label ||
                             (typeof editingTransaction?.for_party === "object"
                               ? editingTransaction?.for_party?.name
                               : undefined) ||
                             ""
                           }
-                          fetchOptions={async (q) => {
-                            const res = await fetchVendors(q);
-                            return res
-                              .filter((v) => v._id !== selectedVendor)
-                              .map((v) => ({ value: v._id, label: v.name }));
-                          }}
+                          fetchOptions={fetchForPartyOptions}
+                          onAddNew={handleAddParty}
+                          addNewLabel="party"
                         />
                       );
                     }}

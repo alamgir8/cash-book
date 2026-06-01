@@ -63,7 +63,6 @@ export const SearchableSelect = ({
   const [search, setSearch] = useState("");
   const [asyncOptions, setAsyncOptions] = useState<SelectOption[]>([]);
   const [isFetching, setIsFetching] = useState(false);
-  const [isAdding, setIsAdding] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Cache selected labels by value so display doesn't go blank after asyncOptions are cleared
   const [labelCache, setLabelCache] = useState<Record<string, string>>({});
@@ -207,17 +206,11 @@ export const SearchableSelect = ({
     const trimmedSearch = search.trim();
     if (!trimmedSearch) return;
     if (onAddNew) {
-      setIsAdding(true);
-      try {
-        const newOption = await onAddNew(trimmedSearch);
-        if (newOption) {
-          onSelect(newOption.value, newOption);
-          closeModal();
-        }
-      } catch {
-        // error handled by caller
-      } finally {
-        setIsAdding(false);
+      // onAddNew resolves immediately (deferred creation) — no spinner needed
+      const newOption = await onAddNew(trimmedSearch);
+      if (newOption) {
+        // handleSelect caches the label so the trigger keeps showing the name
+        handleSelect(newOption);
       }
       return;
     }
@@ -353,23 +346,12 @@ export const SearchableSelect = ({
                       borderBottomColor: colors.border,
                     }}
                     onPress={handleAddCustom}
-                    disabled={isAdding}
                   >
-                    {isAdding ? (
-                      <ActivityIndicator size="small" color={colors.info} />
-                    ) : (
-                      <Ionicons
-                        name="add-circle"
-                        size={20}
-                        color={colors.info}
-                      />
-                    )}
+                    <Ionicons name="add-circle" size={20} color={colors.info} />
                     <Text style={{ ...styles.addNewText, color: colors.info }}>
-                      {isAdding
-                        ? "Adding…"
-                        : addNewLabel
-                          ? `+ Add "${search.trim()}" as ${addNewLabel}`
-                          : `Add "${search.trim()}"`}
+                      {addNewLabel
+                        ? `+ Add "${search.trim()}" as ${addNewLabel}`
+                        : `Add "${search.trim()}"`}
                     </Text>
                   </TouchableOpacity>
                 ) : null
