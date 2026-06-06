@@ -7,12 +7,14 @@ import { usePreferences } from "../hooks/use-preferences";
 import { useTheme } from "../hooks/use-theme";
 import { useTranslation } from "../hooks/use-translation";
 import { translateCategoryName } from "../lib/i18n/category-translations";
+import { getPartyRefId } from "../lib/transaction-filters";
 
 type Props = {
   transaction: Transaction;
   onCategoryPress?: (categoryId: string) => void;
   onCounterpartyPress?: (counterparty: string) => void;
   onPartyPress?: (partyId: string) => void;
+  onForPartyPress?: (forPartyId: string) => void;
   onVendorPress?: (vendor: string) => void;
   onPaymentStatusPress?: (status: "paid" | "due") => void;
   onEdit?: (transaction: Transaction) => void;
@@ -28,6 +30,7 @@ const TransactionCardComponent = ({
   onCategoryPress,
   onCounterpartyPress,
   onPartyPress,
+  onForPartyPress,
   onVendorPress,
   onPaymentStatusPress,
   onEdit,
@@ -292,10 +295,7 @@ const TransactionCardComponent = ({
           <TouchableOpacity
             activeOpacity={onPartyPress ? 0.8 : 1}
             onPress={() => {
-              const pid =
-                typeof transaction.party === "object"
-                  ? transaction.party?._id
-                  : transaction.party;
+              const pid = getPartyRefId(transaction.party);
               if (pid && onPartyPress) onPartyPress(pid);
             }}
             style={{
@@ -339,13 +339,10 @@ const TransactionCardComponent = ({
         ) : null}
         {transaction.for_party ? (
           <TouchableOpacity
-            activeOpacity={onPartyPress ? 0.8 : 1}
+            activeOpacity={onForPartyPress ? 0.8 : 1}
             onPress={() => {
-              const pid =
-                typeof transaction.for_party === "object"
-                  ? transaction.for_party?._id
-                  : transaction.for_party;
-              if (pid && onPartyPress) onPartyPress(pid);
+              const pid = getPartyRefId(transaction.for_party);
+              if (pid && onForPartyPress) onForPartyPress(pid);
             }}
             style={{
               backgroundColor: "#7c3aed" + "25",
@@ -611,6 +608,7 @@ export const TransactionCard = memo(
     prevProps.onCategoryPress === nextProps.onCategoryPress &&
     prevProps.onCounterpartyPress === nextProps.onCounterpartyPress &&
     prevProps.onPartyPress === nextProps.onPartyPress &&
+    prevProps.onForPartyPress === nextProps.onForPartyPress &&
     prevProps.onVendorPress === nextProps.onVendorPress &&
     prevProps.onPaymentStatusPress === nextProps.onPaymentStatusPress &&
     prevProps.onDelete === nextProps.onDelete &&

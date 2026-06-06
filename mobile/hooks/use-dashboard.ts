@@ -24,6 +24,10 @@ import { fetchCategories } from "@/services/categories";
 import { exportTransactionsPdf } from "@/services/reports";
 import { queryKeys } from "@/lib/queryKeys";
 import { refreshAppData } from "@/lib/refresh-app-data";
+import {
+  filterTransactionsByPartyFilters,
+  serializeTransactionFilters,
+} from "@/lib/transaction-filters";
 import { usePreferences } from "@/hooks/use-preferences";
 import { useOrganization } from "@/hooks/use-organization";
 import {
@@ -81,7 +85,6 @@ export function useDashboard() {
   const transactionsQuery = useQuery({
     queryKey: queryKeys.transactions(filters),
     queryFn: () => fetchTransactions(filters),
-    placeholderData: (previousData) => previousData,
   });
 
   const counterpartiesQuery = useQuery({
@@ -96,16 +99,10 @@ export function useDashboard() {
 
   // ── Mutations ────────────────────────────────────────────────────────────
   const invalidateAll = async () => {
-    await Promise.all([
-      queryClient.invalidateQueries({
-        predicate: (q) => q.queryKey[0] === "transactions",
-      }),
-      queryClient.invalidateQueries({
-        predicate: (q) => q.queryKey[0] === "accounts",
-      }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.counterparties }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.vendors }),
-    ]);
+    setAllTransactions([]);
+    setHasMorePages(true);
+    setFilters((prev) => ({ ...prev, page: 1 }));
+    await refreshAppData(queryClient);
   };
 
   const createMutation = useMutation({
@@ -141,14 +138,7 @@ export function useDashboard() {
   const deleteMutation = useMutation({
     mutationFn: deleteTransaction,
     onSuccess: () => {
-      void Promise.all([
-        queryClient.invalidateQueries({
-          predicate: (q) => q.queryKey[0] === "transactions",
-        }),
-        queryClient.invalidateQueries({
-          predicate: (q) => q.queryKey[0] === "accounts",
-        }),
-      ]);
+      void invalidateAll();
       Toast.show({ type: "success", text1: "Transaction deleted" });
     },
     onError: () =>
@@ -259,6 +249,7 @@ export function useDashboard() {
       "categoryId",
       "counterparty",
       "party_id",
+      "for_party_id",
       "payment_status",
       "loan_filter",
       "financialScope",
@@ -282,22 +273,33 @@ export function useDashboard() {
     });
   }, [filters]);
 
-  const totalTransactions = (transactionsQuery.data as any)?.total ?? 0;
-  const currentTransactions =
-    (transactionsQuery.data as any)?.transactions?.length ?? 0;
-  const currentPage = filters.page ?? 1;
-  const hasMore =
-    currentTransactions + (currentPage - 1) * (filters.limit ?? 20) <
-    totalTransactions;
+  const filterSignature = useMemo(
+    () => JSON.stringify(serializeTransactionFilters(filters)),
+    [filters],
+  );
+
+  const visibleTransactions = useMemo(
+    () => filterTransactionsByPartyFilters(allTransactions, filters),
+    [allTransactions, filters.for_party_id, filters.party_id],
+  );
 
   // ── Accumulate transactions across pages ──────────────────────────────
   useEffect(() => {
-    if (!transactionsQuery.data || transactionsQuery.isLoading) return;
+    if (
+      !transactionsQuery.data ||
+      transactionsQuery.isPending ||
+      transactionsQuery.isFetching
+    ) {
+      return;
+    }
 
     const freshData = (transactionsQuery.data as any)?.transactions ?? [];
     const pagination = (transactionsQuery.data as any)?.pagination;
+    const currentPage = filters.page ?? 1;
 
-    if ((filters.page ?? 1) === 1) {
+    if (pagination && pagination.page !== currentPage) return;
+
+    if (currentPage === 1) {
       setAllTransactions(freshData);
       if (pagination) {
         setHasMorePages(pagination.page < pagination.pages);
@@ -321,9 +323,11 @@ export function useDashboard() {
     }
   }, [
     transactionsQuery.data,
+    transactionsQuery.isPending,
+    transactionsQuery.isFetching,
     filters.page,
-    transactionsQuery.isLoading,
     filters.limit,
+    filterSignature,
   ]);
 
   const handleEditTransaction = useCallback(
@@ -396,6 +400,18 @@ export function useDashboard() {
     setFilters((prev) => ({
       ...prev,
       party_id: partyId || undefined,
+      for_party_id: undefined,
+      page: 1,
+    }));
+  }, []);
+
+  const handleForPartyFilter = useCallback((forPartyId?: string) => {
+    setAllTransactions([]);
+    setHasMorePages(true);
+    setFilters((prev) => ({
+      ...prev,
+      for_party_id: forPartyId || undefined,
+      party_id: undefined,
       page: 1,
     }));
   }, []);
@@ -426,12 +442,17 @@ export function useDashboard() {
     [],
   );
 
-  const handleResetFilters = useCallback(() => {
+  const resetTransactionList = useCallback(() => {
     setAllTransactions([]);
     setHasMorePages(true);
+    setFilters((prev) => ({ ...prev, page: 1 }));
+  }, []);
+
+  const handleResetFilters = useCallback(() => {
+    resetTransactionList();
     setFilters({ ...DEFAULT_FILTERS });
     void refreshAppData(queryClient);
-  }, [queryClient]);
+  }, [queryClient, resetTransactionList]);
 
   const openTransferModal = useCallback(() => {
     if (accountsQuery.isLoading) {
@@ -510,7 +531,7 @@ export function useDashboard() {
   return {
     // state
     filters,
-    allTransactions,
+    allTransactions: visibleTransactions,
     hasMorePages,
     loadingMore,
     isModalVisible,
@@ -531,8 +552,6 @@ export function useDashboard() {
     partyOptions,
     totals,
     hasActiveFilters,
-    hasMore,
-    currentTransactions,
     // org/permissions
     canCreateTransactions,
     canEditTransactions,
@@ -553,10 +572,12 @@ export function useDashboard() {
     handleCategoryFilter,
     handleCounterpartyFilter,
     handleVendorFilter,
+    handleForPartyFilter,
     handlePaymentStatusFilter,
     handleLoadMore,
     handleFilterChange,
     handleResetFilters,
+    resetTransactionList,
     openTransferModal,
     handleExportPdf,
     handleTransactionSubmit,

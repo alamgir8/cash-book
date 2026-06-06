@@ -1,3 +1,6 @@
+import { serializeTransactionFilters } from "@/lib/transaction-filters";
+import type { TransactionFilters } from "@/services/transactions";
+
 export const queryKeys = {
   profile: ["profile"],
   accounts: ["accounts"],
@@ -8,11 +11,16 @@ export const queryKeys = {
   counterparties: ["counterparties"],
   vendors: ["vendors"],
   accountDetail: (accountId: string) => ["account", accountId, "detail"],
-  accountTransactions: (
-    accountId: string,
-    filters: Record<string, unknown>,
-  ) => ["account", accountId, "transactions", filters],
-  transactions: (filters: Record<string, unknown>) => ["transactions", filters],
+  accountTransactions: (accountId: string, filters: TransactionFilters) => [
+    "account",
+    accountId,
+    "transactions",
+    serializeTransactionFilters(filters),
+  ],
+  transactions: (filters: TransactionFilters) => [
+    "transactions",
+    serializeTransactionFilters(filters),
+  ],
   summary: ["summary"],
   organizations: ["organizations"],
   parties: ["parties"],

@@ -58,6 +58,10 @@ import {
 import { useAccountDetail, useAccountTransactions } from "@/hooks/use-accounts";
 import { calculateAccountNetFlow } from "@/lib/account-utils";
 import { refreshAppData } from "@/lib/refresh-app-data";
+import {
+  filterTransactionsByPartyFilters,
+  serializeTransactionFilters,
+} from "@/lib/transaction-filters";
 import type { SelectOption } from "@/components/searchable-select";
 import type { TransactionFormValues } from "@/components/modals/types";
 
@@ -244,19 +248,38 @@ export default function AccountDetailScreen() {
   // Alias for places that expect partyOptions
   const partyOptions = vendorOptions;
 
+  const filterSignature = useMemo(
+    () => JSON.stringify(serializeTransactionFilters(filters)),
+    [filters],
+  );
+
+  const visibleTransactions = useMemo(
+    () => filterTransactionsByPartyFilters(allTransactions, filters),
+    [allTransactions, filters.for_party_id, filters.party_id],
+  );
+
   // Update accumulated transactions when new data arrives
   useEffect(() => {
-    if (!transactionsQuery.data || transactionsQuery.isLoading) return;
+    if (
+      !transactionsQuery.data ||
+      transactionsQuery.isPending ||
+      transactionsQuery.isFetching
+    ) {
+      return;
+    }
 
     const freshData = (transactionsQuery.data as any)?.transactions ?? [];
     const pagination = (transactionsQuery.data as any)?.pagination;
+    const currentPage = filters.page ?? 1;
 
-    if (filters.page === 1) {
+    if (pagination && pagination.page !== currentPage) return;
+
+    if (currentPage === 1) {
       setAllTransactions(freshData);
       if (pagination) {
         setHasMorePages(pagination.page < pagination.pages);
       }
-    } else if (filters.page && filters.page > 1) {
+    } else if (currentPage > 1) {
       setAllTransactions((prev) => {
         const existingIds = new Set(prev.map((t) => t._id));
         const newTransactions = freshData.filter(
@@ -270,7 +293,13 @@ export default function AccountDetailScreen() {
       }
       setLoadingMore(false);
     }
-  }, [transactionsQuery.data, filters.page, transactionsQuery.isLoading]);
+  }, [
+    transactionsQuery.data,
+    transactionsQuery.isPending,
+    transactionsQuery.isFetching,
+    filters.page,
+    filterSignature,
+  ]);
 
   const account = detailQuery.data?.account;
   const summary = detailQuery.data?.summary;
@@ -288,6 +317,7 @@ export default function AccountDetailScreen() {
       "categoryId",
       "counterparty",
       "party_id",
+      "for_party_id",
       "payment_status",
       "loan_filter",
       "financialScope",
@@ -373,6 +403,18 @@ export default function AccountDetailScreen() {
     setFilters((prev) => ({
       ...prev,
       party_id: partyId || undefined,
+      for_party_id: undefined,
+      page: 1,
+    }));
+  }, []);
+
+  const handleForPartyFilter = useCallback((forPartyId?: string) => {
+    setAllTransactions([]);
+    setHasMorePages(true);
+    setFilters((prev) => ({
+      ...prev,
+      for_party_id: forPartyId || undefined,
+      party_id: undefined,
       page: 1,
     }));
   }, []);
@@ -488,30 +530,6 @@ export default function AccountDetailScreen() {
     });
   };
 
-  if (!accountId) {
-    return (
-      <View
-        className="flex-1 items-center justify-center px-6"
-        style={{ backgroundColor: colors.bg.primary }}
-      >
-        <Text className="text-base" style={{ color: colors.text.secondary }}>
-          Account not found. Please go back and try again.
-        </Text>
-      </View>
-    );
-  }
-
-  if (detailQuery.isLoading && !detailQuery.data) {
-    return (
-      <View
-        className="flex-1 items-center justify-center"
-        style={{ backgroundColor: colors.bg.primary }}
-      >
-        <ActivityIndicator color={colors.info} size="large" />
-      </View>
-    );
-  }
-
   const lastActivityLabel = summary?.lastTransactionDate
     ? dayjs(summary.lastTransactionDate).format("MMM D, YYYY")
     : "No activity yet";
@@ -523,6 +541,7 @@ export default function AccountDetailScreen() {
         onCategoryPress={handleCategoryFilter}
         onCounterpartyPress={handleCounterpartyFilter}
         onPartyPress={handlePartyFilter}
+        onForPartyPress={handleForPartyFilter}
         onPaymentStatusPress={handlePaymentStatusFilter}
         onEdit={canEditTransactions ? handleEditTransaction : undefined}
         onDelete={
@@ -540,6 +559,7 @@ export default function AccountDetailScreen() {
       handleCategoryFilter,
       handleCounterpartyFilter,
       handlePartyFilter,
+      handleForPartyFilter,
       handlePaymentStatusFilter,
       canEditTransactions,
       handleEditTransaction,
@@ -656,12 +676,38 @@ export default function AccountDetailScreen() {
     setAllTransactions,
     setHasMorePages,
     setFilters,
+    router,
+    handleEdit,
   ]);
+
+  if (!accountId) {
+    return (
+      <View
+        className="flex-1 items-center justify-center px-6"
+        style={{ backgroundColor: colors.bg.primary }}
+      >
+        <Text className="text-base" style={{ color: colors.text.secondary }}>
+          Account not found. Please go back and try again.
+        </Text>
+      </View>
+    );
+  }
+
+  if (detailQuery.isLoading && !detailQuery.data) {
+    return (
+      <View
+        className="flex-1 items-center justify-center"
+        style={{ backgroundColor: colors.bg.primary }}
+      >
+        <ActivityIndicator color={colors.info} size="large" />
+      </View>
+    );
+  }
 
   return (
     <View className="flex-1" style={{ backgroundColor: colors.bg.primary }}>
       <FlatList
-        data={allTransactions}
+        data={visibleTransactions}
         keyExtractor={(item) => item._id}
         contentContainerStyle={{
           paddingHorizontal: 16,
@@ -681,7 +727,7 @@ export default function AccountDetailScreen() {
             hasMorePages={hasMorePages}
             loadingMore={loadingMore}
             isFetching={transactionsQuery.isFetching && filters.page !== 1}
-            totalTransactions={allTransactions.length}
+            totalTransactions={visibleTransactions.length}
             onLoadMore={handleLoadMore}
           />
         }
@@ -739,7 +785,10 @@ export default function AccountDetailScreen() {
           onClose={() => setPayingDueTxn(null)}
           dueTxn={payingDueTxn}
           accountOptions={accountOptions}
-          onSuccess={() => setPayingDueTxn(null)}
+          onSuccess={() => {
+            handleRefresh();
+            setPayingDueTxn(null);
+          }}
         />
       )}
 

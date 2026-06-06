@@ -65,6 +65,7 @@ export default function TransactionsScreen() {
     handleCounterpartyPress,
     handleVendorPress,
     handlePartyPress,
+    handleForPartyPress,
     handlePaymentStatusPress,
     handleFilterChange,
     handleResetFilters,
@@ -83,6 +84,7 @@ export default function TransactionsScreen() {
         onCounterpartyPress={handleCounterpartyPress}
         onVendorPress={handleVendorPress}
         onPartyPress={handlePartyPress}
+        onForPartyPress={handleForPartyPress}
         onViewHistory={setViewingVendorHistoryFor}
         onPaymentStatusPress={handlePaymentStatusPress}
         onEdit={canEditTransactions ? handleEditTransaction : undefined}
@@ -97,6 +99,7 @@ export default function TransactionsScreen() {
       handleCounterpartyPress,
       handleVendorPress,
       handlePartyPress,
+      handleForPartyPress,
       setViewingVendorHistoryFor,
       handlePaymentStatusPress,
       handleEditTransaction,
@@ -293,7 +296,10 @@ export default function TransactionsScreen() {
           onClose={() => setPayingDueTxn(null)}
           dueTxn={payingDueTxn}
           accountOptions={accountOptions}
-          onSuccess={() => setPayingDueTxn(null)}
+          onSuccess={() => {
+            handleRefresh();
+            setPayingDueTxn(null);
+          }}
         />
       )}
 

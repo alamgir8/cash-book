@@ -89,6 +89,7 @@ export type TransactionFilters = {
   counterparty?: string;
   vendor?: string;
   party_id?: string;
+  for_party_id?: string;
   payment_status?: "paid" | "due";
   loan_filter?: "loan_given" | "loan_received";
   financialScope?: "actual" | "income" | "expense" | "both";
@@ -127,6 +128,7 @@ const mapFilters = (filters: TransactionFilters) => {
   if (filters.categoryId) params.categoryId = filters.categoryId;
   if (filters.counterparty) params.counterparty = filters.counterparty;
   if (filters.party_id) params.party_id = filters.party_id;
+  if (filters.for_party_id) params.for_party_id = filters.for_party_id;
   if (filters.payment_status) params.payment_status = filters.payment_status;
   if (filters.loan_filter) params.loan_filter = filters.loan_filter;
   if (filters.financialScope) params.financialScope = filters.financialScope;

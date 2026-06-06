@@ -190,6 +190,7 @@ export const FilterBar = ({
           filters.categoryId ||
           filters.counterparty ||
           filters.party_id ||
+          filters.for_party_id ||
           filters.payment_status ||
           filters.loan_filter ||
           filters.type ||

@@ -67,10 +67,12 @@ export default function DashboardScreen() {
     handleCategoryFilter,
     handleCounterpartyFilter,
     handleVendorFilter,
+    handleForPartyFilter,
     handlePaymentStatusFilter,
     handleLoadMore,
     handleFilterChange,
     handleResetFilters,
+    resetTransactionList,
     openTransferModal,
     handleExportPdf,
     handleTransactionSubmit,
@@ -88,6 +90,7 @@ export default function DashboardScreen() {
         onCounterpartyPress={handleCounterpartyFilter}
         onVendorPress={handleVendorFilter}
         onPartyPress={handleVendorFilter}
+        onForPartyPress={handleForPartyFilter}
         onViewHistory={setViewingVendorHistoryFor}
         onPaymentStatusPress={handlePaymentStatusFilter}
         onEdit={handleEditTransaction}
@@ -101,6 +104,7 @@ export default function DashboardScreen() {
       handleCategoryFilter,
       handleCounterpartyFilter,
       handleVendorFilter,
+      handleForPartyFilter,
       handlePaymentStatusFilter,
       handleEditTransaction,
       handleDeleteTransaction,
@@ -128,7 +132,8 @@ export default function DashboardScreen() {
 
   const renderHeader = useMemo(() => {
     const transactionCount =
-      (transactionsQuery.data as any)?.transactions?.length || 0;
+      (transactionsQuery.data as any)?.pagination?.total ??
+      allTransactions.length;
     const accountCount = accountsQuery.data?.length || 0;
 
     return (
@@ -192,6 +197,7 @@ export default function DashboardScreen() {
     handleFilterChange,
     handleApplyFilters,
     handleResetFilters,
+    allTransactions.length,
   ]);
 
   return (
@@ -252,6 +258,7 @@ export default function DashboardScreen() {
               onPress={handleLoadMore}
               isLoading={loadingMore}
               hasMore={hasMorePages}
+              totalCount={allTransactions.length}
             />
           ) : null
         }
@@ -310,7 +317,10 @@ export default function DashboardScreen() {
           onClose={() => setPayingDueTxn(null)}
           dueTxn={payingDueTxn}
           accountOptions={accountOptions}
-          onSuccess={() => setPayingDueTxn(null)}
+          onSuccess={() => {
+            resetTransactionList();
+            setPayingDueTxn(null);
+          }}
         />
       )}
 
