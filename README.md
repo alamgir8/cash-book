@@ -293,6 +293,69 @@ You can also do the same from Xcode:
 
 ---
 
+## 🔄 Refresh Free Apple ID After ~7 Days
+
+With a **free Apple ID**, the iOS signing certificate expires about every **7 days**. When that happens, tapping **Hisab Boi** may show:
+
+```text
+"Hisab Boi" is No Longer Available
+```
+
+That means the old install is signed with an **expired certificate**. Building on the Mac alone does **not** fix the phone — you must **reinstall** the app on the iPhone.
+
+Reconnect your iPhone and run **both** commands below (build + install).
+
+**Before you run the commands:**
+
+1. Connect the iPhone to the Mac with USB.
+2. Unlock the iPhone.
+3. Keep **Developer Mode** ON.
+4. If prompted, tap **Trust This Computer** on the iPhone.
+
+**Step 1 — Rebuild Release app and refresh Apple ID signing:**
+
+```shell
+cd /Users/alamgirhossain/Themeforest/cash-book/mobile/ios
+xcodebuild -workspace HisabBoi.xcworkspace \
+  -scheme HisabBoi \
+  -configuration Release \
+  -destination generic/platform=iOS \
+  -derivedDataPath /Users/alamgirhossain/Library/Developer/Xcode/DerivedData/HisabBoiRelease \
+  -allowProvisioningUpdates \
+  build
+```
+
+> `-allowProvisioningUpdates` tells Xcode to renew the free Apple ID provisioning profile with Apple. You may be asked to sign in to your Apple ID in Xcode.
+
+**Step 2 — Install the refreshed app on the iPhone:**
+
+```shell
+xcrun devicectl device install app \
+  --device 43B8F391-1D7E-51F4-B8C3-7B0552CE18DE \
+  /Users/alamgirhossain/Library/Developer/Xcode/DerivedData/HisabBoiRelease/Build/Products/Release-iphoneos/HisabBoi.app
+```
+
+Then open **Hisab Boi** on the iPhone.
+
+**If it still won’t open after install:**
+
+1. On iPhone: long-press **Hisab Boi** → **Remove App** → **Delete App** (removes the expired copy).
+2. Run **Step 1** and **Step 2** again.
+3. On iPhone: **Settings → General → VPN & Device Management** → tap your developer profile (`Apple Development: …`) → **Trust**.
+4. Open **Hisab Boi** again.
+
+Your app data is usually kept if you only reinstall without deleting. If you delete the app first, local data may be lost.
+
+**If the install command fails with “device not found”**, list connected devices and use your iPhone’s ID:
+
+```shell
+xcrun devicectl list devices
+```
+
+Replace `43B8F391-1D7E-51F4-B8C3-7B0552CE18DE` in the install command with the ID shown for your iPhone.
+
+---
+
 ## 🔄 Install an Updated Version Later
 
 When you change code and want the updated app on the iPhone:
@@ -348,7 +411,8 @@ Use Debug only when actively developing. Use Release for normal daily use.
 | Keychain popup appears | Enter the Mac login password, not the Apple ID password, then click **Always Allow**. |
 | Sandbox build error | Confirm `ENABLE_USER_SCRIPT_SANDBOXING = NO`; this repo includes `mobile/plugins/with-ios-user-script-sandboxing.js`. |
 | Device locked error | Unlock the iPhone and run the install/launch command again. |
-| App disappears or stops opening after days | Free Apple signing expired; rebuild and install the Release app again. |
+| **"Hisab Boi" is No Longer Available** | Free Apple signing expired (~7 days). Run **both** build + install commands in **Refresh Free Apple ID After ~7 Days** (build alone is not enough). |
+| App disappears or stops opening after days | Same as above — rebuild, reinstall, and re-trust the developer profile if needed. |
 | iPhone not detected | Reconnect USB, unlock iPhone, tap **Trust This Computer**, then restart Xcode. |
 
 ---
