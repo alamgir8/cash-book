@@ -4,6 +4,7 @@ import { Admin } from "../models/Admin.js";
 import { Transaction } from "../models/Transaction.js";
 import { Organization } from "../models/Organization.js";
 import { buildTransactionFilters } from "../utils/filters.js";
+import { enrichTransactionFilter } from "../utils/enrichTransactionFilter.js";
 import {
   resolveFinancialCategoryScope,
   resolveCategoryTypeScope,
@@ -504,6 +505,12 @@ export const getAccountTransactions = async (req, res, next) => {
         accountId,
       },
       categoryScope,
+    });
+    await enrichTransactionFilter(filter, req.query, {
+      adminId: req.user.id,
+      organizationId: account.organization?.toString?.() ?? account.organization,
+      transactionOrganizationId:
+        account.organization?.toString?.() ?? account.organization ?? null,
     });
     const isDueFilter = String(req.query.payment_status ?? "").trim() === "due";
     if (isDueFilter) {

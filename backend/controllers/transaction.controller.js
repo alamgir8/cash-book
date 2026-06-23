@@ -6,12 +6,13 @@ import { Party } from "../models/Party.js";
 import { Transaction } from "../models/Transaction.js";
 import { Transfer } from "../models/Transfer.js";
 import { buildTransactionFilters } from "../utils/filters.js";
+import { enrichTransactionFilter } from "../utils/enrichTransactionFilter.js";
 import {
   resolveFinancialCategoryScope,
   resolveCategoryTypeScope,
 } from "../utils/financialCategories.js";
 import { recomputeDescendingBalances } from "../utils/balance.js";
-import { checkOrgAccess, getOrgFromRequest } from "../utils/organization.js";
+import { checkOrgAccess, getOrgFromRequest, getOrgFilterFromRequest, getOrgLookupFromRequest } from "../utils/organization.js";
 import {
   decorateLoanSummaries,
   getCounterpartyLoanLedger,
@@ -226,6 +227,8 @@ const extractAccountBalanceMap = async ({
 export const listTransactions = async (req, res, next) => {
   try {
     const organizationId = getOrgFromRequest(req);
+    const organizationFilterId = getOrgFilterFromRequest(req);
+    const organizationLookupId = getOrgLookupFromRequest(req);
 
     // Check organization access if provided
     if (organizationId) {
@@ -262,9 +265,14 @@ export const listTransactions = async (req, res, next) => {
 
     const filter = buildTransactionFilters({
       adminId: req.user.id,
-      organizationId,
+      organizationId: organizationFilterId,
       query: req.query,
       categoryScope,
+    });
+    await enrichTransactionFilter(filter, req.query, {
+      adminId: req.user.id,
+      organizationId: organizationLookupId,
+      transactionOrganizationId: organizationFilterId,
     });
     const isDueFilter = String(req.query.payment_status ?? "").trim() === "due";
     if (isDueFilter) {

@@ -4,14 +4,17 @@ import { Account } from "../models/Account.js";
 import { Category } from "../models/Category.js";
 import { Transaction } from "../models/Transaction.js";
 import { buildTransactionFilters } from "../utils/filters.js";
+import { enrichTransactionFilter } from "../utils/enrichTransactionFilter.js";
 import {
   resolveFinancialCategoryScope,
   resolveCategoryTypeScope,
 } from "../utils/financialCategories.js";
-import { checkOrgAccess, getOrgFromRequest } from "../utils/organization.js";
+import { checkOrgAccess, getOrgFromRequest, getOrgFilterFromRequest, getOrgLookupFromRequest } from "../utils/organization.js";
 
 const buildScopedFilter = async ({ req, extraQuery = {} }) => {
   const organizationId = getOrgFromRequest(req);
+  const organizationFilterId = getOrgFilterFromRequest(req);
+  const organizationLookupId = getOrgLookupFromRequest(req);
   const financialScope =
     req.query.financialScope ?? req.query.financial_scope ?? null;
 
@@ -33,12 +36,18 @@ const buildScopedFilter = async ({ req, extraQuery = {} }) => {
     });
   }
 
-  return buildTransactionFilters({
+  const filter = buildTransactionFilters({
     adminId: req.user.id,
-    organizationId,
+    organizationId: organizationFilterId,
     query: { ...req.query, ...extraQuery },
     categoryScope,
   });
+  await enrichTransactionFilter(filter, { ...req.query, ...extraQuery }, {
+    adminId: req.user.id,
+    organizationId: organizationLookupId,
+    transactionOrganizationId: organizationFilterId,
+  });
+  return filter;
 };
 
 const parseBoundaryDate = (value, fallback = new Date()) => {
