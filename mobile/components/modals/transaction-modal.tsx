@@ -29,6 +29,10 @@ import { Ionicons } from "@expo/vector-icons";
 import dayjs from "dayjs";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SearchableSelect } from "../searchable-select";
+import {
+  translateCategoryName,
+  translateCategoryGroup,
+} from "@/lib/i18n/category-translations";
 import { usePreferences } from "@/hooks/use-preferences";
 import { useTheme } from "@/hooks/use-theme";
 import { useTranslation } from "@/hooks/use-translation";
@@ -39,10 +43,12 @@ import {
 } from "./types";
 import type { Transaction } from "@/services/transactions";
 import { fetchVendors } from "@/services/transactions";
+import { fetchCategories } from "@/services/categories";
 import { partiesApi } from "@/services/parties";
 import { useActiveOrgId } from "@/hooks/use-organization";
 import { useQueryClient } from "@tanstack/react-query";
 import { QUERY_KEYS } from "@/lib/queryKeys";
+import { getPartyRefId } from "@/lib/transaction-filters";
 import { uploadAttachments } from "@/services/attachments";
 import { AttachmentPicker } from "../transactions/attachment-picker";
 
@@ -75,7 +81,8 @@ export const TransactionModal = ({
   isCategoriesLoading = false,
   isSubmitting = false,
 }: TransactionModalProps) => {
-  const { formatAmount } = usePreferences();
+  const { formatAmount, preferences } = usePreferences();
+  const language = preferences.language ?? "en";
   const { colors } = useTheme();
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -89,57 +96,6 @@ export const TransactionModal = ({
   const pendingCreationsRef = useRef<
     Map<string, Promise<{ _id: string; name: string }>>
   >(new Map());
-
-  // Optimistic add-party: selects the name immediately (no loading),
-  // fires the API call in the background, swaps to the real _id when done.
-  const handleAddParty = useCallback(
-    async (name: string): Promise<SelectOption | null> => {
-      const trimmed = name.trim();
-      const tempId = `__new__:${trimmed}:${Date.now()}`;
-
-      // Immediately show in the local options list for display
-      setNewlyAddedParties((prev) => [
-        ...prev,
-        { value: tempId, label: trimmed },
-      ]);
-
-      // Fire API creation in background (no await)
-      const promise = partiesApi.create({
-        organization: organizationId || undefined,
-        name: trimmed,
-        type: "both",
-      });
-      pendingCreationsRef.current.set(tempId, promise);
-
-      promise
-        .then((party) => {
-          pendingCreationsRef.current.delete(tempId);
-          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.parties });
-          // Replace temp entry with the real party
-          setNewlyAddedParties((prev) =>
-            prev.map((p) =>
-              p.value === tempId ? { value: party._id, label: party.name } : p,
-            ),
-          );
-          // Update form if the field still holds the temp ID
-          if (getValues("party") === tempId) setValue("party", party._id);
-          if (getValues("for_party") === tempId)
-            setValue("for_party", party._id);
-        })
-        .catch(() => {
-          pendingCreationsRef.current.delete(tempId);
-          setNewlyAddedParties((prev) =>
-            prev.filter((p) => p.value !== tempId),
-          );
-          if (getValues("party") === tempId) setValue("party", "");
-          if (getValues("for_party") === tempId) setValue("for_party", "");
-        });
-
-      // Return temp option immediately — SearchableSelect selects it with no spinner
-      return { value: tempId, label: trimmed };
-    },
-    [organizationId, queryClient, getValues, setValue],
-  );
 
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -183,6 +139,51 @@ export const TransactionModal = ({
   const selectedVendor = watch("party");
   const selectedForParty = watch("for_party");
 
+  const handleAddParty = useCallback(
+    async (name: string): Promise<SelectOption | null> => {
+      const trimmed = name.trim();
+      const tempId = `__new__:${trimmed}:${Date.now()}`;
+
+      setNewlyAddedParties((prev) => [
+        ...prev,
+        { value: tempId, label: trimmed },
+      ]);
+
+      const promise = partiesApi.create({
+        organization: organizationId || undefined,
+        name: trimmed,
+        type: "both",
+      });
+      pendingCreationsRef.current.set(tempId, promise);
+
+      promise
+        .then((party) => {
+          pendingCreationsRef.current.delete(tempId);
+          void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.parties });
+          void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.vendors });
+          setNewlyAddedParties((prev) =>
+            prev.map((p) =>
+              p.value === tempId ? { value: party._id, label: party.name } : p,
+            ),
+          );
+          if (getValues("party") === tempId) setValue("party", party._id);
+          if (getValues("for_party") === tempId)
+            setValue("for_party", party._id);
+        })
+        .catch(() => {
+          pendingCreationsRef.current.delete(tempId);
+          setNewlyAddedParties((prev) =>
+            prev.filter((p) => p.value !== tempId),
+          );
+          if (getValues("party") === tempId) setValue("party", "");
+          if (getValues("for_party") === tempId) setValue("for_party", "");
+        });
+
+      return { value: tempId, label: trimmed };
+    },
+    [organizationId, queryClient, getValues, setValue],
+  );
+
   // Resolve the human-readable name for the currently selected vendor/for_party.
   // Used for name-based cross-exclusion in fetchOptions (handles temp-ID phase too).
   const allKnownParties = useMemo(() => {
@@ -225,6 +226,40 @@ export const TransactionModal = ({
     [selectedVendor, selectedVendorName],
   );
 
+  const fetchCategoryOptions = useCallback(
+    async (q: string) => {
+      const cats = await queryClient.fetchQuery({
+        queryKey: QUERY_KEYS.categories.all,
+        queryFn: () => fetchCategories(),
+      });
+      const targetFlow = selectedType === "credit" ? "credit" : "debit";
+      const normalized = q.trim().toLowerCase();
+      return cats
+        .filter((c) => c.flow === targetFlow)
+        .filter(
+          (c) =>
+            !normalized ||
+            c.name.toLowerCase().includes(normalized) ||
+            translateCategoryName(c.name, language)
+              .toLowerCase()
+              .includes(normalized),
+        )
+        .map((c) => {
+          const rawGroup = c.type
+            ? c.type.charAt(0).toUpperCase() +
+              c.type.slice(1).replace(/_/g, " ")
+            : "Other";
+          return {
+            value: c._id,
+            label: translateCategoryName(c.name, language),
+            group: translateCategoryGroup(c.type ?? "", rawGroup, language),
+            flow: c.flow,
+          };
+        });
+    },
+    [language, queryClient, selectedType],
+  );
+
   // Filter categories based on selected transaction type (debit/credit)
   const filteredCategoryOptions = useMemo(() => {
     const targetFlow = selectedType === "credit" ? "credit" : "debit";
@@ -236,6 +271,8 @@ export const TransactionModal = ({
   // Reset form when opening/closing or when editing transaction changes
   useEffect(() => {
     if (visible) {
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.categories.all });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.vendors });
       // Only remove unresolved temp entries ("__new__:..."); keep confirmed ones
       // so newly-created parties remain available when opening the next transaction.
       setNewlyAddedParties((prev) =>
@@ -253,8 +290,8 @@ export const TransactionModal = ({
           description: editingTransaction.description || "",
           comment: editingTransaction.keyword || "",
           categoryId: editingTransaction.category?._id || "",
-          party: editingTransaction.party?._id || "",
-          for_party: editingTransaction.for_party?._id || "",
+          party: getPartyRefId(editingTransaction.party) || "",
+          for_party: getPartyRefId(editingTransaction.for_party) || "",
           payment_status: editingTransaction.payment_status || "paid",
           due_date: editingTransaction.due_date
             ? dayjs(editingTransaction.due_date).format("YYYY-MM-DD")
@@ -622,6 +659,7 @@ export const TransactionModal = ({
                         }
                         value={value}
                         options={filteredCategoryOptions}
+                        fetchOptions={fetchCategoryOptions}
                         onSelect={(val) => onChange(val || undefined)}
                         disabled={
                           isCategoriesLoading ||

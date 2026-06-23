@@ -11,6 +11,7 @@ import type {
   OrganizationSummary,
   OrganizationPermissions,
 } from "../services/organizations";
+import { setActiveOrganizationId } from "../lib/api";
 
 const ACTIVE_ORG_KEY = "@active_organization";
 
@@ -68,10 +69,12 @@ export function OrganizationProvider({
           const org = organizations.find((o) => o.id === savedOrgId);
           if (org) {
             setActiveOrganization(org);
+            setActiveOrganizationId(org.id);
           }
         } else if (organizations.length === 1 && !savedOrgId) {
           // Auto-select if user only has one organization
           setActiveOrganization(organizations[0]);
+          setActiveOrganizationId(organizations[0].id);
           await AsyncStorage.setItem(ACTIVE_ORG_KEY, organizations[0].id);
         }
       } catch (error) {
@@ -84,6 +87,10 @@ export function OrganizationProvider({
     loadActiveOrg();
   }, [organizations]);
 
+  useEffect(() => {
+    setActiveOrganizationId(activeOrganization?.id ?? null);
+  }, [activeOrganization?.id]);
+
   const setOrganizations = useCallback((orgs: OrganizationSummary[]) => {
     setOrganizationsState(orgs);
   }, []);
@@ -93,6 +100,7 @@ export function OrganizationProvider({
       try {
         if (!orgId) {
           setActiveOrganization(null);
+          setActiveOrganizationId(null);
           await AsyncStorage.removeItem(ACTIVE_ORG_KEY);
           return;
         }
@@ -100,6 +108,7 @@ export function OrganizationProvider({
         const org = organizations.find((o) => o.id === orgId);
         if (org) {
           setActiveOrganization(org);
+          setActiveOrganizationId(org.id);
           await AsyncStorage.setItem(ACTIVE_ORG_KEY, orgId);
         }
       } catch (error) {

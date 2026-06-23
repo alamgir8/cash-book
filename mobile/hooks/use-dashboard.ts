@@ -2,64 +2,36 @@
  * use-dashboard
  *
  * Encapsulates all business logic for the Dashboard (Home) screen.
- * The screen component imports this hook and only contains JSX.
+ * Transaction list/filter state is delegated to useTransactionFeed.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Alert } from "react-native";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import Toast from "react-native-toast-message";
 import {
   createTransaction,
   createTransfer,
   deleteTransaction,
-  fetchCounterparties,
-  fetchVendors,
-  fetchTransactions,
   updateTransaction,
   type Transaction,
-  type TransactionFilters,
 } from "@/services/transactions";
-import { fetchAccounts } from "@/services/accounts";
-import { fetchCategories } from "@/services/categories";
 import { exportTransactionsPdf } from "@/services/reports";
-import { queryKeys } from "@/lib/queryKeys";
 import { refreshAppData } from "@/lib/refresh-app-data";
-import {
-  filterTransactionsByPartyFilters,
-  serializeTransactionFilters,
-} from "@/lib/transaction-filters";
-import { usePreferences } from "@/hooks/use-preferences";
+import { useTransactionFeed } from "@/hooks/use-transaction-feed";
 import { useOrganization } from "@/hooks/use-organization";
-import {
-  translateCategoryName,
-  translateCategoryGroup,
-} from "@/lib/i18n/category-translations";
 import { useDeleteMode } from "@/hooks/use-delete-mode";
 import type {
   TransactionFormValues,
   TransferFormValues,
-  SelectOption,
 } from "@/components/modals/types";
 
-const DEFAULT_FILTERS: TransactionFilters = {
-  page: 1,
-  limit: 20,
-};
-
 export function useDashboard() {
-  const { formatAmount, preferences } = usePreferences();
-  const language = preferences.language ?? "en";
   const { canCreateTransactions, activeOrganization, hasPermission } =
     useOrganization();
   const canEditTransactions = hasPermission("edit_transactions");
   const { isDeleteModeActive } = useDeleteMode();
   const queryClient = useQueryClient();
 
-  // ── UI state ────────────────────────────────────────────────────────────
-  const [filters, setFilters] = useState<TransactionFilters>(DEFAULT_FILTERS);
-  const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
-  const [hasMorePages, setHasMorePages] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [isModalVisible, setModalVisible] = useState(false);
   const [isTransferModalVisible, setTransferModalVisible] = useState(false);
   const [editingTransaction, setEditingTransaction] =
@@ -71,39 +43,45 @@ export function useDashboard() {
   const [viewingAttachmentsFor, setViewingAttachmentsFor] =
     useState<Transaction | null>(null);
 
-  // ── Queries ──────────────────────────────────────────────────────────────
-  const accountsQuery = useQuery({
-    queryKey: queryKeys.accounts,
-    queryFn: fetchAccounts,
+  const feed = useTransactionFeed({
+    pageLimit: 20,
+    editingCounterparty: editingTransaction?.counterparty,
+    includeEmptyCategoryOption: true,
   });
 
-  const categoriesQuery = useQuery({
-    queryKey: queryKeys.categories.all,
-    queryFn: () => fetchCategories(),
-  });
+  const {
+    filters,
+    allTransactions,
+    rawTransactions,
+    hasMorePages,
+    loadingMore,
+    resetToPageOne,
+    handleCategoryFilter,
+    handleCounterpartyFilter,
+    handleVendorFilter,
+    handleForPartyFilter,
+    handlePaymentStatusFilter,
+    handleFilterChange,
+    handleLoadMore,
+    handleResetFilters: feedResetFilters,
+    handleApplyFilters,
+    transactionsQuery,
+    accountsQuery,
+    categoriesQuery,
+    accountOptions,
+    modalCategoryOptions,
+    categoryOptions,
+    counterpartyOptions,
+    vendorOptions,
+    partyOptions,
+    hasActiveFilters,
+    totalTransactionCount,
+  } = feed;
 
-  const transactionsQuery = useQuery({
-    queryKey: queryKeys.transactions(filters),
-    queryFn: () => fetchTransactions(filters),
-  });
-
-  const counterpartiesQuery = useQuery({
-    queryKey: queryKeys.counterparties,
-    queryFn: () => fetchCounterparties(),
-  });
-
-  const vendorsQuery = useQuery({
-    queryKey: queryKeys.vendors,
-    queryFn: () => fetchVendors(),
-  });
-
-  // ── Mutations ────────────────────────────────────────────────────────────
-  const invalidateAll = async () => {
-    setAllTransactions([]);
-    setHasMorePages(true);
-    setFilters((prev) => ({ ...prev, page: 1 }));
+  const invalidateAll = useCallback(async () => {
+    resetToPageOne();
     await refreshAppData(queryClient);
-  };
+  }, [queryClient, resetToPageOne]);
 
   const createMutation = useMutation({
     mutationFn: createTransaction,
@@ -153,7 +131,6 @@ export function useDashboard() {
     mutationFn: createTransfer,
     onSuccess: () => {
       void invalidateAll();
-      // NOTE: modal closes itself after attachment upload completes
       Toast.show({ type: "success", text1: "Transfer completed" });
     },
     onError: () =>
@@ -164,171 +141,17 @@ export function useDashboard() {
       }),
   });
 
-  // ── Derived options ───────────────────────────────────────────────────────
-  const accountOptions = useMemo(
+  const totals = useMemo(
     () =>
-      (accountsQuery.data ?? []).map((account) => ({
-        value: account._id,
-        label: account.name,
-        subtitle: `${formatAmount(account.balance)}${
-          account.currency_symbol ? ` · ${account.currency_symbol}` : ""
-        }`,
-      })),
-    [accountsQuery.data, formatAmount],
+      rawTransactions.reduce(
+        (acc, txn) => {
+          acc[txn.type] += txn.amount;
+          return acc;
+        },
+        { debit: 0, credit: 0 },
+      ),
+    [rawTransactions],
   );
-
-  const formatCategoryGroup = (type: string) =>
-    type
-      .split("_")
-      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-      .join(" ");
-
-  const categoryOptions = useMemo(() => {
-    const categories = (categoriesQuery.data ?? []) as {
-      _id: string;
-      name: string;
-      flow: string;
-      type: string;
-    }[];
-    return [
-      {
-        value: "",
-        label: language === "bn" ? "কোনো ক্যাটাগরি নেই" : "No category",
-      },
-      ...categories.map((c) => {
-        const rawGroup = formatCategoryGroup(c.type);
-        return {
-          value: c._id,
-          label: translateCategoryName(c.name, language),
-          group: translateCategoryGroup(c.type, rawGroup, language),
-          flow: c.flow,
-        };
-      }),
-    ];
-  }, [categoriesQuery.data, language]);
-
-  const counterpartyOptions: SelectOption[] = useMemo(() => {
-    const api = counterpartiesQuery.data ?? [];
-    const fromTxns = allTransactions
-      .map((t) => t.counterparty?.trim())
-      .filter((n): n is string => Boolean(n));
-    const editing = editingTransaction?.counterparty?.trim();
-    return [...new Set([...api, ...fromTxns, ...(editing ? [editing] : [])])]
-      .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
-      .map((n) => ({ value: n, label: n }));
-  }, [counterpartiesQuery.data, allTransactions, editingTransaction]);
-
-  const partyOptions: SelectOption[] = useMemo(() => {
-    const parties = vendorsQuery.data ?? [];
-    return parties
-      .map((p) => ({ value: p._id, label: p.name }))
-      .sort((a, b) =>
-        a.label.toLowerCase().localeCompare(b.label.toLowerCase()),
-      );
-  }, [vendorsQuery.data]);
-
-  // Keep vendorOptions as alias for backward-compat with modal prop
-  const vendorOptions = partyOptions;
-
-  // ── Computed values ───────────────────────────────────────────────────────
-  const totals = useMemo(() => {
-    const txns = (transactionsQuery.data as any)?.transactions ?? [];
-    return txns.reduce(
-      (acc: { debit: number; credit: number }, txn: Transaction) => {
-        acc[txn.type] += txn.amount;
-        return acc;
-      },
-      { debit: 0, credit: 0 },
-    );
-  }, [transactionsQuery.data]);
-
-  const hasActiveFilters = useMemo(() => {
-    if (filters.range && filters.range !== DEFAULT_FILTERS.range) return true;
-    const keys: (keyof TransactionFilters)[] = [
-      "accountId",
-      "categoryId",
-      "counterparty",
-      "party_id",
-      "for_party_id",
-      "payment_status",
-      "loan_filter",
-      "financialScope",
-      "type",
-      "search",
-      "accountName",
-      "startDate",
-      "endDate",
-      "from",
-      "to",
-      "minAmount",
-      "maxAmount",
-      "includeDeleted",
-    ];
-    return keys.some((key) => {
-      const val = filters[key];
-      const def = DEFAULT_FILTERS[key];
-      if (typeof val === "number") return val !== undefined && val !== def;
-      if (typeof val === "boolean") return val !== undefined && val !== def;
-      return val !== undefined && val !== "" && val !== def;
-    });
-  }, [filters]);
-
-  const filterSignature = useMemo(
-    () => JSON.stringify(serializeTransactionFilters(filters)),
-    [filters],
-  );
-
-  const visibleTransactions = useMemo(
-    () => filterTransactionsByPartyFilters(allTransactions, filters),
-    [allTransactions, filters.for_party_id, filters.party_id],
-  );
-
-  // ── Accumulate transactions across pages ──────────────────────────────
-  useEffect(() => {
-    if (
-      !transactionsQuery.data ||
-      transactionsQuery.isPending ||
-      transactionsQuery.isFetching
-    ) {
-      return;
-    }
-
-    const freshData = (transactionsQuery.data as any)?.transactions ?? [];
-    const pagination = (transactionsQuery.data as any)?.pagination;
-    const currentPage = filters.page ?? 1;
-
-    if (pagination && pagination.page !== currentPage) return;
-
-    if (currentPage === 1) {
-      setAllTransactions(freshData);
-      if (pagination) {
-        setHasMorePages(pagination.page < pagination.pages);
-      } else {
-        setHasMorePages(freshData.length === (filters.limit ?? 20));
-      }
-    } else {
-      setAllTransactions((prev) => {
-        const existingIds = new Set(prev.map((t) => t._id));
-        const newItems = freshData.filter(
-          (t: Transaction) => !existingIds.has(t._id),
-        );
-        return [...prev, ...newItems];
-      });
-      if (pagination) {
-        setHasMorePages(pagination.page < pagination.pages);
-      } else {
-        setHasMorePages(freshData.length === (filters.limit ?? 20));
-      }
-      setLoadingMore(false);
-    }
-  }, [
-    transactionsQuery.data,
-    transactionsQuery.isPending,
-    transactionsQuery.isFetching,
-    filters.page,
-    filters.limit,
-    filterSignature,
-  ]);
 
   const handleEditTransaction = useCallback(
     (transaction: Transaction) => {
@@ -372,87 +195,15 @@ export function useDashboard() {
     [],
   );
 
-  const handleCategoryFilter = useCallback((categoryId?: string) => {
-    setAllTransactions([]);
-    setHasMorePages(true);
-    setFilters((prev) => ({
-      ...prev,
-      categoryId: categoryId || undefined,
-      counterparty: undefined,
-      page: 1,
-    }));
-  }, []);
-
-  const handleCounterpartyFilter = useCallback((counterparty?: string) => {
-    setAllTransactions([]);
-    setHasMorePages(true);
-    setFilters((prev) => ({
-      ...prev,
-      counterparty: counterparty || undefined,
-      categoryId: undefined,
-      page: 1,
-    }));
-  }, []);
-
-  const handleVendorFilter = useCallback((partyId?: string) => {
-    setAllTransactions([]);
-    setHasMorePages(true);
-    setFilters((prev) => ({
-      ...prev,
-      party_id: partyId || undefined,
-      for_party_id: undefined,
-      page: 1,
-    }));
-  }, []);
-
-  const handleForPartyFilter = useCallback((forPartyId?: string) => {
-    setAllTransactions([]);
-    setHasMorePages(true);
-    setFilters((prev) => ({
-      ...prev,
-      for_party_id: forPartyId || undefined,
-      party_id: undefined,
-      page: 1,
-    }));
-  }, []);
-
-  const handlePaymentStatusFilter = useCallback((status?: "paid" | "due") => {
-    setAllTransactions([]);
-    setHasMorePages(true);
-    setFilters((prev) => ({
-      ...prev,
-      payment_status: status || undefined,
-      loan_filter: undefined,
-      page: 1,
-    }));
-  }, []);
-
-  const handleLoadMore = useCallback(() => {
-    if (loadingMore || !hasMorePages || transactionsQuery.isFetching) return;
-    setLoadingMore(true);
-    setFilters((prev) => ({ ...prev, page: (prev.page ?? 1) + 1 }));
-  }, [loadingMore, hasMorePages, transactionsQuery.isFetching]);
-
-  const handleFilterChange = useCallback(
-    (next: Partial<TransactionFilters>) => {
-      setAllTransactions([]);
-      setHasMorePages(true);
-      setFilters((prev) => ({ ...prev, ...next, page: 1 }));
-    },
-    [],
-  );
-
-  const resetTransactionList = useCallback(() => {
-    setAllTransactions([]);
-    setHasMorePages(true);
-    setFilters((prev) => ({ ...prev, page: 1 }));
-  }, []);
-
   const handleResetFilters = useCallback(() => {
-    resetTransactionList();
-    setFilters({ ...DEFAULT_FILTERS });
+    feedResetFilters();
     void refreshAppData(queryClient);
-  }, [queryClient, resetTransactionList]);
+  }, [feedResetFilters, queryClient]);
+
+  const handleRefresh = useCallback(() => {
+    resetToPageOne();
+    void refreshAppData(queryClient);
+  }, [queryClient, resetToPageOne]);
 
   const openTransferModal = useCallback(() => {
     if (accountsQuery.isLoading) {
@@ -529,9 +280,8 @@ export function useDashboard() {
   );
 
   return {
-    // state
     filters,
-    allTransactions: visibleTransactions,
+    allTransactions,
     hasMorePages,
     loadingMore,
     isModalVisible,
@@ -540,32 +290,28 @@ export function useDashboard() {
     payingDueTxn,
     viewingChainFor,
     viewingAttachmentsFor,
-    // queries
     transactionsQuery,
     accountsQuery,
     categoriesQuery,
-    // computed
     accountOptions,
     categoryOptions,
+    modalCategoryOptions,
     counterpartyOptions,
     vendorOptions,
     partyOptions,
     totals,
+    totalTransactionCount,
     hasActiveFilters,
-    // org/permissions
     canCreateTransactions,
     canEditTransactions,
     activeOrganization,
     isDeleteModeActive,
-    // mutations pending
     isSubmitting: createMutation.isPending || updateMutation.isPending,
     isTransferSubmitting: createTransferMutation.isPending,
-    // setters
     setPayingDueTxn,
     setViewingChainFor,
     setViewingAttachmentsFor,
     setModalVisible,
-    // handlers
     handleEditTransaction,
     handleDeleteTransaction,
     handleAttachmentsPress,
@@ -577,14 +323,13 @@ export function useDashboard() {
     handleLoadMore,
     handleFilterChange,
     handleResetFilters,
-    resetTransactionList,
+    handleApplyFilters,
+    handleRefresh,
     openTransferModal,
     handleExportPdf,
     handleTransactionSubmit,
     handleTransferSubmit,
     closeModal,
     closeTransferModal,
-    // constants
-    DEFAULT_FILTERS,
   };
 }

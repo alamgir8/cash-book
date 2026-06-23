@@ -1,6 +1,6 @@
 import { api } from "../lib/api";
 import type { Transaction, TransactionFilters } from "./transactions";
-import { normalizeTransaction } from "./transactions";
+import { normalizeTransaction, mapTransactionFilters } from "./transactions";
 
 export type Account = {
   _id: string;
@@ -158,7 +158,7 @@ export const fetchAccountTransactions = async (
     transactions: Record<string, any>[];
     pagination: AccountTransactionsResponse["pagination"];
   }>(`/accounts/${accountId}/transactions`, {
-    params: filters,
+    params: mapTransactionFilters({ ...filters, accountId }),
   });
 
   return {

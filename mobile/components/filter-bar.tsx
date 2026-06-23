@@ -13,6 +13,7 @@ import { ActionButton } from "./action-button";
 import { useTheme } from "../hooks/use-theme";
 import { useTranslation } from "../hooks/use-translation";
 import type { TransactionFilters } from "../services/transactions";
+import { mergeTransactionFilters } from "../lib/transaction-filters";
 import { SearchableSelect, type SelectOption } from "./searchable-select";
 
 const getDateRangeFromQuickFilter = (
@@ -188,9 +189,12 @@ export const FilterBar = ({
           filters.endDate ||
           filters.accountId ||
           filters.categoryId ||
+          filters.category_name ||
           filters.counterparty ||
           filters.party_id ||
+          filters.party_name ||
           filters.for_party_id ||
+          filters.for_party_name ||
           filters.payment_status ||
           filters.loan_filter ||
           filters.type ||
@@ -763,32 +767,17 @@ export const FilterBar = ({
                   search: _ignoredSearch,
                   ...other
                 } = rest;
-                const updatedFilters: TransactionFilters = {
+                const updatedFilters = mergeTransactionFilters(filters, {
                   ...other,
-                  page: 1,
-                };
-
-                if (selectedAccountId) {
-                  updatedFilters.accountId = selectedAccountId;
-                }
-                if (categoryId) {
-                  updatedFilters.categoryId = categoryId;
-                }
-                if (counterparty) {
-                  updatedFilters.counterparty = counterparty;
-                }
-                if (party_id) {
-                  updatedFilters.party_id = party_id;
-                }
-                if (payment_status) {
-                  updatedFilters.payment_status = payment_status;
-                }
-                if (loan_filter) {
-                  updatedFilters.loan_filter = loan_filter;
-                }
-                if (searchInput && searchInput.trim().length > 0) {
-                  updatedFilters.search = searchInput.trim();
-                }
+                  categoryId,
+                  counterparty,
+                  party_id,
+                  for_party_id: formFilters.for_party_id,
+                  payment_status,
+                  loan_filter,
+                  accountId: selectedAccountId,
+                  searchInput,
+                });
                 // Mark custom filter applied
                 if (updatedFilters.startDate || updatedFilters.endDate) {
                   setActiveQuickFilter("custom");

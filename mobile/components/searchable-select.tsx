@@ -143,10 +143,20 @@ export const SearchableSelect = ({
     const totalCount = filtered.length;
     let hasMore = false;
 
-    // Limit to 50 when not searching, show all when searching
+    // Limit to 50 when not searching; always keep the selected value visible
     if (!isSearching && filtered.length > 50) {
       hasMore = true;
-      filtered = filtered.slice(0, 50);
+      const selected =
+        value != null && value !== ""
+          ? filtered.find((option) => option.value === value)
+          : undefined;
+      const rest = selected
+        ? filtered.filter((option) => option.value !== value)
+        : filtered;
+      filtered = [
+        ...(selected ? [selected] : []),
+        ...rest.slice(0, selected ? 49 : 50),
+      ];
     }
 
     const items: RenderItem[] = [];

@@ -78,6 +78,7 @@ export type Transaction = {
 };
 
 export type TransactionFilters = {
+  organizationId?: string;
   from?: string;
   to?: string;
   startDate?: string;
@@ -86,10 +87,13 @@ export type TransactionFilters = {
   accountId?: string;
   accountName?: string;
   categoryId?: string;
+  category_name?: string;
   counterparty?: string;
   vendor?: string;
   party_id?: string;
+  party_name?: string;
   for_party_id?: string;
+  for_party_name?: string;
   payment_status?: "paid" | "due";
   loan_filter?: "loan_given" | "loan_received";
   financialScope?: "actual" | "income" | "expense" | "both";
@@ -117,18 +121,22 @@ export type Transfer = {
   credit_transaction?: Transaction;
 };
 
-const mapFilters = (filters: TransactionFilters) => {
+export const mapTransactionFilters = (filters: TransactionFilters) => {
   const params: Record<string, unknown> = {};
   const from = filters.from ?? filters.startDate;
   const to = filters.to ?? filters.endDate;
+  if (filters.organizationId) params.organization = filters.organizationId;
   if (from) params.from = from;
   if (to) params.to = to;
   if (filters.range) params.range = filters.range;
   if (filters.accountId) params.accountId = filters.accountId;
   if (filters.categoryId) params.categoryId = filters.categoryId;
+  if (filters.category_name) params.category_name = filters.category_name;
   if (filters.counterparty) params.counterparty = filters.counterparty;
   if (filters.party_id) params.party_id = filters.party_id;
+  if (filters.party_name) params.party_name = filters.party_name;
   if (filters.for_party_id) params.for_party_id = filters.for_party_id;
+  if (filters.for_party_name) params.for_party_name = filters.for_party_name;
   if (filters.payment_status) params.payment_status = filters.payment_status;
   if (filters.loan_filter) params.loan_filter = filters.loan_filter;
   if (filters.financialScope) params.financialScope = filters.financialScope;
@@ -222,7 +230,7 @@ export const fetchTransactions = async (filters: TransactionFilters) => {
   const { data } = await api.get<{
     transactions: Record<string, any>[];
     pagination: { page: number; pages: number; total: number; limit: number };
-  }>("/transactions", { params: mapFilters(filters) });
+  }>("/transactions", { params: mapTransactionFilters(filters) });
 
   return {
     transactions: data.transactions.map(normalizeTransaction),

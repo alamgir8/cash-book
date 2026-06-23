@@ -7,15 +7,15 @@ import { usePreferences } from "../hooks/use-preferences";
 import { useTheme } from "../hooks/use-theme";
 import { useTranslation } from "../hooks/use-translation";
 import { translateCategoryName } from "../lib/i18n/category-translations";
-import { getPartyRefId } from "../lib/transaction-filters";
+import { getPartyRefName, getCategoryRefName } from "../lib/transaction-filters";
 
 type Props = {
   transaction: Transaction;
-  onCategoryPress?: (categoryId: string) => void;
+  onCategoryPress?: (categoryName: string) => void;
   onCounterpartyPress?: (counterparty: string) => void;
-  onPartyPress?: (partyId: string) => void;
-  onForPartyPress?: (forPartyId: string) => void;
-  onVendorPress?: (vendor: string) => void;
+  onPartyPress?: (partyName: string) => void;
+  onForPartyPress?: (forPartyName: string) => void;
+  onVendorPress?: (vendorName: string) => void;
   onPaymentStatusPress?: (status: "paid" | "due") => void;
   onEdit?: (transaction: Transaction) => void;
   onDelete?: (transaction: Transaction) => void;
@@ -273,9 +273,8 @@ const TransactionCardComponent = ({
           <TouchableOpacity
             activeOpacity={onCategoryPress ? 0.8 : 1}
             onPress={() => {
-              if (transaction.category?._id && onCategoryPress) {
-                onCategoryPress(transaction.category._id);
-              }
+              const name = getCategoryRefName(transaction.category);
+              if (name && onCategoryPress) onCategoryPress(name);
             }}
             style={{
               backgroundColor: colors.info + "25",
@@ -295,8 +294,8 @@ const TransactionCardComponent = ({
           <TouchableOpacity
             activeOpacity={onPartyPress ? 0.8 : 1}
             onPress={() => {
-              const pid = getPartyRefId(transaction.party);
-              if (pid && onPartyPress) onPartyPress(pid);
+              const name = getPartyRefName(transaction.party);
+              if (name && onPartyPress) onPartyPress(name);
             }}
             style={{
               backgroundColor: colors.info + "25",
@@ -341,8 +340,8 @@ const TransactionCardComponent = ({
           <TouchableOpacity
             activeOpacity={onForPartyPress ? 0.8 : 1}
             onPress={() => {
-              const pid = getPartyRefId(transaction.for_party);
-              if (pid && onForPartyPress) onForPartyPress(pid);
+              const name = getPartyRefName(transaction.for_party);
+              if (name && onForPartyPress) onForPartyPress(name);
             }}
             style={{
               backgroundColor: "#7c3aed" + "25",
