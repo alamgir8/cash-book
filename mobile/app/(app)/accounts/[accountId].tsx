@@ -14,6 +14,7 @@ import Toast from "react-native-toast-message";
 import { TransactionModal } from "@/components/modals/transaction-modal";
 import { AttachmentViewerModal } from "@/components/transactions/attachment-viewer-modal";
 import { DuePaymentModal } from "@/components/modals/due-payment-modal";
+import { LoanReturnModal } from "@/components/modals/loan-return-modal";
 import { DueChainSheet } from "@/components/modals/due-chain-sheet";
 import { VendorHistorySheet } from "@/components/modals/vendor-history-sheet";
 import { FilteredTransactionList } from "@/components/transactions/filtered-transaction-list";
@@ -67,6 +68,9 @@ export default function AccountDetailScreen() {
   const [viewingAttachmentsFor, setViewingAttachmentsFor] =
     useState<Transaction | null>(null);
   const [payingDueTxn, setPayingDueTxn] = useState<Transaction | null>(null);
+  const [returningLoanTxn, setReturningLoanTxn] = useState<Transaction | null>(
+    null,
+  );
   const [viewingChainFor, setViewingChainFor] = useState<Transaction | null>(
     null,
   );
@@ -384,6 +388,7 @@ export default function AccountDetailScreen() {
               : undefined,
           onAttachmentsPress: handleAttachmentsPress,
           onPayDue: setPayingDueTxn,
+          onReturnLoan: setReturningLoanTxn,
           onViewChain: setViewingChainFor,
         }}
       />
@@ -432,6 +437,19 @@ export default function AccountDetailScreen() {
           onSuccess={() => {
             handleRefresh();
             setPayingDueTxn(null);
+          }}
+        />
+      )}
+
+      {returningLoanTxn && (
+        <LoanReturnModal
+          visible={!!returningLoanTxn}
+          onClose={() => setReturningLoanTxn(null)}
+          loanTxn={returningLoanTxn}
+          accountOptions={accountOptions}
+          onSuccess={() => {
+            handleRefresh();
+            setReturningLoanTxn(null);
           }}
         />
       )}

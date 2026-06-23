@@ -42,6 +42,9 @@ export function useTransactionsScreen() {
   const [editingTransaction, setEditingTransaction] =
     useState<Transaction | null>(null);
   const [payingDueTxn, setPayingDueTxn] = useState<Transaction | null>(null);
+  const [returningLoanTxn, setReturningLoanTxn] = useState<Transaction | null>(
+    null,
+  );
   const [viewingChainFor, setViewingChainFor] = useState<Transaction | null>(
     null,
   );
@@ -225,6 +228,7 @@ export function useTransactionsScreen() {
     isModalVisible,
     editingTransaction,
     payingDueTxn,
+    returningLoanTxn,
     viewingChainFor,
     viewingVendorHistoryFor,
     viewingAttachmentsFor,
@@ -246,6 +250,7 @@ export function useTransactionsScreen() {
     isDeleteModeActive,
     isUpdating: updateMutation.isPending,
     setPayingDueTxn,
+    setReturningLoanTxn,
     setViewingChainFor,
     setViewingVendorHistoryFor,
     setViewingAttachmentsFor,

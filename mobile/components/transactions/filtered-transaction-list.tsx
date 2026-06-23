@@ -21,6 +21,7 @@ export type TransactionCardActions = {
   onDelete?: (transaction: Transaction) => void;
   onAttachmentsPress?: (transaction: Transaction) => void;
   onPayDue?: (transaction: Transaction) => void;
+  onReturnLoan?: (transaction: Transaction) => void;
   onViewChain?: (transaction: Transaction) => void;
 };
 
@@ -91,6 +92,7 @@ export function FilteredTransactionList({
         onDelete={cardActions.onDelete}
         onAttachmentsPress={cardActions.onAttachmentsPress}
         onPayDue={cardActions.onPayDue}
+        onReturnLoan={cardActions.onReturnLoan}
         onViewChain={cardActions.onViewChain}
       />
     ),

@@ -246,6 +246,11 @@ export type AppTranslations = {
   forLabel: string;
   vendorLabel: string;
   pay: string;
+  returnLoan: string;
+  returnAmount: string;
+  recordFullReturn: string;
+  recordPartialReturn: string;
+  noteOptional: string;
   attach: string;
 
   // ── Stats cards ───────────────────────────────────────────────────────────
@@ -661,6 +666,11 @@ const en: AppTranslations = {
   forLabel: "For:",
   vendorLabel: "Vendor:",
   pay: "Pay",
+  returnLoan: "Return",
+  returnAmount: "Return Amount",
+  recordFullReturn: "Record Full Return",
+  recordPartialReturn: "Record Partial Return",
+  noteOptional: "Note (Optional)",
   attach: "Attach",
 
   totalIncome: "Total Income",
@@ -1074,6 +1084,11 @@ const bn: AppTranslations = {
   forLabel: "জন্য:",
   vendorLabel: "বিক্রেতা:",
   pay: "পরিশোধ করুন",
+  returnLoan: "ফেরত দিন",
+  returnAmount: "ফেরতের পরিমাণ",
+  recordFullReturn: "সম্পূর্ণ ফেরত রেকর্ড করুন",
+  recordPartialReturn: "আংশিক ফেরত রেকর্ড করুন",
+  noteOptional: "নোট (ঐচ্ছিক)",
   attach: "সংযুক্ত করুন",
 
   totalIncome: "মোট আয়",

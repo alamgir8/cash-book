@@ -98,7 +98,6 @@ export const api = axios.create({
 });
 
 let currentToken: string | null = null;
-let currentOrganizationId: string | null = null;
 let unauthorizedHandler: (() => void | Promise<void>) | null = null;
 let tokenRefreshHandler: (() => Promise<string | null>) | null = null;
 let refreshPromise: Promise<string | null> | null = null;
@@ -126,17 +125,6 @@ export const setAuthToken = (token?: string) => {
   api.defaults.headers.common.Authorization = `Bearer ${token}`;
 };
 
-export const setActiveOrganizationId = (organizationId?: string | null) => {
-  currentOrganizationId = organizationId ?? null;
-
-  if (!currentOrganizationId) {
-    delete api.defaults.headers.common["X-Organization-Id"];
-    return;
-  }
-
-  api.defaults.headers.common["X-Organization-Id"] = currentOrganizationId;
-};
-
 api.interceptors.request.use((config) => {
   if (currentToken) {
     if (!config.headers) {
@@ -146,18 +134,11 @@ api.interceptors.request.use((config) => {
       if (!config.headers.has("Authorization")) {
         config.headers.set("Authorization", `Bearer ${currentToken}`);
       }
-      if (currentOrganizationId && !config.headers.has("X-Organization-Id")) {
-        config.headers.set("X-Organization-Id", currentOrganizationId);
-      }
     } else {
       const headers = config.headers as Record<string, unknown>;
       if (headers.Authorization == null) {
         (headers as Record<string, string>).Authorization =
           `Bearer ${currentToken}`;
-      }
-      if (currentOrganizationId && headers["X-Organization-Id"] == null) {
-        (headers as Record<string, string>)["X-Organization-Id"] =
-          currentOrganizationId;
       }
       config.headers = headers as AxiosRequestHeaders;
     }

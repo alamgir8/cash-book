@@ -8,6 +8,7 @@ import { useTheme } from "../hooks/use-theme";
 import { useTranslation } from "../hooks/use-translation";
 import { translateCategoryName } from "../lib/i18n/category-translations";
 import { getPartyRefName, getCategoryRefName } from "../lib/transaction-filters";
+import { getLoanReturnRemaining } from "../lib/loan-utils";
 
 type Props = {
   transaction: Transaction;
@@ -21,6 +22,7 @@ type Props = {
   onDelete?: (transaction: Transaction) => void;
   onAttachmentsPress?: (transaction: Transaction) => void;
   onPayDue?: (transaction: Transaction) => void;
+  onReturnLoan?: (transaction: Transaction) => void;
   onViewChain?: (transaction: Transaction) => void;
   onViewHistory?: (transaction: Transaction) => void;
 };
@@ -37,6 +39,7 @@ const TransactionCardComponent = ({
   onDelete,
   onAttachmentsPress,
   onPayDue,
+  onReturnLoan,
   onViewChain,
   onViewHistory,
 }: Props) => {
@@ -64,6 +67,12 @@ const TransactionCardComponent = ({
     !!(transaction.counterparty || transaction.party || transaction.for_party);
 
   const isDue = !isLoanLedger && transaction.payment_status === "due";
+  const loanReturnRemaining = getLoanReturnRemaining(transaction);
+  const canReturnLoan =
+    isLoanLedger &&
+    !loanIsSettled &&
+    loanReturnRemaining > 0 &&
+    Boolean(onReturnLoan);
   const isPayment = !isLoanLedger && !!transaction.parent_due_id; // payment linked to a due
   const hasChain = isDue || isPayment || isLoanLedger;
   const remaining = transaction.due_remaining ?? transaction.amount;
@@ -314,6 +323,28 @@ const TransactionCardComponent = ({
                 : transaction.party}
             </Text>
           </TouchableOpacity>
+        ) : transaction.vendor ? (
+          <TouchableOpacity
+            activeOpacity={onPartyPress ? 0.8 : 1}
+            onPress={() => {
+              const name = transaction.vendor?.trim();
+              if (name && onPartyPress) onPartyPress(name);
+            }}
+            style={{
+              backgroundColor: colors.info + "25",
+              borderColor: colors.info + "40",
+            }}
+            className="px-3 py-1 rounded-full border"
+          >
+            <Text
+              style={{ color: colors.info }}
+              className="text-xs font-semibold"
+            >
+              {t("vendorLabel") ?? "Vendor"}
+              {": "}
+              {transaction.vendor}
+            </Text>
+          </TouchableOpacity>
         ) : transaction.counterparty ? (
           <TouchableOpacity
             activeOpacity={onCounterpartyPress ? 0.8 : 1}
@@ -427,12 +458,12 @@ const TransactionCardComponent = ({
           style={{ borderColor: colors.border }}
           className="pt-2 mt-2 border-t"
         >
-          {/* Due chain actions (Pay / History) */}
+          {/* Due / Loan chain actions (Pay or Return + History) */}
           {(isDue && !isSettled && onPayDue) ||
           (isPayment && !parentIsSettled && parentAsDueTxn && onPayDue) ||
+          canReturnLoan ||
           (hasChain && onViewChain) ? (
             <View className="flex-row gap-2 mb-2">
-              {/* Pay — on root due card */}
               {isDue && !isSettled && onPayDue && (
                 <TouchableOpacity
                   onPress={() => onPayDue(transaction)}
@@ -448,7 +479,6 @@ const TransactionCardComponent = ({
                   </Text>
                 </TouchableOpacity>
               )}
-              {/* Pay — on payment card when parent due still has balance */}
               {isPayment && !parentIsSettled && parentAsDueTxn && onPayDue && (
                 <TouchableOpacity
                   onPress={() => onPayDue(parentAsDueTxn)}
@@ -461,6 +491,25 @@ const TransactionCardComponent = ({
                     className="text-xs font-semibold"
                   >
                     Pay ({formatAmount(parentRemaining)} left)
+                  </Text>
+                </TouchableOpacity>
+              )}
+              {canReturnLoan && onReturnLoan && (
+                <TouchableOpacity
+                  onPress={() => onReturnLoan(transaction)}
+                  style={{ backgroundColor: "#2563eb" + "20" }}
+                  className="flex-1 flex-row justify-center items-center gap-1.5 px-3 py-2 rounded-lg"
+                >
+                  <Ionicons
+                    name="return-down-back-outline"
+                    size={16}
+                    color="#2563eb"
+                  />
+                  <Text
+                    style={{ color: "#2563eb" }}
+                    className="text-xs font-semibold"
+                  >
+                    {t("returnLoan")}
                   </Text>
                 </TouchableOpacity>
               )}
@@ -612,6 +661,7 @@ export const TransactionCard = memo(
     prevProps.onPaymentStatusPress === nextProps.onPaymentStatusPress &&
     prevProps.onDelete === nextProps.onDelete &&
     prevProps.onPayDue === nextProps.onPayDue &&
+    prevProps.onReturnLoan === nextProps.onReturnLoan &&
     prevProps.onViewChain === nextProps.onViewChain &&
     prevProps.onViewHistory === nextProps.onViewHistory &&
     prevProps.onAttachmentsPress === nextProps.onAttachmentsPress,

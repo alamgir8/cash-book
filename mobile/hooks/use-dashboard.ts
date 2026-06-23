@@ -37,6 +37,9 @@ export function useDashboard() {
   const [editingTransaction, setEditingTransaction] =
     useState<Transaction | null>(null);
   const [payingDueTxn, setPayingDueTxn] = useState<Transaction | null>(null);
+  const [returningLoanTxn, setReturningLoanTxn] = useState<Transaction | null>(
+    null,
+  );
   const [viewingChainFor, setViewingChainFor] = useState<Transaction | null>(
     null,
   );
@@ -288,6 +291,7 @@ export function useDashboard() {
     isTransferModalVisible,
     editingTransaction,
     payingDueTxn,
+    returningLoanTxn,
     viewingChainFor,
     viewingAttachmentsFor,
     transactionsQuery,
@@ -309,6 +313,7 @@ export function useDashboard() {
     isSubmitting: createMutation.isPending || updateMutation.isPending,
     isTransferSubmitting: createTransferMutation.isPending,
     setPayingDueTxn,
+    setReturningLoanTxn,
     setViewingChainFor,
     setViewingAttachmentsFor,
     setModalVisible,

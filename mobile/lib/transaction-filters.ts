@@ -1,4 +1,9 @@
 import type { Transaction, TransactionFilters } from "@/services/transactions";
+import {
+  isLoanCategoryType,
+  isLoanGivenRoot,
+  isLoanReceivedRoot,
+} from "@/lib/loan-utils";
 
 /** Stable filter object for React Query keys (drops empty values). */
 export const serializeTransactionFilters = (
@@ -168,6 +173,12 @@ export function mergeTransactionFilters(
   if ("loan_filter" in patch && !patch.loan_filter) {
     delete next.loan_filter;
   }
+  if (patch.payment_status) {
+    delete next.loan_filter;
+  }
+  if (patch.loan_filter) {
+    delete next.payment_status;
+  }
 
   return next;
 }
@@ -211,7 +222,10 @@ export const filterTransactionsByActiveFilters = (
   if (filters.party_name) {
     const target = loosePartyNameKey(filters.party_name);
     result = result.filter(
-      (txn) => loosePartyNameKey(getPartyRefName(txn.party) ?? "") === target,
+      (txn) =>
+        loosePartyNameKey(getPartyRefName(txn.party) ?? "") === target ||
+        loosePartyNameKey(txn.vendor ?? "") === target ||
+        loosePartyNameKey(txn.counterparty ?? "") === target,
     );
   } else if (filters.party_id) {
     const target = String(filters.party_id);
@@ -221,8 +235,30 @@ export const filterTransactionsByActiveFilters = (
   if (filters.payment_status) {
     result = result.filter((txn) => {
       const status = txn.payment_status ?? "paid";
-      return status === filters.payment_status;
+      if (status !== filters.payment_status) return false;
+      if (filters.payment_status === "due" && !filters.loan_filter) {
+        return !isLoanCategoryType(txn.category?.type);
+      }
+      return true;
     });
+  }
+
+  if (filters.loan_filter === "loan_given") {
+    result = result.filter(
+      (txn) =>
+        isLoanGivenRoot(txn) &&
+        !!txn.loan_summary &&
+        !txn.loan_summary.is_settled &&
+        (txn.loan_summary.owed_by_them ?? 0) > 0,
+    );
+  } else if (filters.loan_filter === "loan_received") {
+    result = result.filter(
+      (txn) =>
+        isLoanReceivedRoot(txn) &&
+        !!txn.loan_summary &&
+        !txn.loan_summary.is_settled &&
+        (txn.loan_summary.owed_by_me ?? 0) > 0,
+    );
   }
 
   return result;

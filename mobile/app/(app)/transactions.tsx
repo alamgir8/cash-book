@@ -5,6 +5,7 @@ import { StatsCards } from "@/components/stats-cards";
 import { TransactionModal } from "@/components/modals/transaction-modal";
 import { AttachmentViewerModal } from "@/components/transactions/attachment-viewer-modal";
 import { DuePaymentModal } from "@/components/modals/due-payment-modal";
+import { LoanReturnModal } from "@/components/modals/loan-return-modal";
 import { DueChainSheet } from "@/components/modals/due-chain-sheet";
 import { VendorHistorySheet } from "@/components/modals/vendor-history-sheet";
 import { FilteredTransactionList } from "@/components/transactions/filtered-transaction-list";
@@ -26,6 +27,7 @@ export default function TransactionsScreen() {
     isModalVisible,
     editingTransaction,
     payingDueTxn,
+    returningLoanTxn,
     viewingChainFor,
     viewingVendorHistoryFor,
     viewingAttachmentsFor,
@@ -45,6 +47,7 @@ export default function TransactionsScreen() {
     isDeleteModeActive,
     isUpdating,
     setPayingDueTxn,
+    setReturningLoanTxn,
     setViewingChainFor,
     setViewingVendorHistoryFor,
     setViewingAttachmentsFor,
@@ -144,6 +147,7 @@ export default function TransactionsScreen() {
           onDelete: isDeleteModeActive ? handleDeleteTransaction : undefined,
           onAttachmentsPress: handleAttachmentsPress,
           onPayDue: setPayingDueTxn,
+          onReturnLoan: setReturningLoanTxn,
           onViewChain: setViewingChainFor,
         }}
       />
@@ -179,6 +183,19 @@ export default function TransactionsScreen() {
           onSuccess={() => {
             handleRefresh();
             setPayingDueTxn(null);
+          }}
+        />
+      )}
+
+      {returningLoanTxn && (
+        <LoanReturnModal
+          visible={!!returningLoanTxn}
+          onClose={() => setReturningLoanTxn(null)}
+          loanTxn={returningLoanTxn}
+          accountOptions={accountOptions}
+          onSuccess={() => {
+            handleRefresh();
+            setReturningLoanTxn(null);
           }}
         />
       )}
