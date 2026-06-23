@@ -1,14 +1,15 @@
 import mongoose from "mongoose";
-import { resolvePartyIdsByName } from "./partyFilter.js";
-import { buildTransactionScope } from "./partyFilter.js";
 import { resolveCategoryIdsByName } from "./categoryFilter.js";
-
-const emptyObjectId = () =>
-  new mongoose.Types.ObjectId("000000000000000000000000");
+import {
+  buildAdminTransactionScope,
+  buildPartyFieldFilterCondition,
+} from "./partyFilter.js";
 
 const setCategoryIdCondition = (filter, ids) => {
   const condition =
-    ids.length > 0 ? { $in: ids } : { $in: [emptyObjectId()] };
+    ids.length > 0
+      ? { $in: ids }
+      : { $in: [new mongoose.Types.ObjectId("000000000000000000000000")] };
 
   if (filter.category_id) {
     filter.category_id = condition;
@@ -26,6 +27,11 @@ const setCategoryIdCondition = (filter, ids) => {
   filter.category_id = condition;
 };
 
+const pushAndCondition = (filter, condition) => {
+  filter.$and = filter.$and ?? [];
+  filter.$and.push(condition);
+};
+
 /**
  * Expand chip filters (party / for_party / category) to include all records
  * that share the same display name — fixes duplicate Party/Category docs.
@@ -33,41 +39,37 @@ const setCategoryIdCondition = (filter, ids) => {
 export const enrichTransactionFilter = async (
   filter,
   query,
-  { adminId, organizationId, transactionOrganizationId },
+  { adminId, organizationId },
 ) => {
   const context = { adminId, organizationId };
-  const transactionScope = buildTransactionScope({
-    adminId,
-    organizationId: transactionOrganizationId ?? null,
-  });
+  const transactionScope = buildAdminTransactionScope(adminId);
 
   const forPartyName = query.for_party_name?.trim();
   const forPartyId = query.for_party_id ?? query.for_party;
   if (forPartyName || forPartyId) {
-    const ids = await resolvePartyIdsByName({
+    delete filter.for_party;
+    const condition = await buildPartyFieldFilterCondition({
+      field: "for_party",
       name: forPartyName,
       partyId: forPartyId,
       transactionScope,
-      partyField: "for_party",
       ...context,
     });
-    delete filter.for_party;
-    filter.for_party =
-      ids.length > 0 ? { $in: ids } : { $in: [emptyObjectId()] };
+    pushAndCondition(filter, condition);
   }
 
   const partyName = query.party_name?.trim();
   const partyId = query.party_id ?? query.party;
   if (partyName || partyId) {
-    const ids = await resolvePartyIdsByName({
+    delete filter.party;
+    const condition = await buildPartyFieldFilterCondition({
+      field: "party",
       name: partyName,
       partyId,
       transactionScope,
-      partyField: "party",
       ...context,
     });
-    delete filter.party;
-    filter.party = ids.length > 0 ? { $in: ids } : { $in: [emptyObjectId()] };
+    pushAndCondition(filter, condition);
   }
 
   const categoryName = query.category_name?.trim();

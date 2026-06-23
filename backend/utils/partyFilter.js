@@ -31,6 +31,12 @@ export const buildPartyScope = ({ adminId, organizationId }) => {
   return base;
 };
 
+/** All transactions for an admin (personal + org-linked). */
+export const buildAdminTransactionScope = (adminId) => ({
+  admin: new mongoose.Types.ObjectId(adminId),
+  is_deleted: false,
+});
+
 export const buildTransactionScope = ({ adminId, organizationId }) =>
   organizationId
     ? {
@@ -43,9 +49,34 @@ export const buildTransactionScope = ({ adminId, organizationId }) =>
         is_deleted: false,
       };
 
+const collectLegacyNameVariants = async (searchName, transactionScope) => {
+  const targetKey = loosePartyNameKey(searchName);
+  const firstToken = searchName.split(/\s+/)[0];
+  const legacyTxns = await Transaction.find({
+    ...transactionScope,
+    $or: [
+      { vendor: { $regex: escapeRegex(firstToken), $options: "i" } },
+      { counterparty: { $regex: escapeRegex(firstToken), $options: "i" } },
+    ],
+  })
+    .select("vendor counterparty")
+    .limit(500)
+    .lean();
+
+  const variants = new Set();
+  for (const txn of legacyTxns) {
+    if (txn.vendor && loosePartyNameKey(txn.vendor) === targetKey) {
+      variants.add(txn.vendor.trim());
+    }
+    if (txn.counterparty && loosePartyNameKey(txn.counterparty) === targetKey) {
+      variants.add(txn.counterparty.trim());
+    }
+  }
+  return [...variants];
+};
+
 /**
- * Fallback: find party IDs already referenced on transactions (handles org
- * parties when organization context was missing from the Party lookup).
+ * Fallback: find party IDs already referenced on transactions.
  */
 export const resolvePartyIdsFromTransactions = async ({
   name,
@@ -69,8 +100,7 @@ export const resolvePartyIdsFromTransactions = async ({
     const ref = txn[field];
     if (!ref) continue;
     const partyName = typeof ref === "object" ? ref.name : null;
-    const partyId =
-      typeof ref === "object" ? ref._id : ref;
+    const partyId = typeof ref === "object" ? ref._id : ref;
     if (
       partyName &&
       partyId &&
@@ -149,7 +179,9 @@ export const resolvePartyIdsByName = async ({
   );
 
   if (matched.length === 0) {
-    candidates = await Party.find(scope).select("_id name").lean();
+    candidates = await Party.find({ admin: scope.admin, archived: false })
+      .select("_id name")
+      .lean();
     matched = candidates.filter(
       (party) => loosePartyNameKey(party.name) === targetKey,
     );
@@ -159,18 +191,99 @@ export const resolvePartyIdsByName = async ({
     return matched.map((party) => party._id);
   }
 
-  if (transactionScope) {
-    const fromTxns = await resolvePartyIdsFromTransactions({
-      name: searchName,
-      field: partyField,
-      transactionScope,
-    });
-    if (fromTxns.length > 0) return fromTxns;
-  }
+  const lookupScope =
+    transactionScope ?? buildAdminTransactionScope(adminId);
+
+  const fromTxns = await resolvePartyIdsFromTransactions({
+    name: searchName,
+    field: partyField,
+    transactionScope: lookupScope,
+  });
+  if (fromTxns.length > 0) return fromTxns;
 
   if (partyId && mongoose.isValidObjectId(String(partyId))) {
     return [new mongoose.Types.ObjectId(String(partyId))];
   }
 
   return [];
+};
+
+/**
+ * Build a MongoDB condition for filtering transactions by party display name.
+ * Matches party ObjectId refs and legacy vendor/counterparty strings.
+ */
+export const buildPartyFieldFilterCondition = async ({
+  field,
+  name,
+  partyId,
+  adminId,
+  organizationId,
+  transactionScope,
+}) => {
+  const lookupScope =
+    transactionScope ?? buildAdminTransactionScope(adminId);
+
+  const ids = await resolvePartyIdsByName({
+    name,
+    partyId,
+    adminId,
+    organizationId,
+    transactionScope: lookupScope,
+    partyField: field,
+  });
+
+  const clauses = [];
+  if (ids.length > 0) {
+    clauses.push({ [field]: { $in: ids } });
+  }
+
+  const searchName = name?.trim();
+  if (searchName && field === "party") {
+    const exactRegex = {
+      $regex: `^${escapeRegex(searchName)}$`,
+      $options: "i",
+    };
+    clauses.push({ vendor: exactRegex });
+    clauses.push({ counterparty: exactRegex });
+
+    const legacyVariants = await collectLegacyNameVariants(
+      searchName,
+      lookupScope,
+    );
+    for (const variant of legacyVariants) {
+      if (variant !== searchName) {
+        clauses.push({ vendor: variant });
+        clauses.push({ counterparty: variant });
+      }
+    }
+  }
+
+  if (clauses.length === 0) {
+    return {
+      [field]: {
+        $in: [new mongoose.Types.ObjectId("000000000000000000000000")],
+      },
+    };
+  }
+
+  return clauses.length === 1 ? clauses[0] : { $or: clauses };
+};
+
+/**
+ * Find an existing party by loose-normalized name (dedupe on create).
+ */
+export const findPartyByLooseName = async ({
+  adminId,
+  organizationId,
+  name,
+}) => {
+  const scope = buildPartyScope({ adminId, organizationId });
+  const targetKey = loosePartyNameKey(name);
+  const parties = await Party.find({ admin: scope.admin, archived: false })
+    .select("_id name type organization")
+    .lean();
+
+  return (
+    parties.find((party) => loosePartyNameKey(party.name) === targetKey) ?? null
+  );
 };

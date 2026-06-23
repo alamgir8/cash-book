@@ -1,6 +1,9 @@
 import { Party, PARTY_TYPE_OPTIONS } from "../models/Party.js";
 import { OrganizationMember } from "../models/OrganizationMember.js";
 import { Transaction } from "../models/Transaction.js";
+import {
+  findPartyByLooseName,
+} from "../utils/partyFilter.js";
 import mongoose from "mongoose";
 
 /**
@@ -66,18 +69,47 @@ export const createParty = async (req, res, next) => {
     }
 
     // Check organization access
+    const resolvedType = type || "both";
     const permission =
-      type === "customer" ? "manage_customers" : "manage_suppliers";
+      resolvedType === "customer"
+        ? "manage_customers"
+        : resolvedType === "supplier"
+          ? "manage_suppliers"
+          : "manage_customers";
     const access = await checkOrgAccess(userId, organization, permission);
     if (!access.hasAccess) {
       return res.status(403).json({ message: access.error });
     }
 
+    const trimmedName = name.trim();
+
+    // Reuse existing party with the same display name (loose match)
+    const existing = await findPartyByLooseName({
+      adminId: userId,
+      organizationId: organization,
+      name: trimmedName,
+    });
+    if (existing) {
+      const updates = {};
+      if (resolvedType === "both" && existing.type !== "both") {
+        updates.type = "both";
+      }
+      if (Object.keys(updates).length > 0) {
+        await Party.findByIdAndUpdate(existing._id, { $set: updates });
+        existing.type = updates.type;
+      }
+      return res.status(200).json({
+        message: "Party already exists",
+        party: existing,
+        existing: true,
+      });
+    }
+
     const party = await Party.create({
       organization,
       admin: userId,
-      type: type || "customer",
-      name: name.trim(),
+      type: resolvedType,
+      name: trimmedName,
       phone,
       email,
       address,

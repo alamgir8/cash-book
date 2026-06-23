@@ -17,6 +17,10 @@ import {
   decorateLoanSummaries,
   getCounterpartyLoanLedger,
 } from "../utils/loanLedger.js";
+import {
+  excludeLoanCategoriesFromDueFilter,
+  filterTransactionsForLoanList,
+} from "../utils/transactionListFilters.js";
 
 const parseTransactionDate = (value) => {
   if (!value) {
@@ -272,10 +276,16 @@ export const listTransactions = async (req, res, next) => {
     await enrichTransactionFilter(filter, req.query, {
       adminId: req.user.id,
       organizationId: organizationLookupId,
-      transactionOrganizationId: organizationFilterId,
     });
     const isDueFilter = String(req.query.payment_status ?? "").trim() === "due";
-    if (isDueFilter) {
+    if (isDueFilter && !loanFilter) {
+      await excludeLoanCategoriesFromDueFilter(filter, {
+        adminId: req.user.id,
+        organizationId: organizationFilterId,
+      });
+      filter.parent_due_id = { $exists: false };
+      filter.due_remaining = { $gt: 0 };
+    } else if (isDueFilter) {
       filter.parent_due_id = { $exists: false };
       filter.due_remaining = { $gt: 0 };
     }
@@ -341,8 +351,13 @@ export const listTransactions = async (req, res, next) => {
     transactions = await decorateLoanSummaries({
       transactions,
       adminId: req.user.id,
-      organizationId,
+      organizationId: organizationFilterId ?? organizationId,
     });
+
+    if (loanFilter === "loan_given" || loanFilter === "loan_received") {
+      transactions = filterTransactionsForLoanList(transactions, loanFilter);
+      total = transactions.length;
+    }
 
     // Compute running balances only for the current page
     if (transactions.length > 0) {
@@ -1556,11 +1571,11 @@ export const listVendors = async (req, res, next) => {
     const searchQuery = req.query.search?.trim() || "";
 
     const partyFilter = organizationId
-      ? { organization: new mongoose.Types.ObjectId(organizationId) }
-      : {
+      ? {
+          organization: new mongoose.Types.ObjectId(organizationId),
           admin: new mongoose.Types.ObjectId(adminId),
-          organization: { $exists: false },
-        };
+        }
+      : { admin: new mongoose.Types.ObjectId(adminId) };
 
     const query = Party.find(partyFilter)
       .select("_id name type code")

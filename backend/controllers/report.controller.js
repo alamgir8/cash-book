@@ -45,7 +45,6 @@ const buildScopedFilter = async ({ req, extraQuery = {} }) => {
   await enrichTransactionFilter(filter, { ...req.query, ...extraQuery }, {
     adminId: req.user.id,
     organizationId: organizationLookupId,
-    transactionOrganizationId: organizationFilterId,
   });
   return filter;
 };

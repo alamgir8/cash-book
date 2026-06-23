@@ -16,6 +16,10 @@ import {
   getOrgFromRequest,
 } from "../utils/organization.js";
 import { decorateLoanSummaries } from "../utils/loanLedger.js";
+import {
+  excludeLoanCategoriesFromDueFilter,
+  filterTransactionsForLoanList,
+} from "../utils/transactionListFilters.js";
 
 const pickAccountUpdateFields = (payload) => {
   const allowed = [
@@ -508,12 +512,18 @@ export const getAccountTransactions = async (req, res, next) => {
     });
     await enrichTransactionFilter(filter, req.query, {
       adminId: req.user.id,
-      organizationId: account.organization?.toString?.() ?? account.organization,
-      transactionOrganizationId:
+      organizationId:
         account.organization?.toString?.() ?? account.organization ?? null,
     });
     const isDueFilter = String(req.query.payment_status ?? "").trim() === "due";
-    if (isDueFilter) {
+    if (isDueFilter && !loanFilter) {
+      await excludeLoanCategoriesFromDueFilter(filter, {
+        adminId: req.user.id,
+        organizationId: account.organization,
+      });
+      filter.parent_due_id = { $exists: false };
+      filter.due_remaining = { $gt: 0 };
+    } else if (isDueFilter) {
       filter.parent_due_id = { $exists: false };
       filter.due_remaining = { $gt: 0 };
     }
@@ -581,6 +591,11 @@ export const getAccountTransactions = async (req, res, next) => {
       adminId: req.user.id,
       organizationId: account.organization,
     });
+
+    if (loanFilter === "loan_given" || loanFilter === "loan_received") {
+      transactions = filterTransactionsForLoanList(transactions, loanFilter);
+      total = transactions.length;
+    }
 
     // Compute running balances for the current page
     if (transactions.length > 0) {
