@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { View } from "react-native";
-import { useIsFocused } from "@react-navigation/native";
+import { useIsFocused } from "expo-router/react-navigation";
 import { StatsCards } from "@/components/stats-cards";
 import { HomeQuickFeatures } from "@/components/home-quick-features";
 import { ScreenHeader } from "@/components/screen-header";
