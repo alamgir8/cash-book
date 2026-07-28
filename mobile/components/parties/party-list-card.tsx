@@ -94,54 +94,58 @@ function PartyListCardComponent({
               {party.code}
               {party.phone ? ` • ${party.phone}` : ""}
             </Text>
-            <Text
+          </View>
+        </View>
+
+        {/* Full-width, left-aligned balance + txn counts */}
+        <View style={styles.statsBlock}>
+          <Text
+            style={[
+              styles.balance,
+              {
+                color:
+                  party.current_balance > 0
+                    ? colors.success
+                    : party.current_balance < 0
+                      ? colors.error
+                      : colors.text.secondary,
+              },
+            ]}
+          >
+            {formatPartyBalanceLabel(party.current_balance)}
+          </Text>
+          <View style={styles.countRow}>
+            <View
               style={[
-                styles.balance,
-                {
-                  color:
-                    party.current_balance > 0
-                      ? colors.success
-                      : party.current_balance < 0
-                        ? colors.error
-                        : colors.text.secondary,
-                },
+                styles.countChip,
+                { backgroundColor: colors.success + "18" },
               ]}
             >
-              {formatPartyBalanceLabel(party.current_balance)}
-            </Text>
-            <View style={styles.countRow}>
-              <View
-                style={[
-                  styles.countChip,
-                  { backgroundColor: colors.success + "18" },
-                ]}
+              <Text style={[styles.countText, { color: colors.success }]}>
+                Debit {debitCount}
+              </Text>
+            </View>
+            <View
+              style={[
+                styles.countChip,
+                { backgroundColor: colors.error + "18" },
+              ]}
+            >
+              <Text style={[styles.countText, { color: colors.error }]}>
+                Credit {creditCount}
+              </Text>
+            </View>
+            <View
+              style={[
+                styles.countChip,
+                { backgroundColor: colors.bg.tertiary },
+              ]}
+            >
+              <Text
+                style={[styles.countText, { color: colors.text.secondary }]}
               >
-                <Text style={[styles.countText, { color: colors.success }]}>
-                  Debit {debitCount}
-                </Text>
-              </View>
-              <View
-                style={[
-                  styles.countChip,
-                  { backgroundColor: colors.error + "18" },
-                ]}
-              >
-                <Text style={[styles.countText, { color: colors.error }]}>
-                  Credit {creditCount}
-                </Text>
-              </View>
-              <View
-                style={[
-                  styles.countChip,
-                  { backgroundColor: colors.bg.tertiary },
-                ]}
-              >
-                <Text
-                  style={[styles.countText, { color: colors.text.secondary }]}
-                >
-                  Total {totalCount}
-                </Text>
-              </View>
+                Total {totalCount}
+              </Text>
             </View>
           </View>
         </View>
@@ -273,14 +277,23 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 2,
   },
+  statsBlock: {
+    width: "100%",
+    alignItems: "flex-start",
+    marginTop: 10,
+  },
   balance: {
     fontSize: 13,
     fontWeight: "600",
-    marginTop: 4,
+    width: "100%",
+    textAlign: "left",
   },
   countRow: {
     flexDirection: "row",
     flexWrap: "wrap",
+    justifyContent: "flex-start",
+    alignSelf: "stretch",
+    width: "100%",
     gap: 6,
     marginTop: 8,
   },

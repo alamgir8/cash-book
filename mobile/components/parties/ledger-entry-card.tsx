@@ -7,7 +7,7 @@ import {
   formatLedgerDate,
   formatLedgerAmount,
   formatLedgerBalance,
-} from "@/lib/party-utils";
+} from "../../lib/party-utils";
 
 type Props = {
   entry: LedgerEntry;
