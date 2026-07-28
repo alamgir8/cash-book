@@ -103,7 +103,7 @@ export function BusinessManagementSection({
                 className="text-sm"
                 style={{ color: colors.text.secondary }}
               >
-                Manage parties & view ledgers
+                Manage, merge & delete parties
               </Text>
             </View>
             <Ionicons

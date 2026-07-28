@@ -13,7 +13,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { toast } from "@/lib/toast";
 import { refreshAppData } from "@/lib/refresh-app-data";
 import { ScreenHeader } from "@/components/screen-header";
-import { PartyLedgerTable } from "@/components/parties";
 import { useParty, usePartyLedger } from "@/hooks/use-parties";
 import {
   formatLedgerDate,
@@ -34,20 +33,28 @@ export default function PartyLedgerScreen() {
   const limit = 50;
   const scrollViewRef = useRef<ScrollView>(null);
 
-  // Scroll to top whenever page changes and new data loads
-  useEffect(() => {
-    if (!isLoading && !isRefetching) {
-      scrollViewRef.current?.scrollTo({ y: 0, animated: false });
-    }
-  }, [data, isLoading, isRefetching]);
-
   const { data: party } = useParty(partyId!);
   const { data, isLoading, refetch, isRefetching } = usePartyLedger(partyId!, {
     page,
     limit,
   });
 
+  // Scroll to top whenever page changes and new data loads
+  useEffect(() => {
+    if (!isLoading && !isRefetching) {
+      scrollViewRef.current?.scrollTo({ y: 0, animated: false });
+    }
+  }, [data, isLoading, isRefetching, page]);
+
   const ledgerEntries = useMemo(() => data?.entries || [], [data?.entries]);
+
+  const goBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace("/(app)/parties" as any);
+    }
+  };
 
   const handleExportPdf = async () => {
     if (!party) {
@@ -70,9 +77,9 @@ export default function PartyLedgerScreen() {
   if (isLoading) {
     return (
       <View className="flex-1" style={{ backgroundColor: colors.bg.secondary }}>
-        <ScreenHeader title="Party Ledger" showBack />
+        <ScreenHeader title="Party Ledger" showBack onBack={goBack} />
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color={colors.primary} />
+          <ActivityIndicator size="large" color={colors.info} />
         </View>
       </View>
     );
@@ -83,6 +90,7 @@ export default function PartyLedgerScreen() {
       <ScreenHeader
         title={party?.name || "Party Ledger"}
         showBack
+        onBack={goBack}
         rightAction={
           <TouchableOpacity
             className="flex-row items-center px-3 py-1.5 rounded-lg"
@@ -90,7 +98,7 @@ export default function PartyLedgerScreen() {
               backgroundColor:
                 ledgerEntries.length === 0
                   ? colors.bg.tertiary
-                  : colors.primary,
+                  : colors.info,
             }}
             onPress={handleExportPdf}
             disabled={exportingPdf || ledgerEntries.length === 0}
@@ -409,7 +417,7 @@ export default function PartyLedgerScreen() {
                 className="px-5 py-2.5 rounded-xl"
                 style={{
                   backgroundColor:
-                    page <= 1 ? colors.bg.tertiary : colors.primary,
+                    page <= 1 ? colors.bg.tertiary : colors.info,
                   borderWidth: page <= 1 ? 1 : 0,
                   borderColor: colors.border,
                 }}
@@ -445,7 +453,7 @@ export default function PartyLedgerScreen() {
                   backgroundColor:
                     page >= data.pagination.pages
                       ? colors.bg.tertiary
-                      : colors.primary,
+                      : colors.info,
                   borderWidth: page >= data.pagination.pages ? 1 : 0,
                   borderColor: colors.border,
                 }}

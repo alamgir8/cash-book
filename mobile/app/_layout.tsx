@@ -130,7 +130,7 @@ const RootContent = () => {
         backgroundColor={colors.bg.primary}
       />
       <Stack screenOptions={{ headerShown: false }} />
-      <Toast />
+      <Toast position="top" topOffset={56} visibilityTime={3000} />
     </SafeAreaView>
   );
 };

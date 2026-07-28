@@ -181,7 +181,7 @@ export const SearchableSelect = ({
     });
 
     return { filteredItems: items, hasMore, totalCount };
-  }, [mergedOptions, search]);
+  }, [mergedOptions, search, value]);
 
   const handleSelect = (option: SelectOption) => {
     // Cache label so the trigger can display it even after asyncOptions are cleared
@@ -345,6 +345,10 @@ export const SearchableSelect = ({
               data={filteredItems}
               keyExtractor={(item) => item.id}
               style={styles.list}
+              initialNumToRender={20}
+              maxToRenderPerBatch={20}
+              windowSize={7}
+              removeClippedSubviews
               ListHeaderComponent={
                 (allowCustomValue || onAddNew) &&
                 search.trim() &&

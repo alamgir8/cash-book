@@ -19,6 +19,8 @@ router.post("/", partyController.createParty);
 router.get("/:partyId", partyController.getParty);
 router.patch("/:partyId", partyController.updateParty);
 router.post("/:partyId/archive", partyController.archiveParty);
+router.delete("/:partyId", partyController.deleteParty);
+router.post("/:partyId/merge", partyController.mergeParties);
 
 // Ledger
 router.get("/:partyId/ledger", partyController.getPartyLedger);

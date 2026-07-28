@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { View } from "react-native";
+import { usePathname } from "expo-router";
 import { StatsCards } from "@/components/stats-cards";
 import { HomeQuickFeatures } from "@/components/home-quick-features";
 import { ScreenHeader } from "@/components/screen-header";
@@ -24,6 +25,12 @@ import { useTranslation } from "@/hooks/use-translation";
 export default function DashboardScreen() {
   const { colors } = useTheme();
   const { t } = useTranslation();
+  const pathname = usePathname();
+  const isHomeFocused =
+    pathname === "/" ||
+    pathname === "/index" ||
+    pathname.endsWith("/(app)") ||
+    pathname.endsWith("/(app)/");
 
   const [viewingVendorHistoryFor, setViewingVendorHistoryFor] =
     useState<Transaction | null>(null);
@@ -185,7 +192,7 @@ export default function DashboardScreen() {
         }}
       />
 
-      {canCreateTransactions && (
+      {canCreateTransactions && isHomeFocused && (
         <FloatingActionButton
           onPress={() => setModalVisible(true)}
           icon="add"

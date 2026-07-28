@@ -20,11 +20,15 @@ import {
 import { useParty, useDeleteParty } from "@/hooks/use-parties";
 import { formatPartyBalance, getPartyBalanceColor } from "@/lib/party-utils";
 import { useTheme } from "@/hooks/use-theme";
+import { useDeleteMode } from "@/hooks/use-delete-mode";
+import { partiesApi } from "@/services/parties";
+import { toast } from "@/lib/toast";
 
 export default function PartyDetailScreen() {
   const { partyId } = useLocalSearchParams<{ partyId: string }>();
   const router = useRouter();
   const { colors } = useTheme();
+  const { isDeleteModeActive } = useDeleteMode();
 
   const { data: party, isLoading } = useParty(partyId!);
   const deleteMutation = useDeleteParty();
@@ -33,17 +37,35 @@ export default function PartyDetailScreen() {
     if (!party) return;
 
     Alert.alert(
-      "Delete Party",
-      `Are you sure you want to delete "${party.name}"? This action cannot be undone.`,
+      "Delete party?",
+      `Remove "${party.name}"?\n\nIf it has linked transactions, you'll need to merge or delete those first.`,
       [
         { text: "Cancel", style: "cancel" },
         {
           text: "Delete",
           style: "destructive",
           onPress: () => {
-            deleteMutation.mutate(partyId!, {
-              onSuccess: () => router.back(),
-            });
+            void (async () => {
+              try {
+                await partiesApi.delete(partyId!);
+                toast.success("Party deleted successfully");
+                router.back();
+              } catch (error: any) {
+                const data = error?.response?.data;
+                if (data?.canMerge || data?.transactionCount > 0) {
+                  Alert.alert(
+                    "Cannot delete",
+                    data?.message ||
+                      `"${party.name}" has linked transactions. Go back and use Merge on the Customers & Suppliers screen.`,
+                  );
+                } else {
+                  toast.error(
+                    "Failed to delete party",
+                    data?.message || error?.message,
+                  );
+                }
+              }
+            })();
           },
         },
       ],
@@ -65,7 +87,14 @@ export default function PartyDetailScreen() {
   if (isLoading || !party) {
     return (
       <View className="flex-1" style={{ backgroundColor: colors.bg.primary }}>
-        <ScreenHeader title="Party Details" showBack />
+        <ScreenHeader
+          title="Party Details"
+          showBack
+          onBack={() => {
+            if (router.canGoBack()) router.back();
+            else router.replace("/(app)/parties" as any);
+          }}
+        />
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color={colors.info} />
         </View>
@@ -78,6 +107,10 @@ export default function PartyDetailScreen() {
       <ScreenHeader
         title="Party Details"
         showBack
+        onBack={() => {
+          if (router.canGoBack()) router.back();
+          else router.replace("/(app)/parties" as any);
+        }}
         rightAction={
           <TouchableOpacity className="p-2" onPress={handleEdit}>
             <Ionicons name="pencil" size={22} color={colors.info} />
@@ -183,18 +216,20 @@ export default function PartyDetailScreen() {
           </View>
         </View>
 
-        {/* Delete Button */}
-        <View className="p-4">
-          <TouchableOpacity
-            className="py-4 bg-red-50 rounded-xl border border-red-200"
-            onPress={handleDelete}
-            disabled={deleteMutation.isPending}
-          >
-            <Text className="text-center text-red-600 font-medium">
-              {deleteMutation.isPending ? "Deleting..." : "Delete Party"}
-            </Text>
-          </TouchableOpacity>
-        </View>
+        {/* Delete Button — only in Delete Mode */}
+        {isDeleteModeActive ? (
+          <View className="p-4">
+            <TouchableOpacity
+              className="py-4 bg-red-50 rounded-xl border border-red-200"
+              onPress={handleDelete}
+              disabled={deleteMutation.isPending}
+            >
+              <Text className="text-center text-red-600 font-medium">
+                {deleteMutation.isPending ? "Deleting..." : "Delete Party"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
       </ScrollView>
     </View>
   );

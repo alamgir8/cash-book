@@ -1,10 +1,100 @@
 import { Party, PARTY_TYPE_OPTIONS } from "../models/Party.js";
 import { OrganizationMember } from "../models/OrganizationMember.js";
 import { Transaction } from "../models/Transaction.js";
+import { Invoice } from "../models/Invoice.js";
 import {
   findPartyByLooseName,
 } from "../utils/partyFilter.js";
 import mongoose from "mongoose";
+
+/**
+ * Count non-deleted transactions linked to a party (ObjectId + legacy name refs).
+ */
+const countPartyLinkedTransactions = async (party) => {
+  const partyId = party._id;
+  const name = (party.name || "").trim();
+  const or = [{ party: partyId }, { for_party: partyId }];
+
+  if (name) {
+    const nameRegex = new RegExp(`^${escapeRegex(name)}$`, "i");
+    or.push({ vendor: nameRegex }, { counterparty: nameRegex });
+  }
+
+  return Transaction.countDocuments({
+    is_deleted: { $ne: true },
+    $or: or,
+  });
+};
+
+/**
+ * Count invoices linked to a party.
+ */
+const countPartyLinkedInvoices = async (partyId) => {
+  return Invoice.countDocuments({ party: partyId });
+};
+
+/**
+ * Recalculate current_balance + total_transactions for a party from its txns.
+ */
+const recalculatePartyBalance = async (partyId, partyType) => {
+  const oid = new mongoose.Types.ObjectId(partyId.toString());
+  const [agg] = await Transaction.aggregate([
+    {
+      $match: {
+        $or: [{ party: oid }, { for_party: oid }],
+        is_deleted: { $ne: true },
+        payment_status: { $ne: "due" },
+      },
+    },
+    {
+      $group: {
+        _id: null,
+        total_credit: {
+          $sum: { $cond: [{ $eq: ["$type", "credit"] }, "$amount", 0] },
+        },
+        total_debit: {
+          $sum: { $cond: [{ $eq: ["$type", "debit"] }, "$amount", 0] },
+        },
+        count: { $sum: 1 },
+      },
+    },
+  ]);
+
+  const totalCredit = agg?.total_credit ?? 0;
+  const totalDebit = agg?.total_debit ?? 0;
+  const balance =
+    partyType === "customer"
+      ? totalCredit - totalDebit
+      : totalDebit - totalCredit;
+
+  await Party.updateOne(
+    { _id: partyId },
+    {
+      $set: {
+        current_balance: balance,
+        total_transactions: agg?.count ?? 0,
+      },
+    },
+  );
+  return balance;
+};
+
+/**
+ * Verify the authenticated user can manage this party.
+ */
+const assertPartyManageAccess = async (userId, party) => {
+  const permission =
+    party.type === "customer" ? "manage_customers" : "manage_suppliers";
+  if (party.organization) {
+    const access = await checkOrgAccess(userId, party.organization, permission);
+    if (!access.hasAccess) {
+      return { ok: false, status: 403, message: access.error };
+    }
+  } else if (party.admin.toString() !== userId) {
+    return { ok: false, status: 403, message: "Access denied" };
+  }
+  return { ok: true };
+};
 
 /**
  * Escape regex special characters to prevent ReDoS attacks
@@ -320,20 +410,9 @@ export const archiveParty = async (req, res, next) => {
       return res.status(404).json({ message: "Party not found" });
     }
 
-    // Check access
-    const permission =
-      party.type === "customer" ? "manage_customers" : "manage_suppliers";
-    if (party.organization) {
-      const access = await checkOrgAccess(
-        userId,
-        party.organization,
-        permission,
-      );
-      if (!access.hasAccess) {
-        return res.status(403).json({ message: access.error });
-      }
-    } else if (party.admin.toString() !== userId) {
-      return res.status(403).json({ message: "Access denied" });
+    const access = await assertPartyManageAccess(userId, party);
+    if (!access.ok) {
+      return res.status(access.status).json({ message: access.message });
     }
 
     party.archived = archived !== false;
@@ -345,6 +424,197 @@ export const archiveParty = async (req, res, next) => {
         archived !== false ? "archived" : "unarchived"
       } successfully`,
       party,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Hard-delete a party. Blocked if any transactions or invoices still reference it.
+ */
+export const deleteParty = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const { partyId } = req.params;
+
+    const party = await Party.findById(partyId);
+    if (!party) {
+      return res.status(404).json({ message: "Party not found" });
+    }
+
+    const access = await assertPartyManageAccess(userId, party);
+    if (!access.ok) {
+      return res.status(access.status).json({ message: access.message });
+    }
+
+    const [transactionCount, invoiceCount] = await Promise.all([
+      countPartyLinkedTransactions(party),
+      countPartyLinkedInvoices(party._id),
+    ]);
+
+    if (transactionCount > 0 || invoiceCount > 0) {
+      const parts = [];
+      if (transactionCount > 0) {
+        parts.push(
+          `${transactionCount} transaction${transactionCount > 1 ? "s" : ""}`,
+        );
+      }
+      if (invoiceCount > 0) {
+        parts.push(
+          `${invoiceCount} invoice${invoiceCount > 1 ? "s" : ""}`,
+        );
+      }
+      return res.status(400).json({
+        message: `Cannot delete "${party.name}". It has ${parts.join(
+          " and ",
+        )} linked. Delete those first, or merge this party into another similar party.`,
+        transactionCount,
+        invoiceCount,
+        canMerge: true,
+        partyId: party._id,
+        partyName: party.name,
+      });
+    }
+
+    await Party.deleteOne({ _id: partyId });
+
+    res.json({ message: "Party deleted successfully" });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Merge source party into target: reassign transactions/invoices, then delete source.
+ * Body: { targetPartyId }
+ */
+export const mergeParties = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const { partyId } = req.params;
+    const { targetPartyId } = req.body;
+
+    if (!targetPartyId) {
+      return res.status(400).json({ message: "targetPartyId is required" });
+    }
+    if (partyId === targetPartyId) {
+      return res
+        .status(400)
+        .json({ message: "Cannot merge a party into itself" });
+    }
+
+    const [source, target] = await Promise.all([
+      Party.findById(partyId),
+      Party.findById(targetPartyId),
+    ]);
+
+    if (!source) {
+      return res.status(404).json({ message: "Source party not found" });
+    }
+    if (!target) {
+      return res.status(404).json({ message: "Target party not found" });
+    }
+
+    // Same org/personal scope
+    const sourceOrg = source.organization?.toString() || null;
+    const targetOrg = target.organization?.toString() || null;
+    if (sourceOrg !== targetOrg) {
+      return res.status(400).json({
+        message: "Cannot merge parties across different organizations",
+      });
+    }
+    if (!sourceOrg && source.admin.toString() !== target.admin.toString()) {
+      return res.status(400).json({
+        message: "Cannot merge parties belonging to different users",
+      });
+    }
+
+    const sourceAccess = await assertPartyManageAccess(userId, source);
+    if (!sourceAccess.ok) {
+      return res
+        .status(sourceAccess.status)
+        .json({ message: sourceAccess.message });
+    }
+    const targetAccess = await assertPartyManageAccess(userId, target);
+    if (!targetAccess.ok) {
+      return res
+        .status(targetAccess.status)
+        .json({ message: targetAccess.message });
+    }
+
+    const sourceName = (source.name || "").trim();
+    const targetName = (target.name || "").trim();
+    const nameRegex = sourceName
+      ? new RegExp(`^${escapeRegex(sourceName)}$`, "i")
+      : null;
+
+    // Reassign ObjectId refs
+    const [partyResult, forPartyResult] = await Promise.all([
+      Transaction.updateMany(
+        { party: source._id, is_deleted: { $ne: true } },
+        { $set: { party: target._id } },
+      ),
+      Transaction.updateMany(
+        { for_party: source._id, is_deleted: { $ne: true } },
+        { $set: { for_party: target._id } },
+      ),
+    ]);
+
+    // Reassign legacy string refs that match the source name
+    let vendorResult = { modifiedCount: 0 };
+    let counterpartyResult = { modifiedCount: 0 };
+    if (nameRegex && targetName) {
+      [vendorResult, counterpartyResult] = await Promise.all([
+        Transaction.updateMany(
+          { vendor: nameRegex, is_deleted: { $ne: true } },
+          { $set: { vendor: targetName } },
+        ),
+        Transaction.updateMany(
+          { counterparty: nameRegex, is_deleted: { $ne: true } },
+          { $set: { counterparty: targetName } },
+        ),
+      ]);
+    }
+
+    // Reassign invoices
+    const invoiceResult = await Invoice.updateMany(
+      { party: source._id },
+      { $set: { party: target._id } },
+    );
+
+    // Widen target type to "both" if roles differ
+    if (source.type !== target.type && target.type !== "both") {
+      target.type = "both";
+      await target.save();
+    }
+
+    // Recalculate balances
+    await recalculatePartyBalance(target._id, target.type);
+
+    // Soft-clear any remaining refs on deleted/due txns, then remove source
+    await Transaction.updateMany(
+      { party: source._id },
+      { $unset: { party: "" } },
+    );
+    await Transaction.updateMany(
+      { for_party: source._id },
+      { $unset: { for_party: "" } },
+    );
+
+    await Party.deleteOne({ _id: source._id });
+
+    const transactionsUpdated =
+      (partyResult.modifiedCount || 0) +
+      (forPartyResult.modifiedCount || 0) +
+      (vendorResult.modifiedCount || 0) +
+      (counterpartyResult.modifiedCount || 0);
+
+    res.json({
+      message: `Merged "${sourceName}" into "${targetName}" successfully`,
+      target,
+      transactionsUpdated,
+      invoicesUpdated: invoiceResult.modifiedCount || 0,
     });
   } catch (error) {
     next(error);
@@ -380,10 +650,10 @@ export const getPartyLedger = async (req, res, next) => {
       return res.status(403).json({ message: "Access denied" });
     }
 
-    // Build query for transactions
+    const partyOid = new mongoose.Types.ObjectId(partyId);
     const query = {
-      party: partyId,
-      is_deleted: false,
+      $or: [{ party: partyOid }, { for_party: partyOid }],
+      is_deleted: { $ne: true },
     };
 
     if (startDate || endDate) {
@@ -392,57 +662,119 @@ export const getPartyLedger = async (req, res, next) => {
       if (endDate) query.date.$lte = new Date(endDate);
     }
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const pageLimit = Math.max(1, Math.min(200, parseInt(limit, 10) || 50));
+    const skip = (pageNum - 1) * pageLimit;
+    const isCustomer = party.type === "customer";
+    const openingBalance = Number(party.opening_balance || 0);
 
-    const [transactions, total] = await Promise.all([
+    const applyDelta = (balance, txn) => {
+      if (isCustomer) {
+        return balance + (txn.type === "credit" ? txn.amount : -txn.amount);
+      }
+      return balance + (txn.type === "debit" ? txn.amount : -txn.amount);
+    };
+
+    const [total, totalsAgg, priorTxns, pageTxns] = await Promise.all([
+      Transaction.countDocuments(query),
+      Transaction.aggregate([
+        { $match: query },
+        {
+          $group: {
+            _id: null,
+            total_debit: {
+              $sum: {
+                $cond: [{ $eq: ["$type", "debit"] }, "$amount", 0],
+              },
+            },
+            total_credit: {
+              $sum: {
+                $cond: [{ $eq: ["$type", "credit"] }, "$amount", 0],
+              },
+            },
+          },
+        },
+      ]),
+      skip > 0
+        ? Transaction.find(query)
+            .select("type amount")
+            .sort({ date: 1, createdAt: 1 })
+            .limit(skip)
+            .lean()
+        : Promise.resolve([]),
       Transaction.find(query)
         .populate("account", "name kind")
         .populate("category_id", "name type")
-        .sort({ date: -1, createdAt: -1 })
+        .sort({ date: 1, createdAt: 1 })
         .skip(skip)
-        .limit(parseInt(limit))
+        .limit(pageLimit)
         .lean(),
-      Transaction.countDocuments(query),
     ]);
 
-    // Calculate running balance
-    // customer: credit = +amount (receivable grows), debit = -amount (receivable shrinks)
-    // supplier/both: debit = +amount (payable grows), credit = -amount (payable shrinks)
-    // For "both" type: unified net balance (positive = payable to them, negative = receivable from them)
-    const isCustomer = party.type === "customer";
-    let runningBalance = party.opening_balance;
-    const ledgerEntries = transactions.reverse().map((txn) => {
-      if (isCustomer) {
-        runningBalance += txn.type === "credit" ? txn.amount : -txn.amount;
-      } else {
-        runningBalance += txn.type === "debit" ? txn.amount : -txn.amount;
-      }
+    let runningBalance = openingBalance;
+    for (const txn of priorTxns) {
+      runningBalance = applyDelta(runningBalance, txn);
+    }
+
+    const entriesAsc = pageTxns.map((txn) => {
+      runningBalance = applyDelta(runningBalance, txn);
+      const debit = txn.type === "debit" ? Number(txn.amount || 0) : 0;
+      const credit = txn.type === "credit" ? Number(txn.amount || 0) : 0;
       return {
-        ...txn,
+        _id: txn._id,
+        date: txn.date,
+        type: txn.type,
+        description:
+          txn.description ||
+          txn.comment ||
+          (typeof txn.category_id === "object" ? txn.category_id?.name : "") ||
+          txn.type,
+        reference: txn.reference || txn.invoice_number || undefined,
+        debit,
+        credit,
         running_balance: runningBalance,
+        transaction_id: txn._id,
+        invoice_id: txn.invoice || undefined,
+        account: txn.account,
+        category_id: txn.category_id,
       };
     });
 
-    // Net balance interpretation for the response
-    let balanceLabel;
-    if (isCustomer) {
-      balanceLabel =
-        runningBalance >= 0 ? "receivable" : "advance_paid_to_customer";
-    } else {
-      balanceLabel =
-        runningBalance >= 0 ? "payable" : "advance_paid_to_supplier";
-    }
+    // Newest first for the UI
+    const entries = entriesAsc.slice().reverse();
+    const totalDebit = totalsAgg[0]?.total_debit ?? 0;
+    const totalCredit = totalsAgg[0]?.total_credit ?? 0;
+    const closingBalance = isCustomer
+      ? openingBalance + totalCredit - totalDebit
+      : openingBalance + totalDebit - totalCredit;
+
+    const balanceLabel = isCustomer
+      ? closingBalance >= 0
+        ? "receivable"
+        : "advance_paid_to_customer"
+      : closingBalance >= 0
+        ? "payable"
+        : "advance_paid_to_supplier";
 
     res.json({
       party,
-      net_balance: runningBalance,
+      net_balance: closingBalance,
       balance_direction: balanceLabel,
-      ledger: ledgerEntries.reverse(),
+      // New shape expected by mobile
+      entries,
+      summary: {
+        opening_balance: openingBalance,
+        total_debit: totalDebit,
+        total_credit: totalCredit,
+        closing_balance: closingBalance,
+      },
+      // Backward-compatible alias
+      ledger: entries,
       pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
+        page: pageNum,
+        limit: pageLimit,
         total,
-        pages: Math.ceil(total / parseInt(limit)),
+        pages: Math.max(1, Math.ceil(total / pageLimit)),
       },
     });
   } catch (error) {

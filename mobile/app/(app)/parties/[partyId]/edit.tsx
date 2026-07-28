@@ -8,8 +8,10 @@ import {
   KeyboardAvoidingView,
   Platform,
   TextInput,
+  StyleSheet,
 } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { toast } from "@/lib/toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { partiesApi, PartyType } from "@/services/parties";
@@ -20,8 +22,8 @@ import { z } from "zod";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useTheme } from "@/hooks/use-theme";
+import { ScreenHeader } from "@/components/screen-header";
 
-// Zod validation schema
 const partySchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
   type: z.enum(["customer", "supplier", "both"]),
@@ -49,6 +51,15 @@ export default function EditPartyScreen() {
   const { partyId } = useLocalSearchParams<{ partyId: string }>();
   const queryClient = useQueryClient();
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
+
+  const goBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace(`/(app)/parties/${partyId}` as any);
+    }
+  };
 
   const {
     control,
@@ -81,46 +92,41 @@ export default function EditPartyScreen() {
 
   const selectedType = watch("type");
 
-  // Fetch party data
   const { data: party, isLoading } = useQuery({
     queryKey: ["party", partyId],
     queryFn: () => partiesApi.get(partyId!),
     enabled: !!partyId,
   });
 
-  // Populate form when party data loads
   useEffect(() => {
-    if (party) {
-      reset({
-        name: party.name,
-        type: party.type,
-        code: party.code || "",
-        phone: party.phone || "",
-        email: party.email || "",
-        address: {
-          street:
-            typeof party.address === "object"
-              ? party.address?.street || ""
-              : "",
-          city:
-            typeof party.address === "object" ? party.address?.city || "" : "",
-          state:
-            typeof party.address === "object" ? party.address?.state || "" : "",
-          country:
-            typeof party.address === "object"
-              ? party.address?.country || ""
-              : "",
-          postal_code:
-            typeof party.address === "object"
-              ? party.address?.postal_code || ""
-              : "",
-        },
-        tax_id: party.tax_id || "",
-        credit_limit: party.credit_limit?.toString() || "",
-        payment_terms_days: party.payment_terms_days?.toString() || "",
-        notes: party.notes || "",
-      });
-    }
+    if (!party) return;
+    reset({
+      name: party.name,
+      type: party.type,
+      code: party.code || "",
+      phone: party.phone || "",
+      email: party.email || "",
+      address: {
+        street:
+          typeof party.address === "object" ? party.address?.street || "" : "",
+        city:
+          typeof party.address === "object" ? party.address?.city || "" : "",
+        state:
+          typeof party.address === "object" ? party.address?.state || "" : "",
+        country:
+          typeof party.address === "object"
+            ? party.address?.country || ""
+            : "",
+        postal_code:
+          typeof party.address === "object"
+            ? party.address?.postal_code || ""
+            : "",
+      },
+      tax_id: party.tax_id || "",
+      credit_limit: party.credit_limit?.toString() || "",
+      payment_terms_days: party.payment_terms_days?.toString() || "",
+      notes: party.notes || "",
+    });
   }, [party, reset]);
 
   const updateMutation = useMutation({
@@ -130,7 +136,7 @@ export default function EditPartyScreen() {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.parties });
       queryClient.invalidateQueries({ queryKey: ["party", partyId] });
       toast.success("Party updated successfully");
-      router.back();
+      goBack();
     },
     onError: (error: any) => {
       toast.error(getApiErrorMessage(error));
@@ -150,7 +156,7 @@ export default function EditPartyScreen() {
         ? parseFloat(data.credit_limit)
         : undefined,
       payment_terms_days: data.payment_terms_days
-        ? parseInt(data.payment_terms_days)
+        ? parseInt(data.payment_terms_days, 10)
         : undefined,
       notes: data.notes || undefined,
     });
@@ -159,7 +165,7 @@ export default function EditPartyScreen() {
   const partyTypes: {
     value: PartyType;
     label: string;
-    icon: string;
+    icon: keyof typeof Ionicons.glyphMap;
     color: string;
   }[] = [
     {
@@ -177,279 +183,223 @@ export default function EditPartyScreen() {
     { value: "both", label: "Both", icon: "people-outline", color: "#F59E0B" },
   ];
 
+  const inputStyle = (hasError?: boolean) => ({
+    ...styles.input,
+    backgroundColor: colors.bg.secondary,
+    borderColor: hasError ? colors.error : colors.border,
+    color: colors.text.primary,
+  });
+
+  const FieldLabel = ({
+    children,
+    required,
+  }: {
+    children: string;
+    required?: boolean;
+  }) => (
+    <Text style={{ ...styles.label, color: colors.text.secondary }}>
+      {children}
+      {required ? <Text style={{ color: colors.error }}> *</Text> : null}
+    </Text>
+  );
+
   if (isLoading) {
     return (
-      <View className="flex-1" style={{ backgroundColor: colors.bg.secondary }}>
-        <View
-          className="flex-row items-center justify-between px-5 py-3 border-b"
-          style={{ backgroundColor: colors.bg.primary, borderColor: colors.border }}
-        >
-          <TouchableOpacity
-            onPress={() => router.back()}
-            className="w-10 h-10 items-center justify-center"
-          >
-            <Ionicons name="arrow-back" size={24} color={colors.text.primary} />
-          </TouchableOpacity>
-          <Text className="text-lg font-bold" style={{ color: colors.text.primary }}>
-            Edit Party
-          </Text>
-          <View className="w-10" />
-        </View>
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text className="mt-4" style={{ color: colors.text.tertiary }}>
-            Loading party...
-          </Text>
+      <View style={{ flex: 1, backgroundColor: colors.bg.primary }}>
+        <ScreenHeader title="Edit Party" showBack onBack={goBack} />
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color={colors.info} />
         </View>
       </View>
     );
   }
 
-  return (
-    <View className="flex-1" style={{ backgroundColor: colors.bg.secondary }}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        className="flex-1"
-      >
-        {/* Header */}
-        <View
-          className="flex-row items-center justify-between px-5 py-3 border-b"
-          style={{ backgroundColor: colors.bg.primary, borderColor: colors.border }}
-        >
-          <TouchableOpacity
-            onPress={() => router.back()}
-            className="w-10 h-10 items-center justify-center"
-          >
-            <Ionicons name="arrow-back" size={24} color={colors.text.primary} />
-          </TouchableOpacity>
-          <Text className="text-lg font-bold" style={{ color: colors.text.primary }}>
-            Edit Party
-          </Text>
-          <View className="w-10" />
-        </View>
+  const busy = updateMutation.isPending || isSubmitting;
 
+  return (
+    <View style={{ flex: 1, backgroundColor: colors.bg.primary }}>
+      <ScreenHeader title="Edit Party" showBack onBack={goBack} />
+
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        style={{ flex: 1 }}
+      >
         <ScrollView
-          className="flex-1"
-          contentContainerStyle={{ paddingBottom: 100 }}
+          style={{ flex: 1 }}
+          contentContainerStyle={{
+            padding: 16,
+            paddingBottom: 24 + Math.max(insets.bottom, 12) + 64,
+          }}
+          keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* Party Type Selection */}
+          {/* Party type */}
           <View
-            className="mx-4 mt-4 rounded-2xl p-5 shadow-sm"
-            style={{ backgroundColor: colors.card }}
+            style={{
+              ...styles.card,
+              backgroundColor: colors.bg.secondary,
+              borderColor: colors.border,
+            }}
           >
-            <Text className="text-base font-semibold mb-4" style={{ color: colors.text.primary }}>
+            <Text style={{ ...styles.sectionTitle, color: colors.text.primary }}>
               Party Type <Text style={{ color: colors.error }}>*</Text>
             </Text>
-            <View className="flex-row gap-3">
-              {partyTypes.map((type) => (
-                <TouchableOpacity
-                  key={type.value}
-                  onPress={() => setValue("type", type.value)}
-                  className="flex-1 p-4 rounded-xl border-2 items-center"
-                  style={{
-                    borderColor: selectedType === type.value ? colors.primary : colors.border,
-                    backgroundColor: selectedType === type.value ? colors.primary + '10' : colors.bg.secondary,
-                  }}
-                >
-                  <View
-                    className="w-12 h-12 rounded-full items-center justify-center mb-2"
+            <View style={styles.typeRow}>
+              {partyTypes.map((type) => {
+                const selected = selectedType === type.value;
+                return (
+                  <TouchableOpacity
+                    key={type.value}
+                    onPress={() => setValue("type", type.value)}
                     style={{
-                      backgroundColor:
-                        selectedType === type.value
-                          ? type.color + "20"
-                          : colors.bg.tertiary,
+                      ...styles.typeChip,
+                      borderColor: selected ? colors.info : colors.border,
+                      backgroundColor: selected
+                        ? colors.info + "12"
+                        : colors.bg.tertiary,
                     }}
                   >
                     <Ionicons
-                      name={type.icon as any}
-                      size={24}
-                      color={
-                        selectedType === type.value ? type.color : colors.text.tertiary
-                      }
+                      name={type.icon}
+                      size={18}
+                      color={selected ? type.color : colors.text.tertiary}
                     />
-                  </View>
-                  <Text
-                    className="text-sm font-medium"
-                    style={{
-                      color: selectedType === type.value ? colors.primary : colors.text.tertiary,
-                    }}
-                  >
-                    {type.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+                    <Text
+                      style={{
+                        fontSize: 13,
+                        fontWeight: "600",
+                        color: selected ? colors.info : colors.text.secondary,
+                      }}
+                    >
+                      {type.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </View>
 
-          {/* Basic Information */}
+          {/* Basic info */}
           <View
-            className="mx-4 mt-4 rounded-2xl p-5 shadow-sm"
-            style={{ backgroundColor: colors.card }}
+            style={{
+              ...styles.card,
+              backgroundColor: colors.bg.secondary,
+              borderColor: colors.border,
+            }}
           >
-            <Text className="text-base font-semibold mb-4" style={{ color: colors.text.primary }}>
+            <Text style={{ ...styles.sectionTitle, color: colors.text.primary }}>
               Basic Information
             </Text>
 
-            {/* Name */}
-            <View className="mb-4">
-              <Text className="text-sm font-medium mb-2" style={{ color: colors.text.secondary }}>
-                Name <Text style={{ color: colors.error }}>*</Text>
-              </Text>
-              <Controller
-                control={control}
-                name="name"
-                render={({ field: { onChange, onBlur, value } }) => (
-                  <TextInput
-                    value={value}
-                    onChangeText={onChange}
-                    onBlur={onBlur}
-                    placeholder="Enter party name"
-                    placeholderTextColor={colors.inputPlaceholder}
-                    className="border rounded-xl px-4 py-3.5 text-base"
-                    style={{
-                      backgroundColor: colors.bg.secondary,
-                      borderColor: errors.name ? colors.error : colors.inputBorder,
-                      color: colors.text.primary,
-                    }}
-                  />
-                )}
-              />
-              {errors.name && (
-                <Text className="text-sm mt-1" style={{ color: colors.error }}>
-                  {errors.name.message}
-                </Text>
+            <FieldLabel required>Name</FieldLabel>
+            <Controller
+              control={control}
+              name="name"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  value={value}
+                  onChangeText={onChange}
+                  onBlur={onBlur}
+                  placeholder="Enter party name"
+                  placeholderTextColor={colors.text.tertiary}
+                  style={inputStyle(!!errors.name)}
+                />
               )}
-            </View>
-
-            {/* Code */}
-            <View className="mb-4">
-              <Text className="text-sm font-medium mb-2" style={{ color: colors.text.secondary }}>
-                Code
+            />
+            {errors.name ? (
+              <Text style={{ ...styles.error, color: colors.error }}>
+                {errors.name.message}
               </Text>
-              <Controller
-                control={control}
-                name="code"
-                render={({ field: { onChange, onBlur, value } }) => (
-                  <TextInput
-                    value={value}
-                    onChangeText={onChange}
-                    onBlur={onBlur}
-                    placeholder="Enter party code (optional)"
-                    placeholderTextColor={colors.inputPlaceholder}
-                    className="border rounded-xl px-4 py-3.5 text-base"
-                    style={{
-                      backgroundColor: colors.bg.secondary,
-                      borderColor: colors.inputBorder,
-                      color: colors.text.primary,
-                    }}
-                  />
-                )}
-              />
-            </View>
+            ) : null}
 
-            {/* Phone */}
-            <View className="mb-4">
-              <Text className="text-sm font-medium mb-2" style={{ color: colors.text.secondary }}>
-                Phone
-              </Text>
-              <Controller
-                control={control}
-                name="phone"
-                render={({ field: { onChange, onBlur, value } }) => (
-                  <TextInput
-                    value={value}
-                    onChangeText={onChange}
-                    onBlur={onBlur}
-                    placeholder="Enter phone number"
-                    placeholderTextColor={colors.inputPlaceholder}
-                    keyboardType="phone-pad"
-                    className="border rounded-xl px-4 py-3.5 text-base"
-                    style={{
-                      backgroundColor: colors.bg.secondary,
-                      borderColor: colors.inputBorder,
-                      color: colors.text.primary,
-                    }}
-                  />
-                )}
-              />
-            </View>
-
-            {/* Email */}
-            <View className="mb-0">
-              <Text className="text-sm font-medium mb-2" style={{ color: colors.text.secondary }}>
-                Email
-              </Text>
-              <Controller
-                control={control}
-                name="email"
-                render={({ field: { onChange, onBlur, value } }) => (
-                  <TextInput
-                    value={value}
-                    onChangeText={onChange}
-                    onBlur={onBlur}
-                    placeholder="Enter email address"
-                    placeholderTextColor={colors.inputPlaceholder}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    className="border rounded-xl px-4 py-3.5 text-base"
-                    style={{
-                      backgroundColor: colors.bg.secondary,
-                      borderColor: errors.email ? colors.error : colors.inputBorder,
-                      color: colors.text.primary,
-                    }}
-                  />
-                )}
-              />
-              {errors.email && (
-                <Text className="text-sm mt-1" style={{ color: colors.error }}>
-                  {errors.email.message}
-                </Text>
+            <FieldLabel>Code</FieldLabel>
+            <Controller
+              control={control}
+              name="code"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  value={value}
+                  onChangeText={onChange}
+                  onBlur={onBlur}
+                  placeholder="Optional code"
+                  placeholderTextColor={colors.text.tertiary}
+                  style={inputStyle()}
+                />
               )}
-            </View>
+            />
+
+            <FieldLabel>Phone</FieldLabel>
+            <Controller
+              control={control}
+              name="phone"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  value={value}
+                  onChangeText={onChange}
+                  onBlur={onBlur}
+                  placeholder="Phone number"
+                  placeholderTextColor={colors.text.tertiary}
+                  keyboardType="phone-pad"
+                  style={inputStyle()}
+                />
+              )}
+            />
+
+            <FieldLabel>Email</FieldLabel>
+            <Controller
+              control={control}
+              name="email"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  value={value}
+                  onChangeText={onChange}
+                  onBlur={onBlur}
+                  placeholder="Email address"
+                  placeholderTextColor={colors.text.tertiary}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  style={inputStyle(!!errors.email)}
+                />
+              )}
+            />
+            {errors.email ? (
+              <Text style={{ ...styles.error, color: colors.error }}>
+                {errors.email.message}
+              </Text>
+            ) : null}
           </View>
 
-          {/* Address & Tax */}
+          {/* Address */}
           <View
-            className="mx-4 mt-4 rounded-2xl p-5 shadow-sm"
-            style={{ backgroundColor: colors.card }}
+            style={{
+              ...styles.card,
+              backgroundColor: colors.bg.secondary,
+              borderColor: colors.border,
+            }}
           >
-            <Text className="text-base font-semibold mb-4" style={{ color: colors.text.primary }}>
+            <Text style={{ ...styles.sectionTitle, color: colors.text.primary }}>
               Address & Tax
             </Text>
 
-            {/* Street */}
-            <View className="mb-4">
-              <Text className="text-sm font-medium mb-2" style={{ color: colors.text.secondary }}>
-                Street Address
-              </Text>
-              <Controller
-                control={control}
-                name="address.street"
-                render={({ field: { onChange, onBlur, value } }) => (
-                  <TextInput
-                    value={value}
-                    onChangeText={onChange}
-                    onBlur={onBlur}
-                    placeholder="Enter street address"
-                    placeholderTextColor={colors.inputPlaceholder}
-                    className="border rounded-xl px-4 py-3.5 text-base"
-                    style={{
-                      backgroundColor: colors.bg.secondary,
-                      borderColor: colors.inputBorder,
-                      color: colors.text.primary,
-                    }}
-                  />
-                )}
-              />
-            </View>
+            <FieldLabel>Street Address</FieldLabel>
+            <Controller
+              control={control}
+              name="address.street"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  value={value}
+                  onChangeText={onChange}
+                  onBlur={onBlur}
+                  placeholder="Street address"
+                  placeholderTextColor={colors.text.tertiary}
+                  style={inputStyle()}
+                />
+              )}
+            />
 
-            {/* City & State Row */}
-            <View className="flex-row gap-3 mb-4">
-              <View className="flex-1">
-                <Text className="text-sm font-medium mb-2" style={{ color: colors.text.secondary }}>
-                  City
-                </Text>
+            <View style={styles.row}>
+              <View style={styles.half}>
+                <FieldLabel>City</FieldLabel>
                 <Controller
                   control={control}
                   name="address.city"
@@ -459,21 +409,14 @@ export default function EditPartyScreen() {
                       onChangeText={onChange}
                       onBlur={onBlur}
                       placeholder="City"
-                      placeholderTextColor={colors.inputPlaceholder}
-                      className="border rounded-xl px-4 py-3.5 text-base"
-                      style={{
-                        backgroundColor: colors.bg.secondary,
-                        borderColor: colors.inputBorder,
-                        color: colors.text.primary,
-                      }}
+                      placeholderTextColor={colors.text.tertiary}
+                      style={inputStyle()}
                     />
                   )}
                 />
               </View>
-              <View className="flex-1">
-                <Text className="text-sm font-medium mb-2" style={{ color: colors.text.secondary }}>
-                  State
-                </Text>
+              <View style={styles.half}>
+                <FieldLabel>State</FieldLabel>
                 <Controller
                   control={control}
                   name="address.state"
@@ -483,25 +426,17 @@ export default function EditPartyScreen() {
                       onChangeText={onChange}
                       onBlur={onBlur}
                       placeholder="State"
-                      placeholderTextColor={colors.inputPlaceholder}
-                      className="border rounded-xl px-4 py-3.5 text-base"
-                      style={{
-                        backgroundColor: colors.bg.secondary,
-                        borderColor: colors.inputBorder,
-                        color: colors.text.primary,
-                      }}
+                      placeholderTextColor={colors.text.tertiary}
+                      style={inputStyle()}
                     />
                   )}
                 />
               </View>
             </View>
 
-            {/* Country & Postal Code Row */}
-            <View className="flex-row gap-3 mb-4">
-              <View className="flex-1">
-                <Text className="text-sm font-medium mb-2" style={{ color: colors.text.secondary }}>
-                  Country
-                </Text>
+            <View style={styles.row}>
+              <View style={styles.half}>
+                <FieldLabel>Country</FieldLabel>
                 <Controller
                   control={control}
                   name="address.country"
@@ -511,21 +446,14 @@ export default function EditPartyScreen() {
                       onChangeText={onChange}
                       onBlur={onBlur}
                       placeholder="Country"
-                      placeholderTextColor={colors.inputPlaceholder}
-                      className="border rounded-xl px-4 py-3.5 text-base"
-                      style={{
-                        backgroundColor: colors.bg.secondary,
-                        borderColor: colors.inputBorder,
-                        color: colors.text.primary,
-                      }}
+                      placeholderTextColor={colors.text.tertiary}
+                      style={inputStyle()}
                     />
                   )}
                 />
               </View>
-              <View className="flex-1">
-                <Text className="text-sm font-medium mb-2" style={{ color: colors.text.secondary }}>
-                  Postal Code
-                </Text>
+              <View style={styles.half}>
+                <FieldLabel>Postal Code</FieldLabel>
                 <Controller
                   control={control}
                   name="address.postal_code"
@@ -535,60 +463,45 @@ export default function EditPartyScreen() {
                       onChangeText={onChange}
                       onBlur={onBlur}
                       placeholder="Postal"
-                      placeholderTextColor={colors.inputPlaceholder}
-                      className="border rounded-xl px-4 py-3.5 text-base"
-                      style={{
-                        backgroundColor: colors.bg.secondary,
-                        borderColor: colors.inputBorder,
-                        color: colors.text.primary,
-                      }}
+                      placeholderTextColor={colors.text.tertiary}
+                      style={inputStyle()}
                     />
                   )}
                 />
               </View>
             </View>
 
-            {/* Tax ID */}
-            <View className="mb-0">
-              <Text className="text-sm font-medium mb-2" style={{ color: colors.text.secondary }}>
-                Tax ID / GST Number
-              </Text>
-              <Controller
-                control={control}
-                name="tax_id"
-                render={({ field: { onChange, onBlur, value } }) => (
-                  <TextInput
-                    value={value}
-                    onChangeText={onChange}
-                    onBlur={onBlur}
-                    placeholder="Enter Tax ID or GST Number"
-                    placeholderTextColor={colors.inputPlaceholder}
-                    className="border rounded-xl px-4 py-3.5 text-base"
-                    style={{
-                      backgroundColor: colors.bg.secondary,
-                      borderColor: colors.inputBorder,
-                      color: colors.text.primary,
-                    }}
-                  />
-                )}
-              />
-            </View>
+            <FieldLabel>Tax ID / GST</FieldLabel>
+            <Controller
+              control={control}
+              name="tax_id"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  value={value}
+                  onChangeText={onChange}
+                  onBlur={onBlur}
+                  placeholder="Tax ID or GST number"
+                  placeholderTextColor={colors.text.tertiary}
+                  style={inputStyle()}
+                />
+              )}
+            />
           </View>
 
-          {/* Credit Settings */}
+          {/* Credit */}
           <View
-            className="mx-4 mt-4 rounded-2xl p-5 shadow-sm"
-            style={{ backgroundColor: colors.card }}
+            style={{
+              ...styles.card,
+              backgroundColor: colors.bg.secondary,
+              borderColor: colors.border,
+            }}
           >
-            <Text className="text-base font-semibold mb-4" style={{ color: colors.text.primary }}>
+            <Text style={{ ...styles.sectionTitle, color: colors.text.primary }}>
               Credit Settings
             </Text>
-
-            <View className="flex-row gap-3">
-              <View className="flex-1">
-                <Text className="text-sm font-medium mb-2" style={{ color: colors.text.secondary }}>
-                  Credit Limit
-                </Text>
+            <View style={styles.row}>
+              <View style={styles.half}>
+                <FieldLabel>Credit Limit</FieldLabel>
                 <Controller
                   control={control}
                   name="credit_limit"
@@ -597,23 +510,16 @@ export default function EditPartyScreen() {
                       value={value}
                       onChangeText={onChange}
                       onBlur={onBlur}
-                      placeholder="0.00"
-                      placeholderTextColor={colors.inputPlaceholder}
+                      placeholder="0"
+                      placeholderTextColor={colors.text.tertiary}
                       keyboardType="decimal-pad"
-                      className="border rounded-xl px-4 py-3.5 text-base"
-                      style={{
-                        backgroundColor: colors.bg.secondary,
-                        borderColor: colors.inputBorder,
-                        color: colors.text.primary,
-                      }}
+                      style={inputStyle()}
                     />
                   )}
                 />
               </View>
-              <View className="flex-1">
-                <Text className="text-sm font-medium mb-2" style={{ color: colors.text.secondary }}>
-                  Payment Terms (Days)
-                </Text>
+              <View style={styles.half}>
+                <FieldLabel>Payment Terms (Days)</FieldLabel>
                 <Controller
                   control={control}
                   name="payment_terms_days"
@@ -623,14 +529,9 @@ export default function EditPartyScreen() {
                       onChangeText={onChange}
                       onBlur={onBlur}
                       placeholder="30"
-                      placeholderTextColor={colors.inputPlaceholder}
+                      placeholderTextColor={colors.text.tertiary}
                       keyboardType="number-pad"
-                      className="border rounded-xl px-4 py-3.5 text-base"
-                      style={{
-                        backgroundColor: colors.bg.secondary,
-                        borderColor: colors.inputBorder,
-                        color: colors.text.primary,
-                      }}
+                      style={inputStyle()}
                     />
                   )}
                 />
@@ -640,10 +541,14 @@ export default function EditPartyScreen() {
 
           {/* Notes */}
           <View
-            className="mx-4 mt-4 rounded-2xl p-5 shadow-sm"
-            style={{ backgroundColor: colors.card }}
+            style={{
+              ...styles.card,
+              backgroundColor: colors.bg.secondary,
+              borderColor: colors.border,
+              marginBottom: 0,
+            }}
           >
-            <Text className="text-base font-semibold mb-4" style={{ color: colors.text.primary }}>
+            <Text style={{ ...styles.sectionTitle, color: colors.text.primary }}>
               Notes
             </Text>
             <Controller
@@ -654,53 +559,42 @@ export default function EditPartyScreen() {
                   value={value}
                   onChangeText={onChange}
                   onBlur={onBlur}
-                  placeholder="Add any additional notes..."
-                  placeholderTextColor={colors.inputPlaceholder}
+                  placeholder="Additional notes..."
+                  placeholderTextColor={colors.text.tertiary}
                   multiline
                   numberOfLines={4}
                   textAlignVertical="top"
-                  className="border rounded-xl px-4 py-3.5 text-base min-h-[100px]"
-                  style={{
-                    backgroundColor: colors.bg.secondary,
-                    borderColor: colors.inputBorder,
-                    color: colors.text.primary,
-                  }}
+                  style={{ ...inputStyle(), minHeight: 96, paddingTop: 12 }}
                 />
               )}
             />
           </View>
         </ScrollView>
 
-        {/* Submit Button */}
         <View
-          className="absolute bottom-0 left-0 right-0 px-5 py-4 border-t"
-          style={{ backgroundColor: colors.bg.primary, borderColor: colors.border }}
+          style={{
+            ...styles.footer,
+            backgroundColor: colors.bg.primary,
+            borderTopColor: colors.border,
+            paddingBottom: Math.max(insets.bottom, 12),
+          }}
         >
           <TouchableOpacity
             onPress={handleSubmit(onSubmit)}
-            disabled={updateMutation.isPending || isSubmitting}
-            className="rounded-xl py-4 items-center"
+            disabled={busy}
+            activeOpacity={0.85}
             style={{
-              backgroundColor: updateMutation.isPending || isSubmitting
-                ? colors.primary + '60'
-                : colors.primary,
+              ...styles.submitBtn,
+              backgroundColor: busy ? colors.info + "80" : colors.info,
             }}
           >
-            {updateMutation.isPending ? (
-              <Text className="text-white font-semibold text-base">
-                Updating...
-              </Text>
+            {busy ? (
+              <ActivityIndicator color="#fff" />
             ) : (
-              <View className="flex-row items-center">
-                <Ionicons
-                  name="checkmark-circle-outline"
-                  size={22}
-                  color="white"
-                />
-                <Text className="text-white font-semibold text-base ml-2">
-                  Update Party
-                </Text>
-              </View>
+              <>
+                <Ionicons name="checkmark-circle" size={20} color="#fff" />
+                <Text style={styles.submitText}>Update Party</Text>
+              </>
             )}
           </TouchableOpacity>
         </View>
@@ -708,3 +602,82 @@ export default function EditPartyScreen() {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  centered: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  card: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    marginBottom: 12,
+  },
+  label: {
+    fontSize: 13,
+    fontWeight: "600",
+    marginBottom: 6,
+    marginTop: 4,
+  },
+  input: {
+    minHeight: 48,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: Platform.OS === "ios" ? 12 : 10,
+    fontSize: 15,
+    marginBottom: 10,
+  },
+  error: {
+    fontSize: 12,
+    marginTop: -6,
+    marginBottom: 8,
+  },
+  typeRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  typeChip: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 6,
+    paddingHorizontal: 8,
+  },
+  row: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  half: {
+    flex: 1,
+  },
+  footer: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+  },
+  submitBtn: {
+    minHeight: 48,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
+  },
+  submitText: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+});

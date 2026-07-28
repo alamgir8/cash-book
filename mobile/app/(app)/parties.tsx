@@ -8,6 +8,8 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
+  Modal,
+  FlatList,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { toast } from "@/lib/toast";
@@ -19,6 +21,7 @@ import { useActiveOrgId, useOrganization } from "@/hooks/use-organization";
 import { useTheme } from "@/hooks/use-theme";
 import { partiesApi, type Party, type PartyType } from "@/services/parties";
 import { getApiErrorMessage } from "@/lib/api";
+import { useDeleteMode } from "@/hooks/use-delete-mode";
 
 const TAB_OPTIONS: { value: PartyType | "all"; label: string }[] = [
   { value: "all", label: "All" },
@@ -33,9 +36,12 @@ export default function PartiesScreen() {
   const { colors } = useTheme();
   const { canManageParties, canManageCustomers, canManageSuppliers } =
     useOrganization();
+  const { isDeleteModeActive } = useDeleteMode();
 
   const [activeTab, setActiveTab] = useState<PartyType | "all">("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [mergeSource, setMergeSource] = useState<Party | null>(null);
+  const [mergePickerVisible, setMergePickerVisible] = useState(false);
 
   const { data, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ["parties", organizationId, activeTab],
@@ -46,13 +52,22 @@ export default function PartiesScreen() {
       }),
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: partiesApi.delete,
-    onSuccess: () => {
+  const mergeMutation = useMutation({
+    mutationFn: ({
+      sourceId,
+      targetId,
+    }: {
+      sourceId: string;
+      targetId: string;
+    }) => partiesApi.merge(sourceId, targetId),
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["parties"] });
+      setMergeSource(null);
+      setMergePickerVisible(false);
+      toast.success("Parties merged", data.message);
     },
     onError: (error) => {
-      toast.error(getApiErrorMessage(error));
+      Alert.alert("Merge failed", getApiErrorMessage(error));
     },
   });
 
@@ -69,22 +84,59 @@ export default function PartiesScreen() {
     );
   }, [data?.parties, searchQuery]);
 
+  const mergeTargetOptions = useMemo(
+    () => parties.filter((p) => p._id !== mergeSource?._id),
+    [parties, mergeSource],
+  );
+
+  const startMergeFlow = useCallback((party: Party) => {
+    setMergeSource(party);
+    setMergePickerVisible(true);
+  }, []);
+
   const handleDelete = useCallback(
     (party: Party) => {
+      // Show confirm immediately — no network wait before the dialog
       Alert.alert(
-        "Delete Party",
-        `Are you sure you want to delete "${party.name}"?`,
+        "Delete party?",
+        `Remove "${party.name}"?\n\nIf it has linked transactions, you'll be offered a merge option instead.`,
         [
           { text: "Cancel", style: "cancel" },
           {
             text: "Delete",
             style: "destructive",
-            onPress: () => deleteMutation.mutate(party._id),
+            onPress: () => {
+              void (async () => {
+                try {
+                  await partiesApi.delete(party._id);
+                  queryClient.invalidateQueries({ queryKey: ["parties"] });
+                  toast.success("Party deleted", `"${party.name}" was removed`);
+                } catch (error: any) {
+                  const data = error?.response?.data;
+                  if (data?.canMerge || data?.transactionCount > 0) {
+                    Alert.alert(
+                      "Cannot delete",
+                      data?.message ||
+                        `"${party.name}" has linked transactions. Merge into another party first.`,
+                      [
+                        { text: "Cancel", style: "cancel" },
+                        {
+                          text: "Merge into another…",
+                          onPress: () => startMergeFlow(party),
+                        },
+                      ],
+                    );
+                  } else {
+                    toast.error(getApiErrorMessage(error));
+                  }
+                }
+              })();
+            },
           },
         ],
       );
     },
-    [deleteMutation],
+    [queryClient, startMergeFlow],
   );
 
   const handleViewLedger = useCallback(
@@ -111,7 +163,11 @@ export default function PartiesScreen() {
   if (isLoading) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.bg.primary }}>
-        <ScreenHeader title="Parties" showBack />
+        <ScreenHeader
+          title="Customers & Suppliers"
+          showBack
+          onBack={() => router.push("/(app)/settings" as any)}
+        />
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color={colors.info} />
         </View>
@@ -122,8 +178,9 @@ export default function PartiesScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg.primary }}>
       <ScreenHeader
-        title="Parties"
+        title="Customers & Suppliers"
         showBack
+        onBack={() => router.push("/(app)/settings" as any)}
         rightAction={
           canManageParties ? (
             <TouchableOpacity
@@ -135,6 +192,45 @@ export default function PartiesScreen() {
           ) : undefined
         }
       />
+
+      {isDeleteModeActive ? (
+        <View
+          className="mx-4 mt-3 flex-row items-center gap-2 rounded-xl px-3 py-3 border"
+          style={{
+            backgroundColor: colors.error + "12",
+            borderColor: colors.error + "40",
+          }}
+        >
+          <Ionicons name="trash-outline" size={18} color={colors.error} />
+          <Text
+            className="flex-1 text-sm"
+            style={{ color: colors.text.primary }}
+          >
+            Delete Mode on — use Merge for duplicates, or Delete unused parties.
+          </Text>
+        </View>
+      ) : canManageParties ? (
+        <View
+          className="mx-4 mt-3 flex-row items-center gap-2 rounded-xl px-3 py-3 border"
+          style={{
+            backgroundColor: colors.info + "12",
+            borderColor: colors.info + "35",
+          }}
+        >
+          <Ionicons
+            name="information-circle-outline"
+            size={18}
+            color={colors.info}
+          />
+          <Text
+            className="flex-1 text-sm"
+            style={{ color: colors.text.secondary }}
+          >
+            To delete or merge duplicate vendors, enable Delete Mode from
+            Settings (tap the gear icon 6 times).
+          </Text>
+        </View>
+      ) : null}
 
       {/* Search Bar */}
       <View
@@ -372,13 +468,44 @@ export default function PartiesScreen() {
                           Edit
                         </Text>
                       </TouchableOpacity>
-                      <TouchableOpacity
-                        className="flex-row items-center justify-center py-2 px-3 rounded-lg"
-                        style={{ backgroundColor: colors.error + "20" }}
-                        onPress={() => handleDelete(party)}
-                      >
-                        <Ionicons name="trash" size={16} color={colors.error} />
-                      </TouchableOpacity>
+                      {isDeleteModeActive ? (
+                        <>
+                          <TouchableOpacity
+                            className="flex-row items-center justify-center py-2 px-3 rounded-lg gap-1"
+                            style={{ backgroundColor: colors.warning + "20" }}
+                            onPress={() => startMergeFlow(party)}
+                          >
+                            <Ionicons
+                              name="git-merge-outline"
+                              size={16}
+                              color={colors.warning}
+                            />
+                            <Text
+                              className="text-sm font-medium"
+                              style={{ color: colors.warning }}
+                            >
+                              Merge
+                            </Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            className="flex-row items-center justify-center py-2 px-3 rounded-lg gap-1"
+                            style={{ backgroundColor: colors.error + "20" }}
+                            onPress={() => handleDelete(party)}
+                          >
+                            <Ionicons
+                              name="trash"
+                              size={16}
+                              color={colors.error}
+                            />
+                            <Text
+                              className="text-sm font-medium"
+                              style={{ color: colors.error }}
+                            >
+                              Delete
+                            </Text>
+                          </TouchableOpacity>
+                        </>
+                      ) : null}
                     </>
                   )}
                 </View>
@@ -387,6 +514,128 @@ export default function PartiesScreen() {
           </View>
         )}
       </ScrollView>
+
+      <Modal
+        visible={mergePickerVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => {
+          setMergePickerVisible(false);
+          setMergeSource(null);
+        }}
+      >
+        <View
+          style={{
+            flex: 1,
+            justifyContent: "flex-end",
+            backgroundColor: "rgba(17, 24, 39, 0.4)",
+          }}
+        >
+          <TouchableOpacity
+            style={{ flex: 1 }}
+            activeOpacity={1}
+            onPress={() => {
+              setMergePickerVisible(false);
+              setMergeSource(null);
+            }}
+          />
+          <View
+            style={{
+              maxHeight: "70%",
+              backgroundColor: colors.bg.primary,
+              borderTopLeftRadius: 24,
+              borderTopRightRadius: 24,
+              padding: 16,
+            }}
+          >
+            <View className="flex-row items-center justify-between mb-3">
+              <Text
+                className="text-lg font-bold flex-1"
+                style={{ color: colors.text.primary }}
+              >
+                Merge "{mergeSource?.name}" into…
+              </Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setMergePickerVisible(false);
+                  setMergeSource(null);
+                }}
+              >
+                <Ionicons
+                  name="close"
+                  size={22}
+                  color={colors.text.secondary}
+                />
+              </TouchableOpacity>
+            </View>
+            <Text
+              className="text-sm mb-3"
+              style={{ color: colors.text.secondary }}
+            >
+              Linked transactions will move to the selected party, then "
+              {mergeSource?.name}" will be deleted.
+            </Text>
+            <FlatList
+              data={mergeTargetOptions}
+              keyExtractor={(item) => item._id}
+              ListEmptyComponent={
+                <Text
+                  className="text-center py-8"
+                  style={{ color: colors.text.tertiary }}
+                >
+                  No other parties available to merge into
+                </Text>
+              }
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  className="py-3 border-b flex-row items-center justify-between"
+                  style={{ borderColor: colors.border }}
+                  disabled={mergeMutation.isPending}
+                  onPress={() => {
+                    if (!mergeSource) return;
+                    Alert.alert(
+                      "Confirm merge",
+                      `Move all transactions from "${mergeSource.name}" to "${item.name}" and delete "${mergeSource.name}"?`,
+                      [
+                        { text: "Cancel", style: "cancel" },
+                        {
+                          text: "Merge",
+                          style: "destructive",
+                          onPress: () =>
+                            mergeMutation.mutate({
+                              sourceId: mergeSource._id,
+                              targetId: item._id,
+                            }),
+                        },
+                      ],
+                    );
+                  }}
+                >
+                  <View>
+                    <Text
+                      className="text-base font-medium"
+                      style={{ color: colors.text.primary }}
+                    >
+                      {item.name}
+                    </Text>
+                    <Text
+                      className="text-xs mt-0.5"
+                      style={{ color: colors.text.secondary }}
+                    >
+                      {item.code}
+                    </Text>
+                  </View>
+                  <Ionicons
+                    name="git-merge-outline"
+                    size={18}
+                    color={colors.warning}
+                  />
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }

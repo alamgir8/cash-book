@@ -9,7 +9,7 @@ import {
 } from "react";
 import { Alert } from "react-native";
 
-const DELETE_MODE_DURATION_MS = 2 * 60 * 1000; // 2 minutes
+const DELETE_MODE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
 const TAPS_REQUIRED = 6;
 const TAP_WINDOW_MS = 3000; // taps must happen within 3s of each other
 
@@ -74,7 +74,7 @@ export function DeleteModeProvider({ children }: { children: ReactNode }) {
       if (!isActive) {
         Alert.alert(
           "Enable Delete Mode?",
-          "This will show a Delete button on every transaction for 2 minutes. Use with caution.",
+          "This will show Delete actions for 5 minutes. Use with caution.",
           [
             { text: "Cancel", style: "cancel" },
             {

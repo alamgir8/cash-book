@@ -82,7 +82,24 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
       {visibleTabs.map((tab) => {
         const route = state.routes.find((r) => r.name === tab.name);
         if (!route) return null;
-        const isFocused = state.routes[state.index]?.name === tab.name;
+        const activeRouteName = state.routes[state.index]?.name || "";
+        // Hidden sibling screens opened from Settings should keep Settings tab highlighted
+        const settingsRoots = [
+          "parties",
+          "categories",
+          "organizations",
+          "invoices",
+          "import",
+        ];
+        const isSettingsChild = settingsRoots.some(
+          (root) =>
+            activeRouteName === root ||
+            activeRouteName.startsWith(`${root}/`) ||
+            activeRouteName.startsWith(`${root}[`),
+        );
+        const isFocused =
+          activeRouteName === tab.name ||
+          (tab.name === "settings" && isSettingsChild);
 
         const onPress = () => {
           const event = navigation.emit({
@@ -144,7 +161,11 @@ export default function AppLayout() {
   return (
     <Tabs
       tabBar={(props) => <CustomTabBar {...props} />}
-      screenOptions={{ headerShown: false }}
+      screenOptions={{
+        headerShown: false,
+        freezeOnBlur: true,
+        lazy: true,
+      }}
     >
       <Tabs.Screen name="index" />
       <Tabs.Screen name="accounts" />

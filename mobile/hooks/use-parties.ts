@@ -98,7 +98,7 @@ export const useUpdateParty = () => {
 };
 
 /**
- * Hook to delete a party
+ * Hook to delete a party (hard delete; blocked if linked txns exist)
  */
 export const useDeleteParty = () => {
   const queryClient = useQueryClient();
@@ -107,15 +107,54 @@ export const useDeleteParty = () => {
     mutationFn: (partyId: string) => partiesApi.delete(partyId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.parties });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.vendors });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.counterparties });
       Toast.show({
         type: "success",
         text1: "Party deleted successfully",
       });
     },
     onError: (error: any) => {
+      // Caller may handle canMerge / transactionCount itself
+      if (error?.response?.data?.canMerge) return;
       Toast.show({
         type: "error",
         text1: "Failed to delete party",
+        text2: error?.response?.data?.message || error.message,
+      });
+    },
+  });
+};
+
+/**
+ * Hook to merge a party into another
+ */
+export const useMergeParty = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      sourcePartyId,
+      targetPartyId,
+    }: {
+      sourcePartyId: string;
+      targetPartyId: string;
+    }) => partiesApi.merge(sourcePartyId, targetPartyId),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.parties });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.vendors });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.counterparties });
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      Toast.show({
+        type: "success",
+        text1: "Parties merged",
+        text2: data.message,
+      });
+    },
+    onError: (error: any) => {
+      Toast.show({
+        type: "error",
+        text1: "Failed to merge parties",
         text2: error?.response?.data?.message || error.message,
       });
     },
@@ -135,7 +174,7 @@ export const useArchiveParty = () => {
     }: {
       partyId: string;
       archived: boolean;
-    }) => partiesApi.update(partyId, { archived }),
+    }) => partiesApi.archive(partyId, archived).then((r) => r.party),
     onSuccess: (data: Party) => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.parties });
       queryClient.invalidateQueries({ queryKey: ["party", data._id] });

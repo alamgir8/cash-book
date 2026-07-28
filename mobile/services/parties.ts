@@ -145,9 +145,32 @@ export const partiesApi = {
     return response.data.party;
   },
 
-  // Delete party
+  // Archive party (soft delete)
+  archive: async (partyId: string, archived = true) => {
+    const response = await api.post<{ party: Party; message: string }>(
+      `/parties/${partyId}/archive`,
+      { archived },
+    );
+    return response.data;
+  },
+
+  // Hard-delete party (blocked if linked transactions/invoices exist)
   delete: async (partyId: string) => {
-    await api.post(`/parties/${partyId}/archive`);
+    const response = await api.delete<{ message: string }>(
+      `/parties/${partyId}`,
+    );
+    return response.data;
+  },
+
+  // Merge source party into target (reassigns txns/invoices, deletes source)
+  merge: async (sourcePartyId: string, targetPartyId: string) => {
+    const response = await api.post<{
+      message: string;
+      target: Party;
+      transactionsUpdated: number;
+      invoicesUpdated: number;
+    }>(`/parties/${sourcePartyId}/merge`, { targetPartyId });
+    return response.data;
   },
 
   // Get party ledger (all transactions for this party)
@@ -160,10 +183,53 @@ export const partiesApi = {
       limit?: number;
     },
   ) => {
-    const response = await api.get<PartyLedgerResponse>(
+    const response = await api.get<PartyLedgerResponse & { ledger?: LedgerEntry[] }>(
       `/parties/${partyId}/ledger`,
       { params },
     );
-    return response.data;
+    const raw = response.data as PartyLedgerResponse & {
+      ledger?: LedgerEntry[];
+      net_balance?: number;
+    };
+    const entries = (raw.entries?.length ? raw.entries : raw.ledger) || [];
+    const opening = raw.summary?.opening_balance ?? raw.party?.opening_balance ?? 0;
+    const totalDebit =
+      raw.summary?.total_debit ??
+      entries.reduce((sum, e) => sum + (e.debit || 0), 0);
+    const totalCredit =
+      raw.summary?.total_credit ??
+      entries.reduce((sum, e) => sum + (e.credit || 0), 0);
+    const closing =
+      raw.summary?.closing_balance ??
+      raw.net_balance ??
+      opening + totalCredit - totalDebit;
+
+    return {
+      ...raw,
+      entries: entries.map((entry) => ({
+        ...entry,
+        debit:
+          entry.debit ??
+          ((entry as { type?: string; amount?: number }).type === "debit"
+            ? Number((entry as { amount?: number }).amount || 0)
+            : 0),
+        credit:
+          entry.credit ??
+          ((entry as { type?: string; amount?: number }).type === "credit"
+            ? Number((entry as { amount?: number }).amount || 0)
+            : 0),
+        running_balance: entry.running_balance ?? 0,
+        description:
+          entry.description ||
+          (entry as { type?: string }).type ||
+          "Transaction",
+      })),
+      summary: {
+        opening_balance: opening,
+        total_debit: totalDebit,
+        total_credit: totalCredit,
+        closing_balance: closing,
+      },
+    };
   },
 };
