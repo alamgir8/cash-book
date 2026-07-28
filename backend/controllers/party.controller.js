@@ -5,19 +5,30 @@ import { Invoice } from "../models/Invoice.js";
 import { Category } from "../models/Category.js";
 import {
   findPartyByLooseName,
+  loosePartyNameKey,
 } from "../utils/partyFilter.js";
 import mongoose from "mongoose";
+
+const escapeRegex = (value) =>
+  String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /**
  * ObjectId + legacy name refs that link a transaction to a party.
  * Older imports often stored the party only as vendor/counterparty text.
  */
-const buildPartyLinkOrConditions = (party) => {
+const buildPartyLinkOrConditions = (party, nameVariants = []) => {
   const partyId = party._id;
-  const name = (party.name || "").trim();
   const or = [{ party: partyId }, { for_party: partyId }];
 
-  if (name) {
+  const names = new Set();
+  const primary = (party.name || "").trim();
+  if (primary) names.add(primary);
+  for (const n of nameVariants) {
+    const t = String(n || "").trim();
+    if (t) names.add(t);
+  }
+
+  for (const name of names) {
     const nameRegex = new RegExp(`^${escapeRegex(name)}$`, "i");
     or.push({ vendor: nameRegex }, { counterparty: nameRegex });
   }
@@ -26,20 +37,112 @@ const buildPartyLinkOrConditions = (party) => {
 };
 
 /**
- * Scope transactions to the party's personal or org context.
- * Required when matching by name so we don't pick up another user's data.
+ * Scope used for merge name rewrites (admin + org-safe).
+ * MongoDB `{ organization: null }` matches both missing and null.
  */
 const buildPartyTransactionScope = (party) => {
   if (party.organization) {
     return {
-      organization: party.organization,
       is_deleted: { $ne: true },
+      $or: [
+        { organization: party.organization },
+        { admin: party.admin, organization: null },
+      ],
     };
   }
   return {
     admin: party.admin,
-    organization: { $exists: false },
+    organization: null,
     is_deleted: { $ne: true },
+  };
+};
+
+/**
+ * Find vendor/counterparty spelling variants that loosely match the party name
+ * (Bengali vowel-sign / whitespace / case differences).
+ */
+const collectPartyNameVariants = async (party) => {
+  const name = (party.name || "").trim();
+  if (!name) return [];
+
+  const targetKey = loosePartyNameKey(name);
+  const firstToken = name.split(/\s+/).find((t) => t.length >= 2) || name;
+  // Also scan org-scoped transactions when collecting name variants
+  const candidateFilter = party.organization
+    ? {
+        is_deleted: { $ne: true },
+        $or: [
+          { admin: party.admin },
+          { organization: party.organization },
+        ],
+        $and: [
+          {
+            $or: [
+              { vendor: { $regex: escapeRegex(firstToken), $options: "i" } },
+              {
+                counterparty: {
+                  $regex: escapeRegex(firstToken),
+                  $options: "i",
+                },
+              },
+            ],
+          },
+        ],
+      }
+    : {
+        admin: party.admin,
+        is_deleted: { $ne: true },
+        $or: [
+          { vendor: { $regex: escapeRegex(firstToken), $options: "i" } },
+          { counterparty: { $regex: escapeRegex(firstToken), $options: "i" } },
+        ],
+      };
+
+  const candidates = await Transaction.find(candidateFilter)
+    .select("vendor counterparty")
+    .limit(400)
+    .lean();
+
+  const variants = new Set([name]);
+  for (const txn of candidates) {
+    if (txn.vendor && loosePartyNameKey(txn.vendor) === targetKey) {
+      variants.add(String(txn.vendor).trim());
+    }
+    if (txn.counterparty && loosePartyNameKey(txn.counterparty) === targetKey) {
+      variants.add(String(txn.counterparty).trim());
+    }
+  }
+  return [...variants];
+};
+
+/**
+ * Ledger / balance match for a party.
+ *
+ * ObjectId links are matched directly (ids are unique — no org/admin filter),
+ * which keeps ledger in sync with balance updates from any org member.
+ * Legacy vendor/counterparty names are admin-scoped (+ loose name variants).
+ */
+const buildPartyTransactionMatch = async (party) => {
+  const variants = await collectPartyNameVariants(party);
+  const nameOr = [];
+  for (const name of variants) {
+    const nameRegex = new RegExp(`^${escapeRegex(name)}$`, "i");
+    // Match by owner admin OR by shared organization (member-created txns)
+    nameOr.push(
+      { vendor: nameRegex, admin: party.admin },
+      { counterparty: nameRegex, admin: party.admin },
+    );
+    if (party.organization) {
+      nameOr.push(
+        { vendor: nameRegex, organization: party.organization },
+        { counterparty: nameRegex, organization: party.organization },
+      );
+    }
+  }
+
+  return {
+    is_deleted: { $ne: true },
+    $or: [{ party: party._id }, { for_party: party._id }, ...nameOr],
   };
 };
 
@@ -47,10 +150,7 @@ const buildPartyTransactionScope = (party) => {
  * Count non-deleted transactions linked to a party (ObjectId + legacy name refs).
  */
 const countPartyLinkedTransactions = async (party) => {
-  return Transaction.countDocuments({
-    ...buildPartyTransactionScope(party),
-    $or: buildPartyLinkOrConditions(party),
-  });
+  return Transaction.countDocuments(await buildPartyTransactionMatch(party));
 };
 
 /**
@@ -69,10 +169,7 @@ const recalculatePartyBalance = async (partyId, partyType) => {
 
   const [agg] = await Transaction.aggregate([
     {
-      $match: {
-        ...buildPartyTransactionScope(party),
-        $or: buildPartyLinkOrConditions(party),
-      },
+      $match: await buildPartyTransactionMatch(party),
     },
     {
       $group: {
@@ -139,24 +236,21 @@ const recalculatePartyBalance = async (partyId, partyType) => {
 
 /**
  * Attach live debit/credit txn counts for a page of parties (ObjectId links).
- * Uses aggregation only — fast enough for list pages without blinking refetches.
+ * Unscoped by org/admin — party ObjectIds are unique.
  */
 const attachPartyTxnTypeCounts = async (parties) => {
   if (!parties?.length) return parties;
 
   const ids = parties.map((p) => p._id);
-  const sample = parties[0];
-  const scope = sample.organization
-    ? { organization: sample.organization, is_deleted: { $ne: true } }
-    : {
-        admin: sample.admin,
-        organization: { $exists: false },
-        is_deleted: { $ne: true },
-      };
 
   const [asParty, asForParty] = await Promise.all([
     Transaction.aggregate([
-      { $match: { ...scope, party: { $in: ids } } },
+      {
+        $match: {
+          is_deleted: { $ne: true },
+          party: { $in: ids },
+        },
+      },
       {
         $group: {
           _id: { id: "$party", type: "$type" },
@@ -165,7 +259,12 @@ const attachPartyTxnTypeCounts = async (parties) => {
       },
     ]),
     Transaction.aggregate([
-      { $match: { ...scope, for_party: { $in: ids } } },
+      {
+        $match: {
+          is_deleted: { $ne: true },
+          for_party: { $in: ids },
+        },
+      },
       {
         $group: {
           _id: { id: "$for_party", type: "$type" },
@@ -179,6 +278,7 @@ const attachPartyTxnTypeCounts = async (parties) => {
   const credit = Object.create(null);
   const apply = (rows) => {
     for (const row of rows) {
+      if (!row?._id?.id) continue;
       const id = String(row._id.id);
       const bag = row._id.type === "credit" ? credit : debit;
       bag[id] = (bag[id] || 0) + row.count;
@@ -191,7 +291,6 @@ const attachPartyTxnTypeCounts = async (parties) => {
     const id = String(p._id);
     const debitCount = debit[id] || 0;
     const creditCount = credit[id] || 0;
-    // Prefer live counts; fall back to stored stats if present
     const liveTotal = debitCount + creditCount;
     return {
       ...p,
@@ -204,9 +303,6 @@ const attachPartyTxnTypeCounts = async (parties) => {
   });
 };
 
-/**
- * Verify the authenticated user can manage this party.
- */
 const assertPartyManageAccess = async (userId, party) => {
   const permission =
     party.type === "customer" ? "manage_customers" : "manage_suppliers";
@@ -221,12 +317,6 @@ const assertPartyManageAccess = async (userId, party) => {
   return { ok: true };
 };
 
-/**
- * Escape regex special characters to prevent ReDoS attacks
- */
-const escapeRegex = (value) => {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-};
 
 /**
  * Check organization access and permission
@@ -354,6 +444,28 @@ export const createParty = async (req, res, next) => {
 };
 
 /**
+ * Scope for listing parties.
+ * When an organization is active, include that org's parties PLUS the user's
+ * legacy personal parties (no organization) — older data was created before
+ * org assignment and would otherwise disappear from the list.
+ */
+const buildPartyListScope = (userId, organization) => {
+  if (organization) {
+    return {
+      $or: [
+        { organization },
+        // MongoDB { organization: null } matches missing OR null
+        { admin: userId, organization: null },
+      ],
+    };
+  }
+  return {
+    admin: userId,
+    organization: null,
+  };
+};
+
+/**
  * Get parties list
  */
 export const getParties = async (req, res, next) => {
@@ -369,48 +481,51 @@ export const getParties = async (req, res, next) => {
       sort = "-updatedAt",
     } = req.query;
 
-    // Build query
-    const query = {};
-
     if (organization) {
       const access = await checkOrgAccess(userId, organization);
       if (!access.hasAccess) {
         return res.status(403).json({ message: access.error });
       }
-      query.organization = organization;
-    } else {
-      query.admin = userId;
-      query.organization = { $exists: false };
     }
+
+    const and = [buildPartyListScope(userId, organization || null)];
 
     if (type && PARTY_TYPE_OPTIONS.includes(type)) {
       // Include parties with type "both" when filtering by customer or supplier
-      query.type = type === "both" ? "both" : { $in: [type, "both"] };
+      and.push({
+        type: type === "both" ? "both" : { $in: [type, "both"] },
+      });
     }
 
     if (archived === "true") {
-      query.archived = true;
+      and.push({ archived: true });
     } else if (archived !== "all") {
-      query.archived = { $ne: true };
+      and.push({ archived: { $ne: true } });
     }
 
     if (search) {
       const escapedSearch = escapeRegex(search);
-      query.$or = [
-        { name: { $regex: escapedSearch, $options: "i" } },
-        { phone: { $regex: escapedSearch, $options: "i" } },
-        { email: { $regex: escapedSearch, $options: "i" } },
-        { code: { $regex: escapedSearch, $options: "i" } },
-      ];
+      and.push({
+        $or: [
+          { name: { $regex: escapedSearch, $options: "i" } },
+          { phone: { $regex: escapedSearch, $options: "i" } },
+          { email: { $regex: escapedSearch, $options: "i" } },
+          { code: { $regex: escapedSearch, $options: "i" } },
+        ],
+      });
     }
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const query = and.length === 1 ? and[0] : { $and: and };
+
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const pageLimit = Math.max(1, Math.min(100, parseInt(limit, 10) || 50));
+    const skip = (pageNum - 1) * pageLimit;
     const sortObj = {};
     const sortField = sort.startsWith("-") ? sort.substring(1) : sort;
     sortObj[sortField] = sort.startsWith("-") ? -1 : 1;
 
     const [parties, total] = await Promise.all([
-      Party.find(query).sort(sortObj).skip(skip).limit(parseInt(limit)).lean(),
+      Party.find(query).sort(sortObj).skip(skip).limit(pageLimit).lean(),
       Party.countDocuments(query),
     ]);
 
@@ -419,10 +534,10 @@ export const getParties = async (req, res, next) => {
     res.json({
       parties: partiesWithCounts,
       pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
+        page: pageNum,
+        limit: pageLimit,
         total,
-        pages: Math.ceil(total / parseInt(limit)),
+        pages: Math.ceil(total / pageLimit) || 0,
       },
     });
   } catch (error) {
@@ -868,10 +983,7 @@ export const getPartyLedger = async (req, res, next) => {
       return res.status(403).json({ message: "Access denied" });
     }
 
-    const andConditions = [
-      buildPartyTransactionScope(party),
-      { $or: buildPartyLinkOrConditions(party) },
-    ];
+    const andConditions = [await buildPartyTransactionMatch(party)];
 
     if (type === "debit" || type === "credit") {
       andConditions.push({ type });
@@ -892,7 +1004,7 @@ export const getPartyLedger = async (req, res, next) => {
         name: searchRegex,
         ...(party.organization
           ? { organization: party.organization }
-          : { admin: party.admin, organization: { $exists: false } }),
+          : { admin: party.admin, organization: null }),
       })
         .select("_id")
         .limit(50)
@@ -1182,28 +1294,29 @@ export const getPartySummary = async (req, res, next) => {
     const userId = req.user.id;
     const { organization, type } = req.query;
 
-    // Build query
-    const matchFilter = {};
+    // Build query — same scope as getParties (org + legacy personal)
+    const matchFilter = buildPartyListScope(
+      new mongoose.Types.ObjectId(userId),
+      organization ? new mongoose.Types.ObjectId(organization) : null,
+    );
 
     if (organization) {
       const access = await checkOrgAccess(userId, organization);
       if (!access.hasAccess) {
         return res.status(403).json({ message: access.error });
       }
-      matchFilter.organization = new mongoose.Types.ObjectId(organization);
-    } else {
-      matchFilter.admin = new mongoose.Types.ObjectId(userId);
-      matchFilter.organization = { $exists: false };
     }
 
-    matchFilter.archived = { $ne: true };
+    const and = [matchFilter, { archived: { $ne: true } }];
 
     if (type && PARTY_TYPE_OPTIONS.includes(type)) {
-      matchFilter.type = type;
+      and.push({
+        type: type === "both" ? "both" : { $in: [type, "both"] },
+      });
     }
 
     const results = await Party.aggregate([
-      { $match: matchFilter },
+      { $match: and.length === 1 ? and[0] : { $and: and } },
       {
         $group: {
           _id: null,

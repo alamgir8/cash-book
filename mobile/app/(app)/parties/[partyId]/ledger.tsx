@@ -177,13 +177,13 @@ export default function PartyLedgerScreen() {
               style={{ borderColor: colors.border }}
             >
               <Text
-                className="text-[10px] uppercase"
+                className="text-xs uppercase font-semibold"
                 style={{ color: colors.text.tertiary }}
               >
                 Opening
               </Text>
               <Text
-                className="text-sm font-bold mt-0.5"
+                className="text-base font-bold mt-1"
                 style={{ color: colors.text.primary }}
               >
                 {formatLedgerBalance(summary?.opening_balance || 0)}
@@ -194,13 +194,13 @@ export default function PartyLedgerScreen() {
               style={{ borderColor: colors.border }}
             >
               <Text
-                className="text-[10px] uppercase"
+                className="text-xs uppercase font-semibold"
                 style={{ color: colors.text.tertiary }}
               >
                 Debit
               </Text>
               <Text
-                className="text-sm font-bold mt-0.5"
+                className="text-base font-bold mt-1"
                 style={{ color: colors.success }}
               >
                 {formatLedgerAmount(summary?.total_debit || 0)}
@@ -208,13 +208,13 @@ export default function PartyLedgerScreen() {
             </View>
             <View className="flex-1 px-3 py-2.5">
               <Text
-                className="text-[10px] uppercase"
+                className="text-xs uppercase font-semibold"
                 style={{ color: colors.text.tertiary }}
               >
                 Credit
               </Text>
               <Text
-                className="text-sm font-bold mt-0.5"
+                className="text-base font-bold mt-1"
                 style={{ color: colors.error }}
               >
                 {formatLedgerAmount(summary?.total_credit || 0)}
@@ -241,14 +241,14 @@ export default function PartyLedgerScreen() {
                 Closing Balance
               </Text>
               <Text
-                className="text-[10px] mt-0.5"
+                className="text-xs mt-0.5"
                 style={{ color: colors.text.tertiary }}
               >
                 After all ledger entries
               </Text>
             </View>
             <Text
-              className="text-lg font-bold"
+              className="text-xl font-bold"
               style={{
                 color:
                   closing > 0
@@ -345,7 +345,7 @@ export default function PartyLedgerScreen() {
             </Text>
           </TouchableOpacity>
         </View>
-        <Text className="text-xs" style={{ color: colors.text.tertiary }}>
+        <Text className="text-sm" style={{ color: colors.text.tertiary }}>
           Showing {entries.length}
           {totalCount ? ` of ${totalCount}` : ""}
         </Text>

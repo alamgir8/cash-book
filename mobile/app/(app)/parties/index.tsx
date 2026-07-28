@@ -9,7 +9,6 @@ import {
   ActivityIndicator,
   Modal,
   FlatList,
-  InteractionManager,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { toast } from "@/lib/toast";
@@ -61,6 +60,7 @@ export default function PartiesScreen() {
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState("-updatedAt");
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
+  const [pullRefreshing, setPullRefreshing] = useState(false);
   const [mergeSource, setMergeSource] = useState<Party | null>(null);
   const [mergePickerVisible, setMergePickerVisible] = useState(false);
   const [mergeSearchInput, setMergeSearchInput] = useState("");
@@ -85,7 +85,6 @@ export default function PartiesScreen() {
     hasNextPage,
     fetchNextPage,
     refetch,
-    isRefetching,
   } = useInfiniteQuery({
     queryKey: ["parties", organizationId, activeTab, search, sort, PAGE_SIZE],
     queryFn: ({ pageParam, signal }) =>
@@ -108,6 +107,7 @@ export default function PartiesScreen() {
     },
     retry: 1,
     staleTime: 60_000,
+    placeholderData: keepPreviousData,
     refetchOnMount: false,
     refetchOnReconnect: false,
     refetchOnWindowFocus: false,
@@ -283,28 +283,72 @@ export default function PartiesScreen() {
 
   const onOpenParty = useCallback(
     (party: Party) => {
-      InteractionManager.runAfterInteractions(() => {
-        router.push(`/(app)/parties/${party._id}` as any);
-      });
+      router.push(`/(app)/parties/${party._id}` as any);
     },
     [router],
   );
   const onLedgerParty = useCallback(
     (party: Party) => {
-      InteractionManager.runAfterInteractions(() => {
-        router.push(`/(app)/parties/${party._id}/ledger` as any);
-      });
+      router.push(`/(app)/parties/${party._id}/ledger` as any);
     },
     [router],
   );
   const onEditParty = useCallback(
     (party: Party) => {
-      InteractionManager.runAfterInteractions(() => {
-        router.push(`/(app)/parties/${party._id}/edit` as any);
-      });
+      router.push(`/(app)/parties/${party._id}/edit` as any);
     },
     [router],
   );
+
+  const handlePullRefresh = useCallback(async () => {
+    setPullRefreshing(true);
+    try {
+      await refetch();
+    } finally {
+      setPullRefreshing(false);
+    }
+  }, [refetch]);
+
+  const listFooter = useMemo(() => {
+    if (hasNextPage) {
+      return (
+        <TouchableOpacity
+          className="mt-2 mb-4 py-3 rounded-xl items-center"
+          style={{ backgroundColor: colors.info }}
+          disabled={isFetchingNextPage}
+          onPress={() => {
+            if (!isFetchingNextPage) void fetchNextPage();
+          }}
+        >
+          {isFetchingNextPage ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text className="text-white font-semibold">
+              Load more (+{PAGE_SIZE})
+            </Text>
+          )}
+        </TouchableOpacity>
+      );
+    }
+    if (parties.length > 0) {
+      return (
+        <Text
+          className="text-center text-xs py-3"
+          style={{ color: colors.text.tertiary }}
+        >
+          All parties loaded
+        </Text>
+      );
+    }
+    return null;
+  }, [
+    hasNextPage,
+    isFetchingNextPage,
+    parties.length,
+    colors.info,
+    colors.text.tertiary,
+    fetchNextPage,
+  ]);
 
   const renderParty = useCallback(
     ({ item }: { item: Party }) => (
@@ -515,15 +559,17 @@ export default function PartiesScreen() {
           renderItem={renderParty}
           contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
           keyboardShouldPersistTaps="handled"
-          initialNumToRender={10}
-          maxToRenderPerBatch={8}
-          windowSize={5}
-          updateCellsBatchingPeriod={50}
+          initialNumToRender={8}
+          maxToRenderPerBatch={6}
+          windowSize={7}
+          updateCellsBatchingPeriod={80}
           removeClippedSubviews={false}
+          maintainVisibleContentPosition={undefined}
           refreshControl={
             <RefreshControl
-              refreshing={isRefetching && !isFetchingNextPage}
-              onRefresh={() => void refetch()}
+              refreshing={pullRefreshing}
+              onRefresh={() => void handlePullRefresh()}
+              tintColor={colors.info}
             />
           }
           ListEmptyComponent={
@@ -541,31 +587,7 @@ export default function PartiesScreen() {
               </Text>
             </View>
           }
-          ListFooterComponent={
-            hasNextPage ? (
-              <TouchableOpacity
-                className="mt-2 mb-4 py-3 rounded-xl items-center"
-                style={{ backgroundColor: colors.info }}
-                disabled={isFetchingNextPage}
-                onPress={() => void fetchNextPage()}
-              >
-                {isFetchingNextPage ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text className="text-white font-semibold">
-                    Load more (+{PAGE_SIZE})
-                  </Text>
-                )}
-              </TouchableOpacity>
-            ) : parties.length > 0 ? (
-              <Text
-                className="text-center text-xs py-3"
-                style={{ color: colors.text.tertiary }}
-              >
-                All parties loaded
-              </Text>
-            ) : null
-          }
+          ListFooterComponent={listFooter}
         />
       )}
 

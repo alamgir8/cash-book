@@ -597,7 +597,7 @@ export const createTransaction = async (req, res, next) => {
 
     const transactionPayload = {
       admin: req.user.id,
-      organization,
+      organization: organization || account.organization || undefined,
       account: account._id,
       category_id: categoryDocument?._id,
       party,
@@ -611,6 +611,14 @@ export const createTransaction = async (req, res, next) => {
       due_date: due_date ? new Date(due_date) : undefined,
       meta_data: metaData,
     };
+
+    // If party is org-scoped, keep the transaction in the same organization
+    if (!transactionPayload.organization && party) {
+      const partyDoc = await Party.findById(party).select("organization").lean();
+      if (partyDoc?.organization) {
+        transactionPayload.organization = partyDoc.organization;
+      }
+    }
 
     // Inherit party / for_party from parent due if not explicitly provided
     if (parentDue) {

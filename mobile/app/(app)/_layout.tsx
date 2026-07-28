@@ -165,7 +165,10 @@ export default function AppLayout() {
         headerShown: false,
         freezeOnBlur: true,
         lazy: true,
+        // Prevent inactive tab screens (and their absolute FABs) from painting over others
+        sceneStyle: { backgroundColor: "transparent" },
       }}
+      detachInactiveScreens
     >
       <Tabs.Screen name="index" />
       <Tabs.Screen name="accounts" />

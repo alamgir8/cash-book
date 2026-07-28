@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { View } from "react-native";
-import { useIsFocused } from "expo-router";
+import { usePathname } from "expo-router";
 import { StatsCards } from "@/components/stats-cards";
 import { HomeQuickFeatures } from "@/components/home-quick-features";
 import { ScreenHeader } from "@/components/screen-header";
@@ -22,10 +22,21 @@ import { useTheme } from "@/hooks/use-theme";
 import { useDashboard } from "@/hooks/use-dashboard";
 import { useTranslation } from "@/hooks/use-translation";
 
+function isHomePath(pathname: string | null | undefined) {
+  if (!pathname) return false;
+  return (
+    pathname === "/" ||
+    pathname === "/(app)" ||
+    pathname === "/(app)/" ||
+    pathname === "/(app)/index"
+  );
+}
+
 export default function DashboardScreen() {
   const { colors } = useTheme();
   const { t } = useTranslation();
-  const isHomeFocused = useIsFocused();
+  const pathname = usePathname();
+  const isHomeFocused = isHomePath(pathname);
 
   const [viewingVendorHistoryFor, setViewingVendorHistoryFor] =
     useState<Transaction | null>(null);
@@ -175,7 +186,13 @@ export default function DashboardScreen() {
   );
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.bg.secondary }}>
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: colors.bg.secondary,
+        overflow: "hidden",
+      }}
+    >
       <ScreenHeader
         title={t("dashboard")}
         subtitle={

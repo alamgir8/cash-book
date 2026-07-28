@@ -1,4 +1,4 @@
-import { TouchableOpacity, StyleSheet, View } from "react-native";
+import { TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../hooks/use-theme";
 
@@ -37,8 +37,8 @@ export function FloatingActionButton({
   };
 
   const bgColor = getColorValue();
-  const dim = size === "large" ? 80 : 64;
-  const iconSize = size === "large" ? 36 : 32;
+  const dim = size === "large" ? 64 : 56;
+  const iconSize = size === "large" ? 30 : 28;
 
   const positionStyle =
     position === "bottom-left"
@@ -47,26 +47,26 @@ export function FloatingActionButton({
         ? styles.bottomCenter
         : styles.bottomRight;
 
+  // No absoluteFill wrapper — that leaked over other tab screens while Home stayed mounted.
   return (
-    <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
-      <TouchableOpacity
-        onPress={onPress}
-        activeOpacity={0.85}
-        style={[
-          styles.button,
-          positionStyle,
-          {
-            width: dim,
-            height: dim,
-            borderRadius: 18,
-            backgroundColor: bgColor,
-            shadowColor: bgColor,
-          },
-        ]}
-      >
-        <Ionicons name={icon} size={iconSize} color="white" />
-      </TouchableOpacity>
-    </View>
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.85}
+      accessibilityRole="button"
+      style={[
+        styles.button,
+        positionStyle,
+        {
+          width: dim,
+          height: dim,
+          borderRadius: dim / 2,
+          backgroundColor: bgColor,
+          shadowColor: bgColor,
+        },
+      ]}
+    >
+      <Ionicons name={icon} size={iconSize} color="white" />
+    </TouchableOpacity>
   );
 }
 
@@ -77,12 +77,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderWidth: 2,
     borderColor: "#fff",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 12,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.28,
+    shadowRadius: 12,
+    elevation: 10,
+    zIndex: 20,
   },
-  bottomRight: { right: 24, bottom: 128 },
-  bottomLeft: { left: 24, bottom: 128 },
-  bottomCenter: { alignSelf: "center", bottom: 128 },
+  bottomRight: { right: 20, bottom: 24 },
+  bottomLeft: { left: 20, bottom: 24 },
+  bottomCenter: { alignSelf: "center", bottom: 24 },
 });
