@@ -16,6 +16,8 @@ type Props = {
   party: Party;
   canManage: boolean;
   showDeleteActions: boolean;
+  /** Forces FlatList/memo to refresh when theme flips */
+  themeKey: string;
   onOpen: (party: Party) => void;
   onLedger: (party: Party) => void;
   onEdit: (party: Party) => void;
@@ -27,6 +29,7 @@ function PartyListCardComponent({
   party,
   canManage,
   showDeleteActions,
+  themeKey: _themeKey,
   onOpen,
   onLedger,
   onEdit,
@@ -52,14 +55,18 @@ function PartyListCardComponent({
       style={[
         styles.card,
         {
-          backgroundColor: colors.bg.secondary,
-          borderColor: colors.border,
+          backgroundColor: colors.card,
+          borderColor: colors.cardBorder,
         },
       ]}
     >
       <Pressable
         onPress={open}
-        style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
+        style={({ pressed }) => ({
+          opacity: pressed ? 0.7 : 1,
+          width: "100%",
+          alignSelf: "stretch",
+        })}
       >
         <View style={styles.headerRow}>
           <View
@@ -97,7 +104,7 @@ function PartyListCardComponent({
           </View>
         </View>
 
-        {/* Full-width, left-aligned balance + txn counts */}
+        {/* Full card width — flush with icon left edge (same as Ledger/Edit row) */}
         <View style={styles.statsBlock}>
           <Text
             style={[
@@ -278,33 +285,42 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   statsBlock: {
+    alignSelf: "stretch",
     width: "100%",
-    alignItems: "flex-start",
     marginTop: 10,
+    marginLeft: 0,
+    marginRight: 0,
+    paddingLeft: 0,
+    paddingRight: 0,
   },
   balance: {
     fontSize: 13,
     fontWeight: "600",
     width: "100%",
     textAlign: "left",
+    alignSelf: "stretch",
   },
   countRow: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "flex-start",
+    alignItems: "stretch",
     alignSelf: "stretch",
     width: "100%",
     gap: 6,
     marginTop: 8,
   },
   countChip: {
+    flex: 1,
+    minWidth: 0,
     paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 999,
+    paddingVertical: 6,
+    borderRadius: 8,
+    alignItems: "flex-start",
+    justifyContent: "center",
   },
   countText: {
     fontSize: 11,
     fontWeight: "600",
+    textAlign: "left",
   },
   actions: {
     flexDirection: "row",
@@ -346,6 +362,7 @@ const styles = StyleSheet.create({
 export const PartyListCard = memo(
   PartyListCardComponent,
   (prev, next) =>
+    prev.themeKey === next.themeKey &&
     prev.party._id === next.party._id &&
     prev.party.name === next.party.name &&
     prev.party.type === next.party.type &&

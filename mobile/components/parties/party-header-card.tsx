@@ -5,48 +5,60 @@ import { useTheme } from "@/hooks/use-theme";
 
 type PartyHeaderCardProps = {
   party: Party;
-  onEdit: () => void;
+  onEdit?: () => void;
 };
 
-export function PartyHeaderCard({ party, onEdit }: PartyHeaderCardProps) {
+export function PartyHeaderCard({ party }: PartyHeaderCardProps) {
   const { colors } = useTheme();
 
-  const getTypeColor = (type: PartyType) => {
+  const getTypeColors = (type: PartyType) => {
     if (type === "customer")
-      return { bg: "bg-green-100", text: "text-green-700", icon: "#10B981" };
+      return { accent: colors.success, icon: "person" as const };
     if (type === "supplier")
-      return { bg: "bg-orange-100", text: "text-orange-700", icon: "#F97316" };
-    return { bg: "bg-blue-100", text: "text-blue-700", icon: "#3B82F6" };
+      return { accent: colors.warning, icon: "storefront" as const };
+    return { accent: colors.info, icon: "people" as const };
   };
 
-  const typeColors = getTypeColor(party.type);
+  const typeColors = getTypeColors(party.type);
 
   return (
-    <View className="p-6 border-b" style={{ backgroundColor: colors.card, borderColor: colors.border }}>
+    <View
+      className="p-6 border-b"
+      style={{ backgroundColor: colors.card, borderColor: colors.border }}
+    >
       <View className="flex-row items-center">
         <View
-          className={`w-16 h-16 rounded-2xl items-center justify-center ${typeColors.bg}`}
+          className="w-16 h-16 rounded-2xl items-center justify-center"
+          style={{ backgroundColor: typeColors.accent + "22" }}
         >
-          <Ionicons
-            name={party.type === "customer" ? "person" : "storefront"}
-            size={32}
-            color={typeColors.icon}
-          />
+          <Ionicons name={typeColors.icon} size={32} color={typeColors.accent} />
         </View>
         <View className="flex-1 ml-4">
           <View className="flex-row items-center">
-            <Text className="text-xl font-bold flex-1" style={{ color: colors.text.primary }}>
+            <Text
+              className="text-xl font-bold flex-1"
+              style={{ color: colors.text.primary }}
+            >
               {party.name}
             </Text>
-            <View className={`px-3 py-1 rounded-full ${typeColors.bg}`}>
+            <View
+              className="px-3 py-1 rounded-full"
+              style={{ backgroundColor: typeColors.accent + "22" }}
+            >
               <Text
-                className={`text-xs font-medium capitalize ${typeColors.text}`}
+                className="text-xs font-medium capitalize"
+                style={{ color: typeColors.accent }}
               >
                 {party.type}
               </Text>
             </View>
           </View>
-          <Text className="text-sm mt-1" style={{ color: colors.text.tertiary }}>{party.code}</Text>
+          <Text
+            className="text-sm mt-1"
+            style={{ color: colors.text.secondary }}
+          >
+            {party.code}
+          </Text>
         </View>
       </View>
     </View>

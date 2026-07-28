@@ -43,8 +43,14 @@ export function PartyContactInfo({ party }: PartyContactInfoProps) {
   }
 
   return (
-    <View className="p-4 mt-3 border-y" style={{ backgroundColor: colors.card, borderColor: colors.border }}>
-      <Text className="text-sm font-semibold mb-3" style={{ color: colors.text.primary }}>
+    <View
+      className="p-4 mt-3 border-y"
+      style={{ backgroundColor: colors.card, borderColor: colors.border }}
+    >
+      <Text
+        className="text-sm font-semibold mb-3"
+        style={{ color: colors.text.primary }}
+      >
         Contact Information
       </Text>
 
@@ -54,14 +60,25 @@ export function PartyContactInfo({ party }: PartyContactInfoProps) {
           style={{ borderColor: colors.border }}
           onPress={handleCall}
         >
-          <View className="w-10 h-10 bg-blue-100 rounded-xl items-center justify-center">
-            <Ionicons name="call" size={20} color="#3B82F6" />
+          <View
+            className="w-10 h-10 rounded-xl items-center justify-center"
+            style={{ backgroundColor: colors.info + "22" }}
+          >
+            <Ionicons name="call" size={20} color={colors.info} />
           </View>
           <View className="flex-1 ml-3">
-            <Text className="text-sm" style={{ color: colors.text.tertiary }}>Phone</Text>
-            <Text className="text-base" style={{ color: colors.text.primary }}>{party.phone}</Text>
+            <Text className="text-sm" style={{ color: colors.text.secondary }}>
+              Phone
+            </Text>
+            <Text className="text-base" style={{ color: colors.text.primary }}>
+              {party.phone}
+            </Text>
           </View>
-          <Ionicons name="chevron-forward" size={20} color={colors.text.tertiary} />
+          <Ionicons
+            name="chevron-forward"
+            size={20}
+            color={colors.text.secondary}
+          />
         </TouchableOpacity>
       )}
 
@@ -71,24 +88,40 @@ export function PartyContactInfo({ party }: PartyContactInfoProps) {
           style={{ borderColor: colors.border }}
           onPress={handleEmail}
         >
-          <View className="w-10 h-10 bg-purple-100 rounded-xl items-center justify-center">
-            <Ionicons name="mail" size={20} color="#8B5CF6" />
+          <View
+            className="w-10 h-10 rounded-xl items-center justify-center"
+            style={{ backgroundColor: colors.secondary + "22" }}
+          >
+            <Ionicons name="mail" size={20} color={colors.secondary} />
           </View>
           <View className="flex-1 ml-3">
-            <Text className="text-sm" style={{ color: colors.text.tertiary }}>Email</Text>
-            <Text className="text-base" style={{ color: colors.text.primary }}>{party.email}</Text>
+            <Text className="text-sm" style={{ color: colors.text.secondary }}>
+              Email
+            </Text>
+            <Text className="text-base" style={{ color: colors.text.primary }}>
+              {party.email}
+            </Text>
           </View>
-          <Ionicons name="chevron-forward" size={20} color={colors.text.tertiary} />
+          <Ionicons
+            name="chevron-forward"
+            size={20}
+            color={colors.text.secondary}
+          />
         </TouchableOpacity>
       )}
 
       {party.address && (
         <View className="flex-row items-center py-3">
-          <View className="w-10 h-10 bg-green-100 rounded-xl items-center justify-center">
-            <Ionicons name="location" size={20} color="#10B981" />
+          <View
+            className="w-10 h-10 rounded-xl items-center justify-center"
+            style={{ backgroundColor: colors.success + "22" }}
+          >
+            <Ionicons name="location" size={20} color={colors.success} />
           </View>
           <View className="flex-1 ml-3">
-            <Text className="text-sm" style={{ color: colors.text.tertiary }}>Address</Text>
+            <Text className="text-sm" style={{ color: colors.text.secondary }}>
+              Address
+            </Text>
             <Text className="text-base" style={{ color: colors.text.primary }}>
               {formatAddress(party.address)}
             </Text>

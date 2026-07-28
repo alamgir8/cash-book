@@ -68,7 +68,8 @@ const SORT_OPTIONS: { value: string; label: string }[] = [
 export default function PartiesScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
+  const themeKey = isDark ? "dark" : "light";
   const { canManageParties, organizations } = useOrganization();
   const { isDeleteModeActive } = useDeleteMode();
 
@@ -391,6 +392,7 @@ export default function PartiesScreen() {
         party={item}
         canManage={!!canManageParties}
         showDeleteActions={isDeleteModeActive}
+        themeKey={themeKey}
         onOpen={onOpenParty}
         onLedger={onLedgerParty}
         onEdit={onEditParty}
@@ -401,6 +403,7 @@ export default function PartiesScreen() {
     [
       canManageParties,
       isDeleteModeActive,
+      themeKey,
       onOpenParty,
       onLedgerParty,
       onEditParty,
@@ -623,6 +626,7 @@ export default function PartiesScreen() {
           data={parties}
           keyExtractor={(item) => item._id}
           renderItem={renderParty}
+          extraData={themeKey}
           contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
           keyboardShouldPersistTaps="handled"
           initialNumToRender={8}

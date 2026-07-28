@@ -18,12 +18,18 @@ export function formatPartyBalance(balance: number): string {
 }
 
 /**
- * Get balance color based on amount
+ * Get balance color hex based on amount (theme-aware callers should prefer useTheme colors).
  */
-export function getPartyBalanceColor(balance: number): string {
-  if (balance > 0) return "text-green-600";
-  if (balance < 0) return "text-red-600";
-  return "text-gray-500";
+export function getPartyBalanceColor(
+  balance: number,
+  palette?: { success: string; error: string; muted: string },
+): string {
+  const success = palette?.success ?? "#10b981";
+  const error = palette?.error ?? "#ef4444";
+  const muted = palette?.muted ?? "#64748b";
+  if (balance > 0) return success;
+  if (balance < 0) return error;
+  return muted;
 }
 
 /**
@@ -51,30 +57,23 @@ export function getPartyTypeIcon(type: PartyType): string {
 }
 
 /**
- * Get party type color
+ * Get party type accent color (hex) — use with theme-tinted backgrounds.
  */
 export function getPartyTypeColor(type: PartyType): {
-  bg: string;
-  text: string;
+  accent: string;
   icon: string;
 } {
-  const typeColors: Record<
-    PartyType,
-    { bg: string; text: string; icon: string }
-  > = {
+  const typeColors: Record<PartyType, { accent: string; icon: string }> = {
     customer: {
-      bg: "bg-green-100",
-      text: "text-green-700",
+      accent: "#10B981",
       icon: "#10B981",
     },
     supplier: {
-      bg: "bg-orange-100",
-      text: "text-orange-700",
+      accent: "#F97316",
       icon: "#F97316",
     },
     both: {
-      bg: "bg-blue-100",
-      text: "text-blue-700",
+      accent: "#3B82F6",
       icon: "#3B82F6",
     },
   };

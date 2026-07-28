@@ -18,7 +18,7 @@ import {
   PartyBusinessDetails,
 } from "@/components/parties";
 import { useParty, useDeleteParty } from "@/hooks/use-parties";
-import { formatPartyBalance, getPartyBalanceColor } from "@/lib/party-utils";
+import { formatPartyBalance } from "@/lib/party-utils";
 import { useTheme } from "@/hooks/use-theme";
 import { useDeleteMode } from "@/hooks/use-delete-mode";
 import { partiesApi } from "@/services/parties";
@@ -130,7 +130,6 @@ export default function PartyDetailScreen() {
           <PartyBalanceCard
             balance={party.current_balance}
             formatBalance={formatPartyBalance}
-            getBalanceColor={getPartyBalanceColor}
           />
 
           {/* Quick Actions */}
@@ -217,11 +216,18 @@ export default function PartyDetailScreen() {
         {isDeleteModeActive ? (
           <View className="p-4">
             <TouchableOpacity
-              className="py-4 bg-red-50 rounded-xl border border-red-200"
+              className="py-4 rounded-xl border"
+              style={{
+                backgroundColor: colors.error + "18",
+                borderColor: colors.error + "55",
+              }}
               onPress={handleDelete}
               disabled={deleteMutation.isPending}
             >
-              <Text className="text-center text-red-600 font-medium">
+              <Text
+                className="text-center font-medium"
+                style={{ color: colors.error }}
+              >
                 {deleteMutation.isPending ? "Deleting..." : "Delete Party"}
               </Text>
             </TouchableOpacity>

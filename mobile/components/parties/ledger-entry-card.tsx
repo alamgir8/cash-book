@@ -224,7 +224,10 @@ function LedgerEntryCardComponent({ entry, onPress }: Props) {
       </View>
 
       {entry.invoice_id ? (
-        <View className="flex-row items-center gap-1.5 mt-2.5 pt-2.5 border-t border-slate-200">
+        <View
+          className="flex-row items-center gap-1.5 mt-2.5 pt-2.5 border-t"
+          style={{ borderTopColor: colors.border }}
+        >
           <Ionicons name="document-text-outline" size={14} color={colors.info} />
           <Text
             className="flex-1 text-sm font-semibold"

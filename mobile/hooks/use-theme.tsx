@@ -74,7 +74,8 @@ export const darkColors = {
   text: {
     primary: "#f8fafc",
     secondary: "#cbd5e1",
-    tertiary: "#64748b",
+    // Slightly lighter than slate-500 for readable labels on dark surfaces
+    tertiary: "#94a3b8",
     inverse: "#0f172a",
   },
 
@@ -87,7 +88,7 @@ export const darkColors = {
   cardBorder: "#334155",
   input: "#0f172a",
   inputBorder: "#334155",
-  inputPlaceholder: "#64748b",
+  inputPlaceholder: "#94a3b8",
   buttonText: "#ffffff",
   modalOverlay: "rgba(0, 0, 0, 0.8)",
 
@@ -156,8 +157,12 @@ export const ThemeProvider = ({ children }: ThemeProviderProps) => {
     [colorScheme, isDark, colors, setColorScheme],
   );
 
-  if (!isLoaded) {
-    return null; // Or return a loading screen
+  // Avoid a light→dark flash that leaves FlatList cells stuck on light styles
+  const awaitingSystemScheme =
+    colorScheme === "system" && systemColorScheme == null;
+
+  if (!isLoaded || awaitingSystemScheme) {
+    return null;
   }
 
   return (

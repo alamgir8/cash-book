@@ -25,11 +25,20 @@ export function PartyQuickActions({
       </TouchableOpacity>
       <TouchableOpacity
         className="flex-1 flex-row items-center justify-center py-3 rounded-xl"
-        style={{ backgroundColor: colors.bg.secondary }}
+        style={{
+          backgroundColor: colors.bg.tertiary,
+          borderWidth: 1,
+          borderColor: colors.border,
+        }}
         onPress={onNewInvoice}
       >
         <Ionicons name="receipt" size={20} color={colors.text.primary} />
-        <Text className="ml-2 font-medium" style={{ color: colors.text.primary }}>New Invoice</Text>
+        <Text
+          className="ml-2 font-medium"
+          style={{ color: colors.text.primary }}
+        >
+          New Invoice
+        </Text>
       </TouchableOpacity>
     </View>
   );
