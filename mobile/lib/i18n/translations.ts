@@ -336,6 +336,7 @@ export type AppTranslations = {
   bulkCounterpartySingleOnly: string;
   bulkCounterpartySingleOnlyHint: string;
   saveBulkTransactions: string;
+  failedToAddParty: string;
   additionalNotes: string;
   additionalDetailsPlaceholder: string;
   attachments: string;
@@ -782,6 +783,7 @@ const en: AppTranslations = {
   bulkCounterpartySingleOnlyHint:
     "Clear extra vendors to add more counterparties",
   saveBulkTransactions: "Save {count} Transactions",
+  failedToAddParty: "Could not add party",
   additionalNotes: "Additional Notes",
   additionalDetailsPlaceholder: "Any additional details...",
   attachments: "Attachments",
@@ -1228,6 +1230,7 @@ const bn: AppTranslations = {
   bulkCounterpartySingleOnlyHint:
     "আরও কাউন্টারপার্টি যোগ করতে অতিরিক্ত বিক্রেতা সরান",
   saveBulkTransactions: "{count}টি লেনদেন সংরক্ষণ করুন",
+  failedToAddParty: "পার্টি যোগ করা যায়নি",
   additionalNotes: "অতিরিক্ত নোট",
   additionalDetailsPlaceholder: "যেকোনো অতিরিক্ত বিবরণ...",
   attachments: "সংযুক্তি",

@@ -59,6 +59,10 @@ export function SearchableMultiSelect({
   const [isFetching, setIsFetching] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [labelCache, setLabelCache] = useState<Record<string, string>>({});
+  const [localExtras, setLocalExtras] = useState<SelectOption[]>([]);
+  const [isAdding, setIsAdding] = useState(false);
+  const valuesRef = useRef(values);
+  valuesRef.current = values;
 
   // Keep the full list loaded while the sheet is open.
   // Empty search → full list; typing → filtered results. Never wipe the list on clear.
@@ -97,20 +101,71 @@ export function SearchableMultiSelect({
     };
   }, [visible, search, fetchOptions]);
 
+  // When parent resolves __new__: temp ids to real party ids, refresh local extras
+  useEffect(() => {
+    setLocalExtras((prev) => {
+      if (!prev.length) return prev;
+      let changed = false;
+      const next = prev.map((extra) => {
+        if (!extra.value.startsWith("__new__:")) return extra;
+        const resolved = options.find(
+          (o) =>
+            !o.value.startsWith("__new__:") &&
+            o.label.toLowerCase() === extra.label.toLowerCase(),
+        );
+        if (resolved) {
+          changed = true;
+          return resolved;
+        }
+        return extra;
+      });
+      return changed ? next : prev;
+    });
+  }, [options]);
+
+  // Also swap label-cache keys when values replace a temp id
+  useEffect(() => {
+    setLabelCache((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      for (const v of values) {
+        if (v.startsWith("__new__:") || next[v]) continue;
+        const fromExtra = localExtras.find((e) => e.value === v);
+        if (fromExtra) {
+          next[v] = fromExtra.label;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [values, localExtras]);
+
+  // Reset ephemeral extras when the sheet closes
+  useEffect(() => {
+    if (!visible) {
+      setLocalExtras([]);
+      setIsAdding(false);
+    }
+  }, [visible]);
+
   const mergedOptions = useMemo(() => {
     const byValue = new Map<string, SelectOption>();
     for (const o of options) byValue.set(o.value, o);
     for (const o of asyncOptions) {
       if (!byValue.has(o.value)) byValue.set(o.value, o);
     }
+    for (const o of localExtras) {
+      byValue.set(o.value, o);
+    }
     // Keep selected items visible even if the current fetch page omitted them
     for (const v of values) {
-      if (!byValue.has(v) && labelCache[v]) {
-        byValue.set(v, { value: v, label: labelCache[v] });
+      if (!byValue.has(v)) {
+        const label = labelCache[v];
+        if (label) byValue.set(v, { value: v, label });
       }
     }
     return Array.from(byValue.values());
-  }, [options, asyncOptions, values, labelCache]);
+  }, [options, asyncOptions, localExtras, values, labelCache]);
 
   const selectedOptions = useMemo(() => {
     return values.map((v) => {
@@ -220,24 +275,50 @@ export function SearchableMultiSelect({
 
   const handleAddCustom = async () => {
     const trimmedSearch = search.trim();
-    if (!trimmedSearch) return;
-    if (onAddNew) {
-      if (maxCount != null && values.length >= maxCount) {
-        onMaxReached?.();
-        return;
+    if (!trimmedSearch || !onAddNew || isAdding) return;
+    if (maxCount != null && valuesRef.current.length >= maxCount) {
+      onMaxReached?.();
+      return;
+    }
+
+    // If an option with the same label already exists, select it instead of creating
+    const existing = mergedOptions.find(
+      (o) => o.label.toLowerCase() === trimmedSearch.toLowerCase(),
+    );
+    if (existing) {
+      setLabelCache((prev) => ({ ...prev, [existing.value]: existing.label }));
+      if (!valuesRef.current.includes(existing.value)) {
+        const next = [...valuesRef.current, existing.value];
+        onChange(next, resolveOptionList(next, [existing]));
       }
+      setSearch("");
+      return;
+    }
+
+    setIsAdding(true);
+    try {
       const newOption = await onAddNew(trimmedSearch);
-      if (newOption) {
-        setLabelCache((prev) => ({
-          ...prev,
-          [newOption.value]: newOption.label,
-        }));
-        const next = values.includes(newOption.value)
-          ? values
-          : [...values, newOption.value];
-        onChange(next, resolveOptionList(next, [newOption]));
-        setSearch("");
-      }
+      if (!newOption?.value) return;
+
+      setLabelCache((prev) => ({
+        ...prev,
+        [newOption.value]: newOption.label,
+      }));
+      setLocalExtras((prev) => {
+        if (prev.some((p) => p.value === newOption.value)) return prev;
+        return [...prev, newOption];
+      });
+
+      const current = valuesRef.current;
+      const next = current.includes(newOption.value)
+        ? current
+        : [...current, newOption.value];
+      onChange(next, resolveOptionList(next, [newOption]));
+      setSearch("");
+    } catch {
+      // Parent / API error — keep search so user can retry
+    } finally {
+      setIsAdding(false);
     }
   };
 
@@ -399,6 +480,21 @@ export function SearchableMultiSelect({
                   ...styles.searchInput,
                 }}
                 autoFocus
+                onSubmitEditing={() => {
+                  if (
+                    onAddNew &&
+                    search.trim() &&
+                    !searchMatchesExisting &&
+                    !isAdding
+                  ) {
+                    void handleAddCustom();
+                  }
+                }}
+                returnKeyType={
+                  onAddNew && search.trim() && !searchMatchesExisting
+                    ? "done"
+                    : "search"
+                }
               />
               {search.length > 0 && (
                 <TouchableOpacity onPress={() => setSearch("")}>
@@ -418,6 +514,32 @@ export function SearchableMultiSelect({
               )}
             </View>
 
+            {onAddNew && search.trim() && !searchMatchesExisting ? (
+              <TouchableOpacity
+                style={{
+                  ...styles.addNewRow,
+                  backgroundColor: colors.info + "15",
+                  borderBottomColor: colors.border,
+                  opacity: isAdding ? 0.6 : 1,
+                }}
+                disabled={isAdding}
+                onPress={() => void handleAddCustom()}
+              >
+                {isAdding ? (
+                  <ActivityIndicator size="small" color={colors.info} />
+                ) : (
+                  <Ionicons name="pricetag" size={20} color={colors.info} />
+                )}
+                <Text style={{ ...styles.addNewText, color: colors.info }}>
+                  {isAdding
+                    ? `Adding "${search.trim()}"…`
+                    : addNewLabel
+                      ? `+ Add "${search.trim()}" as ${addNewLabel}`
+                      : `+ Add "${search.trim()}"`}
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+
             <FlatList
               data={filteredItems}
               keyExtractor={(item) => item.id}
@@ -425,26 +547,8 @@ export function SearchableMultiSelect({
               initialNumToRender={20}
               maxToRenderPerBatch={20}
               windowSize={7}
-              removeClippedSubviews
-              ListHeaderComponent={
-                onAddNew && search.trim() && !searchMatchesExisting ? (
-                  <TouchableOpacity
-                    style={{
-                      ...styles.addNewRow,
-                      backgroundColor: colors.info + "15",
-                      borderBottomColor: colors.border,
-                    }}
-                    onPress={handleAddCustom}
-                  >
-                    <Ionicons name="pricetag" size={20} color={colors.info} />
-                    <Text style={{ ...styles.addNewText, color: colors.info }}>
-                      {addNewLabel
-                        ? `+ Add "${search.trim()}" as ${addNewLabel}`
-                        : `+ Add "${search.trim()}"`}
-                    </Text>
-                  </TouchableOpacity>
-                ) : null
-              }
+              removeClippedSubviews={false}
+              ListHeaderComponent={null}
               ListFooterComponent={
                 hasMore ? (
                   <View

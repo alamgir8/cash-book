@@ -187,7 +187,7 @@ export const TransactionModal = ({
             prev.map((id) => (id === tempId ? party._id : id)),
           );
         })
-        .catch(() => {
+        .catch((err: any) => {
           pendingCreationsRef.current.delete(tempId);
           setNewlyAddedParties((prev) =>
             prev.filter((p) => p.value !== tempId),
@@ -196,11 +196,19 @@ export const TransactionModal = ({
           if (getValues("for_party") === tempId) setValue("for_party", "");
           setBulkParties((prev) => prev.filter((id) => id !== tempId));
           setBulkForParties((prev) => prev.filter((id) => id !== tempId));
+          Toast.show({
+            type: "error",
+            text1: t("failedToAddParty") ?? "Could not add party",
+            text2:
+              err?.response?.data?.message ||
+              err?.message ||
+              "Please try again",
+          });
         });
 
       return { value: tempId, label: trimmed };
     },
-    [organizationId, queryClient, getValues, setValue],
+    [organizationId, queryClient, getValues, setValue, t],
   );
 
   // Resolve the human-readable name for the currently selected vendor/for_party.
