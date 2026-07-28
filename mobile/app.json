@@ -8,11 +8,6 @@
     "scheme": "hisab-boi",
     "icon": "./image/icon.png",
     "platforms": ["ios", "android", "web"],
-    "splash": {
-      "image": "./image/logo.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.alamgir.hisabboi",
@@ -78,6 +73,15 @@
     },
     "plugins": [
       "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./image/logo.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff",
+          "imageWidth": 200
+        }
+      ],
       "expo-secure-store",
       "expo-font",
       "expo-asset",
