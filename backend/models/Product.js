@@ -158,8 +158,6 @@ const productSchema = new Schema(
 // ── Indexes ────────────────────────────────────────────────────────────────
 productSchema.index({ admin: 1, is_deleted: 1, is_active: 1 });
 productSchema.index({ organization: 1, is_deleted: 1, is_active: 1 });
-productSchema.index({ admin: 1, sku: 1 }, { sparse: true });
-productSchema.index({ organization: 1, sku: 1 }, { sparse: true });
 productSchema.index({ barcode: 1 }, { sparse: true });
 productSchema.index({
   name: "text",
@@ -168,7 +166,7 @@ productSchema.index({
   description: "text",
 });
 
-// Unique SKU within scope
+// Unique SKU within scope (also covers admin/org + sku lookups)
 productSchema.index(
   { admin: 1, sku: 1 },
   {
