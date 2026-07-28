@@ -26,7 +26,7 @@ import {
 import { useOrganization } from "@/hooks/use-organization";
 import { useDeleteMode } from "@/hooks/use-delete-mode";
 import type {
-  TransactionFormValues,
+  TransactionSubmitValues,
   TransferFormValues,
 } from "@/components/modals/types";
 
@@ -238,17 +238,16 @@ export function useDashboard() {
   }, [filters]);
 
   const handleTransactionSubmit = async (
-    values: TransactionFormValues,
-  ): Promise<{ _id: string } | void> => {
-    const payload = {
-      ...values,
+    values: TransactionSubmitValues,
+  ): Promise<{ _id: string } | { _ids: string[] } | void> => {
+    const basePayload = {
       amount: Number(values.amount),
+      type: values.type,
+      accountId: values.accountId,
       date: values.date?.trim() || undefined,
       description: values.description?.trim() || undefined,
       comment: values.comment?.trim() || undefined,
       categoryId: values.categoryId || undefined,
-      party: values.party || undefined,
-      for_party: (values as any).for_party || undefined,
       payment_status: values.payment_status || "paid",
       due_date: values.due_date?.trim() || undefined,
     };
@@ -256,12 +255,53 @@ export function useDashboard() {
     if (editingTransaction) {
       await updateMutation.mutateAsync({
         transactionId: editingTransaction._id,
-        ...payload,
+        ...basePayload,
+        party: values.party || undefined,
+        for_party: values.for_party || undefined,
       } as any);
-    } else {
-      const created = await createMutation.mutateAsync(payload as any);
-      return { _id: created._id };
+      return;
     }
+
+    const bulkEntries = values.bulkEntries?.filter(Boolean);
+    if (bulkEntries && bulkEntries.length > 1) {
+      const createdIds: string[] = [];
+      try {
+        for (const entry of bulkEntries) {
+          const created = await createTransaction({
+            ...basePayload,
+            party: entry.party || undefined,
+            for_party: entry.for_party || undefined,
+          } as any);
+          createdIds.push(created._id);
+        }
+        await invalidateAll();
+        Toast.show({
+          type: "success",
+          text1: `Created ${createdIds.length} transactions`,
+        });
+        return { _ids: createdIds, _id: createdIds[0] };
+      } catch {
+        if (createdIds.length > 0) {
+          await invalidateAll();
+        }
+        Toast.show({
+          type: "error",
+          text1: "Bulk save partially failed",
+          text2:
+            createdIds.length > 0
+              ? `Saved ${createdIds.length} of ${bulkEntries.length}. Please retry the rest.`
+              : "Please try again.",
+        });
+        throw new Error("Bulk create failed");
+      }
+    }
+
+    const created = await createMutation.mutateAsync({
+      ...basePayload,
+      party: values.party || undefined,
+      for_party: values.for_party || undefined,
+    } as any);
+    return { _id: created._id };
   };
 
   const handleTransferSubmit = async (values: TransferFormValues) => {

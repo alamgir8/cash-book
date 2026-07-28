@@ -8,6 +8,7 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -29,6 +30,7 @@ import { Ionicons } from "@expo/vector-icons";
 import dayjs from "dayjs";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SearchableSelect } from "../searchable-select";
+import { SearchableMultiSelect } from "../searchable-multi-select";
 import {
   translateCategoryName,
   translateCategoryGroup,
@@ -38,7 +40,9 @@ import { useTheme } from "@/hooks/use-theme";
 import { useTranslation } from "@/hooks/use-translation";
 import {
   transactionSchema,
+  expandBulkPartyEntries,
   type TransactionFormValues,
+  type TransactionSubmitValues,
   type SelectOption,
 } from "./types";
 import type { Transaction } from "@/services/transactions";
@@ -55,7 +59,9 @@ import { AttachmentPicker } from "../transactions/attachment-picker";
 type TransactionModalProps = {
   visible: boolean;
   onClose: () => void;
-  onSubmit: (values: TransactionFormValues) => Promise<{ _id: string } | void>;
+  onSubmit: (
+    values: TransactionSubmitValues,
+  ) => Promise<{ _id: string } | { _ids: string[] } | void>;
   editingTransaction?: Transaction | null;
   accountOptions: SelectOption[];
   categoryOptions: SelectOption[];
@@ -96,6 +102,11 @@ export const TransactionModal = ({
   const pendingCreationsRef = useRef<
     Map<string, Promise<{ _id: string; name: string }>>
   >(new Map());
+
+  const [bulkMode, setBulkMode] = useState(false);
+  const [bulkParties, setBulkParties] = useState<string[]>([]);
+  const [bulkForParties, setBulkForParties] = useState<string[]>([]);
+  const [localSubmitting, setLocalSubmitting] = useState(false);
 
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -169,6 +180,12 @@ export const TransactionModal = ({
           if (getValues("party") === tempId) setValue("party", party._id);
           if (getValues("for_party") === tempId)
             setValue("for_party", party._id);
+          setBulkParties((prev) =>
+            prev.map((id) => (id === tempId ? party._id : id)),
+          );
+          setBulkForParties((prev) =>
+            prev.map((id) => (id === tempId ? party._id : id)),
+          );
         })
         .catch(() => {
           pendingCreationsRef.current.delete(tempId);
@@ -177,6 +194,8 @@ export const TransactionModal = ({
           );
           if (getValues("party") === tempId) setValue("party", "");
           if (getValues("for_party") === tempId) setValue("for_party", "");
+          setBulkParties((prev) => prev.filter((id) => id !== tempId));
+          setBulkForParties((prev) => prev.filter((id) => id !== tempId));
         });
 
       return { value: tempId, label: trimmed };
@@ -200,30 +219,197 @@ export const TransactionModal = ({
     (p) => p.value === selectedForParty,
   )?.label;
 
+  const bulkForPartyNames = useMemo(
+    () =>
+      bulkForParties
+        .map((id) => allKnownParties.find((p) => p.value === id)?.label)
+        .filter(Boolean) as string[],
+    [bulkForParties, allKnownParties],
+  );
+  const bulkPartyNames = useMemo(
+    () =>
+      bulkParties
+        .map((id) => allKnownParties.find((p) => p.value === id)?.label)
+        .filter(Boolean) as string[],
+    [bulkParties, allKnownParties],
+  );
+
+  const vendorMaxCount = bulkForParties.length > 1 ? 1 : undefined;
+  const forPartyMaxCount = bulkParties.length > 1 ? 1 : undefined;
+
+  const bulkEntryCount = useMemo(() => {
+    if (!bulkMode) return 1;
+    try {
+      return expandBulkPartyEntries(bulkParties, bulkForParties).length;
+    } catch {
+      return 1;
+    }
+  }, [bulkMode, bulkParties, bulkForParties]);
+
+  /** Bulk ↔ single: keep first of each side; drop the rest. Re-enable seeds from current single. */
+  const handleBulkModeChange = useCallback(
+    (enabled: boolean) => {
+      if (enabled) {
+        const party = (getValues("party") || "").trim();
+        const forParty = (getValues("for_party") || "").trim();
+        setBulkParties(party ? [party] : []);
+        setBulkForParties(
+          forParty && forParty !== party ? [forParty] : [],
+        );
+        setBulkMode(true);
+        return;
+      }
+
+      const keptVendor = bulkParties[0] || "";
+      const keptFor =
+        bulkForParties.find((id) => id && id !== keptVendor) ||
+        bulkForParties[0] ||
+        "";
+      const droppedVendors = Math.max(0, bulkParties.length - (keptVendor ? 1 : 0));
+      const droppedFor = Math.max(
+        0,
+        bulkForParties.filter((id) => id !== keptFor).length,
+      );
+
+      setValue("party", keptVendor, { shouldValidate: true });
+      setValue("for_party", keptFor === keptVendor ? "" : keptFor, {
+        shouldValidate: true,
+      });
+      setBulkParties([]);
+      setBulkForParties([]);
+      setBulkMode(false);
+
+      if (droppedVendors > 0 || droppedFor > 0) {
+        Toast.show({
+          type: "info",
+          text1: t("bulkCollapsedToSingle") ?? "Switched to single",
+          text2:
+            t("bulkCollapsedToSingleHint") ??
+            "Kept the first selection on each side. You can change them anytime.",
+        });
+      }
+    },
+    [bulkParties, bulkForParties, getValues, setValue, t],
+  );
+
+  const applyBulkVendors = useCallback(
+    (next: string[]) => {
+      let vendors = next;
+      let counterparties = bulkForParties;
+
+      if (vendors.length > 1 && counterparties.length > 1) {
+        counterparties = counterparties.slice(0, 1);
+        Toast.show({
+          type: "info",
+          text1: t("bulkKeptSingleCounterparty") ?? "Counterparty kept to one",
+          text2:
+            t("bulkKeptSingleCounterpartyHint") ??
+            "Multiple vendors require a single counterparty",
+        });
+        setBulkForParties(counterparties);
+      }
+
+      // Never allow the same id on both sides
+      const vendorSet = new Set(vendors);
+      if (counterparties.some((id) => vendorSet.has(id))) {
+        counterparties = counterparties.filter((id) => !vendorSet.has(id));
+        setBulkForParties(counterparties);
+      }
+
+      setBulkParties(vendors);
+      // Keep form fields in sync with first selection (for toggle-off / re-enable)
+      setValue("party", vendors[0] || "", { shouldValidate: false });
+      setValue("for_party", counterparties[0] || "", { shouldValidate: false });
+    },
+    [bulkForParties, setValue, t],
+  );
+
+  const applyBulkCounterparties = useCallback(
+    (next: string[]) => {
+      let counterparties = next;
+      let vendors = bulkParties;
+
+      if (counterparties.length > 1 && vendors.length > 1) {
+        vendors = vendors.slice(0, 1);
+        Toast.show({
+          type: "info",
+          text1: t("bulkKeptSingleVendor") ?? "Vendor kept to one",
+          text2:
+            t("bulkKeptSingleVendorHint") ??
+            "Multiple counterparties require a single vendor",
+        });
+        setBulkParties(vendors);
+      }
+
+      const forSet = new Set(counterparties);
+      if (vendors.some((id) => forSet.has(id))) {
+        vendors = vendors.filter((id) => !forSet.has(id));
+        setBulkParties(vendors);
+      }
+
+      setBulkForParties(counterparties);
+      setValue("party", vendors[0] || "", { shouldValidate: false });
+      setValue("for_party", counterparties[0] || "", { shouldValidate: false });
+    },
+    [bulkParties, setValue, t],
+  );
+
   // Stable fetchOptions for vendor search (excludes selected for_party by ID and name)
   const fetchVendorOptions = useCallback(
     async (q: string) => {
       const res = await fetchVendors(q);
+      const excludeIds = new Set(
+        bulkMode
+          ? bulkForParties
+          : selectedForParty
+            ? [selectedForParty]
+            : [],
+      );
+      const excludeNames = new Set(
+        bulkMode
+          ? bulkForPartyNames
+          : selectedForPartyName
+            ? [selectedForPartyName]
+            : [],
+      );
       return res
-        .filter(
-          (v) => v._id !== selectedForParty && v.name !== selectedForPartyName,
-        )
+        .filter((v) => !excludeIds.has(v._id) && !excludeNames.has(v.name))
         .map((v) => ({ value: v._id, label: v.name }));
     },
-    [selectedForParty, selectedForPartyName],
+    [
+      bulkMode,
+      bulkForParties,
+      bulkForPartyNames,
+      selectedForParty,
+      selectedForPartyName,
+    ],
   );
 
   // Stable fetchOptions for for_party search (excludes selected vendor by ID and name)
   const fetchForPartyOptions = useCallback(
     async (q: string) => {
       const res = await fetchVendors(q);
+      const excludeIds = new Set(
+        bulkMode ? bulkParties : selectedVendor ? [selectedVendor] : [],
+      );
+      const excludeNames = new Set(
+        bulkMode
+          ? bulkPartyNames
+          : selectedVendorName
+            ? [selectedVendorName]
+            : [],
+      );
       return res
-        .filter(
-          (v) => v._id !== selectedVendor && v.name !== selectedVendorName,
-        )
+        .filter((v) => !excludeIds.has(v._id) && !excludeNames.has(v.name))
         .map((v) => ({ value: v._id, label: v.name }));
     },
-    [selectedVendor, selectedVendorName],
+    [
+      bulkMode,
+      bulkParties,
+      bulkPartyNames,
+      selectedVendor,
+      selectedVendorName,
+    ],
   );
 
   const fetchCategoryOptions = useCallback(
@@ -281,6 +467,9 @@ export const TransactionModal = ({
       pendingCreationsRef.current.forEach((_, key) => {
         if (key.startsWith("__new__:")) pendingCreationsRef.current.delete(key);
       });
+      setBulkMode(false);
+      setBulkParties([]);
+      setBulkForParties([]);
       if (editingTransaction) {
         reset({
           accountId: editingTransaction.account._id,
@@ -347,30 +536,158 @@ export const TransactionModal = ({
     setPickingDueDate(false);
   };
 
+  const resolvePartyId = async (id?: string) => {
+    if (!id) return "";
+    const pending = pendingCreationsRef.current.get(id);
+    if (pending) {
+      try {
+        return (await pending)._id;
+      } catch {
+        return "";
+      }
+    }
+    if (id.startsWith("__new__:")) return "";
+    return id;
+  };
+
   const handleFormSubmit = async (values: TransactionFormValues) => {
+    const resolvedBase = { ...values };
+    setLocalSubmitting(true);
+    try {
+    if (bulkMode && !editingTransaction) {
+      // Validate mutual exclusivity before expand
+      if (bulkParties.length > 1 && bulkForParties.length > 1) {
+        Toast.show({
+          type: "error",
+          text1: t("bulkModeConflict") ?? "Bulk selection conflict",
+          text2:
+            t("bulkModeConflictHint") ??
+            "Use multiple vendors with one counterparty, or one vendor with multiple counterparties",
+        });
+        return;
+      }
+
+      const overlap = bulkParties.filter((id) => bulkForParties.includes(id));
+      if (overlap.length > 0) {
+        Toast.show({
+          type: "error",
+          text1: t("bulkSamePartyBothSides") ?? "Invalid selection",
+          text2:
+            t("bulkSamePartyBothSidesHint") ??
+            "The same person cannot be both vendor and counterparty",
+        });
+        return;
+      }
+
+      let entries;
+      try {
+        entries = expandBulkPartyEntries(bulkParties, bulkForParties);
+      } catch (err: any) {
+        Toast.show({
+          type: "error",
+          text1: t("bulkModeConflict") ?? "Bulk selection conflict",
+          text2:
+            err?.message ||
+            "Use multiple vendors with one counterparty, or one vendor with multiple counterparties",
+        });
+        return;
+      }
+
+      const resolvedEntries = [];
+      for (const entry of entries) {
+        resolvedEntries.push({
+          party: (await resolvePartyId(entry.party)) || undefined,
+          for_party: (await resolvePartyId(entry.for_party)) || undefined,
+        });
+      }
+
+      let result:
+        | { _id: string }
+        | { _ids: string[] }
+        | void;
+      try {
+        result = await onSubmit({
+          ...resolvedBase,
+          party: resolvedEntries[0]?.party || "",
+          for_party: resolvedEntries[0]?.for_party || "",
+          bulkEntries:
+            resolvedEntries.length > 1 ? resolvedEntries : undefined,
+        });
+      } catch {
+        return;
+      }
+
+      // If only one entry, treat like single create for attachment/close flow
+      if (resolvedEntries.length <= 1) {
+        const singleId =
+          result && "_id" in result
+            ? result._id
+            : result && "_ids" in result
+              ? result._ids[0]
+              : undefined;
+        if (singleId && stagedFiles.length > 0) {
+          setUploadingAttachments(true);
+          try {
+            await uploadAttachments(singleId, stagedFiles);
+          } catch (uploadErr) {
+            const isTooBig =
+              (uploadErr as any)?.response?.status === 413 ||
+              (uploadErr as any)?.message?.includes("413");
+            Toast.show({
+              type: "error",
+              text1: t("attachmentUploadFailed"),
+              text2: isTooBig
+                ? t("fileTooLargeMsg")
+                : t("transactionSavedAttachmentsFailed"),
+              visibilityTime: 5000,
+            });
+          } finally {
+            setUploadingAttachments(false);
+          }
+        }
+        if (result) closeModal();
+        return;
+      }
+
+      const createdIds =
+        result && "_ids" in result
+          ? result._ids
+          : result && "_id" in result
+            ? [result._id]
+            : [];
+
+      if (createdIds.length > 0 && stagedFiles.length > 0) {
+        setUploadingAttachments(true);
+        try {
+          for (const id of createdIds) {
+            await uploadAttachments(id, stagedFiles);
+          }
+        } catch (uploadErr) {
+          const isTooBig =
+            (uploadErr as any)?.response?.status === 413 ||
+            (uploadErr as any)?.message?.includes("413");
+          Toast.show({
+            type: "error",
+            text1: t("attachmentUploadFailed"),
+            text2: isTooBig
+              ? t("fileTooLargeMsg")
+              : t("transactionSavedAttachmentsFailed"),
+            visibilityTime: 5000,
+          });
+        } finally {
+          setUploadingAttachments(false);
+        }
+      }
+      if (createdIds.length > 0) closeModal();
+      return;
+    }
+
     // Safety net: if a party was created in the background and the user
     // submitted before the API resolved, await the real _id now.
     const resolved = { ...values };
-    const partyPending = pendingCreationsRef.current.get(values.party ?? "");
-    if (partyPending) {
-      try {
-        resolved.party = (await partyPending)._id;
-      } catch {
-        resolved.party = "";
-      }
-    } else if (values.party?.startsWith("__new__:")) {
-      resolved.party = ""; // creation already failed and was cleaned up
-    }
-    const forPending = pendingCreationsRef.current.get(values.for_party ?? "");
-    if (forPending) {
-      try {
-        resolved.for_party = (await forPending)._id;
-      } catch {
-        resolved.for_party = "";
-      }
-    } else if (values.for_party?.startsWith("__new__:")) {
-      resolved.for_party = "";
-    }
+    resolved.party = (await resolvePartyId(values.party)) || "";
+    resolved.for_party = (await resolvePartyId(values.for_party)) || "";
+
     const result = await onSubmit(resolved);
     if (result && "_id" in result && !editingTransaction) {
       // Upload any staged files right after creation
@@ -397,6 +714,9 @@ export const TransactionModal = ({
       closeModal();
     } else if (editingTransaction) {
       closeModal();
+    }
+    } finally {
+      setLocalSubmitting(false);
     }
   };
 
@@ -872,48 +1192,134 @@ export const TransactionModal = ({
                   >
                     {t("vendorHelpText") ?? "Who you bought from / sold to"}
                   </Text>
-                  <Controller
-                    control={control}
-                    name="party"
-                    render={({ field: { value, onChange } }) => {
-                      const baseOpts =
-                        partyOptions.length > 0 ? partyOptions : vendorOptions;
-                      // Merge locally-added parties; exclude current beneficiary
-                      const vendorOpts = [...baseOpts, ...newlyAddedParties]
+
+                  {/* Bulk / Single toggle — create only */}
+                  {!editingTransaction ? (
+                    <View
+                      className="flex-row items-center justify-between mb-3 px-3 py-2.5 rounded-xl border"
+                      style={{
+                        backgroundColor: colors.bg.secondary,
+                        borderColor: colors.border,
+                      }}
+                    >
+                      <View className="flex-1 mr-3">
+                        <Text
+                          className="text-sm font-semibold"
+                          style={{ color: colors.text.primary }}
+                        >
+                          {t("bulkTransactions") ?? "Bulk transactions"}
+                        </Text>
+                        <Text
+                          className="text-xs mt-0.5"
+                          style={{ color: colors.text.tertiary }}
+                        >
+                          {bulkMode
+                            ? t("bulkTransactionsHintOn") ??
+                              "Tag multiple vendors or counterparties (not both)"
+                            : t("bulkTransactionsHintOff") ??
+                              "Same amount for several people at once"}
+                        </Text>
+                      </View>
+                      <Switch
+                        value={bulkMode}
+                        onValueChange={handleBulkModeChange}
+                        trackColor={{
+                          false: colors.border,
+                          true: colors.info + "99",
+                        }}
+                        thumbColor={bulkMode ? colors.info : colors.bg.tertiary}
+                      />
+                    </View>
+                  ) : null}
+
+                  {bulkMode && !editingTransaction ? (
+                    <SearchableMultiSelect
+                      values={bulkParties}
+                      placeholder={
+                        t("selectOrAddVendors") ?? "Select or add vendors"
+                      }
+                      options={[
+                        ...(partyOptions.length > 0
+                          ? partyOptions
+                          : vendorOptions),
+                        ...newlyAddedParties,
+                      ]
                         .filter(
                           (p, i, arr) =>
                             arr.findIndex((x) => x.value === p.value) === i,
                         )
                         .filter(
                           (p) =>
-                            p.value !== selectedForParty &&
-                            p.label !== selectedForPartyName,
+                            !bulkForParties.includes(p.value) &&
+                            !bulkForPartyNames.includes(p.label),
+                        )}
+                      onChange={applyBulkVendors}
+                      maxCount={vendorMaxCount}
+                      onMaxReached={() => {
+                        Toast.show({
+                          type: "info",
+                          text1:
+                            t("bulkVendorSingleOnly") ??
+                            "Only one vendor allowed",
+                          text2:
+                            t("bulkVendorSingleOnlyHint") ??
+                            "Clear extra counterparties to add more vendors",
+                        });
+                      }}
+                      fetchOptions={fetchVendorOptions}
+                      onAddNew={handleAddParty}
+                      addNewLabel="party"
+                    />
+                  ) : (
+                    <Controller
+                      control={control}
+                      name="party"
+                      render={({ field: { value, onChange } }) => {
+                        const baseOpts =
+                          partyOptions.length > 0
+                            ? partyOptions
+                            : vendorOptions;
+                        const vendorOpts = [...baseOpts, ...newlyAddedParties]
+                          .filter(
+                            (p, i, arr) =>
+                              arr.findIndex((x) => x.value === p.value) === i,
+                          )
+                          .filter(
+                            (p) =>
+                              p.value !== selectedForParty &&
+                              p.label !== selectedForPartyName,
+                          );
+                        return (
+                          <SearchableSelect
+                            value={value || ""}
+                            placeholder={
+                              t("selectOrAddVendor") ?? "Select vendor"
+                            }
+                            options={vendorOpts}
+                            onSelect={(selectedValue) => {
+                              const next = selectedValue || "";
+                              if (next && next === getValues("for_party")) {
+                                setValue("for_party", "");
+                              }
+                              onChange(next);
+                            }}
+                            allowCustomValue={false}
+                            customDisplayValue={
+                              vendorOpts.find((p) => p.value === value)
+                                ?.label ||
+                              (typeof editingTransaction?.party === "object"
+                                ? editingTransaction?.party?.name
+                                : undefined) ||
+                              ""
+                            }
+                            fetchOptions={fetchVendorOptions}
+                            onAddNew={handleAddParty}
+                            addNewLabel="party"
+                          />
                         );
-                      return (
-                        <SearchableSelect
-                          value={value || ""}
-                          placeholder={
-                            t("selectOrAddVendor") ?? "Select vendor"
-                          }
-                          options={vendorOpts}
-                          onSelect={(selectedValue) =>
-                            onChange(selectedValue || "")
-                          }
-                          allowCustomValue={false}
-                          customDisplayValue={
-                            vendorOpts.find((p) => p.value === value)?.label ||
-                            (typeof editingTransaction?.party === "object"
-                              ? editingTransaction?.party?.name
-                              : undefined) ||
-                            ""
-                          }
-                          fetchOptions={fetchVendorOptions}
-                          onAddNew={handleAddParty}
-                          addNewLabel="party"
-                        />
-                      );
-                    }}
-                  />
+                      }}
+                    />
+                  )}
                 </View>
 
                 {/* For / Beneficiary */}
@@ -931,48 +1337,96 @@ export const TransactionModal = ({
                     {t("counterpartyHelpText") ??
                       "Who this expense/income is on behalf of"}
                   </Text>
-                  <Controller
-                    control={control}
-                    name="for_party"
-                    render={({ field: { value, onChange } }) => {
-                      const baseOpts =
-                        partyOptions.length > 0 ? partyOptions : vendorOptions;
-                      // Merge locally-added parties; exclude current vendor
-                      const forOpts = [...baseOpts, ...newlyAddedParties]
+                  {bulkMode && !editingTransaction ? (
+                    <SearchableMultiSelect
+                      values={bulkForParties}
+                      placeholder={
+                        t("selectOrAddCounterparties") ??
+                        "Select or add counterparties"
+                      }
+                      options={[
+                        ...(partyOptions.length > 0
+                          ? partyOptions
+                          : vendorOptions),
+                        ...newlyAddedParties,
+                      ]
                         .filter(
                           (p, i, arr) =>
                             arr.findIndex((x) => x.value === p.value) === i,
                         )
                         .filter(
                           (p) =>
-                            p.value !== selectedVendor &&
-                            p.label !== selectedVendorName,
+                            !bulkParties.includes(p.value) &&
+                            !bulkPartyNames.includes(p.label),
+                        )}
+                      onChange={applyBulkCounterparties}
+                      maxCount={forPartyMaxCount}
+                      onMaxReached={() => {
+                        Toast.show({
+                          type: "info",
+                          text1:
+                            t("bulkCounterpartySingleOnly") ??
+                            "Only one counterparty allowed",
+                          text2:
+                            t("bulkCounterpartySingleOnlyHint") ??
+                            "Clear extra vendors to add more counterparties",
+                        });
+                      }}
+                      fetchOptions={fetchForPartyOptions}
+                      onAddNew={handleAddParty}
+                      addNewLabel="party"
+                    />
+                  ) : (
+                    <Controller
+                      control={control}
+                      name="for_party"
+                      render={({ field: { value, onChange } }) => {
+                        const baseOpts =
+                          partyOptions.length > 0
+                            ? partyOptions
+                            : vendorOptions;
+                        const forOpts = [...baseOpts, ...newlyAddedParties]
+                          .filter(
+                            (p, i, arr) =>
+                              arr.findIndex((x) => x.value === p.value) === i,
+                          )
+                          .filter(
+                            (p) =>
+                              p.value !== selectedVendor &&
+                              p.label !== selectedVendorName,
+                          );
+                        return (
+                          <SearchableSelect
+                            value={value || ""}
+                            placeholder={
+                              t("selectOrAddCounterparty") ??
+                              "Select beneficiary"
+                            }
+                            options={forOpts}
+                            onSelect={(selectedValue) => {
+                              const next = selectedValue || "";
+                              if (next && next === getValues("party")) {
+                                setValue("party", "");
+                              }
+                              onChange(next);
+                            }}
+                            allowCustomValue={false}
+                            customDisplayValue={
+                              forOpts.find((p) => p.value === value)?.label ||
+                              (typeof editingTransaction?.for_party ===
+                              "object"
+                                ? editingTransaction?.for_party?.name
+                                : undefined) ||
+                              ""
+                            }
+                            fetchOptions={fetchForPartyOptions}
+                            onAddNew={handleAddParty}
+                            addNewLabel="party"
+                          />
                         );
-                      return (
-                        <SearchableSelect
-                          value={value || ""}
-                          placeholder={
-                            t("selectOrAddCounterparty") ?? "Select beneficiary"
-                          }
-                          options={forOpts}
-                          onSelect={(selectedValue) =>
-                            onChange(selectedValue || "")
-                          }
-                          allowCustomValue={false}
-                          customDisplayValue={
-                            forOpts.find((p) => p.value === value)?.label ||
-                            (typeof editingTransaction?.for_party === "object"
-                              ? editingTransaction?.for_party?.name
-                              : undefined) ||
-                            ""
-                          }
-                          fetchOptions={fetchForPartyOptions}
-                          onAddNew={handleAddParty}
-                          addNewLabel="party"
-                        />
-                      );
-                    }}
-                  />
+                      }}
+                    />
+                  )}
                 </View>
 
                 {/* Payment Mode */}
@@ -1363,7 +1817,9 @@ export const TransactionModal = ({
                       className="text-sm font-medium text-center"
                       style={{ color: colors.info }}
                     >
-                      {t("amountPreview")} {formatAmount(currentAmount)}
+                      {bulkMode && bulkEntryCount > 1
+                        ? `${t("amountPreview")} ${formatAmount(currentAmount)} × ${bulkEntryCount} = ${formatAmount(currentAmount * bulkEntryCount)}`
+                        : `${t("amountPreview")} ${formatAmount(currentAmount)}`}
                     </Text>
                   </View>
                 ) : null}
@@ -1384,11 +1840,11 @@ export const TransactionModal = ({
           >
             <TouchableOpacity
               onPress={handleSubmit(handleFormSubmit)}
-              disabled={isSubmitting || uploadingAttachments}
+              disabled={isSubmitting || localSubmitting || uploadingAttachments}
               className="rounded-2xl py-4 items-center shadow-lg"
               style={{ backgroundColor: colors.info }}
             >
-              {isSubmitting || uploadingAttachments ? (
+              {isSubmitting || localSubmitting || uploadingAttachments ? (
                 <View className="flex-row items-center gap-2">
                   <ActivityIndicator color="white" />
                   <Text className="text-white font-bold text-base">
@@ -1413,12 +1869,16 @@ export const TransactionModal = ({
                   <Text className="text-white font-bold text-base">
                     {editingTransaction
                       ? t("updateTransactionBtn")
-                      : stagedFiles.length > 0
-                        ? t("saveWithAttachments", {
-                            n: String(stagedFiles.length),
-                            s: stagedFiles.length > 1 ? "s" : "",
+                      : bulkMode && bulkEntryCount > 1
+                        ? t("saveBulkTransactions", {
+                            count: String(bulkEntryCount),
                           })
-                        : t("saveTransaction")}
+                        : stagedFiles.length > 0
+                          ? t("saveWithAttachments", {
+                              n: String(stagedFiles.length),
+                              s: stagedFiles.length > 1 ? "s" : "",
+                            })
+                          : t("saveTransaction")}
                   </Text>
                 </View>
               )}

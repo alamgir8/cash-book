@@ -316,6 +316,26 @@ export type AppTranslations = {
   forBeneficiaryLabel: string;
   counterpartyHelpText: string;
   selectOrAddCounterparty: string;
+  selectOrAddVendors: string;
+  selectOrAddCounterparties: string;
+  bulkTransactions: string;
+  bulkTransactionsHintOn: string;
+  bulkTransactionsHintOff: string;
+  bulkModeConflict: string;
+  bulkModeConflictHint: string;
+  bulkSamePartyBothSides: string;
+  bulkSamePartyBothSidesHint: string;
+  bulkCollapsedToSingle: string;
+  bulkCollapsedToSingleHint: string;
+  bulkKeptSingleCounterparty: string;
+  bulkKeptSingleCounterpartyHint: string;
+  bulkKeptSingleVendor: string;
+  bulkKeptSingleVendorHint: string;
+  bulkVendorSingleOnly: string;
+  bulkVendorSingleOnlyHint: string;
+  bulkCounterpartySingleOnly: string;
+  bulkCounterpartySingleOnlyHint: string;
+  saveBulkTransactions: string;
   additionalNotes: string;
   additionalDetailsPlaceholder: string;
   attachments: string;
@@ -734,6 +754,34 @@ const en: AppTranslations = {
   counterpartyHelpText:
     "Who is this expense/income for? (e.g. Wife, Child, Home)",
   selectOrAddCounterparty: "Select or add counterparty",
+  selectOrAddVendors: "Select or add vendors",
+  selectOrAddCounterparties: "Select or add counterparties",
+  bulkTransactions: "Bulk transactions",
+  bulkTransactionsHintOn:
+    "Tag multiple vendors or counterparties (not both sides)",
+  bulkTransactionsHintOff: "Same amount for several people at once",
+  bulkModeConflict: "Bulk selection conflict",
+  bulkModeConflictHint:
+    "Use multiple vendors with one counterparty, or one vendor with multiple counterparties",
+  bulkSamePartyBothSides: "Invalid selection",
+  bulkSamePartyBothSidesHint:
+    "The same person cannot be both vendor and counterparty",
+  bulkCollapsedToSingle: "Switched to single",
+  bulkCollapsedToSingleHint:
+    "Kept the first selection on each side. You can change them anytime.",
+  bulkKeptSingleCounterparty: "Counterparty kept to one",
+  bulkKeptSingleCounterpartyHint:
+    "Multiple vendors require a single counterparty",
+  bulkKeptSingleVendor: "Vendor kept to one",
+  bulkKeptSingleVendorHint:
+    "Multiple counterparties require a single vendor",
+  bulkVendorSingleOnly: "Only one vendor allowed",
+  bulkVendorSingleOnlyHint:
+    "Clear extra counterparties to add more vendors",
+  bulkCounterpartySingleOnly: "Only one counterparty allowed",
+  bulkCounterpartySingleOnlyHint:
+    "Clear extra vendors to add more counterparties",
+  saveBulkTransactions: "Save {count} Transactions",
   additionalNotes: "Additional Notes",
   additionalDetailsPlaceholder: "Any additional details...",
   attachments: "Attachments",
@@ -1152,6 +1200,34 @@ const bn: AppTranslations = {
   forBeneficiaryLabel: "জন্য / সুবিধাভোগী",
   counterpartyHelpText: "এই ব্যয়/আয় কার জন্য? (যেমন: স্ত্রী, সন্তান, বাড়ি)",
   selectOrAddCounterparty: "কাউন্টারপার্টি নির্বাচন বা যোগ করুন",
+  selectOrAddVendors: "বিক্রেতা নির্বাচন বা যোগ করুন",
+  selectOrAddCounterparties: "কাউন্টারপার্টি নির্বাচন বা যোগ করুন",
+  bulkTransactions: "বাল্ক লেনদেন",
+  bulkTransactionsHintOn:
+    "একাধিক বিক্রেতা বা কাউন্টারপার্টি ট্যাগ করুন (দুই দিকে নয়)",
+  bulkTransactionsHintOff: "একই পরিমাণে একসাথে একাধিক ব্যক্তির জন্য",
+  bulkModeConflict: "বাল্ক নির্বাচনে দ্বন্দ্ব",
+  bulkModeConflictHint:
+    "একাধিক বিক্রেতার সাথে একজন কাউন্টারপার্টি, অথবা একজন বিক্রেতার সাথে একাধিক কাউন্টারপার্টি ব্যবহার করুন",
+  bulkSamePartyBothSides: "অবৈধ নির্বাচন",
+  bulkSamePartyBothSidesHint:
+    "একই ব্যক্তি একসাথে বিক্রেতা ও কাউন্টারপার্টি হতে পারে না",
+  bulkCollapsedToSingle: "সিঙ্গেল মোডে স্যুইচ হয়েছে",
+  bulkCollapsedToSingleHint:
+    "প্রতি পাশে প্রথম নির্বাচন রাখা হয়েছে। চাইলে পরিবর্তন করতে পারবেন।",
+  bulkKeptSingleCounterparty: "কাউন্টারপার্টি একটিতে রাখা হয়েছে",
+  bulkKeptSingleCounterpartyHint:
+    "একাধিক বিক্রেতার জন্য একজন কাউন্টারপার্টি লাগবে",
+  bulkKeptSingleVendor: "বিক্রেতা একটিতে রাখা হয়েছে",
+  bulkKeptSingleVendorHint:
+    "একাধিক কাউন্টারপার্টির জন্য একজন বিক্রেতা লাগবে",
+  bulkVendorSingleOnly: "শুধু একজন বিক্রেতা যোগ করা যাবে",
+  bulkVendorSingleOnlyHint:
+    "আরও বিক্রেতা যোগ করতে অতিরিক্ত কাউন্টারপার্টি সরান",
+  bulkCounterpartySingleOnly: "শুধু একজন কাউন্টারপার্টি যোগ করা যাবে",
+  bulkCounterpartySingleOnlyHint:
+    "আরও কাউন্টারপার্টি যোগ করতে অতিরিক্ত বিক্রেতা সরান",
+  saveBulkTransactions: "{count}টি লেনদেন সংরক্ষণ করুন",
   additionalNotes: "অতিরিক্ত নোট",
   additionalDetailsPlaceholder: "যেকোনো অতিরিক্ত বিবরণ...",
   attachments: "সংযুক্তি",
