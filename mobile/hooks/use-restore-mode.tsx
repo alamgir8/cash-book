@@ -22,6 +22,8 @@ const TAP_WINDOW_MS = 3000;
 
 type RestoreModeState = {
   isRestoreModeActive: boolean;
+  /** Epoch ms when restore mode ends; null when inactive */
+  endsAt: number | null;
   /** Call on each tap of the "Settings" heading */
   recordRestoreTap: () => void;
 };
@@ -29,47 +31,36 @@ type RestoreModeState = {
 const RestoreModeStateContext = createContext<RestoreModeState | undefined>(
   undefined,
 );
-const RestoreModeSecondsContext = createContext(0);
 
 export function RestoreModeProvider({ children }: { children: ReactNode }) {
   const [isActive, setIsActive] = useState(false);
-  const [secondsLeft, setSecondsLeft] = useState(0);
+  const [endsAt, setEndsAt] = useState<number | null>(null);
   const tapTimestamps = useRef<number[]>([]);
   const deactivateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const countdownInterval = useRef<ReturnType<typeof setInterval> | null>(null);
   const isActiveRef = useRef(false);
 
   const clearTimers = useCallback(() => {
     if (deactivateTimer.current) clearTimeout(deactivateTimer.current);
-    if (countdownInterval.current) clearInterval(countdownInterval.current);
     deactivateTimer.current = null;
-    countdownInterval.current = null;
   }, []);
+
+  const deactivate = useCallback(() => {
+    clearTimers();
+    isActiveRef.current = false;
+    setIsActive(false);
+    setEndsAt(null);
+  }, [clearTimers]);
 
   const activate = useCallback(() => {
     clearTimers();
     isActiveRef.current = true;
+    const nextEndsAt = Date.now() + RESTORE_MODE_DURATION_MS;
     setIsActive(true);
-    const endsAt = Date.now() + RESTORE_MODE_DURATION_MS;
-    setSecondsLeft(Math.round(RESTORE_MODE_DURATION_MS / 1000));
+    setEndsAt(nextEndsAt);
 
-    countdownInterval.current = setInterval(() => {
-      const remaining = Math.max(0, Math.round((endsAt - Date.now()) / 1000));
-      setSecondsLeft(remaining);
-      if (remaining === 0) {
-        clearTimers();
-        isActiveRef.current = false;
-        setIsActive(false);
-      }
-    }, 1000);
-
-    deactivateTimer.current = setTimeout(() => {
-      clearTimers();
-      isActiveRef.current = false;
-      setIsActive(false);
-      setSecondsLeft(0);
-    }, RESTORE_MODE_DURATION_MS);
-  }, [clearTimers]);
+    // No per-second setState on the provider (avoids app-wide list jumps).
+    deactivateTimer.current = setTimeout(deactivate, RESTORE_MODE_DURATION_MS);
+  }, [clearTimers, deactivate]);
 
   const recordRestoreTap = useCallback(() => {
     const now = Date.now();
@@ -96,15 +87,13 @@ export function RestoreModeProvider({ children }: { children: ReactNode }) {
   useEffect(() => () => clearTimers(), [clearTimers]);
 
   const stateValue = useMemo(
-    () => ({ isRestoreModeActive: isActive, recordRestoreTap }),
-    [isActive, recordRestoreTap],
+    () => ({ isRestoreModeActive: isActive, endsAt, recordRestoreTap }),
+    [isActive, endsAt, recordRestoreTap],
   );
 
   return (
     <RestoreModeStateContext.Provider value={stateValue}>
-      <RestoreModeSecondsContext.Provider value={secondsLeft}>
-        {children}
-      </RestoreModeSecondsContext.Provider>
+      {children}
     </RestoreModeStateContext.Provider>
   );
 }
@@ -116,6 +105,24 @@ export function useRestoreMode() {
   return ctx;
 }
 
+/** Countdown for Settings badge only — local interval, not provider-wide. */
 export function useRestoreModeSeconds() {
-  return useContext(RestoreModeSecondsContext);
+  const { isRestoreModeActive, endsAt } = useRestoreMode();
+  const [secondsLeft, setSecondsLeft] = useState(0);
+
+  useEffect(() => {
+    if (!isRestoreModeActive || !endsAt) {
+      setSecondsLeft(0);
+      return;
+    }
+
+    const tick = () => {
+      setSecondsLeft(Math.max(0, Math.round((endsAt - Date.now()) / 1000)));
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [isRestoreModeActive, endsAt]);
+
+  return secondsLeft;
 }

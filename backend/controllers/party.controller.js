@@ -445,23 +445,45 @@ export const createParty = async (req, res, next) => {
 
 /**
  * Scope for listing parties.
- * When an organization is active, include that org's parties PLUS the user's
- * legacy personal parties (no organization) — older data was created before
- * org assignment and would otherwise disappear from the list.
+ * - all: every org the user belongs to + their personal parties
+ * - personal: only parties with no organization
+ * - <orgId>: only that organization
  */
-const buildPartyListScope = (userId, organization) => {
-  if (organization) {
+const buildPartyListScope = async (userId, { organization, scope } = {}) => {
+  const normalizedScope = String(scope || "").toLowerCase();
+
+  if (normalizedScope === "personal" || organization === "personal") {
     return {
-      $or: [
-        { organization },
-        // MongoDB { organization: null } matches missing OR null
-        { admin: userId, organization: null },
-      ],
+      admin: userId,
+      organization: null, // matches missing or null
     };
   }
+
+  if (organization && organization !== "all") {
+    return { organization };
+  }
+
+  // Default / scope=all — all member orgs + personal
+  const memberships = await OrganizationMember.find({
+    user: userId,
+    status: "active",
+  })
+    .select("organization")
+    .lean();
+  const orgIds = memberships.map((m) => m.organization).filter(Boolean);
+
+  if (orgIds.length === 0) {
+    return {
+      admin: userId,
+      organization: null,
+    };
+  }
+
   return {
-    admin: userId,
-    organization: null,
+    $or: [
+      { organization: { $in: orgIds } },
+      { admin: userId, organization: null },
+    ],
   };
 };
 
@@ -473,6 +495,7 @@ export const getParties = async (req, res, next) => {
     const userId = req.user.id;
     const {
       organization,
+      scope,
       type,
       search,
       archived,
@@ -481,14 +504,31 @@ export const getParties = async (req, res, next) => {
       sort = "-updatedAt",
     } = req.query;
 
-    if (organization) {
-      const access = await checkOrgAccess(userId, organization);
+    const orgParam =
+      organization && organization !== "all" && organization !== "personal"
+        ? organization
+        : null;
+
+    if (orgParam) {
+      const access = await checkOrgAccess(userId, orgParam);
       if (!access.hasAccess) {
         return res.status(403).json({ message: access.error });
       }
     }
 
-    const and = [buildPartyListScope(userId, organization || null)];
+    const resolvedScope =
+      scope === "personal" || organization === "personal"
+        ? "personal"
+        : orgParam
+          ? undefined
+          : "all";
+
+    const and = [
+      await buildPartyListScope(userId, {
+        organization: orgParam,
+        scope: resolvedScope,
+      }),
+    ];
 
     if (type && PARTY_TYPE_OPTIONS.includes(type)) {
       // Include parties with type "both" when filtering by customer or supplier
@@ -1292,20 +1332,31 @@ export const getPartyNetBalance = async (req, res, next) => {
 export const getPartySummary = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const { organization, type } = req.query;
+    const { organization, scope, type } = req.query;
 
-    // Build query — same scope as getParties (org + legacy personal)
-    const matchFilter = buildPartyListScope(
-      new mongoose.Types.ObjectId(userId),
-      organization ? new mongoose.Types.ObjectId(organization) : null,
-    );
+    const orgParam =
+      organization && organization !== "all" && organization !== "personal"
+        ? organization
+        : null;
 
-    if (organization) {
-      const access = await checkOrgAccess(userId, organization);
+    if (orgParam) {
+      const access = await checkOrgAccess(userId, orgParam);
       if (!access.hasAccess) {
         return res.status(403).json({ message: access.error });
       }
     }
+
+    const resolvedScope =
+      scope === "personal" || organization === "personal"
+        ? "personal"
+        : orgParam
+          ? undefined
+          : "all";
+
+    const matchFilter = await buildPartyListScope(userId, {
+      organization: orgParam,
+      scope: resolvedScope,
+    });
 
     const and = [matchFilter, { archived: { $ne: true } }];
 

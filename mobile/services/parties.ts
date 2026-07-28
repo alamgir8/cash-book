@@ -70,6 +70,8 @@ export interface UpdatePartyParams {
 
 export interface ListPartiesParams {
   organization?: string;
+  /** all | personal — used with organization filter chips */
+  scope?: "all" | "personal";
   type?: PartyType;
   search?: string;
   archived?: boolean | "all";
@@ -133,6 +135,7 @@ export const partiesApi = {
   list: async (params?: ListPartiesParams, signal?: AbortSignal) => {
     const cleanParams: Record<string, string | number | boolean> = {};
     if (params?.organization) cleanParams.organization = params.organization;
+    if (params?.scope) cleanParams.scope = params.scope;
     if (params?.type) cleanParams.type = params.type;
     if (params?.search?.trim()) cleanParams.search = params.search.trim();
     if (params?.archived != null) cleanParams.archived = params.archived as any;

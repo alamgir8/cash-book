@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Modal,
   FlatList,
+  ScrollView,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { toast } from "@/lib/toast";
@@ -20,9 +21,14 @@ import {
 } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import { ScreenHeader } from "@/components/screen-header";
-import { useActiveOrgId, useOrganization } from "@/hooks/use-organization";
+import { useOrganization } from "@/hooks/use-organization";
 import { useTheme } from "@/hooks/use-theme";
-import { partiesApi, type Party, type PartyType } from "@/services/parties";
+import {
+  partiesApi,
+  type ListPartiesParams,
+  type Party,
+  type PartyType,
+} from "@/services/parties";
 import { getApiErrorMessage } from "@/lib/api";
 import { useDeleteMode } from "@/hooks/use-delete-mode";
 import { PartyListCard } from "@/components/parties/party-list-card";
@@ -30,6 +36,18 @@ import { MergeTargetRow } from "@/components/parties/merge-target-row";
 
 const PAGE_SIZE = 50;
 const MERGE_PAGE_SIZE = 30;
+
+/** all = every org + personal; personal = no org; else org id */
+type OrgFilter = "all" | "personal" | string;
+
+function orgFilterParams(orgFilter: OrgFilter): Pick<
+  ListPartiesParams,
+  "organization" | "scope"
+> {
+  if (orgFilter === "all") return { scope: "all" };
+  if (orgFilter === "personal") return { scope: "personal" };
+  return { organization: orgFilter };
+}
 
 const TAB_OPTIONS: { value: PartyType | "all"; label: string }[] = [
   { value: "all", label: "All" },
@@ -50,11 +68,11 @@ const SORT_OPTIONS: { value: string; label: string }[] = [
 export default function PartiesScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const organizationId = useActiveOrgId();
   const { colors } = useTheme();
-  const { canManageParties } = useOrganization();
+  const { canManageParties, organizations } = useOrganization();
   const { isDeleteModeActive } = useDeleteMode();
 
+  const [orgFilter, setOrgFilter] = useState<OrgFilter>("all");
   const [activeTab, setActiveTab] = useState<PartyType | "all">("all");
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
@@ -65,6 +83,23 @@ export default function PartiesScreen() {
   const [mergePickerVisible, setMergePickerVisible] = useState(false);
   const [mergeSearchInput, setMergeSearchInput] = useState("");
   const [mergeSearch, setMergeSearch] = useState("");
+
+  const orgScopeParams = useMemo(
+    () => orgFilterParams(orgFilter),
+    [orgFilter],
+  );
+
+  const orgFilterChips = useMemo(
+    () => [
+      { value: "all" as const, label: "All" },
+      { value: "personal" as const, label: "Personal" },
+      ...organizations.map((org) => ({
+        value: org.id,
+        label: org.name,
+      })),
+    ],
+    [organizations],
+  );
 
   // Debounce search → server query (avoids request storms)
   useEffect(() => {
@@ -86,11 +121,11 @@ export default function PartiesScreen() {
     fetchNextPage,
     refetch,
   } = useInfiniteQuery({
-    queryKey: ["parties", organizationId, activeTab, search, sort, PAGE_SIZE],
+    queryKey: ["parties", orgFilter, activeTab, search, sort, PAGE_SIZE],
     queryFn: ({ pageParam, signal }) =>
       partiesApi.list(
         {
-          organization: organizationId || undefined,
+          ...orgScopeParams,
           type: activeTab === "all" ? undefined : activeTab,
           search: search || undefined,
           sort,
@@ -157,14 +192,14 @@ export default function PartiesScreen() {
   } = useInfiniteQuery({
     queryKey: [
       "parties-merge-targets",
-      organizationId,
+      orgFilter,
       mergeSource?._id,
       mergeSearch,
     ],
     queryFn: ({ pageParam, signal }) =>
       partiesApi.list(
         {
-          organization: organizationId || undefined,
+          ...orgScopeParams,
           search: mergeSearch || undefined,
           sort: "name",
           page: pageParam,
@@ -496,6 +531,37 @@ export default function PartiesScreen() {
             </TouchableOpacity>
           )}
         </View>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingRight: 8 }}
+        >
+          {orgFilterChips.map((chip) => {
+            const selected = orgFilter === chip.value;
+            return (
+              <TouchableOpacity
+                key={chip.value}
+                className="mr-2 px-3 py-1.5 rounded-full"
+                style={{
+                  backgroundColor: selected ? colors.info : colors.bg.tertiary,
+                  maxWidth: 160,
+                }}
+                onPress={() => setOrgFilter(chip.value)}
+              >
+                <Text
+                  className="text-sm font-medium"
+                  numberOfLines={1}
+                  style={{
+                    color: selected ? "#fff" : colors.text.secondary,
+                  }}
+                >
+                  {chip.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
 
         <View className="flex-row items-center justify-between">
           <View className="flex-row flex-1">

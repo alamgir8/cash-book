@@ -16,6 +16,8 @@ const TAP_WINDOW_MS = 3000; // taps must happen within 3s of each other
 
 type DeleteModeState = {
   isDeleteModeActive: boolean;
+  /** Epoch ms when delete mode ends; null when inactive */
+  endsAt: number | null;
   /** Call this on every tap of the secret trigger (settings icon) */
   recordTap: () => void;
 };
@@ -23,49 +25,37 @@ type DeleteModeState = {
 const DeleteModeStateContext = createContext<DeleteModeState | undefined>(
   undefined,
 );
-const DeleteModeSecondsContext = createContext(0);
 
 export function DeleteModeProvider({ children }: { children: ReactNode }) {
   const [isActive, setIsActive] = useState(false);
-  const [secondsLeft, setSecondsLeft] = useState(0);
+  const [endsAt, setEndsAt] = useState<number | null>(null);
   const tapTimestamps = useRef<number[]>([]);
   const deactivateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const countdownInterval = useRef<ReturnType<typeof setInterval> | null>(null);
   const isActiveRef = useRef(false);
 
   const clearTimers = useCallback(() => {
     if (deactivateTimer.current) clearTimeout(deactivateTimer.current);
-    if (countdownInterval.current) clearInterval(countdownInterval.current);
     deactivateTimer.current = null;
-    countdownInterval.current = null;
   }, []);
+
+  const deactivate = useCallback(() => {
+    clearTimers();
+    isActiveRef.current = false;
+    setIsActive(false);
+    setEndsAt(null);
+  }, [clearTimers]);
 
   const activate = useCallback(() => {
     clearTimers();
     isActiveRef.current = true;
+    const nextEndsAt = Date.now() + DELETE_MODE_DURATION_MS;
     setIsActive(true);
-    const endsAt = Date.now() + DELETE_MODE_DURATION_MS;
-    setSecondsLeft(Math.round(DELETE_MODE_DURATION_MS / 1000));
+    setEndsAt(nextEndsAt);
 
-    // Only tick secondsLeft — do not put it in the main context value,
-    // or every consumer (parties list, dashboard, etc.) re-renders every second.
-    countdownInterval.current = setInterval(() => {
-      const remaining = Math.max(0, Math.round((endsAt - Date.now()) / 1000));
-      setSecondsLeft(remaining);
-      if (remaining === 0) {
-        clearTimers();
-        isActiveRef.current = false;
-        setIsActive(false);
-      }
-    }, 1000);
-
-    deactivateTimer.current = setTimeout(() => {
-      clearTimers();
-      isActiveRef.current = false;
-      setIsActive(false);
-      setSecondsLeft(0);
-    }, DELETE_MODE_DURATION_MS);
-  }, [clearTimers]);
+    // No per-second setState here — that re-renders the entire app tree
+    // (parties FlatList "jumps"). Countdown UI ticks locally in Settings.
+    deactivateTimer.current = setTimeout(deactivate, DELETE_MODE_DURATION_MS);
+  }, [clearTimers, deactivate]);
 
   const recordTap = useCallback(() => {
     const now = Date.now();
@@ -96,15 +86,13 @@ export function DeleteModeProvider({ children }: { children: ReactNode }) {
   useEffect(() => () => clearTimers(), [clearTimers]);
 
   const stateValue = useMemo(
-    () => ({ isDeleteModeActive: isActive, recordTap }),
-    [isActive, recordTap],
+    () => ({ isDeleteModeActive: isActive, endsAt, recordTap }),
+    [isActive, endsAt, recordTap],
   );
 
   return (
     <DeleteModeStateContext.Provider value={stateValue}>
-      <DeleteModeSecondsContext.Provider value={secondsLeft}>
-        {children}
-      </DeleteModeSecondsContext.Provider>
+      {children}
     </DeleteModeStateContext.Provider>
   );
 }
@@ -117,7 +105,27 @@ export function useDeleteMode() {
   return ctx;
 }
 
-/** Countdown only — subscribe from Settings UI, not list screens. */
+/**
+ * Countdown for Settings badge only.
+ * Local interval — does not re-render list screens under the provider.
+ */
 export function useDeleteModeSeconds() {
-  return useContext(DeleteModeSecondsContext);
+  const { isDeleteModeActive, endsAt } = useDeleteMode();
+  const [secondsLeft, setSecondsLeft] = useState(0);
+
+  useEffect(() => {
+    if (!isDeleteModeActive || !endsAt) {
+      setSecondsLeft(0);
+      return;
+    }
+
+    const tick = () => {
+      setSecondsLeft(Math.max(0, Math.round((endsAt - Date.now()) / 1000)));
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [isDeleteModeActive, endsAt]);
+
+  return secondsLeft;
 }
