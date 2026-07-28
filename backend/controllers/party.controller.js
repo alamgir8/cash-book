@@ -1241,9 +1241,9 @@ export const getPartyNetBalance = async (req, res, next) => {
     const [agg] = await Transaction.aggregate([
       {
         $match: {
-          party: party._id,
-          is_deleted: false,
+          is_deleted: { $ne: true },
           payment_status: { $ne: "due" }, // only settled cash transactions
+          $or: [{ party: party._id }, { for_party: party._id }],
         },
       },
       {
