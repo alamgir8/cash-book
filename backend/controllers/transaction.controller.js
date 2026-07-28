@@ -291,7 +291,7 @@ export const listTransactions = async (req, res, next) => {
     }
 
     const page = Math.max(Number(req.query.page) || 1, 1);
-    const limit = Math.min(Number(req.query.limit) || 50, 200);
+    const limit = Math.min(Number(req.query.limit) || 30, 100);
     const skip = (page - 1) * limit;
 
     // ── SINGLE query with populate — eliminates the double-query pattern ──
@@ -1634,6 +1634,10 @@ export const getVendorLedger = async (req, res, next) => {
     const adminId = req.user.id;
     const organizationId = getOrgFromRequest(req);
     const { party_id, counterparty } = req.query;
+    const limit = Math.min(
+      Math.max(Number(req.query.limit) || 100, 1),
+      200,
+    );
 
     if (!party_id && !counterparty) {
       return res
@@ -1655,32 +1659,49 @@ export const getVendorLedger = async (req, res, next) => {
       partyFilter = { counterparty: counterparty.trim() };
     }
 
-    const transactions = await Transaction.find({
+    const match = {
       ...scopeFilter,
       ...partyFilter,
       is_deleted: { $ne: true },
-    })
-      .populate("account", "name kind")
-      .populate("category_id", "name type")
-      .populate("party", "name")
-      .populate("for_party", "name")
-      .sort({ date: 1, createdAt: 1, _id: 1 })
-      .lean();
+    };
 
-    // Compute running balance: credit = +, debit = -
+    // Summary over full history (cheap) + capped timeline for UI
+    const [[summaryAgg], newest] = await Promise.all([
+      Transaction.aggregate([
+        { $match: match },
+        {
+          $group: {
+            _id: null,
+            total_credit: {
+              $sum: {
+                $cond: [{ $eq: ["$type", "credit"] }, "$amount", 0],
+              },
+            },
+            total_debit: {
+              $sum: {
+                $cond: [{ $eq: ["$type", "debit"] }, "$amount", 0],
+              },
+            },
+            transaction_count: { $sum: 1 },
+          },
+        },
+      ]),
+      Transaction.find(match)
+        .populate("account", "name kind")
+        .populate("category_id", "name type")
+        .populate("party", "name")
+        .populate("for_party", "name")
+        .sort({ date: -1, createdAt: -1, _id: -1 })
+        .limit(limit)
+        .lean(),
+    ]);
+
+    const chronological = [...newest].reverse();
     let runningBalance = 0;
-    let totalCredit = 0;
-    let totalDebit = 0;
-
-    const timeline = transactions.map((txn) => {
+    const timelineAsc = chronological.map((txn) => {
       const amt = Number(txn.amount ?? 0);
-      if (txn.type === "credit") {
-        runningBalance += amt;
-        totalCredit += amt;
-      } else {
-        runningBalance -= amt;
-        totalDebit += amt;
-      }
+      if (txn.type === "credit") runningBalance += amt;
+      else runningBalance -= amt;
       runningBalance = Math.round(runningBalance * 100) / 100;
       return {
         ...txn,
@@ -1688,32 +1709,33 @@ export const getVendorLedger = async (req, res, next) => {
         running_balance: runningBalance,
       };
     });
+    const timeline = timelineAsc.reverse();
 
-    // Newest-first for display
-    timeline.reverse();
-
-    // Resolve display name
-    const firstWithParty = transactions.find((t) => t.party);
+    const firstWithParty = newest.find((t) => t.party || t.for_party);
     const partyName =
       firstWithParty?.party?.name ??
       firstWithParty?.for_party?.name ??
       counterparty ??
       "";
 
+    const totalCredit = summaryAgg?.total_credit ?? 0;
+    const totalDebit = summaryAgg?.total_debit ?? 0;
+
     res.json({
       party_id: party_id ?? null,
       party_name: partyName,
       counterparty: counterparty ?? null,
       timeline,
+      truncated: (summaryAgg?.transaction_count ?? 0) > timeline.length,
       summary: {
         total_credit: Math.round(totalCredit * 100) / 100,
         total_debit: Math.round(totalDebit * 100) / 100,
         net_balance: Math.round((totalCredit - totalDebit) * 100) / 100,
-        transaction_count: transactions.length,
+        transaction_count: summaryAgg?.transaction_count ?? 0,
       },
     });
-  } catch (err) {
-    next(err);
+  } catch (error) {
+    next(error);
   }
 };
 

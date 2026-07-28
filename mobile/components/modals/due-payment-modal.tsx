@@ -26,7 +26,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/hooks/use-theme";
 import { usePreferences } from "@/hooks/use-preferences";
 import { createDuePayment, type Transaction } from "@/services/transactions";
-import { refreshAppData } from "@/lib/refresh-app-data";
+import { refreshTransactionData } from "@/lib/refresh-app-data";
 import { SearchableSelect } from "../searchable-select";
 import type { SelectOption } from "./types";
 
@@ -72,7 +72,7 @@ export const DuePaymentModal = ({
   const mutation = useMutation({
     mutationFn: createDuePayment,
     onSuccess: () => {
-      void refreshAppData(queryClient);
+      void refreshTransactionData(queryClient);
       onSuccess?.();
       onClose();
     },

@@ -36,7 +36,7 @@ export function ProductSearchModal({
     organization: organizationId || undefined,
     search: search.trim() || undefined,
     is_active: true,
-    limit: 100,
+    limit: 50,
   });
 
   const products = useMemo(() => data?.products ?? [], [data]);

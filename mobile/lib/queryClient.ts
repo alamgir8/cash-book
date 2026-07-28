@@ -5,12 +5,13 @@ export const queryClient = new QueryClient({
     queries: {
       retry: 1,
       retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 5000),
-      staleTime: 30 * 1000, // 30s — avoid refetch storms while typing/filtering
+      // Longer stale window = fewer remount/tab refetches
+      staleTime: 60 * 1000,
       gcTime: 15 * 60 * 1000,
       refetchOnWindowFocus: false,
       refetchOnReconnect: true,
-      // Only refetch on mount when data is stale (not every navigation)
-      refetchOnMount: true,
+      // Cached data is enough on navigate; pull-to-refresh / mutations invalidate
+      refetchOnMount: false,
     },
     mutations: {
       retry: 0,

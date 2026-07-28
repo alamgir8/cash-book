@@ -24,7 +24,7 @@ import { useTheme } from "@/hooks/use-theme";
 import { safeGoBack } from "@/lib/navigation";
 import type { LedgerEntry } from "@/services/parties";
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 30;
 
 const TYPE_FILTERS: { value: "all" | "debit" | "credit"; label: string }[] = [
   { value: "all", label: "All" },

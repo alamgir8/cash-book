@@ -16,8 +16,13 @@ import {
   type Transaction,
 } from "@/services/transactions";
 import { exportTransactionsPdf } from "@/services/reports";
-import { refreshAppData } from "@/lib/refresh-app-data";
-import { useTransactionFeed } from "@/hooks/use-transaction-feed";
+import {
+  refreshTransactionData,
+} from "@/lib/refresh-app-data";
+import {
+  FEED_PAGE_LIMIT,
+  useTransactionFeed,
+} from "@/hooks/use-transaction-feed";
 import { useOrganization } from "@/hooks/use-organization";
 import { useDeleteMode } from "@/hooks/use-delete-mode";
 import type {
@@ -47,7 +52,7 @@ export function useDashboard() {
     useState<Transaction | null>(null);
 
   const feed = useTransactionFeed({
-    pageLimit: 20,
+    pageLimit: FEED_PAGE_LIMIT,
     editingCounterparty: editingTransaction?.counterparty,
     includeEmptyCategoryOption: true,
   });
@@ -83,7 +88,7 @@ export function useDashboard() {
 
   const invalidateAll = useCallback(async () => {
     resetToPageOne();
-    await refreshAppData(queryClient);
+    await refreshTransactionData(queryClient);
   }, [queryClient, resetToPageOne]);
 
   const createMutation = useMutation({
@@ -200,12 +205,12 @@ export function useDashboard() {
 
   const handleResetFilters = useCallback(() => {
     feedResetFilters();
-    void refreshAppData(queryClient);
+    void refreshTransactionData(queryClient);
   }, [feedResetFilters, queryClient]);
 
   const handleRefresh = useCallback(() => {
     resetToPageOne();
-    void refreshAppData(queryClient);
+    void refreshTransactionData(queryClient);
   }, [queryClient, resetToPageOne]);
 
   const openTransferModal = useCallback(() => {

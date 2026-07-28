@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { fetchAccountTransactions } from "@/services/accounts";
 import {
   fetchTransactions,
@@ -13,6 +13,10 @@ import { queryKeys } from "@/lib/queryKeys";
 import { useTransactionListState } from "@/hooks/use-transaction-list-state";
 import { useTransactionFilterOptions } from "@/hooks/use-transaction-filter-options";
 import { usePreferences } from "@/hooks/use-preferences";
+
+/** Default page sizes — keep first paint light */
+export const FEED_PAGE_LIMIT = 30;
+export const ACCOUNT_FEED_PAGE_LIMIT = 30;
 
 export type TransactionFeedConfig = {
   /** When set, only transactions for this account are loaded. */
@@ -87,7 +91,8 @@ export function useTransactionFeed({
 }: TransactionFeedConfig) {
   const { formatAmount, preferences } = usePreferences();
   const language = preferences.language ?? "en";
-  const resolvedLimit = pageLimit ?? (accountId ? 50 : 20);
+  const resolvedLimit =
+    pageLimit ?? (accountId ? ACCOUNT_FEED_PAGE_LIMIT : FEED_PAGE_LIMIT);
 
   const defaultFilters = useMemo(
     () => buildDefaultFilters(accountId, resolvedLimit, initialFilters),
@@ -97,24 +102,29 @@ export function useTransactionFeed({
 
   const [filters, setFilters] = useState<TransactionFilters>(defaultFilters);
 
+  // Shared filter metadata — long staleTime so dual Home+Ledger mounts don't double-fetch
   const accountsQuery = useQuery({
     queryKey: queryKeys.accounts,
     queryFn: fetchAccounts,
+    staleTime: 5 * 60_000,
   });
 
   const categoriesQuery = useQuery({
     queryKey: queryKeys.categories.all,
     queryFn: () => fetchCategories(),
+    staleTime: 5 * 60_000,
   });
 
   const counterpartiesQuery = useQuery({
     queryKey: queryKeys.counterparties,
     queryFn: () => fetchCounterparties(),
+    staleTime: 5 * 60_000,
   });
 
   const vendorsQuery = useQuery({
     queryKey: queryKeys.vendors,
     queryFn: () => fetchVendors(),
+    staleTime: 5 * 60_000,
   });
 
   const transactionsQuery = useQuery({
@@ -127,6 +137,8 @@ export function useTransactionFeed({
         : fetchTransactions(filters),
     enabled:
       enabled && (accountId !== undefined ? Boolean(accountId) : true),
+    staleTime: 45_000,
+    placeholderData: keepPreviousData,
   });
 
   const listState = useTransactionListState(

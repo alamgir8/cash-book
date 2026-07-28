@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useInfiniteQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import Toast from "react-native-toast-message";
 import { partiesApi } from "@/services/parties";
 import { QUERY_KEYS } from "@/lib/queryKeys";
@@ -38,7 +38,7 @@ export const usePartyLedger = (
   partyId: string,
   params?: Omit<GetLedgerParams, "page">,
 ) => {
-  const PAGE_SIZE = params?.limit || 50;
+  const PAGE_SIZE = params?.limit || 30;
   return useInfiniteQuery({
     queryKey: [
       "partyLedger",
@@ -69,7 +69,8 @@ export const usePartyLedger = (
     },
     enabled: Boolean(partyId),
     retry: 1,
-    staleTime: 15_000,
+    staleTime: 60_000,
+    placeholderData: keepPreviousData,
   });
 };
 

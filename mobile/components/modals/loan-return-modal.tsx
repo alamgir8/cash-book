@@ -25,7 +25,7 @@ import { usePreferences } from "@/hooks/use-preferences";
 import { useTranslation } from "@/hooks/use-translation";
 import { createTransaction, type Transaction } from "@/services/transactions";
 import { fetchCategories } from "@/services/categories";
-import { refreshAppData } from "@/lib/refresh-app-data";
+import { refreshTransactionData } from "@/lib/refresh-app-data";
 import {
   getLoanRepaymentConfig,
   getLoanPartyPayload,
@@ -107,7 +107,7 @@ export const LoanReturnModal = ({
       });
     },
     onSuccess: async () => {
-      await refreshAppData(queryClient);
+      await refreshTransactionData(queryClient);
       onSuccess?.();
       onClose();
     },

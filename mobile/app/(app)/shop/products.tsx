@@ -30,7 +30,7 @@ export default function ProductsScreen() {
     organization: organizationId || undefined,
     search: search.trim() || undefined,
     low_stock: showLowStock || undefined,
-    limit: 100,
+    limit: 50,
   });
 
   const deleteMutation = useDeleteProduct();

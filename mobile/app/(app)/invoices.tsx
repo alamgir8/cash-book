@@ -70,6 +70,8 @@ export default function InvoicesScreen() {
         organization: organizationId || undefined,
         type: activeType === "all" ? undefined : activeType,
         status: activeStatus === "all" ? undefined : activeStatus,
+        limit: 30,
+        page: 1,
       }),
   });
 

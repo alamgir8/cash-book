@@ -41,9 +41,12 @@ import { useTranslation } from "@/hooks/use-translation";
 import { useOrganization } from "@/hooks/use-organization";
 import { useDeleteMode } from "@/hooks/use-delete-mode";
 import { useAccountDetail } from "@/hooks/use-accounts";
-import { useTransactionFeed } from "@/hooks/use-transaction-feed";
+import {
+  ACCOUNT_FEED_PAGE_LIMIT,
+  useTransactionFeed,
+} from "@/hooks/use-transaction-feed";
 import { calculateAccountNetFlow } from "@/lib/account-utils";
-import { refreshAppData } from "@/lib/refresh-app-data";
+import { refreshTransactionData } from "@/lib/refresh-app-data";
 import type { TransactionFormValues } from "@/components/modals/types";
 
 export default function AccountDetailScreen() {
@@ -84,7 +87,7 @@ export default function AccountDetailScreen() {
 
   const feed = useTransactionFeed({
     accountId,
-    pageLimit: 50,
+    pageLimit: ACCOUNT_FEED_PAGE_LIMIT,
     enabled: Boolean(accountId),
     editingCounterparty: editingTransaction?.counterparty,
     includeEmptyCategoryOption: true,
@@ -121,7 +124,7 @@ export default function AccountDetailScreen() {
     mutationFn: updateTransaction,
     onSuccess: async () => {
       resetToPageOne();
-      await refreshAppData(queryClient);
+      await refreshTransactionData(queryClient);
       setModalVisible(false);
       setEditingTransaction(null);
       Toast.show({ type: "success", text1: "Transaction updated" });
@@ -138,7 +141,7 @@ export default function AccountDetailScreen() {
     mutationFn: deleteTransaction,
     onSuccess: async () => {
       resetToPageOne();
-      await refreshAppData(queryClient);
+      await refreshTransactionData(queryClient);
       Toast.show({ type: "success", text1: "Transaction deleted" });
     },
     onError: () =>
@@ -249,7 +252,7 @@ export default function AccountDetailScreen() {
 
   const handleRefresh = useCallback(() => {
     resetToPageOne();
-    void refreshAppData(queryClient);
+    void refreshTransactionData(queryClient);
   }, [queryClient, resetToPageOne]);
 
   const handleEdit = useCallback(() => {

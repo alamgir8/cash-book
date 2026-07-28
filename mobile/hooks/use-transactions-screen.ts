@@ -12,8 +12,11 @@ import {
   type Transaction,
 } from "@/services/transactions";
 import { exportTransactionsPdf } from "@/services/reports";
-import { refreshAppData } from "@/lib/refresh-app-data";
-import { useTransactionFeed } from "@/hooks/use-transaction-feed";
+import { refreshTransactionData } from "@/lib/refresh-app-data";
+import {
+  FEED_PAGE_LIMIT,
+  useTransactionFeed,
+} from "@/hooks/use-transaction-feed";
 import { useOrganization } from "@/hooks/use-organization";
 import { useDeleteMode } from "@/hooks/use-delete-mode";
 import type { TransactionFormValues } from "@/components/modals/types";
@@ -64,6 +67,7 @@ export function useTransactionsScreen() {
 
   const feed = useTransactionFeed({
     accountId,
+    pageLimit: FEED_PAGE_LIMIT,
     initialFilters,
     editingCounterparty: editingTransaction?.counterparty,
     includeEmptyCategoryOption: true,
@@ -105,7 +109,7 @@ export function useTransactionsScreen() {
       setModalVisible(false);
       setEditingTransaction(null);
       Toast.show({ type: "success", text1: "Transaction updated" });
-      await refreshAppData(queryClient);
+      await refreshTransactionData(queryClient);
     },
     onError: () =>
       Toast.show({
@@ -119,7 +123,7 @@ export function useTransactionsScreen() {
     mutationFn: deleteTransaction,
     onSuccess: async () => {
       resetToPageOne();
-      await refreshAppData(queryClient);
+      await refreshTransactionData(queryClient);
       Toast.show({ type: "success", text1: "Transaction deleted" });
     },
     onError: () =>
@@ -210,7 +214,7 @@ export function useTransactionsScreen() {
 
   const handleRefresh = useCallback(() => {
     resetToPageOne();
-    void refreshAppData(queryClient);
+    void refreshTransactionData(queryClient);
   }, [queryClient, resetToPageOne]);
 
   const closeModal = useCallback(() => {

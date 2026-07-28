@@ -34,7 +34,7 @@ import { useDeleteMode } from "@/hooks/use-delete-mode";
 import { PartyListCard } from "@/components/parties/party-list-card";
 import { MergeTargetRow } from "@/components/parties/merge-target-row";
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 30;
 const MERGE_PAGE_SIZE = 30;
 
 /** all = every org + personal; personal = no org; else org id */
