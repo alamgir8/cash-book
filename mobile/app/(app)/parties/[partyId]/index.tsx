@@ -90,10 +90,7 @@ export default function PartyDetailScreen() {
         <ScreenHeader
           title="Party Details"
           showBack
-          onBack={() => {
-            if (router.canGoBack()) router.back();
-            else router.replace("/(app)/parties" as any);
-          }}
+          onBack={() => router.back()}
         />
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color={colors.info} />
@@ -107,10 +104,7 @@ export default function PartyDetailScreen() {
       <ScreenHeader
         title="Party Details"
         showBack
-        onBack={() => {
-          if (router.canGoBack()) router.back();
-          else router.replace("/(app)/parties" as any);
-        }}
+        onBack={() => router.back()}
         rightAction={
           <TouchableOpacity className="p-2" onPress={handleEdit}>
             <Ionicons name="pencil" size={22} color={colors.info} />

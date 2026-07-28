@@ -73,6 +73,7 @@ export interface ListPartiesParams {
   archived?: boolean | "all";
   page?: number;
   limit?: number;
+  sort?: string;
 }
 
 export interface LedgerEntry {
@@ -80,12 +81,16 @@ export interface LedgerEntry {
   date: string;
   type: string;
   description?: string;
+  comment?: string;
   reference?: string;
   debit: number;
   credit: number;
   running_balance: number;
   transaction_id?: string;
   invoice_id?: string;
+  category_name?: string;
+  account_name?: string;
+  payment_status?: string;
 }
 
 export interface PartiesListResponse {
@@ -181,6 +186,9 @@ export const partiesApi = {
       endDate?: string;
       page?: number;
       limit?: number;
+      search?: string;
+      type?: "debit" | "credit" | "all";
+      sort?: string;
     },
   ) => {
     const response = await api.get<PartyLedgerResponse & { ledger?: LedgerEntry[] }>(

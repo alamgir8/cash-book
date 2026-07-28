@@ -36,7 +36,7 @@ export const useParty = (partyId: string) => {
  */
 export const usePartyLedger = (partyId: string, params?: GetLedgerParams) => {
   return useQuery({
-    queryKey: ["partyLedger", partyId, params?.page || 1],
+    queryKey: ["partyLedger", partyId, params],
     queryFn: () => partiesApi.getLedger(partyId, params || {}),
     enabled: Boolean(partyId),
   });

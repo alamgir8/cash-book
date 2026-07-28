@@ -53,13 +53,7 @@ export default function EditPartyScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
 
-  const goBack = () => {
-    if (router.canGoBack()) {
-      router.back();
-    } else {
-      router.replace(`/(app)/parties/${partyId}` as any);
-    }
-  };
+  const goBack = () => router.back();
 
   const {
     control,

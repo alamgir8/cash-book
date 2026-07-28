@@ -180,10 +180,6 @@ export default function AppLayout() {
         options={{ href: null }}
       />
       <Tabs.Screen name="parties" options={{ href: null }} />
-      <Tabs.Screen name="parties/new" options={{ href: null }} />
-      <Tabs.Screen name="parties/[partyId]" options={{ href: null }} />
-      <Tabs.Screen name="parties/[partyId]/edit" options={{ href: null }} />
-      <Tabs.Screen name="parties/[partyId]/ledger" options={{ href: null }} />
       <Tabs.Screen name="invoices" options={{ href: null }} />
       <Tabs.Screen name="invoices/new" options={{ href: null }} />
       <Tabs.Screen name="invoices/[invoiceId]" options={{ href: null }} />

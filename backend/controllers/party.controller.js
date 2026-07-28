@@ -628,7 +628,15 @@ export const getPartyLedger = async (req, res, next) => {
   try {
     const userId = req.user.id;
     const { partyId } = req.params;
-    const { startDate, endDate, page = 1, limit = 50 } = req.query;
+    const {
+      startDate,
+      endDate,
+      page = 1,
+      limit = 50,
+      search,
+      type,
+      sort = "-date",
+    } = req.query;
 
     const party = await Party.findById(partyId);
 
@@ -656,10 +664,32 @@ export const getPartyLedger = async (req, res, next) => {
       is_deleted: { $ne: true },
     };
 
+    if (type === "debit" || type === "credit") {
+      query.type = type;
+    }
+
     if (startDate || endDate) {
       query.date = {};
       if (startDate) query.date.$gte = new Date(startDate);
       if (endDate) query.date.$lte = new Date(endDate);
+    }
+
+    if (search && String(search).trim()) {
+      const escaped = escapeRegex(String(search).trim());
+      const searchRegex = { $regex: escaped, $options: "i" };
+      query.$and = [
+        { $or: [{ party: partyOid }, { for_party: partyOid }] },
+        {
+          $or: [
+            { description: searchRegex },
+            { comment: searchRegex },
+            { reference: searchRegex },
+            { vendor: searchRegex },
+            { counterparty: searchRegex },
+          ],
+        },
+      ];
+      delete query.$or;
     }
 
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
@@ -674,6 +704,19 @@ export const getPartyLedger = async (req, res, next) => {
       }
       return balance + (txn.type === "debit" ? txn.amount : -txn.amount);
     };
+
+    // Sort: support date / amount / type, prefix "-" for desc
+    const sortRaw = String(sort || "-date");
+    const sortField = sortRaw.startsWith("-") ? sortRaw.slice(1) : sortRaw;
+    const sortDir = sortRaw.startsWith("-") ? -1 : 1;
+    const allowedSort = new Set(["date", "amount", "type", "createdAt"]);
+    const sortObj = {
+      [allowedSort.has(sortField) ? sortField : "date"]: sortDir,
+      createdAt: sortDir,
+    };
+
+    // For running balance we always process chronologically ascending for the page window
+    const chronologicalSort = { date: 1, createdAt: 1 };
 
     const [total, totalsAgg, priorTxns, pageTxns] = await Promise.all([
       Transaction.countDocuments(query),
@@ -698,14 +741,18 @@ export const getPartyLedger = async (req, res, next) => {
       skip > 0
         ? Transaction.find(query)
             .select("type amount")
-            .sort({ date: 1, createdAt: 1 })
+            .sort(chronologicalSort)
             .limit(skip)
             .lean()
         : Promise.resolve([]),
       Transaction.find(query)
         .populate("account", "name kind")
         .populate("category_id", "name type")
-        .sort({ date: 1, createdAt: 1 })
+        .sort(
+          sortField === "date" || !allowedSort.has(sortField)
+            ? chronologicalSort
+            : sortObj,
+        )
         .skip(skip)
         .limit(pageLimit)
         .lean(),
@@ -716,34 +763,80 @@ export const getPartyLedger = async (req, res, next) => {
       runningBalance = applyDelta(runningBalance, txn);
     }
 
-    const entriesAsc = pageTxns.map((txn) => {
+    // If sorted by date ascending for balance calc, map with running balance then re-order for response
+    const useChronological =
+      sortField === "date" || !allowedSort.has(sortField);
+    let workingTxns = pageTxns;
+    if (!useChronological) {
+      // Still compute running balance in date order for these ids
+      workingTxns = [...pageTxns].sort(
+        (a, b) =>
+          new Date(a.date).getTime() - new Date(b.date).getTime() ||
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+      );
+    }
+
+    const balanceById = new Map();
+    const entriesAsc = workingTxns.map((txn) => {
       runningBalance = applyDelta(runningBalance, txn);
+      balanceById.set(String(txn._id), runningBalance);
       const debit = txn.type === "debit" ? Number(txn.amount || 0) : 0;
       const credit = txn.type === "credit" ? Number(txn.amount || 0) : 0;
+      const categoryName =
+        typeof txn.category_id === "object" && txn.category_id
+          ? txn.category_id.name
+          : undefined;
+      const accountName =
+        typeof txn.account === "object" && txn.account
+          ? txn.account.name
+          : undefined;
       return {
         _id: txn._id,
         date: txn.date,
         type: txn.type,
-        description:
-          txn.description ||
-          txn.comment ||
-          (typeof txn.category_id === "object" ? txn.category_id?.name : "") ||
-          txn.type,
+        description: txn.description || "",
+        comment: txn.comment || "",
         reference: txn.reference || txn.invoice_number || undefined,
         debit,
         credit,
         running_balance: runningBalance,
         transaction_id: txn._id,
         invoice_id: txn.invoice || undefined,
-        account: txn.account,
-        category_id: txn.category_id,
+        category_name: categoryName,
+        account_name: accountName,
+        payment_status: txn.payment_status,
+        amount: txn.amount,
+        createdAt: txn.createdAt,
       };
     });
 
-    // Newest first for the UI
-    const entries = entriesAsc.slice().reverse();
+    // Apply requested sort for response (default newest first for date)
+    let entries = entriesAsc;
+    if (useChronological) {
+      entries =
+        sortDir === -1 ? entriesAsc.slice().reverse() : entriesAsc.slice();
+    } else {
+      entries = [...entriesAsc].sort((a, b) => {
+        if (sortField === "amount") {
+          return sortDir * (Number(a.amount) - Number(b.amount));
+        }
+        if (sortField === "type") {
+          return sortDir * String(a.type).localeCompare(String(b.type));
+        }
+        return (
+          sortDir *
+          (new Date(a.date).getTime() - new Date(b.date).getTime())
+        );
+      });
+      entries = entries.map((e) => ({
+        ...e,
+        running_balance: balanceById.get(String(e._id)) ?? e.running_balance,
+      }));
+    }
+
     const totalDebit = totalsAgg[0]?.total_debit ?? 0;
     const totalCredit = totalsAgg[0]?.total_credit ?? 0;
+    // Closing for filtered set still uses party convention on filtered totals
     const closingBalance = isCustomer
       ? openingBalance + totalCredit - totalDebit
       : openingBalance + totalDebit - totalCredit;
@@ -760,7 +853,6 @@ export const getPartyLedger = async (req, res, next) => {
       party,
       net_balance: closingBalance,
       balance_direction: balanceLabel,
-      // New shape expected by mobile
       entries,
       summary: {
         opening_balance: openingBalance,
@@ -768,7 +860,6 @@ export const getPartyLedger = async (req, res, next) => {
         total_credit: totalCredit,
         closing_balance: closingBalance,
       },
-      // Backward-compatible alias
       ledger: entries,
       pagination: {
         page: pageNum,

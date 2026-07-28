@@ -154,6 +154,7 @@ export type ListPartiesParams = {
   archived?: boolean | "all";
   page?: number;
   limit?: number;
+  sort?: string;
 };
 
 /**
@@ -162,4 +163,9 @@ export type ListPartiesParams = {
 export type GetLedgerParams = {
   page?: number;
   limit?: number;
+  search?: string;
+  type?: "debit" | "credit" | "all";
+  sort?: string;
+  startDate?: string;
+  endDate?: string;
 };
