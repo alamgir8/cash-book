@@ -11,6 +11,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.alamgir.hisabboi",
+      "appleTeamId": "Y3Y73LS73V",
       "buildNumber": "1",
       "infoPlist": {
         "NSCameraUsageDescription": "Allow Hisab Boi to take photos of receipts and invoices to attach to transactions.",

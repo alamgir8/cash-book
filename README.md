@@ -262,6 +262,8 @@ xcodebuild -workspace HisabBoi.xcworkspace \
   -destination generic/platform=iOS \
   -derivedDataPath /Users/alamgirhossain/Library/Developer/Xcode/DerivedData/HisabBoiRelease \
   -allowProvisioningUpdates \
+  DEVELOPMENT_TEAM=Y3Y73LS73V \
+  CODE_SIGN_STYLE=Automatic \
   build
 ```
 
@@ -322,6 +324,8 @@ xcodebuild -workspace HisabBoi.xcworkspace \
   -destination generic/platform=iOS \
   -derivedDataPath /Users/alamgirhossain/Library/Developer/Xcode/DerivedData/HisabBoiRelease \
   -allowProvisioningUpdates \
+  DEVELOPMENT_TEAM=Y3Y73LS73V \
+  CODE_SIGN_STYLE=Automatic \
   build
 ```
 
@@ -373,6 +377,8 @@ xcodebuild -workspace HisabBoi.xcworkspace \
   -destination generic/platform=iOS \
   -derivedDataPath /Users/alamgirhossain/Library/Developer/Xcode/DerivedData/HisabBoiRelease \
   -allowProvisioningUpdates \
+  DEVELOPMENT_TEAM=Y3Y73LS73V \
+  CODE_SIGN_STYLE=Automatic \
   build
 ```
 
@@ -414,5 +420,6 @@ Use Debug only when actively developing. Use Release for normal daily use.
 | **"Hisab Boi" is No Longer Available** | Free Apple signing expired (~7 days). Run **both** build + install commands in **Refresh Free Apple ID After ~7 Days** (build alone is not enough). |
 | App disappears or stops opening after days | Same as above — rebuild, reinstall, and re-trust the developer profile if needed. |
 | iPhone not detected | Reconnect USB, unlock iPhone, tap **Trust This Computer**, then restart Xcode. |
+| `pod install` fails on `hermes-engine` download | Network glitch downloading from Maven. Retry: `cd mobile/ios && pod install`. If it still fails, clear cache then retry: `rm -rf ~/Library/Caches/CocoaPods/Pods/External/hermes-engine && pod install`. |
 
 ---
