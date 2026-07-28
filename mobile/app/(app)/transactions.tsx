@@ -88,6 +88,63 @@ export default function TransactionsScreen() {
     ],
   );
 
+  const filterSection = useMemo(
+    () => ({
+      hasActiveFilters,
+      showAccountField: !accountId,
+      accounts: accountOptions,
+      showTypeToggle: true,
+      categories: categoryOptions,
+      counterparties: counterpartyOptions,
+      vendors: vendorOptions,
+      onReset: handleResetFilters,
+      onApplyFilters: handleApplyFilters,
+    }),
+    [
+      hasActiveFilters,
+      accountId,
+      accountOptions,
+      categoryOptions,
+      counterpartyOptions,
+      vendorOptions,
+      handleResetFilters,
+      handleApplyFilters,
+    ],
+  );
+
+  const cardActions = useMemo(
+    () => ({
+      onCategoryPress: handleCategoryPress,
+      onCounterpartyPress: handleCounterpartyPress,
+      onVendorPress: handleVendorPress,
+      onForPartyPress: handleForPartyPress,
+      onViewHistory: handleViewHistory,
+      onPaymentStatusPress: handlePaymentStatusPress,
+      onEdit: canEditTransactions ? handleEditTransaction : undefined,
+      onDelete: isDeleteModeActive ? handleDeleteTransaction : undefined,
+      onAttachmentsPress: handleAttachmentsPress,
+      onPayDue: setPayingDueTxn,
+      onReturnLoan: setReturningLoanTxn,
+      onViewChain: setViewingChainFor,
+    }),
+    [
+      handleCategoryPress,
+      handleCounterpartyPress,
+      handleVendorPress,
+      handleForPartyPress,
+      handleViewHistory,
+      handlePaymentStatusPress,
+      canEditTransactions,
+      handleEditTransaction,
+      isDeleteModeActive,
+      handleDeleteTransaction,
+      handleAttachmentsPress,
+      setPayingDueTxn,
+      setReturningLoanTxn,
+      setViewingChainFor,
+    ],
+  );
+
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg.primary }}>
       <ScreenHeader
@@ -120,36 +177,13 @@ export default function TransactionsScreen() {
         onRefresh={handleRefresh}
         showSkeletonOnEmpty={false}
         headerContent={headerContent}
-        filterSection={{
-          hasActiveFilters,
-          showAccountField: !accountId,
-          accounts: accountOptions,
-          showTypeToggle: true,
-          categories: categoryOptions,
-          counterparties: counterpartyOptions,
-          vendors: vendorOptions,
-          onReset: handleResetFilters,
-          onApplyFilters: handleApplyFilters,
-        }}
+        filterSection={filterSection}
         emptyState={{
           icon: "receipt-outline",
           title: t("noTransactionsFound"),
           description: t("noTransactionsMatchFilters"),
         }}
-        cardActions={{
-          onCategoryPress: handleCategoryPress,
-          onCounterpartyPress: handleCounterpartyPress,
-          onVendorPress: handleVendorPress,
-          onForPartyPress: handleForPartyPress,
-          onViewHistory: handleViewHistory,
-          onPaymentStatusPress: handlePaymentStatusPress,
-          onEdit: canEditTransactions ? handleEditTransaction : undefined,
-          onDelete: isDeleteModeActive ? handleDeleteTransaction : undefined,
-          onAttachmentsPress: handleAttachmentsPress,
-          onPayDue: setPayingDueTxn,
-          onReturnLoan: setReturningLoanTxn,
-          onViewChain: setViewingChainFor,
-        }}
+        cardActions={cardActions}
       />
 
       <TransactionModal

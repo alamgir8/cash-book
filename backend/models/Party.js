@@ -112,6 +112,14 @@ const partySchema = new Schema(
       type: Number,
       default: 0,
     },
+    debit_transactions: {
+      type: Number,
+      default: 0,
+    },
+    credit_transactions: {
+      type: Number,
+      default: 0,
+    },
     total_invoices: {
       type: Number,
       default: 0,

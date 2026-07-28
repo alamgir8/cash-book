@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { View } from "react-native";
-import { usePathname } from "expo-router";
+import { useIsFocused } from "expo-router";
 import { StatsCards } from "@/components/stats-cards";
 import { HomeQuickFeatures } from "@/components/home-quick-features";
 import { ScreenHeader } from "@/components/screen-header";
@@ -25,12 +25,7 @@ import { useTranslation } from "@/hooks/use-translation";
 export default function DashboardScreen() {
   const { colors } = useTheme();
   const { t } = useTranslation();
-  const pathname = usePathname();
-  const isHomeFocused =
-    pathname === "/" ||
-    pathname === "/index" ||
-    pathname.endsWith("/(app)") ||
-    pathname.endsWith("/(app)/");
+  const isHomeFocused = useIsFocused();
 
   const [viewingVendorHistoryFor, setViewingVendorHistoryFor] =
     useState<Transaction | null>(null);
@@ -130,6 +125,55 @@ export default function DashboardScreen() {
     ],
   );
 
+  const filterSection = useMemo(
+    () => ({
+      hasActiveFilters,
+      accounts: accountOptions,
+      onReset: handleResetFilters,
+      onApplyFilters: handleApplyFilters,
+      categories: categoryOptions,
+      counterparties: counterpartyOptions,
+      vendors: vendorOptions,
+    }),
+    [
+      hasActiveFilters,
+      accountOptions,
+      handleResetFilters,
+      handleApplyFilters,
+      categoryOptions,
+      counterpartyOptions,
+      vendorOptions,
+    ],
+  );
+
+  const cardActions = useMemo(
+    () => ({
+      onCategoryPress: handleCategoryFilter,
+      onCounterpartyPress: handleCounterpartyFilter,
+      onVendorPress: handleVendorFilter,
+      onForPartyPress: handleForPartyFilter,
+      onViewHistory: setViewingVendorHistoryFor,
+      onPaymentStatusPress: handlePaymentStatusFilter,
+      onEdit: handleEditTransaction,
+      onDelete: isDeleteModeActive ? handleDeleteTransaction : undefined,
+      onAttachmentsPress: handleAttachmentsPress,
+      onPayDue: setPayingDueTxn,
+      onReturnLoan: setReturningLoanTxn,
+      onViewChain: setViewingChainFor,
+    }),
+    [
+      handleCategoryFilter,
+      handleCounterpartyFilter,
+      handleVendorFilter,
+      handleForPartyFilter,
+      handlePaymentStatusFilter,
+      handleEditTransaction,
+      isDeleteModeActive,
+      handleDeleteTransaction,
+      handleAttachmentsPress,
+    ],
+  );
+
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg.secondary }}>
       <ScreenHeader
@@ -158,15 +202,7 @@ export default function DashboardScreen() {
         onLoadMore={handleLoadMore}
         onRefresh={handleRefresh}
         headerContent={headerContent}
-        filterSection={{
-          hasActiveFilters,
-          accounts: accountOptions,
-          onReset: handleResetFilters,
-          onApplyFilters: handleApplyFilters,
-          categories: categoryOptions,
-          counterparties: counterpartyOptions,
-          vendors: vendorOptions,
-        }}
+        filterSection={filterSection}
         emptyState={{
           icon: "receipt-outline",
           title: t("noTransactionsYet"),
@@ -176,29 +212,16 @@ export default function DashboardScreen() {
             onPress: () => setModalVisible(true),
           },
         }}
-        cardActions={{
-          onCategoryPress: handleCategoryFilter,
-          onCounterpartyPress: handleCounterpartyFilter,
-          onVendorPress: handleVendorFilter,
-          onForPartyPress: handleForPartyFilter,
-          onViewHistory: setViewingVendorHistoryFor,
-          onPaymentStatusPress: handlePaymentStatusFilter,
-          onEdit: handleEditTransaction,
-          onDelete: isDeleteModeActive ? handleDeleteTransaction : undefined,
-          onAttachmentsPress: handleAttachmentsPress,
-          onPayDue: setPayingDueTxn,
-          onReturnLoan: setReturningLoanTxn,
-          onViewChain: setViewingChainFor,
-        }}
+        cardActions={cardActions}
       />
 
-      {canCreateTransactions && isHomeFocused && (
+      {canCreateTransactions && isHomeFocused ? (
         <FloatingActionButton
           onPress={() => setModalVisible(true)}
           icon="add"
           position="bottom-right"
         />
-      )}
+      ) : null}
 
       <TransactionModal
         visible={isModalVisible}

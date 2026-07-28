@@ -16,16 +16,13 @@ router.get("/summary", partyController.getPartySummary);
 // CRUD operations
 router.get("/", partyController.getParties);
 router.post("/", partyController.createParty);
+// Register static subpaths BEFORE /:partyId so they never get swallowed
+router.get("/:partyId/ledger", partyController.getPartyLedger);
+router.get("/:partyId/net-balance", partyController.getPartyNetBalance);
+router.post("/:partyId/archive", partyController.archiveParty);
+router.post("/:partyId/merge", partyController.mergeParties);
 router.get("/:partyId", partyController.getParty);
 router.patch("/:partyId", partyController.updateParty);
-router.post("/:partyId/archive", partyController.archiveParty);
 router.delete("/:partyId", partyController.deleteParty);
-router.post("/:partyId/merge", partyController.mergeParties);
-
-// Ledger
-router.get("/:partyId/ledger", partyController.getPartyLedger);
-
-// Net cross-balance (for "both" type — shows who owes whom overall)
-router.get("/:partyId/net-balance", partyController.getPartyNetBalance);
 
 export default router;

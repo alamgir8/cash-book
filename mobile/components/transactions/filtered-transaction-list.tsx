@@ -1,4 +1,4 @@
-import { useCallback, useMemo, type ReactNode } from "react";
+import { useCallback, useMemo, memo, type ReactNode } from "react";
 import { FlatList, RefreshControl, View } from "react-native";
 import { TransactionCard } from "@/components/transaction-card";
 import { LoadMoreButton } from "@/components/load-more-button";
@@ -57,6 +57,35 @@ export type FilteredTransactionListProps = {
   refreshTintColor?: string;
 };
 
+type RowProps = {
+  item: Transaction;
+  actions: TransactionCardActions;
+};
+
+const TransactionRow = memo(function TransactionRow({
+  item,
+  actions,
+}: RowProps) {
+  return (
+    <TransactionCard
+      transaction={item}
+      onCategoryPress={actions.onCategoryPress}
+      onCounterpartyPress={actions.onCounterpartyPress}
+      onVendorPress={actions.onVendorPress}
+      onPartyPress={actions.onVendorPress}
+      onForPartyPress={actions.onForPartyPress}
+      onViewHistory={actions.onViewHistory}
+      onPaymentStatusPress={actions.onPaymentStatusPress}
+      onEdit={actions.onEdit}
+      onDelete={actions.onDelete}
+      onAttachmentsPress={actions.onAttachmentsPress}
+      onPayDue={actions.onPayDue}
+      onReturnLoan={actions.onReturnLoan}
+      onViewChain={actions.onViewChain}
+    />
+  );
+});
+
 export function FilteredTransactionList({
   transactions,
   filters,
@@ -77,27 +106,30 @@ export function FilteredTransactionList({
   contentPaddingBottom = 120,
   refreshTintColor = "#1d4ed8",
 }: FilteredTransactionListProps) {
+  // Keep a stable actions ref so FlatList renderItem identity stays fixed
+  const actionsRef = useMemo(() => cardActions, [
+    cardActions.onCategoryPress,
+    cardActions.onCounterpartyPress,
+    cardActions.onVendorPress,
+    cardActions.onForPartyPress,
+    cardActions.onPaymentStatusPress,
+    cardActions.onViewHistory,
+    cardActions.onEdit,
+    cardActions.onDelete,
+    cardActions.onAttachmentsPress,
+    cardActions.onPayDue,
+    cardActions.onReturnLoan,
+    cardActions.onViewChain,
+  ]);
+
   const renderItem = useCallback(
     ({ item }: { item: Transaction }) => (
-      <TransactionCard
-        transaction={item}
-        onCategoryPress={cardActions.onCategoryPress}
-        onCounterpartyPress={cardActions.onCounterpartyPress}
-        onVendorPress={cardActions.onVendorPress}
-        onPartyPress={cardActions.onVendorPress}
-        onForPartyPress={cardActions.onForPartyPress}
-        onViewHistory={cardActions.onViewHistory}
-        onPaymentStatusPress={cardActions.onPaymentStatusPress}
-        onEdit={cardActions.onEdit}
-        onDelete={cardActions.onDelete}
-        onAttachmentsPress={cardActions.onAttachmentsPress}
-        onPayDue={cardActions.onPayDue}
-        onReturnLoan={cardActions.onReturnLoan}
-        onViewChain={cardActions.onViewChain}
-      />
+      <TransactionRow item={item} actions={actionsRef} />
     ),
-    [cardActions],
+    [actionsRef],
   );
+
+  const keyExtractor = useCallback((item: Transaction) => item._id, []);
 
   const listHeader = useMemo(
     () => (
@@ -124,32 +156,38 @@ export function FilteredTransactionList({
     ],
   );
 
-  const listFooter =
-    transactions.length > 0 ? (
-      <LoadMoreButton
-        onPress={onLoadMore}
-        isLoading={loadingMore}
-        hasMore={hasMorePages}
-        totalCount={transactions.length}
-      />
-    ) : null;
+  const listFooter = useMemo(
+    () =>
+      transactions.length > 0 ? (
+        <LoadMoreButton
+          onPress={onLoadMore}
+          isLoading={loadingMore}
+          hasMore={hasMorePages}
+          totalCount={transactions.length}
+        />
+      ) : null,
+    [transactions.length, onLoadMore, loadingMore, hasMorePages],
+  );
 
-  const listEmpty =
-    isLoading && showSkeletonOnEmpty ? (
-      <TransactionListSkeleton count={skeletonCount} />
-    ) : emptyState ? (
-      <EmptyState
-        icon={emptyState.icon ?? "receipt-outline"}
-        title={emptyState.title}
-        description={emptyState.description}
-        actionButton={emptyState.actionButton}
-      />
-    ) : null;
+  const listEmpty = useMemo(
+    () =>
+      isLoading && showSkeletonOnEmpty ? (
+        <TransactionListSkeleton count={skeletonCount} />
+      ) : emptyState ? (
+        <EmptyState
+          icon={emptyState.icon ?? "receipt-outline"}
+          title={emptyState.title}
+          description={emptyState.description}
+          actionButton={emptyState.actionButton}
+        />
+      ) : null,
+    [isLoading, showSkeletonOnEmpty, skeletonCount, emptyState],
+  );
 
   return (
     <FlatList
       data={transactions}
-      keyExtractor={(item) => item._id}
+      keyExtractor={keyExtractor}
       contentContainerStyle={{
         paddingHorizontal: 16,
         paddingVertical: 20,
@@ -170,10 +208,14 @@ export function FilteredTransactionList({
       ListFooterComponent={listFooter}
       renderItem={renderItem}
       removeClippedSubviews
-      maxToRenderPerBatch={10}
-      updateCellsBatchingPeriod={50}
-      initialNumToRender={10}
-      windowSize={10}
+      maxToRenderPerBatch={6}
+      updateCellsBatchingPeriod={80}
+      initialNumToRender={6}
+      windowSize={5}
+      // Faster tap response while scrolling is settling
+      keyboardShouldPersistTaps="handled"
+      // Avoid huge synchronous commits when filters change
+      disableIntervalMomentum
     />
   );
 }

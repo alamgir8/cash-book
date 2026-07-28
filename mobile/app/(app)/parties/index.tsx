@@ -9,10 +9,16 @@ import {
   ActivityIndicator,
   Modal,
   FlatList,
+  InteractionManager,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { toast } from "@/lib/toast";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQueryClient,
+  keepPreviousData,
+} from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import { ScreenHeader } from "@/components/screen-header";
 import { useActiveOrgId, useOrganization } from "@/hooks/use-organization";
@@ -20,8 +26,11 @@ import { useTheme } from "@/hooks/use-theme";
 import { partiesApi, type Party, type PartyType } from "@/services/parties";
 import { getApiErrorMessage } from "@/lib/api";
 import { useDeleteMode } from "@/hooks/use-delete-mode";
+import { PartyListCard } from "@/components/parties/party-list-card";
+import { MergeTargetRow } from "@/components/parties/merge-target-row";
 
 const PAGE_SIZE = 50;
+const MERGE_PAGE_SIZE = 30;
 
 const TAB_OPTIONS: { value: PartyType | "all"; label: string }[] = [
   { value: "all", label: "All" },
@@ -52,49 +61,63 @@ export default function PartiesScreen() {
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState("-updatedAt");
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
-  const [page, setPage] = useState(1);
-  const [parties, setParties] = useState<Party[]>([]);
   const [mergeSource, setMergeSource] = useState<Party | null>(null);
   const [mergePickerVisible, setMergePickerVisible] = useState(false);
+  const [mergeSearchInput, setMergeSearchInput] = useState("");
+  const [mergeSearch, setMergeSearch] = useState("");
 
-  // Debounce search → server query
+  // Debounce search → server query (avoids request storms)
   useEffect(() => {
-    const t = setTimeout(() => {
-      setSearch(searchInput.trim());
-      setPage(1);
-    }, 300);
+    const t = setTimeout(() => setSearch(searchInput.trim()), 300);
     return () => clearTimeout(t);
   }, [searchInput]);
 
+  // Debounce merge-target search
   useEffect(() => {
-    setPage(1);
-    setParties([]);
-  }, [activeTab, sort, organizationId]);
+    const t = setTimeout(() => setMergeSearch(mergeSearchInput.trim()), 250);
+    return () => clearTimeout(t);
+  }, [mergeSearchInput]);
 
-  const { data, isLoading, isFetching, refetch, isRefetching } = useQuery({
-    queryKey: ["parties", organizationId, activeTab, search, sort, page],
-    queryFn: () =>
-      partiesApi.list({
-        organization: organizationId || undefined,
-        type: activeTab === "all" ? undefined : activeTab,
-        search: search || undefined,
-        sort,
-        page,
-        limit: PAGE_SIZE,
-      }),
+  const {
+    data,
+    isLoading,
+    isFetchingNextPage,
+    hasNextPage,
+    fetchNextPage,
+    refetch,
+    isRefetching,
+  } = useInfiniteQuery({
+    queryKey: ["parties", organizationId, activeTab, search, sort, PAGE_SIZE],
+    queryFn: ({ pageParam, signal }) =>
+      partiesApi.list(
+        {
+          organization: organizationId || undefined,
+          type: activeTab === "all" ? undefined : activeTab,
+          search: search || undefined,
+          sort,
+          page: pageParam,
+          limit: PAGE_SIZE,
+        },
+        signal,
+      ),
+    initialPageParam: 1,
+    getNextPageParam: (last) => {
+      const p = last?.pagination;
+      if (!p) return undefined;
+      return p.page < p.pages ? p.page + 1 : undefined;
+    },
+    retry: 1,
+    staleTime: 60_000,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
+    refetchOnWindowFocus: false,
   });
 
-  useEffect(() => {
-    if (!data?.parties) return;
-    setParties((prev) =>
-      page === 1 ? data.parties : [...prev, ...data.parties],
-    );
-  }, [data, page]);
-
-  const pagination = data?.pagination;
-  const hasMore = Boolean(
-    pagination && pagination.page < pagination.pages,
+  const parties = useMemo(
+    () => data?.pages.flatMap((p) => p.parties || []) ?? [],
+    [data],
   );
+  const totalCount = data?.pages[0]?.pagination?.total;
 
   const mergeMutation = useMutation({
     mutationFn: ({
@@ -106,25 +129,108 @@ export default function PartiesScreen() {
     }) => partiesApi.merge(sourceId, targetId),
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["parties"] });
+      queryClient.invalidateQueries({ queryKey: ["parties-merge-targets"] });
       setMergeSource(null);
       setMergePickerVisible(false);
-      setPage(1);
-      toast.success("Parties merged", result.message);
+      setMergeSearchInput("");
+      setMergeSearch("");
+      toast.success(
+        "Merge complete",
+        result.message ||
+          "Links moved. Source party was kept — delete it if you no longer need it.",
+      );
     },
     onError: (error) => {
       Alert.alert("Merge failed", getApiErrorMessage(error));
     },
   });
+  const mergePending = mergeMutation.isPending;
+  const mergeMutate = mergeMutation.mutate;
+
+  const {
+    data: mergeTargetsData,
+    isLoading: mergeTargetsLoading,
+    isFetchingNextPage: mergeLoadingMore,
+    isFetching: mergeTargetsFetching,
+    hasNextPage: mergeHasMore,
+    fetchNextPage: fetchMoreMergeTargets,
+  } = useInfiniteQuery({
+    queryKey: [
+      "parties-merge-targets",
+      organizationId,
+      mergeSource?._id,
+      mergeSearch,
+    ],
+    queryFn: ({ pageParam, signal }) =>
+      partiesApi.list(
+        {
+          organization: organizationId || undefined,
+          search: mergeSearch || undefined,
+          sort: "name",
+          page: pageParam,
+          limit: MERGE_PAGE_SIZE,
+        },
+        signal,
+      ),
+    initialPageParam: 1,
+    getNextPageParam: (last) => {
+      const p = last?.pagination;
+      if (!p) return undefined;
+      return p.page < p.pages ? p.page + 1 : undefined;
+    },
+    enabled: mergePickerVisible && Boolean(mergeSource),
+    staleTime: 60_000,
+    placeholderData: keepPreviousData,
+    retry: 1,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
+    refetchOnWindowFocus: false,
+  });
 
   const mergeTargetOptions = useMemo(
-    () => parties.filter((p) => p._id !== mergeSource?._id),
-    [parties, mergeSource],
+    () =>
+      (mergeTargetsData?.pages.flatMap((p) => p.parties || []) || []).filter(
+        (p) => p._id !== mergeSource?._id,
+      ),
+    [mergeTargetsData, mergeSource],
   );
 
+  const closeMergePicker = useCallback(() => {
+    setMergePickerVisible(false);
+    setMergeSource(null);
+    setMergeSearchInput("");
+    setMergeSearch("");
+  }, []);
+
   const startMergeFlow = useCallback((party: Party) => {
+    // Open modal immediately for snappy press feedback; load query after paint
     setMergeSource(party);
+    setMergeSearchInput("");
+    setMergeSearch("");
     setMergePickerVisible(true);
   }, []);
+
+  const confirmMergeInto = useCallback(
+    (target: Party) => {
+      if (!mergeSource) return;
+      Alert.alert(
+        "Confirm merge",
+        `Move all transactions/invoices from "${mergeSource.name}" to "${target.name}"?\n\n"${mergeSource.name}" will NOT be deleted automatically.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Merge",
+            onPress: () =>
+              mergeMutate({
+                sourceId: mergeSource._id,
+                targetId: target._id,
+              }),
+          },
+        ],
+      );
+    },
+    [mergeSource, mergeMutate],
+  );
 
   const handleDelete = useCallback(
     (party: Party) => {
@@ -140,7 +246,6 @@ export default function PartiesScreen() {
               void (async () => {
                 try {
                   await partiesApi.delete(party._id);
-                  setParties((prev) => prev.filter((p) => p._id !== party._id));
                   queryClient.invalidateQueries({ queryKey: ["parties"] });
                   toast.success("Party deleted", `"${party.name}" was removed`);
                 } catch (error: any) {
@@ -171,180 +276,109 @@ export default function PartiesScreen() {
     [queryClient, startMergeFlow],
   );
 
-  const formatBalance = (balance: number) => {
-    const absBalance = Math.abs(balance);
-    const formatted = absBalance.toLocaleString();
-    if (balance > 0) return `${formatted} receivable`;
-    if (balance < 0) return `${formatted} payable`;
-    return "0 (settled)";
-  };
+  const goBackToSettings = useCallback(
+    () => router.replace("/(app)/settings" as any),
+    [router],
+  );
 
-  const goBackToSettings = () => router.replace("/(app)/settings" as any);
+  const onOpenParty = useCallback(
+    (party: Party) => {
+      InteractionManager.runAfterInteractions(() => {
+        router.push(`/(app)/parties/${party._id}` as any);
+      });
+    },
+    [router],
+  );
+  const onLedgerParty = useCallback(
+    (party: Party) => {
+      InteractionManager.runAfterInteractions(() => {
+        router.push(`/(app)/parties/${party._id}/ledger` as any);
+      });
+    },
+    [router],
+  );
+  const onEditParty = useCallback(
+    (party: Party) => {
+      InteractionManager.runAfterInteractions(() => {
+        router.push(`/(app)/parties/${party._id}/edit` as any);
+      });
+    },
+    [router],
+  );
 
-  const renderParty = ({ item: party }: { item: Party }) => (
-    <TouchableOpacity
-      className="rounded-xl p-4 mb-3 border"
-      style={{
-        backgroundColor: colors.bg.secondary,
-        borderColor: colors.border,
-      }}
-      onPress={() => router.push(`/(app)/parties/${party._id}` as any)}
-    >
-      <View className="flex-row items-start">
-        <View
-          className="w-12 h-12 rounded-xl items-center justify-center"
-          style={{
-            backgroundColor:
-              party.type === "customer"
-                ? colors.success + "20"
-                : colors.warning + "20",
+  const renderParty = useCallback(
+    ({ item }: { item: Party }) => (
+      <PartyListCard
+        party={item}
+        canManage={!!canManageParties}
+        showDeleteActions={isDeleteModeActive}
+        onOpen={onOpenParty}
+        onLedger={onLedgerParty}
+        onEdit={onEditParty}
+        onMerge={startMergeFlow}
+        onDelete={handleDelete}
+      />
+    ),
+    [
+      canManageParties,
+      isDeleteModeActive,
+      onOpenParty,
+      onLedgerParty,
+      onEditParty,
+      startMergeFlow,
+      handleDelete,
+    ],
+  );
+
+  const renderMergeTarget = useCallback(
+    ({ item }: { item: Party }) => (
+      <MergeTargetRow
+        party={item}
+        disabled={mergePending}
+        onSelect={confirmMergeInto}
+      />
+    ),
+    [mergePending, confirmMergeInto],
+  );
+
+  const mergeListFooter = useMemo(() => {
+    if (mergeHasMore) {
+      return (
+        <TouchableOpacity
+          className="mt-3 mb-2 py-3 rounded-xl items-center"
+          style={{ backgroundColor: colors.info }}
+          disabled={mergeLoadingMore}
+          onPress={() => {
+            if (!mergeLoadingMore) void fetchMoreMergeTargets();
           }}
         >
-          <Ionicons
-            name={party.type === "customer" ? "person" : "storefront"}
-            size={24}
-            color={
-              party.type === "customer" ? colors.success : colors.warning
-            }
-          />
-        </View>
-        <View className="flex-1 ml-3">
-          <View className="flex-row items-center">
-            <Text
-              className="text-base font-semibold flex-1"
-              style={{ color: colors.text.primary }}
-              numberOfLines={1}
-            >
-              {party.name}
-            </Text>
-            <View
-              className="px-2 py-0.5 rounded-full"
-              style={{
-                backgroundColor:
-                  party.type === "customer"
-                    ? colors.success + "20"
-                    : colors.warning + "20",
-              }}
-            >
-              <Text
-                className="text-xs font-medium capitalize"
-                style={{
-                  color:
-                    party.type === "customer"
-                      ? colors.success
-                      : colors.warning,
-                }}
-              >
-                {party.type}
-              </Text>
-            </View>
-          </View>
-          <Text
-            className="text-sm mt-0.5"
-            style={{ color: colors.text.secondary }}
-          >
-            {party.code}
-            {party.phone ? ` • ${party.phone}` : ""}
-          </Text>
-          <Text
-            className="text-sm font-medium mt-1"
-            style={{
-              color:
-                party.current_balance > 0
-                  ? colors.success
-                  : party.current_balance < 0
-                    ? colors.error
-                    : colors.text.secondary,
-            }}
-          >
-            {formatBalance(party.current_balance)}
-          </Text>
-        </View>
-      </View>
-
-      <View
-        className="flex-row mt-3 pt-3 gap-2 border-t"
-        style={{ borderColor: colors.border }}
-      >
-        <TouchableOpacity
-          className="flex-1 flex-row items-center justify-center py-2 rounded-lg"
-          style={{ backgroundColor: colors.bg.tertiary }}
-          onPress={() =>
-            router.push(`/(app)/parties/${party._id}/ledger` as any)
-          }
-        >
-          <Ionicons
-            name="document-text"
-            size={16}
-            color={colors.text.secondary}
-          />
-          <Text
-            className="ml-1 text-sm"
-            style={{ color: colors.text.secondary }}
-          >
-            Ledger
-          </Text>
+          {mergeLoadingMore ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text className="text-white font-semibold">Load more</Text>
+          )}
         </TouchableOpacity>
-        {canManageParties && (
-          <>
-            <TouchableOpacity
-              className="flex-1 flex-row items-center justify-center py-2 rounded-lg"
-              style={{ backgroundColor: colors.bg.tertiary }}
-              onPress={() =>
-                router.push(`/(app)/parties/${party._id}/edit` as any)
-              }
-            >
-              <Ionicons
-                name="pencil"
-                size={16}
-                color={colors.text.secondary}
-              />
-              <Text
-                className="ml-1 text-sm"
-                style={{ color: colors.text.secondary }}
-              >
-                Edit
-              </Text>
-            </TouchableOpacity>
-            {isDeleteModeActive ? (
-              <>
-                <TouchableOpacity
-                  className="flex-row items-center justify-center py-2 px-3 rounded-lg gap-1"
-                  style={{ backgroundColor: colors.warning + "20" }}
-                  onPress={() => startMergeFlow(party)}
-                >
-                  <Ionicons
-                    name="git-merge-outline"
-                    size={16}
-                    color={colors.warning}
-                  />
-                  <Text
-                    className="text-sm font-medium"
-                    style={{ color: colors.warning }}
-                  >
-                    Merge
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  className="flex-row items-center justify-center py-2 px-3 rounded-lg gap-1"
-                  style={{ backgroundColor: colors.error + "20" }}
-                  onPress={() => handleDelete(party)}
-                >
-                  <Ionicons name="trash" size={16} color={colors.error} />
-                  <Text
-                    className="text-sm font-medium"
-                    style={{ color: colors.error }}
-                  >
-                    Delete
-                  </Text>
-                </TouchableOpacity>
-              </>
-            ) : null}
-          </>
-        )}
-      </View>
-    </TouchableOpacity>
-  );
+      );
+    }
+    if (mergeTargetOptions.length > 0) {
+      return (
+        <Text
+          className="text-center text-xs py-3"
+          style={{ color: colors.text.tertiary }}
+        >
+          All parties loaded
+        </Text>
+      );
+    }
+    return null;
+  }, [
+    mergeHasMore,
+    mergeLoadingMore,
+    mergeTargetOptions.length,
+    colors.info,
+    colors.text.tertiary,
+    fetchMoreMergeTargets,
+  ]);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg.primary }}>
@@ -377,7 +411,7 @@ export default function PartiesScreen() {
             className="flex-1 text-sm"
             style={{ color: colors.text.primary }}
           >
-            Delete Mode on — use Merge for duplicates, or Delete unused parties.
+            Delete Mode on — Merge moves links to another party (keeps both). Delete unused parties separately.
           </Text>
         </View>
       ) : null}
@@ -463,14 +497,14 @@ export default function PartiesScreen() {
             </Text>
           </TouchableOpacity>
         </View>
-        {pagination?.total != null ? (
+        {totalCount != null ? (
           <Text className="text-xs" style={{ color: colors.text.tertiary }}>
-            Showing {parties.length} of {pagination.total}
+            Showing {parties.length} of {totalCount}
           </Text>
         ) : null}
       </View>
 
-      {isLoading && page === 1 ? (
+      {isLoading && !data ? (
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color={colors.info} />
         </View>
@@ -480,13 +514,16 @@ export default function PartiesScreen() {
           keyExtractor={(item) => item._id}
           renderItem={renderParty}
           contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
+          keyboardShouldPersistTaps="handled"
+          initialNumToRender={10}
+          maxToRenderPerBatch={8}
+          windowSize={5}
+          updateCellsBatchingPeriod={50}
+          removeClippedSubviews={false}
           refreshControl={
             <RefreshControl
-              refreshing={isRefetching && page === 1}
-              onRefresh={() => {
-                setPage(1);
-                void refetch();
-              }}
+              refreshing={isRefetching && !isFetchingNextPage}
+              onRefresh={() => void refetch()}
             />
           }
           ListEmptyComponent={
@@ -505,14 +542,14 @@ export default function PartiesScreen() {
             </View>
           }
           ListFooterComponent={
-            hasMore ? (
+            hasNextPage ? (
               <TouchableOpacity
                 className="mt-2 mb-4 py-3 rounded-xl items-center"
                 style={{ backgroundColor: colors.info }}
-                disabled={isFetching}
-                onPress={() => setPage((p) => p + 1)}
+                disabled={isFetchingNextPage}
+                onPress={() => void fetchNextPage()}
               >
-                {isFetching && page > 1 ? (
+                {isFetchingNextPage ? (
                   <ActivityIndicator color="#fff" />
                 ) : (
                   <Text className="text-white font-semibold">
@@ -584,10 +621,7 @@ export default function PartiesScreen() {
         visible={mergePickerVisible}
         animationType="slide"
         transparent
-        onRequestClose={() => {
-          setMergePickerVisible(false);
-          setMergeSource(null);
-        }}
+        onRequestClose={closeMergePicker}
       >
         <View
           style={{
@@ -599,61 +633,114 @@ export default function PartiesScreen() {
           <TouchableOpacity
             style={{ flex: 1 }}
             activeOpacity={1}
-            onPress={() => {
-              setMergePickerVisible(false);
-              setMergeSource(null);
-            }}
+            onPress={closeMergePicker}
           />
           <View
             style={{
-              maxHeight: "70%",
+              maxHeight: "75%",
               backgroundColor: colors.bg.primary,
               borderTopLeftRadius: 24,
               borderTopRightRadius: 24,
               padding: 16,
             }}
           >
-            <Text
-              className="text-lg font-bold mb-2"
-              style={{ color: colors.text.primary }}
+            <View className="flex-row items-start justify-between mb-1">
+              <View className="flex-1 pr-3">
+                <Text
+                  className="text-lg font-bold"
+                  style={{ color: colors.text.primary }}
+                >
+                  Merge "{mergeSource?.name}" into…
+                </Text>
+                <Text
+                  className="text-xs mt-1"
+                  style={{ color: colors.text.tertiary }}
+                >
+                  Moves linked transactions/invoices. "{mergeSource?.name}"{" "}
+                  stays — delete it afterward if you want.
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={closeMergePicker}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 18,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: colors.bg.tertiary,
+                }}
+              >
+                <Ionicons name="close" size={20} color={colors.text.primary} />
+              </TouchableOpacity>
+            </View>
+
+            <View
+              className="flex-row items-center rounded-xl px-3 mb-3 mt-3"
+              style={{
+                backgroundColor: colors.bg.tertiary,
+                minHeight: 44,
+              }}
             >
-              Merge "{mergeSource?.name}" into…
-            </Text>
+              <Ionicons name="search" size={18} color={colors.text.tertiary} />
+              <TextInput
+                className="flex-1 ml-2 text-base"
+                style={{ color: colors.text.primary, paddingVertical: 10 }}
+                placeholder="Search party to merge into…"
+                placeholderTextColor={colors.text.tertiary}
+                value={mergeSearchInput}
+                onChangeText={setMergeSearchInput}
+                autoCorrect={false}
+                autoCapitalize="none"
+                autoFocus
+                returnKeyType="search"
+              />
+              {mergeSearchInput.length > 0 ? (
+                <TouchableOpacity
+                  onPress={() => {
+                    setMergeSearchInput("");
+                    setMergeSearch("");
+                  }}
+                >
+                  <Ionicons
+                    name="close-circle"
+                    size={18}
+                    color={colors.text.tertiary}
+                  />
+                </TouchableOpacity>
+              ) : null}
+              {mergeTargetsFetching && !mergeLoadingMore ? (
+                <ActivityIndicator
+                  size="small"
+                  color={colors.info}
+                  style={{ marginLeft: 6 }}
+                />
+              ) : null}
+            </View>
+
             <FlatList
               data={mergeTargetOptions}
               keyExtractor={(item) => item._id}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  className="py-3 border-b flex-row items-center justify-between"
-                  style={{ borderColor: colors.border }}
-                  onPress={() => {
-                    if (!mergeSource) return;
-                    Alert.alert(
-                      "Confirm merge",
-                      `Move all transactions from "${mergeSource.name}" to "${item.name}"?`,
-                      [
-                        { text: "Cancel", style: "cancel" },
-                        {
-                          text: "Merge",
-                          style: "destructive",
-                          onPress: () =>
-                            mergeMutation.mutate({
-                              sourceId: mergeSource._id,
-                              targetId: item._id,
-                            }),
-                        },
-                      ],
-                    );
-                  }}
-                >
-                  <Text style={{ color: colors.text.primary }}>{item.name}</Text>
-                  <Ionicons
-                    name="git-merge-outline"
-                    size={18}
-                    color={colors.warning}
-                  />
-                </TouchableOpacity>
-              )}
+              keyboardShouldPersistTaps="handled"
+              initialNumToRender={15}
+              maxToRenderPerBatch={12}
+              windowSize={6}
+              updateCellsBatchingPeriod={40}
+              removeClippedSubviews={false}
+              ListEmptyComponent={
+                <View className="py-10 items-center">
+                  <Text style={{ color: colors.text.tertiary }}>
+                    {mergeTargetsLoading
+                      ? "Searching…"
+                      : mergeSearch
+                        ? "No matching parties"
+                        : "No other parties found"}
+                  </Text>
+                </View>
+              }
+              renderItem={renderMergeTarget}
+              ListFooterComponent={mergeListFooter}
             />
           </View>
         </View>

@@ -29,6 +29,8 @@ export interface Party {
   tags?: string[];
   archived?: boolean;
   total_transactions: number;
+  debit_transactions?: number;
+  credit_transactions?: number;
   total_invoices?: number;
   last_transaction_at?: string;
   createdAt: string;
@@ -128,9 +130,19 @@ export const partiesApi = {
   },
 
   // List parties
-  list: async (params?: ListPartiesParams) => {
+  list: async (params?: ListPartiesParams, signal?: AbortSignal) => {
+    const cleanParams: Record<string, string | number | boolean> = {};
+    if (params?.organization) cleanParams.organization = params.organization;
+    if (params?.type) cleanParams.type = params.type;
+    if (params?.search?.trim()) cleanParams.search = params.search.trim();
+    if (params?.archived != null) cleanParams.archived = params.archived as any;
+    if (params?.page != null) cleanParams.page = params.page;
+    if (params?.limit != null) cleanParams.limit = params.limit;
+    if (params?.sort) cleanParams.sort = params.sort;
+
     const response = await api.get<PartiesListResponse>("/parties", {
-      params,
+      params: cleanParams,
+      signal,
     });
     return response.data;
   },
@@ -171,9 +183,11 @@ export const partiesApi = {
   merge: async (sourcePartyId: string, targetPartyId: string) => {
     const response = await api.post<{
       message: string;
+      source?: Party;
       target: Party;
       transactionsUpdated: number;
       invoicesUpdated: number;
+      sourceDeleted?: boolean;
     }>(`/parties/${sourcePartyId}/merge`, { targetPartyId });
     return response.data;
   },
@@ -190,23 +204,32 @@ export const partiesApi = {
       type?: "debit" | "credit" | "all";
       sort?: string;
     },
+    signal?: AbortSignal,
   ) => {
+    const cleanParams: Record<string, string | number> = {};
+    if (params?.page != null) cleanParams.page = params.page;
+    if (params?.limit != null) cleanParams.limit = params.limit;
+    if (params?.sort) cleanParams.sort = params.sort;
+    if (params?.startDate) cleanParams.startDate = params.startDate;
+    if (params?.endDate) cleanParams.endDate = params.endDate;
+    const searchText = params?.search?.trim();
+    if (searchText) cleanParams.search = searchText;
+    if (params?.type === "debit" || params?.type === "credit") {
+      cleanParams.type = params.type;
+    }
+
     const response = await api.get<PartyLedgerResponse & { ledger?: LedgerEntry[] }>(
       `/parties/${partyId}/ledger`,
-      { params },
+      { params: cleanParams, signal },
     );
     const raw = response.data as PartyLedgerResponse & {
       ledger?: LedgerEntry[];
       net_balance?: number;
     };
-    const entries = (raw.entries?.length ? raw.entries : raw.ledger) || [];
+    const entries = (raw.entries ?? raw.ledger ?? []) as LedgerEntry[];
     const opening = raw.summary?.opening_balance ?? raw.party?.opening_balance ?? 0;
-    const totalDebit =
-      raw.summary?.total_debit ??
-      entries.reduce((sum, e) => sum + (e.debit || 0), 0);
-    const totalCredit =
-      raw.summary?.total_credit ??
-      entries.reduce((sum, e) => sum + (e.credit || 0), 0);
+    const totalDebit = raw.summary?.total_debit ?? 0;
+    const totalCredit = raw.summary?.total_credit ?? 0;
     const closing =
       raw.summary?.closing_balance ??
       raw.net_balance ??
@@ -216,19 +239,12 @@ export const partiesApi = {
       ...raw,
       entries: entries.map((entry) => ({
         ...entry,
-        debit:
-          entry.debit ??
-          ((entry as { type?: string; amount?: number }).type === "debit"
-            ? Number((entry as { amount?: number }).amount || 0)
-            : 0),
-        credit:
-          entry.credit ??
-          ((entry as { type?: string; amount?: number }).type === "credit"
-            ? Number((entry as { amount?: number }).amount || 0)
-            : 0),
-        running_balance: entry.running_balance ?? 0,
+        debit: Number(entry.debit || 0),
+        credit: Number(entry.credit || 0),
+        running_balance: Number(entry.running_balance || 0),
         description:
           entry.description ||
+          entry.category_name ||
           (entry as { type?: string }).type ||
           "Transaction",
       })),

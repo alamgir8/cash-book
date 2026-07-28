@@ -4,4 +4,6 @@ export { PartyQuickActions } from "./party-quick-actions";
 export { PartyContactInfo } from "./party-contact-info";
 export { PartyBusinessDetails } from "./party-business-details";
 export { PartyLedgerTable } from "./party-ledger-table";
+export { LedgerEntryCard } from "./ledger-entry-card";
+export { PartyListCard } from "./party-list-card";
 export { PartyTypeSelector, partyTypes } from "./party-type-selector";

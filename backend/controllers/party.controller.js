@@ -2,15 +2,17 @@ import { Party, PARTY_TYPE_OPTIONS } from "../models/Party.js";
 import { OrganizationMember } from "../models/OrganizationMember.js";
 import { Transaction } from "../models/Transaction.js";
 import { Invoice } from "../models/Invoice.js";
+import { Category } from "../models/Category.js";
 import {
   findPartyByLooseName,
 } from "../utils/partyFilter.js";
 import mongoose from "mongoose";
 
 /**
- * Count non-deleted transactions linked to a party (ObjectId + legacy name refs).
+ * ObjectId + legacy name refs that link a transaction to a party.
+ * Older imports often stored the party only as vendor/counterparty text.
  */
-const countPartyLinkedTransactions = async (party) => {
+const buildPartyLinkOrConditions = (party) => {
   const partyId = party._id;
   const name = (party.name || "").trim();
   const or = [{ party: partyId }, { for_party: partyId }];
@@ -20,9 +22,34 @@ const countPartyLinkedTransactions = async (party) => {
     or.push({ vendor: nameRegex }, { counterparty: nameRegex });
   }
 
-  return Transaction.countDocuments({
+  return or;
+};
+
+/**
+ * Scope transactions to the party's personal or org context.
+ * Required when matching by name so we don't pick up another user's data.
+ */
+const buildPartyTransactionScope = (party) => {
+  if (party.organization) {
+    return {
+      organization: party.organization,
+      is_deleted: { $ne: true },
+    };
+  }
+  return {
+    admin: party.admin,
+    organization: { $exists: false },
     is_deleted: { $ne: true },
-    $or: or,
+  };
+};
+
+/**
+ * Count non-deleted transactions linked to a party (ObjectId + legacy name refs).
+ */
+const countPartyLinkedTransactions = async (party) => {
+  return Transaction.countDocuments({
+    ...buildPartyTransactionScope(party),
+    $or: buildPartyLinkOrConditions(party),
   });
 };
 
@@ -37,23 +64,52 @@ const countPartyLinkedInvoices = async (partyId) => {
  * Recalculate current_balance + total_transactions for a party from its txns.
  */
 const recalculatePartyBalance = async (partyId, partyType) => {
-  const oid = new mongoose.Types.ObjectId(partyId.toString());
+  const party = await Party.findById(partyId).lean();
+  if (!party) return 0;
+
   const [agg] = await Transaction.aggregate([
     {
       $match: {
-        $or: [{ party: oid }, { for_party: oid }],
-        is_deleted: { $ne: true },
-        payment_status: { $ne: "due" },
+        ...buildPartyTransactionScope(party),
+        $or: buildPartyLinkOrConditions(party),
       },
     },
     {
       $group: {
         _id: null,
         total_credit: {
-          $sum: { $cond: [{ $eq: ["$type", "credit"] }, "$amount", 0] },
+          $sum: {
+            $cond: [
+              {
+                $and: [
+                  { $eq: ["$type", "credit"] },
+                  { $ne: ["$payment_status", "due"] },
+                ],
+              },
+              "$amount",
+              0,
+            ],
+          },
         },
         total_debit: {
-          $sum: { $cond: [{ $eq: ["$type", "debit"] }, "$amount", 0] },
+          $sum: {
+            $cond: [
+              {
+                $and: [
+                  { $eq: ["$type", "debit"] },
+                  { $ne: ["$payment_status", "due"] },
+                ],
+              },
+              "$amount",
+              0,
+            ],
+          },
+        },
+        debit_count: {
+          $sum: { $cond: [{ $eq: ["$type", "debit"] }, 1, 0] },
+        },
+        credit_count: {
+          $sum: { $cond: [{ $eq: ["$type", "credit"] }, 1, 0] },
         },
         count: { $sum: 1 },
       },
@@ -73,10 +129,79 @@ const recalculatePartyBalance = async (partyId, partyType) => {
       $set: {
         current_balance: balance,
         total_transactions: agg?.count ?? 0,
+        debit_transactions: agg?.debit_count ?? 0,
+        credit_transactions: agg?.credit_count ?? 0,
       },
     },
   );
   return balance;
+};
+
+/**
+ * Attach live debit/credit txn counts for a page of parties (ObjectId links).
+ * Uses aggregation only — fast enough for list pages without blinking refetches.
+ */
+const attachPartyTxnTypeCounts = async (parties) => {
+  if (!parties?.length) return parties;
+
+  const ids = parties.map((p) => p._id);
+  const sample = parties[0];
+  const scope = sample.organization
+    ? { organization: sample.organization, is_deleted: { $ne: true } }
+    : {
+        admin: sample.admin,
+        organization: { $exists: false },
+        is_deleted: { $ne: true },
+      };
+
+  const [asParty, asForParty] = await Promise.all([
+    Transaction.aggregate([
+      { $match: { ...scope, party: { $in: ids } } },
+      {
+        $group: {
+          _id: { id: "$party", type: "$type" },
+          count: { $sum: 1 },
+        },
+      },
+    ]),
+    Transaction.aggregate([
+      { $match: { ...scope, for_party: { $in: ids } } },
+      {
+        $group: {
+          _id: { id: "$for_party", type: "$type" },
+          count: { $sum: 1 },
+        },
+      },
+    ]),
+  ]);
+
+  const debit = Object.create(null);
+  const credit = Object.create(null);
+  const apply = (rows) => {
+    for (const row of rows) {
+      const id = String(row._id.id);
+      const bag = row._id.type === "credit" ? credit : debit;
+      bag[id] = (bag[id] || 0) + row.count;
+    }
+  };
+  apply(asParty);
+  apply(asForParty);
+
+  return parties.map((p) => {
+    const id = String(p._id);
+    const debitCount = debit[id] || 0;
+    const creditCount = credit[id] || 0;
+    // Prefer live counts; fall back to stored stats if present
+    const liveTotal = debitCount + creditCount;
+    return {
+      ...p,
+      debit_transactions: liveTotal > 0 ? debitCount : p.debit_transactions || 0,
+      credit_transactions:
+        liveTotal > 0 ? creditCount : p.credit_transactions || 0,
+      total_transactions:
+        liveTotal > 0 ? liveTotal : p.total_transactions || 0,
+    };
+  });
 };
 
 /**
@@ -289,8 +414,10 @@ export const getParties = async (req, res, next) => {
       Party.countDocuments(query),
     ]);
 
+    const partiesWithCounts = await attachPartyTxnTypeCounts(parties);
+
     res.json({
-      parties,
+      parties: partiesWithCounts,
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
@@ -486,8 +613,8 @@ export const deleteParty = async (req, res, next) => {
 };
 
 /**
- * Merge source party into target: reassign transactions/invoices, then delete source.
- * Body: { targetPartyId }
+ * Merge source party into target: reassign transactions/invoices.
+ * Source party is kept so the user can delete it manually afterward.
  */
 export const mergeParties = async (req, res, next) => {
   try {
@@ -548,8 +675,9 @@ export const mergeParties = async (req, res, next) => {
     const nameRegex = sourceName
       ? new RegExp(`^${escapeRegex(sourceName)}$`, "i")
       : null;
+    const txnScope = buildPartyTransactionScope(source);
 
-    // Reassign ObjectId refs
+    // 1) Reassign ObjectId party / for_party refs (keep category, account, etc.)
     const [partyResult, forPartyResult] = await Promise.all([
       Transaction.updateMany(
         { party: source._id, is_deleted: { $ne: true } },
@@ -561,23 +689,97 @@ export const mergeParties = async (req, res, next) => {
       ),
     ]);
 
-    // Reassign legacy string refs that match the source name
+    // 2) Legacy vendor / counterparty name strings → target display name
+    //    AND attach party ObjectId relation (not name-only links).
     let vendorResult = { modifiedCount: 0 };
     let counterpartyResult = { modifiedCount: 0 };
+
     if (nameRegex && targetName) {
-      [vendorResult, counterpartyResult] = await Promise.all([
+      // Vendor matched source name: update text + ensure party ObjectId = target
+      // (only set party when missing or still pointing at source)
+      const vendorMatched = await Transaction.find({
+        ...txnScope,
+        vendor: nameRegex,
+      })
+        .select("_id party")
+        .lean();
+
+      if (vendorMatched.length) {
+        const ops = vendorMatched.map((txn) => {
+          const setFields = { vendor: targetName };
+          if (!txn.party || String(txn.party) === String(source._id)) {
+            setFields.party = target._id;
+          }
+          return {
+            updateOne: {
+              filter: { _id: txn._id },
+              update: { $set: setFields },
+            },
+          };
+        });
+        const bulk = await Transaction.bulkWrite(ops, { ordered: false });
+        vendorResult = { modifiedCount: bulk.modifiedCount || 0 };
+      }
+
+      // Counterparty matched source name: update text + ensure party ObjectId = target
+      const counterpartyMatched = await Transaction.find({
+        ...txnScope,
+        counterparty: nameRegex,
+      })
+        .select("_id party")
+        .lean();
+
+      if (counterpartyMatched.length) {
+        const ops = counterpartyMatched.map((txn) => {
+          const setFields = { counterparty: targetName };
+          if (!txn.party || String(txn.party) === String(source._id)) {
+            setFields.party = target._id;
+          }
+          return {
+            updateOne: {
+              filter: { _id: txn._id },
+              update: { $set: setFields },
+            },
+          };
+        });
+        const bulk = await Transaction.bulkWrite(ops, { ordered: false });
+        counterpartyResult = { modifiedCount: bulk.modifiedCount || 0 };
+      }
+
+      // Sync leftover display strings on already-reassigned ObjectId rows
+      await Promise.all([
         Transaction.updateMany(
-          { vendor: nameRegex, is_deleted: { $ne: true } },
+          { party: target._id, vendor: nameRegex, is_deleted: { $ne: true } },
           { $set: { vendor: targetName } },
         ),
         Transaction.updateMany(
-          { counterparty: nameRegex, is_deleted: { $ne: true } },
+          {
+            party: target._id,
+            counterparty: nameRegex,
+            is_deleted: { $ne: true },
+          },
+          { $set: { counterparty: targetName } },
+        ),
+        Transaction.updateMany(
+          {
+            for_party: target._id,
+            vendor: nameRegex,
+            is_deleted: { $ne: true },
+          },
+          { $set: { vendor: targetName } },
+        ),
+        Transaction.updateMany(
+          {
+            for_party: target._id,
+            counterparty: nameRegex,
+            is_deleted: { $ne: true },
+          },
           { $set: { counterparty: targetName } },
         ),
       ]);
     }
 
-    // Reassign invoices
+    // Reassign invoices (ObjectId relation only)
     const invoiceResult = await Invoice.updateMany(
       { party: source._id },
       { $set: { party: target._id } },
@@ -589,10 +791,7 @@ export const mergeParties = async (req, res, next) => {
       await target.save();
     }
 
-    // Recalculate balances
-    await recalculatePartyBalance(target._id, target.type);
-
-    // Soft-clear any remaining refs on deleted/due txns, then remove source
+    // Clear any leftover ObjectId refs on source (e.g. soft-deleted txns)
     await Transaction.updateMany(
       { party: source._id },
       { $unset: { party: "" } },
@@ -602,7 +801,14 @@ export const mergeParties = async (req, res, next) => {
       { $unset: { for_party: "" } },
     );
 
-    await Party.deleteOne({ _id: source._id });
+    // Recalculate both parties — keep source so the user can delete it later
+    await Promise.all([
+      recalculatePartyBalance(target._id, target.type),
+      recalculatePartyBalance(source._id, source.type),
+    ]);
+
+    const refreshedSource = await Party.findById(source._id).lean();
+    const refreshedTarget = await Party.findById(target._id).lean();
 
     const transactionsUpdated =
       (partyResult.modifiedCount || 0) +
@@ -611,10 +817,12 @@ export const mergeParties = async (req, res, next) => {
       (counterpartyResult.modifiedCount || 0);
 
     res.json({
-      message: `Merged "${sourceName}" into "${targetName}" successfully`,
-      target,
+      message: `Moved links from "${sourceName}" into "${targetName}". "${sourceName}" was kept — delete it separately if you no longer need it.`,
+      source: refreshedSource,
+      target: refreshedTarget,
       transactionsUpdated,
       invoicesUpdated: invoiceResult.modifiedCount || 0,
+      sourceDeleted: false,
     });
   } catch (error) {
     next(error);
@@ -638,13 +846,15 @@ export const getPartyLedger = async (req, res, next) => {
       sort = "-date",
     } = req.query;
 
-    const party = await Party.findById(partyId);
+    if (!mongoose.Types.ObjectId.isValid(partyId)) {
+      return res.status(400).json({ message: "Invalid party id" });
+    }
 
+    const party = await Party.findById(partyId);
     if (!party) {
       return res.status(404).json({ message: "Party not found" });
     }
 
-    // Check access
     if (party.organization) {
       const access = await checkOrgAccess(
         userId,
@@ -658,67 +868,69 @@ export const getPartyLedger = async (req, res, next) => {
       return res.status(403).json({ message: "Access denied" });
     }
 
-    const partyOid = new mongoose.Types.ObjectId(partyId);
-    const query = {
-      $or: [{ party: partyOid }, { for_party: partyOid }],
-      is_deleted: { $ne: true },
-    };
+    const andConditions = [
+      buildPartyTransactionScope(party),
+      { $or: buildPartyLinkOrConditions(party) },
+    ];
 
     if (type === "debit" || type === "credit") {
-      query.type = type;
+      andConditions.push({ type });
     }
 
     if (startDate || endDate) {
-      query.date = {};
-      if (startDate) query.date.$gte = new Date(startDate);
-      if (endDate) query.date.$lte = new Date(endDate);
+      const dateFilter = {};
+      if (startDate) dateFilter.$gte = new Date(startDate);
+      if (endDate) dateFilter.$lte = new Date(endDate);
+      andConditions.push({ date: dateFilter });
     }
 
-    if (search && String(search).trim()) {
-      const escaped = escapeRegex(String(search).trim());
-      const searchRegex = { $regex: escaped, $options: "i" };
-      query.$and = [
-        { $or: [{ party: partyOid }, { for_party: partyOid }] },
-        {
-          $or: [
-            { description: searchRegex },
-            { comment: searchRegex },
-            { reference: searchRegex },
-            { vendor: searchRegex },
-            { counterparty: searchRegex },
-          ],
-        },
-      ];
-      delete query.$or;
+    const searchText = search != null ? String(search).trim() : "";
+    if (searchText) {
+      const escaped = escapeRegex(searchText);
+      const searchRegex = new RegExp(escaped, "i");
+      const matchingCategories = await Category.find({
+        name: searchRegex,
+        ...(party.organization
+          ? { organization: party.organization }
+          : { admin: party.admin, organization: { $exists: false } }),
+      })
+        .select("_id")
+        .limit(50)
+        .lean();
+      const categoryIds = matchingCategories.map((c) => c._id);
+
+      andConditions.push({
+        $or: [
+          { description: searchRegex },
+          { keyword: searchRegex },
+          { vendor: searchRegex },
+          { counterparty: searchRegex },
+          ...(categoryIds.length
+            ? [{ category_id: { $in: categoryIds } }]
+            : []),
+        ],
+      });
     }
 
+    const query = { $and: andConditions };
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
-    const pageLimit = Math.max(1, Math.min(200, parseInt(limit, 10) || 50));
+    const pageLimit = Math.max(1, Math.min(100, parseInt(limit, 10) || 50));
     const skip = (pageNum - 1) * pageLimit;
     const isCustomer = party.type === "customer";
     const openingBalance = Number(party.opening_balance || 0);
 
-    const applyDelta = (balance, txn) => {
-      if (isCustomer) {
-        return balance + (txn.type === "credit" ? txn.amount : -txn.amount);
-      }
-      return balance + (txn.type === "debit" ? txn.amount : -txn.amount);
-    };
-
-    // Sort: support date / amount / type, prefix "-" for desc
     const sortRaw = String(sort || "-date");
     const sortField = sortRaw.startsWith("-") ? sortRaw.slice(1) : sortRaw;
     const sortDir = sortRaw.startsWith("-") ? -1 : 1;
     const allowedSort = new Set(["date", "amount", "type", "createdAt"]);
+    const safeSortField = allowedSort.has(sortField) ? sortField : "date";
     const sortObj = {
-      [allowedSort.has(sortField) ? sortField : "date"]: sortDir,
+      [safeSortField]: sortDir,
       createdAt: sortDir,
+      _id: sortDir,
     };
 
-    // For running balance we always process chronologically ascending for the page window
-    const chronologicalSort = { date: 1, createdAt: 1 };
-
-    const [total, totalsAgg, priorTxns, pageTxns] = await Promise.all([
+    const [total, totalsAgg, pageTxns] = await Promise.all([
       Transaction.countDocuments(query),
       Transaction.aggregate([
         { $match: query },
@@ -738,50 +950,58 @@ export const getPartyLedger = async (req, res, next) => {
           },
         },
       ]),
-      skip > 0
-        ? Transaction.find(query)
-            .select("type amount")
-            .sort(chronologicalSort)
-            .limit(skip)
-            .lean()
-        : Promise.resolve([]),
       Transaction.find(query)
         .populate("account", "name kind")
         .populate("category_id", "name type")
-        .sort(
-          sortField === "date" || !allowedSort.has(sortField)
-            ? chronologicalSort
-            : sortObj,
-        )
+        .sort(sortObj)
         .skip(skip)
         .limit(pageLimit)
         .lean(),
     ]);
 
-    let runningBalance = openingBalance;
-    for (const txn of priorTxns) {
-      runningBalance = applyDelta(runningBalance, txn);
-    }
+    const applyDelta = (balance, txn) =>
+      isCustomer
+        ? balance + (txn.type === "credit" ? txn.amount : -txn.amount)
+        : balance + (txn.type === "debit" ? txn.amount : -txn.amount);
 
-    // If sorted by date ascending for balance calc, map with running balance then re-order for response
-    const useChronological =
-      sortField === "date" || !allowedSort.has(sortField);
-    let workingTxns = pageTxns;
-    if (!useChronological) {
-      // Still compute running balance in date order for these ids
-      workingTxns = [...pageTxns].sort(
-        (a, b) =>
-          new Date(a.date).getTime() - new Date(b.date).getTime() ||
-          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-      );
+    // Balance before this page's earliest chronological txn
+    let balanceCursor = openingBalance;
+    const chronological = [...pageTxns].sort(
+      (a, b) =>
+        new Date(a.date) - new Date(b.date) ||
+        new Date(a.createdAt || 0) - new Date(b.createdAt || 0),
+    );
+
+    if (chronological.length > 0) {
+      const first = chronological[0];
+      const beforeTxns = await Transaction.find({
+        $and: [
+          ...andConditions,
+          {
+            $or: [
+              { date: { $lt: first.date } },
+              {
+                date: first.date,
+                createdAt: { $lt: first.createdAt || first.date },
+              },
+            ],
+          },
+        ],
+      })
+        .select("type amount")
+        .lean();
+      for (const txn of beforeTxns) {
+        balanceCursor = applyDelta(balanceCursor, txn);
+      }
     }
 
     const balanceById = new Map();
-    const entriesAsc = workingTxns.map((txn) => {
-      runningBalance = applyDelta(runningBalance, txn);
-      balanceById.set(String(txn._id), runningBalance);
-      const debit = txn.type === "debit" ? Number(txn.amount || 0) : 0;
-      const credit = txn.type === "credit" ? Number(txn.amount || 0) : 0;
+    for (const txn of chronological) {
+      balanceCursor = applyDelta(balanceCursor, txn);
+      balanceById.set(String(txn._id), balanceCursor);
+    }
+
+    const entries = pageTxns.map((txn) => {
       const categoryName =
         typeof txn.category_id === "object" && txn.category_id
           ? txn.category_id.name
@@ -790,69 +1010,39 @@ export const getPartyLedger = async (req, res, next) => {
         typeof txn.account === "object" && txn.account
           ? txn.account.name
           : undefined;
+      const description =
+        (txn.description && String(txn.description).trim()) ||
+        categoryName ||
+        txn.type;
+
       return {
         _id: txn._id,
         date: txn.date,
         type: txn.type,
-        description: txn.description || "",
-        comment: txn.comment || "",
-        reference: txn.reference || txn.invoice_number || undefined,
-        debit,
-        credit,
-        running_balance: runningBalance,
+        description,
+        comment: txn.keyword || "",
+        reference: txn.reference || undefined,
+        debit: txn.type === "debit" ? Number(txn.amount || 0) : 0,
+        credit: txn.type === "credit" ? Number(txn.amount || 0) : 0,
+        running_balance: balanceById.get(String(txn._id)) ?? 0,
         transaction_id: txn._id,
         invoice_id: txn.invoice || undefined,
         category_name: categoryName,
         account_name: accountName,
         payment_status: txn.payment_status,
         amount: txn.amount,
-        createdAt: txn.createdAt,
       };
     });
 
-    // Apply requested sort for response (default newest first for date)
-    let entries = entriesAsc;
-    if (useChronological) {
-      entries =
-        sortDir === -1 ? entriesAsc.slice().reverse() : entriesAsc.slice();
-    } else {
-      entries = [...entriesAsc].sort((a, b) => {
-        if (sortField === "amount") {
-          return sortDir * (Number(a.amount) - Number(b.amount));
-        }
-        if (sortField === "type") {
-          return sortDir * String(a.type).localeCompare(String(b.type));
-        }
-        return (
-          sortDir *
-          (new Date(a.date).getTime() - new Date(b.date).getTime())
-        );
-      });
-      entries = entries.map((e) => ({
-        ...e,
-        running_balance: balanceById.get(String(e._id)) ?? e.running_balance,
-      }));
-    }
-
     const totalDebit = totalsAgg[0]?.total_debit ?? 0;
     const totalCredit = totalsAgg[0]?.total_credit ?? 0;
-    // Closing for filtered set still uses party convention on filtered totals
     const closingBalance = isCustomer
       ? openingBalance + totalCredit - totalDebit
       : openingBalance + totalDebit - totalCredit;
 
-    const balanceLabel = isCustomer
-      ? closingBalance >= 0
-        ? "receivable"
-        : "advance_paid_to_customer"
-      : closingBalance >= 0
-        ? "payable"
-        : "advance_paid_to_supplier";
-
     res.json({
       party,
       net_balance: closingBalance,
-      balance_direction: balanceLabel,
       entries,
       summary: {
         opening_balance: openingBalance,
@@ -865,7 +1055,7 @@ export const getPartyLedger = async (req, res, next) => {
         page: pageNum,
         limit: pageLimit,
         total,
-        pages: Math.max(1, Math.ceil(total / pageLimit)),
+        pages: Math.ceil(total / pageLimit) || 0,
       },
     });
   } catch (error) {
@@ -873,17 +1063,6 @@ export const getPartyLedger = async (req, res, next) => {
   }
 };
 
-/**
- * GET /parties/:partyId/net-balance
- *
- * Returns a full breakdown of all transactions with this party:
- *  - Total credit (sales / money in from party)
- *  - Total debit (purchases / money out to party)
- *  - Net balance (who owes whom and how much)
- *
- * Works for all party types — especially useful for type="both" (Lutfor scenario)
- * where the same person is both a buyer and a seller.
- */
 export const getPartyNetBalance = async (req, res, next) => {
   try {
     const userId = req.user.id;

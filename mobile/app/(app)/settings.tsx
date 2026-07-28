@@ -7,8 +7,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { useBiometric } from "@/hooks/use-biometric";
 import { useOrganization } from "@/hooks/use-organization";
 import { useTheme } from "@/hooks/use-theme";
-import { useDeleteMode } from "@/hooks/use-delete-mode";
-import { useRestoreMode } from "@/hooks/use-restore-mode";
+import { useDeleteMode, useDeleteModeSeconds } from "@/hooks/use-delete-mode";
+import { useRestoreMode, useRestoreModeSeconds } from "@/hooks/use-restore-mode";
 import {
   exportTransactionsPdf,
   exportTransactionsByCategoryPdf,
@@ -74,12 +74,10 @@ export default function SettingsScreen() {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showBiometricModal, setShowBiometricModal] = useState(false);
   const [showBalanceCheck, setShowBalanceCheck] = useState(false);
-  const { recordTap, isDeleteModeActive, secondsLeft } = useDeleteMode();
-  const {
-    recordRestoreTap,
-    isRestoreModeActive,
-    secondsLeft: restoreSecondsLeft,
-  } = useRestoreMode();
+  const { recordTap, isDeleteModeActive } = useDeleteMode();
+  const secondsLeft = useDeleteModeSeconds();
+  const { recordRestoreTap, isRestoreModeActive } = useRestoreMode();
+  const restoreSecondsLeft = useRestoreModeSeconds();
 
   // Auto-backup
   const userId = state.status === "authenticated" ? state.user._id : undefined;

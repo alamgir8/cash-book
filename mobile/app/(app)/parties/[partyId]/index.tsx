@@ -23,6 +23,7 @@ import { useTheme } from "@/hooks/use-theme";
 import { useDeleteMode } from "@/hooks/use-delete-mode";
 import { partiesApi } from "@/services/parties";
 import { toast } from "@/lib/toast";
+import { safeGoBack } from "@/lib/navigation";
 
 export default function PartyDetailScreen() {
   const { partyId } = useLocalSearchParams<{ partyId: string }>();
@@ -32,6 +33,8 @@ export default function PartyDetailScreen() {
 
   const { data: party, isLoading } = useParty(partyId!);
   const deleteMutation = useDeleteParty();
+
+  const goBack = () => safeGoBack("/(app)/parties", router);
 
   const handleDelete = () => {
     if (!party) return;
@@ -49,7 +52,7 @@ export default function PartyDetailScreen() {
               try {
                 await partiesApi.delete(partyId!);
                 toast.success("Party deleted successfully");
-                router.back();
+                goBack();
               } catch (error: any) {
                 const data = error?.response?.data;
                 if (data?.canMerge || data?.transactionCount > 0) {
@@ -90,7 +93,7 @@ export default function PartyDetailScreen() {
         <ScreenHeader
           title="Party Details"
           showBack
-          onBack={() => router.back()}
+          onBack={goBack}
         />
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color={colors.info} />
@@ -104,7 +107,7 @@ export default function PartyDetailScreen() {
       <ScreenHeader
         title="Party Details"
         showBack
-        onBack={() => router.back()}
+        onBack={goBack}
         rightAction={
           <TouchableOpacity className="p-2" onPress={handleEdit}>
             <Ionicons name="pencil" size={22} color={colors.info} />

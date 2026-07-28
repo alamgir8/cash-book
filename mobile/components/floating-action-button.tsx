@@ -1,4 +1,4 @@
-import { TouchableOpacity } from "react-native";
+import { TouchableOpacity, StyleSheet, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../hooks/use-theme";
 
@@ -8,6 +8,7 @@ interface FloatingActionButtonProps {
   color?: "blue" | "green" | "red" | "purple";
   position?: "bottom-right" | "bottom-left" | "bottom-center";
   size?: "medium" | "large";
+  visible?: boolean;
 }
 
 export function FloatingActionButton({
@@ -16,8 +17,11 @@ export function FloatingActionButton({
   color = "blue",
   position = "bottom-right",
   size = "medium",
+  visible = true,
 }: FloatingActionButtonProps) {
   const { colors } = useTheme();
+
+  if (!visible) return null;
 
   const getColorValue = () => {
     switch (color) {
@@ -32,46 +36,53 @@ export function FloatingActionButton({
     }
   };
 
-  const getPositionStyles = () => {
-    switch (position) {
-      case "bottom-left":
-        return "absolute left-6 bottom-32";
-      case "bottom-center":
-        return "absolute left-1/2 bottom-32 -translate-x-1/2";
-      default:
-        return "absolute right-6 bottom-32";
-    }
-  };
-
-  const getSizeStyles = () => {
-    return size === "large" ? "w-20 h-20" : "w-16 h-16";
-  };
-
-  const getIconSize = () => {
-    return size === "large" ? 36 : 32;
-  };
-
   const bgColor = getColorValue();
+  const dim = size === "large" ? 80 : 64;
+  const iconSize = size === "large" ? 36 : 32;
+
+  const positionStyle =
+    position === "bottom-left"
+      ? styles.bottomLeft
+      : position === "bottom-center"
+        ? styles.bottomCenter
+        : styles.bottomRight;
 
   return (
-    <TouchableOpacity
-      onPress={onPress}
-      className={`
-        ${getPositionStyles()} 
-        ${getSizeStyles()} 
-        rounded-2xl items-center justify-center shadow-xl border-2 border-white
-        active:scale-95
-      `}
-      style={{
-        backgroundColor: bgColor,
-        shadowColor: bgColor,
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.3,
-        shadowRadius: 20,
-        elevation: 12,
-      }}
-    >
-      <Ionicons name={icon} size={getIconSize()} color="white" />
-    </TouchableOpacity>
+    <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+      <TouchableOpacity
+        onPress={onPress}
+        activeOpacity={0.85}
+        style={[
+          styles.button,
+          positionStyle,
+          {
+            width: dim,
+            height: dim,
+            borderRadius: 18,
+            backgroundColor: bgColor,
+            shadowColor: bgColor,
+          },
+        ]}
+      >
+        <Ionicons name={icon} size={iconSize} color="white" />
+      </TouchableOpacity>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  button: {
+    position: "absolute",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#fff",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 12,
+  },
+  bottomRight: { right: 24, bottom: 128 },
+  bottomLeft: { left: 24, bottom: 128 },
+  bottomCenter: { alignSelf: "center", bottom: 128 },
+});

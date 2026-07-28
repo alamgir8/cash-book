@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -10,18 +10,18 @@ import {
   Modal,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import { toast } from "@/lib/toast";
 import { ScreenHeader } from "@/components/screen-header";
+import { LedgerEntryCard } from "@/components/parties/ledger-entry-card";
 import { useParty, usePartyLedger } from "@/hooks/use-parties";
 import {
-  formatLedgerDate,
   formatLedgerAmount,
   formatLedgerBalance,
 } from "@/lib/party-utils";
 import { exportPartyLedgerPdf } from "@/services/reports";
 import { useTheme } from "@/hooks/use-theme";
+import { safeGoBack } from "@/lib/navigation";
 import type { LedgerEntry } from "@/services/parties";
 
 const PAGE_SIZE = 50;
@@ -42,11 +42,8 @@ const SORT_OPTIONS: { value: string; label: string }[] = [
 export default function PartyLedgerScreen() {
   const { partyId } = useLocalSearchParams<{ partyId: string }>();
   const router = useRouter();
-  const queryClient = useQueryClient();
   const { colors } = useTheme();
 
-  const [page, setPage] = useState(1);
-  const [entries, setEntries] = useState<LedgerEntry[]>([]);
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | "debit" | "credit">(
@@ -57,39 +54,38 @@ export default function PartyLedgerScreen() {
   const [exportingPdf, setExportingPdf] = useState(false);
 
   useEffect(() => {
-    const t = setTimeout(() => {
-      setSearch(searchInput.trim());
-      setPage(1);
-    }, 300);
+    const t = setTimeout(() => setSearch(searchInput.trim()), 400);
     return () => clearTimeout(t);
   }, [searchInput]);
 
-  useEffect(() => {
-    setPage(1);
-    setEntries([]);
-  }, [typeFilter, sort, partyId]);
-
   const { data: party } = useParty(partyId!);
-  const { data, isLoading, isFetching, refetch, isRefetching } = usePartyLedger(
-    partyId!,
-    {
-      page,
-      limit: PAGE_SIZE,
-      search: search || undefined,
-      type: typeFilter,
-      sort,
-    },
+  const {
+    data,
+    isLoading,
+    isFetching,
+    isFetchingNextPage,
+    hasNextPage,
+    fetchNextPage,
+    refetch,
+    isRefetching,
+  } = usePartyLedger(partyId!, {
+    limit: PAGE_SIZE,
+    search: search || undefined,
+    type: typeFilter,
+    sort,
+  });
+
+  const entries = useMemo(
+    () => data?.pages.flatMap((p) => p.entries || []) ?? [],
+    [data],
   );
 
-  useEffect(() => {
-    if (!data?.entries) return;
-    setEntries((prev) =>
-      page === 1 ? data.entries : [...prev, ...data.entries],
-    );
-  }, [data, page]);
+  const summary = data?.pages[0]?.summary;
+  const totalCount = data?.pages[0]?.pagination?.total ?? 0;
 
-  const pagination = data?.pagination;
-  const hasMore = Boolean(pagination && pagination.page < pagination.pages);
+  const goBack = useCallback(() => {
+    safeGoBack(`/(app)/parties/${partyId}`, router);
+  }, [partyId, router]);
 
   const handleExportPdf = async () => {
     if (!party) {
@@ -107,155 +103,35 @@ export default function PartyLedgerScreen() {
     }
   };
 
-  const summary = data?.summary;
-
-  const renderEntry = ({
-    item,
-    index,
-  }: {
-    item: LedgerEntry;
-    index: number;
-  }) => (
-    <TouchableOpacity
-      activeOpacity={item.invoice_id ? 0.7 : 1}
-      onPress={() => {
-        if (item.invoice_id) {
-          router.push(`/invoices/${item.invoice_id}` as any);
+  const renderEntry = useCallback(
+    ({ item }: { item: LedgerEntry }) => (
+      <LedgerEntryCard
+        entry={item}
+        onPress={
+          item.invoice_id
+            ? () => router.push(`/invoices/${item.invoice_id}` as any)
+            : undefined
         }
-      }}
-      style={{
-        backgroundColor: index % 2 === 0 ? colors.bg.secondary : colors.card,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.border,
-        paddingHorizontal: 14,
-        paddingVertical: 12,
-      }}
-    >
-      <View className="flex-row items-start justify-between mb-1">
-        <Text
-          className="text-xs font-medium"
-          style={{ color: colors.text.tertiary }}
-        >
-          {formatLedgerDate(item.date)}
-        </Text>
-        <View
-          className="px-2 py-0.5 rounded-full"
-          style={{
-            backgroundColor:
-              item.type === "debit"
-                ? colors.success + "18"
-                : colors.error + "18",
-          }}
-        >
-          <Text
-            className="text-[10px] font-bold uppercase"
-            style={{
-              color: item.type === "debit" ? colors.success : colors.error,
-            }}
-          >
-            {item.type}
-            {item.payment_status === "due" ? " · due" : ""}
-          </Text>
-        </View>
-      </View>
-
-      <Text
-        className="text-sm font-semibold mb-1"
-        style={{ color: colors.text.primary }}
-        numberOfLines={2}
-      >
-        {item.description || "Transaction"}
-      </Text>
-
-      {(item.category_name || item.account_name || item.reference) && (
-        <View className="flex-row flex-wrap gap-x-3 gap-y-1 mb-1">
-          {item.category_name ? (
-            <Text className="text-xs" style={{ color: colors.text.secondary }}>
-              <Ionicons name="pricetag-outline" size={11} /> {item.category_name}
-            </Text>
-          ) : null}
-          {item.account_name ? (
-            <Text className="text-xs" style={{ color: colors.text.secondary }}>
-              <Ionicons name="wallet-outline" size={11} /> {item.account_name}
-            </Text>
-          ) : null}
-          {item.reference ? (
-            <Text className="text-xs" style={{ color: colors.text.secondary }}>
-              Ref: {item.reference}
-            </Text>
-          ) : null}
-        </View>
-      )}
-
-      {item.comment ? (
-        <Text
-          className="text-xs mb-2 italic"
-          style={{ color: colors.text.tertiary }}
-          numberOfLines={2}
-        >
-          {item.comment}
-        </Text>
-      ) : null}
-
-      <View className="flex-row items-center justify-between mt-1">
-        <View className="flex-row gap-4">
-          <View>
-            <Text
-              className="text-[10px] uppercase"
-              style={{ color: colors.text.tertiary }}
-            >
-              Debit
-            </Text>
-            <Text
-              className="text-sm font-bold"
-              style={{ color: colors.success }}
-            >
-              {item.debit > 0 ? formatLedgerAmount(item.debit) : "—"}
-            </Text>
-          </View>
-          <View>
-            <Text
-              className="text-[10px] uppercase"
-              style={{ color: colors.text.tertiary }}
-            >
-              Credit
-            </Text>
-            <Text className="text-sm font-bold" style={{ color: colors.error }}>
-              {item.credit > 0 ? formatLedgerAmount(item.credit) : "—"}
-            </Text>
-          </View>
-        </View>
-        <View className="items-end">
-          <Text
-            className="text-[10px] uppercase"
-            style={{ color: colors.text.tertiary }}
-          >
-            Balance
-          </Text>
-          <Text
-            className="text-sm font-bold"
-            style={{
-              color:
-                item.running_balance > 0
-                  ? colors.success
-                  : item.running_balance < 0
-                    ? colors.error
-                    : colors.text.secondary,
-            }}
-          >
-            {formatLedgerBalance(item.running_balance)}
-          </Text>
-        </View>
-      </View>
-    </TouchableOpacity>
+      />
+    ),
+    [router],
   );
+
+  const keyExtractor = useCallback(
+    (item: LedgerEntry, i: number) => item._id || `row-${i}`,
+    [],
+  );
+
+  const showInitialLoader = isLoading && !data;
+  const closing = summary?.closing_balance || 0;
 
   return (
     <View className="flex-1" style={{ backgroundColor: colors.bg.secondary }}>
       <ScreenHeader
         title={party?.name || "Party Ledger"}
         showBack
-        onBack={() => router.back()}
+        onBack={goBack}
+        backFallback={`/(app)/parties/${partyId}`}
         rightAction={
           <TouchableOpacity
             className="flex-row items-center px-3 py-1.5 rounded-lg"
@@ -290,7 +166,6 @@ export default function PartyLedgerScreen() {
         }
       />
 
-      {/* Summary */}
       <View className="px-4 pt-3">
         <View
           className="rounded-2xl border overflow-hidden"
@@ -301,11 +176,14 @@ export default function PartyLedgerScreen() {
               className="flex-1 px-3 py-2.5 border-r"
               style={{ borderColor: colors.border }}
             >
-              <Text className="text-[10px]" style={{ color: colors.text.tertiary }}>
+              <Text
+                className="text-[10px] uppercase"
+                style={{ color: colors.text.tertiary }}
+              >
                 Opening
               </Text>
               <Text
-                className="text-sm font-bold"
+                className="text-sm font-bold mt-0.5"
                 style={{ color: colors.text.primary }}
               >
                 {formatLedgerBalance(summary?.opening_balance || 0)}
@@ -315,56 +193,77 @@ export default function PartyLedgerScreen() {
               className="flex-1 px-3 py-2.5 border-r"
               style={{ borderColor: colors.border }}
             >
-              <Text className="text-[10px]" style={{ color: colors.text.tertiary }}>
+              <Text
+                className="text-[10px] uppercase"
+                style={{ color: colors.text.tertiary }}
+              >
                 Debit
               </Text>
               <Text
-                className="text-sm font-bold"
+                className="text-sm font-bold mt-0.5"
                 style={{ color: colors.success }}
               >
                 {formatLedgerAmount(summary?.total_debit || 0)}
               </Text>
             </View>
             <View className="flex-1 px-3 py-2.5">
-              <Text className="text-[10px]" style={{ color: colors.text.tertiary }}>
+              <Text
+                className="text-[10px] uppercase"
+                style={{ color: colors.text.tertiary }}
+              >
                 Credit
               </Text>
-              <Text className="text-sm font-bold" style={{ color: colors.error }}>
+              <Text
+                className="text-sm font-bold mt-0.5"
+                style={{ color: colors.error }}
+              >
                 {formatLedgerAmount(summary?.total_credit || 0)}
               </Text>
             </View>
           </View>
           <View
-            className="px-3 py-2.5 border-t flex-row justify-between"
+            className="px-3 py-2.5 border-t flex-row justify-between items-center"
             style={{
-              backgroundColor: colors.bg.tertiary,
+              backgroundColor:
+                closing > 0
+                  ? colors.success + "12"
+                  : closing < 0
+                    ? colors.error + "12"
+                    : colors.bg.tertiary,
               borderColor: colors.border,
             }}
           >
+            <View>
+              <Text
+                className="text-xs font-semibold"
+                style={{ color: colors.text.secondary }}
+              >
+                Closing Balance
+              </Text>
+              <Text
+                className="text-[10px] mt-0.5"
+                style={{ color: colors.text.tertiary }}
+              >
+                After all ledger entries
+              </Text>
+            </View>
             <Text
-              className="text-sm font-semibold"
-              style={{ color: colors.text.secondary }}
-            >
-              Closing Balance
-            </Text>
-            <Text
-              className="text-base font-bold"
+              className="text-lg font-bold"
               style={{
                 color:
-                  (summary?.closing_balance || 0) > 0
+                  closing > 0
                     ? colors.success
-                    : (summary?.closing_balance || 0) < 0
+                    : closing < 0
                       ? colors.error
                       : colors.text.primary,
               }}
             >
-              {formatLedgerBalance(summary?.closing_balance || 0)}
+              {formatLedgerBalance(closing)}
             </Text>
           </View>
         </View>
       </View>
 
-      {/* Search / filter / sort */}
       <View className="px-4 pt-3 pb-2 gap-2">
         <View
           className="flex-row items-center rounded-xl px-3"
@@ -374,14 +273,20 @@ export default function PartyLedgerScreen() {
           <TextInput
             className="flex-1 ml-2 text-sm"
             style={{ color: colors.text.primary, paddingVertical: 8 }}
-            placeholder="Search description, notes, ref..."
+            placeholder="Search description, notes, category..."
             placeholderTextColor={colors.text.tertiary}
             value={searchInput}
             onChangeText={setSearchInput}
             autoCorrect={false}
+            autoCapitalize="none"
           />
           {searchInput.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchInput("")}>
+            <TouchableOpacity
+              onPress={() => {
+                setSearchInput("");
+                setSearch("");
+              }}
+            >
               <Ionicons
                 name="close-circle"
                 size={16}
@@ -389,6 +294,13 @@ export default function PartyLedgerScreen() {
               />
             </TouchableOpacity>
           )}
+          {isFetching && !isFetchingNextPage ? (
+            <ActivityIndicator
+              size="small"
+              color={colors.info}
+              style={{ marginLeft: 6 }}
+            />
+          ) : null}
         </View>
 
         <View className="flex-row items-center justify-between">
@@ -433,37 +345,32 @@ export default function PartyLedgerScreen() {
             </Text>
           </TouchableOpacity>
         </View>
-        {pagination?.total != null ? (
-          <Text className="text-xs" style={{ color: colors.text.tertiary }}>
-            Showing {entries.length} of {pagination.total}
-          </Text>
-        ) : null}
+        <Text className="text-xs" style={{ color: colors.text.tertiary }}>
+          Showing {entries.length}
+          {totalCount ? ` of ${totalCount}` : ""}
+        </Text>
       </View>
 
-      {isLoading && page === 1 ? (
+      {showInitialLoader ? (
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color={colors.info} />
         </View>
       ) : (
         <FlatList
           data={entries}
-          keyExtractor={(item, i) => item._id || String(i)}
+          keyExtractor={keyExtractor}
           renderItem={renderEntry}
-          contentContainerStyle={{
-            paddingHorizontal: 16,
-            paddingBottom: 40,
-          }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }}
           style={{ flex: 1 }}
+          keyboardShouldPersistTaps="handled"
+          initialNumToRender={8}
+          maxToRenderPerBatch={8}
+          windowSize={5}
+          removeClippedSubviews
           refreshControl={
             <RefreshControl
-              refreshing={isRefetching && page === 1}
-              onRefresh={() => {
-                setPage(1);
-                void refetch();
-                void queryClient.invalidateQueries({
-                  queryKey: ["party", partyId],
-                });
-              }}
+              refreshing={isRefetching && !isFetchingNextPage}
+              onRefresh={() => void refetch()}
             />
           }
           ListEmptyComponent={
@@ -496,14 +403,14 @@ export default function PartyLedgerScreen() {
             </View>
           }
           ListFooterComponent={
-            hasMore ? (
+            hasNextPage ? (
               <TouchableOpacity
-                className="mt-3 mb-2 py-3 rounded-xl items-center"
+                className="mt-1 mb-2 py-3 rounded-xl items-center"
                 style={{ backgroundColor: colors.info }}
-                disabled={isFetching}
-                onPress={() => setPage((p) => p + 1)}
+                disabled={isFetchingNextPage}
+                onPress={() => void fetchNextPage()}
               >
-                {isFetching && page > 1 ? (
+                {isFetchingNextPage ? (
                   <ActivityIndicator color="#fff" />
                 ) : (
                   <Text className="text-white font-semibold">
@@ -516,7 +423,7 @@ export default function PartyLedgerScreen() {
                 className="text-center text-xs py-3"
                 style={{ color: colors.text.tertiary }}
               >
-                End of ledger
+                End of ledger · Closing {formatLedgerBalance(closing)}
               </Text>
             ) : null
           }

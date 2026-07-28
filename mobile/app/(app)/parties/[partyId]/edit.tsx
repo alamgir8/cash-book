@@ -18,6 +18,7 @@ import { partiesApi, PartyType } from "@/services/parties";
 import { getApiErrorMessage } from "@/lib/api";
 import { Ionicons } from "@expo/vector-icons";
 import { QUERY_KEYS } from "@/lib/queryKeys";
+import { safeGoBack } from "@/lib/navigation";
 import { z } from "zod";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -53,7 +54,8 @@ export default function EditPartyScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
 
-  const goBack = () => router.back();
+  const goBack = () =>
+    safeGoBack(`/(app)/parties/${partyId}`, router);
 
   const {
     control,

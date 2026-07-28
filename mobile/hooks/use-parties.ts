@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import Toast from "react-native-toast-message";
 import { partiesApi } from "@/services/parties";
 import { QUERY_KEYS } from "@/lib/queryKeys";
@@ -34,11 +34,42 @@ export const useParty = (partyId: string) => {
 /**
  * Hook to fetch party ledger
  */
-export const usePartyLedger = (partyId: string, params?: GetLedgerParams) => {
-  return useQuery({
-    queryKey: ["partyLedger", partyId, params],
-    queryFn: () => partiesApi.getLedger(partyId, params || {}),
+export const usePartyLedger = (
+  partyId: string,
+  params?: Omit<GetLedgerParams, "page">,
+) => {
+  const PAGE_SIZE = params?.limit || 50;
+  return useInfiniteQuery({
+    queryKey: [
+      "partyLedger",
+      partyId,
+      params?.search || "",
+      params?.type || "all",
+      params?.sort || "-date",
+      params?.startDate || "",
+      params?.endDate || "",
+      PAGE_SIZE,
+    ],
+    queryFn: ({ pageParam, signal }) =>
+      partiesApi.getLedger(
+        partyId,
+        {
+          ...params,
+          type: params?.type === "all" ? undefined : params?.type,
+          page: pageParam,
+          limit: PAGE_SIZE,
+        },
+        signal,
+      ),
+    initialPageParam: 1,
+    getNextPageParam: (last) => {
+      const p = last?.pagination;
+      if (!p) return undefined;
+      return p.page < p.pages ? p.page + 1 : undefined;
+    },
     enabled: Boolean(partyId),
+    retry: 1,
+    staleTime: 15_000,
   });
 };
 

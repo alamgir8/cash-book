@@ -42,6 +42,8 @@ export type Party = {
   tags?: string[];
   archived?: boolean;
   total_transactions: number;
+  debit_transactions?: number;
+  credit_transactions?: number;
   total_invoices?: number;
   last_transaction_at?: string;
   createdAt: string;
@@ -56,12 +58,16 @@ export type LedgerEntry = {
   date: string;
   type: string;
   description?: string;
+  comment?: string;
   reference?: string;
   debit: number;
   credit: number;
   running_balance: number;
   transaction_id?: string;
   invoice_id?: string;
+  category_name?: string;
+  account_name?: string;
+  payment_status?: string;
 };
 
 /**

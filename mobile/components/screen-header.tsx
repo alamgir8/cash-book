@@ -2,6 +2,7 @@ import { Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useTheme } from "../hooks/use-theme";
+import { safeGoBack } from "../lib/navigation";
 
 interface ScreenHeaderProps {
   title: string;
@@ -13,6 +14,8 @@ interface ScreenHeaderProps {
   gradientTo?: string;
   showBack?: boolean;
   onBack?: () => void;
+  /** Used when stack has no history (avoids GO_BACK hang) */
+  backFallback?: string;
   onIconPress?: () => void;
   onTitlePress?: () => void;
   rightAction?: React.ReactNode;
@@ -32,6 +35,7 @@ export function ScreenHeader({
   backgroundColor = "#ffffff",
   showBack,
   onBack,
+  backFallback = "/(app)/settings",
   onIconPress,
   onTitlePress,
   rightAction,
@@ -43,9 +47,9 @@ export function ScreenHeader({
   const handleBack = () => {
     if (onBack) {
       onBack();
-    } else {
-      router.back();
+      return;
     }
+    safeGoBack(backFallback, router);
   };
 
   return (
