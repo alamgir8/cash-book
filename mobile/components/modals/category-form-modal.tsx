@@ -1,19 +1,14 @@
 import { useEffect, useState, useCallback } from "react";
 import {
-  Modal,
   Text,
   TextInput,
   View,
-  Platform,
   TouchableOpacity,
   StyleSheet,
-  Keyboard,
-  Dimensions,
 } from "react-native";
-import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
+import { FormSheetModal } from "@/components/form-sheet-modal";
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/hooks/use-theme";
 import {
   createCategory,
@@ -21,7 +16,6 @@ import {
   type Category,
 } from "../../services/categories";
 import { queryKeys } from "../../lib/queryKeys";
-import { ActionButton } from "../action-button";
 
 type CategoryFormModalProps = {
   visible: boolean;
@@ -82,7 +76,6 @@ export const CategoryFormModal = ({
   initialFlow = "debit",
 }: CategoryFormModalProps) => {
   const { colors } = useTheme();
-  const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const isEditing = !!category;
 
@@ -164,72 +157,21 @@ export const CategoryFormModal = ({
     return null;
   }
 
-  return (
-    <Modal
+    return (
+    <FormSheetModal
       visible={visible}
-      animationType="slide"
-      transparent={true}
-      onRequestClose={onClose}
+      onClose={onClose}
+      title={isEditing ? "Edit Category" : "New Category"}
+      subtitle={
+        isEditing ? "Update category details" : "Create a new category"
+      }
+      submitLabel={isEditing ? "Save Changes" : "Create Category"}
+      submitIcon={isEditing ? "checkmark-circle" : "add-circle"}
+      onSubmit={handleSubmit}
+      isSubmitting={mutation.isPending}
+      submittingLabel="Saving…"
     >
-      <View style={styles.overlay}>
-        <TouchableOpacity
-          activeOpacity={1}
-          onPress={() => {
-            Keyboard.dismiss();
-            onClose();
-          }}
-          style={{ flex: 1 }}
-        />
-        <KeyboardAwareScrollView
-          bottomOffset={Platform.OS === "ios" ? 100 : 120}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-          style={[
-            styles.modalContainer,
-            { backgroundColor: colors.bg.primary },
-          ]}
-        >
-          <View
-            style={[
-              styles.modalContainer,
-              { backgroundColor: colors.bg.primary },
-            ]}
-          >
-            {/* Header */}
-            <View style={[styles.header, { borderBottomColor: colors.border }]}>
-              <View>
-                <Text
-                  style={[styles.headerTitle, { color: colors.text.primary }]}
-                >
-                  {isEditing ? "Edit Category" : "New Category"}
-                </Text>
-                <Text
-                  style={[
-                    styles.headerSubtitle,
-                    { color: colors.text.secondary },
-                  ]}
-                >
-                  {isEditing
-                    ? "Update category details"
-                    : "Create a new category"}
-                </Text>
-              </View>
-              <TouchableOpacity
-                onPress={onClose}
-                style={[
-                  styles.closeButton,
-                  { backgroundColor: colors.bg.tertiary },
-                ]}
-              >
-                <Ionicons
-                  name="close"
-                  size={20}
-                  color={colors.text.secondary}
-                />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.scrollContent}>
+      <View className="gap-5">
               {/* Error Message */}
               {error && (
                 <View
@@ -483,83 +425,12 @@ export const CategoryFormModal = ({
                   ]}
                 />
               </View>
-            </View>
-
-            {/* Footer */}
-            <View
-              style={[
-                styles.footer,
-                {
-                  borderTopColor: colors.border,
-                  paddingBottom: Math.max(insets.bottom, 16),
-                },
-              ]}
-            >
-              <ActionButton
-                label={isEditing ? "Update Category" : "Create Category"}
-                onPress={handleSubmit}
-                disabled={mutation.isPending}
-                isLoading={mutation.isPending}
-                icon="checkmark-circle"
-                variant="primary"
-                size="medium"
-                fullWidth
-              />
-            </View>
-          </View>
-        </KeyboardAwareScrollView>
       </View>
-    </Modal>
+    </FormSheetModal>
   );
 };
 
-const SCREEN_HEIGHT = Dimensions.get("window").height;
-
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.4)",
-    justifyContent: "flex-end",
-  },
-  modalContainer: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: SCREEN_HEIGHT * 0.92,
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 24,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-  },
-  headerSubtitle: {
-    fontSize: 14,
-  },
-  closeButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  scrollView: {
-    flexShrink: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: 24,
-    paddingTop: 16,
-    paddingBottom: 24,
-    gap: 20,
-  },
-  formContainer: {
-    gap: 20,
-  },
   errorContainer: {
     padding: 12,
     borderRadius: 12,
@@ -657,10 +528,5 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     minHeight: 96,
-  },
-  footer: {
-    padding: 24,
-    paddingTop: 16,
-    borderTopWidth: 1,
   },
 });

@@ -1,22 +1,13 @@
-import { useState, useEffect, useMemo, useRef } from "react";
-import Animated from "react-native-reanimated";
+import { useState, useEffect, useMemo } from "react";
 import {
-  ActivityIndicator,
   Alert,
-  Dimensions,
   Image,
-  Keyboard,
-  Modal,
   Platform,
-  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
-import {
-  KeyboardAwareScrollView,
-} from "react-native-keyboard-controller";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import Toast from "react-native-toast-message";
@@ -25,7 +16,7 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Ionicons } from "@expo/vector-icons";
 import dayjs from "dayjs";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { FormSheetModal } from "@/components/form-sheet-modal";
 import { SearchableSelect } from "../searchable-select";
 import {
   amountInputProps,
@@ -76,7 +67,6 @@ export const TransferModal = ({
   const { formatAmount } = usePreferences();
   const { colors } = useTheme();
   const { t } = useTranslation();
-  const insets = useSafeAreaInsets();
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
 
@@ -85,8 +75,6 @@ export const TransferModal = ({
   const [uploadingAttachments, setUploadingAttachments] = useState(false);
   const MAX_STAGED = 10;
   const MAX_RAW_MB = 10;
-
-  // Keyboard spacing is handled by KeyboardAwareScrollView.
 
   const { control, handleSubmit, reset, setValue, watch } =
     useForm<TransferFormValues>({
@@ -250,103 +238,27 @@ export const TransferModal = ({
     onClose();
   };
 
+  const submitLabel = stagedFiles.length > 0
+    ? t("submitWithAttachments", {
+        n: String(stagedFiles.length),
+        s: stagedFiles.length > 1 ? "s" : "",
+      })
+    : t("submitTransfer");
+
   return (
-    <Modal
+    <FormSheetModal
       visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={closeModal}
+      onClose={closeModal}
+      title={t("transferFundsModal")}
+      subtitle={t("moveMoneyBetweenAccounts")}
+      submitLabel={submitLabel}
+      submitIcon={stagedFiles.length > 0 ? "attach" : "swap-horizontal"}
+      onSubmit={handleSubmit(handleFormSubmit)}
+      isSubmitting={isSubmitting || uploadingAttachments}
+      submittingLabel={
+        uploadingAttachments ? t("uploadingAttachments") : t("saving")
+      }
     >
-      <View
-        className="flex-1 justify-end"
-        style={{ backgroundColor: "rgba(0,0,0,0.4)" }}
-      >
-        {/* Backdrop dismiss (absolute so sheet is the sole flex child) */}
-        <TouchableOpacity
-          activeOpacity={1}
-          onPress={() => {
-            Keyboard.dismiss();
-            closeModal();
-          }}
-          style={{ ...StyleSheet.absoluteFillObject }}
-        />
-
-        {/* Bottom sheet — explicit height so KeyboardAwareScrollView can flex:1 */}
-        <Animated.View
-          style={[
-            {
-              height: Dimensions.get("window").height * 0.88,
-              backgroundColor: colors.bg.primary,
-              borderTopLeftRadius: 24,
-              borderTopRightRadius: 24,
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: -4 },
-              shadowOpacity: 0.12,
-              shadowRadius: 16,
-              elevation: 24,
-            },
-          ]}
-        >
-          {/* ── FIXED HEADER ─────────────────────────────────────────── */}
-          <View
-            style={{
-              flexDirection: "row",
-              justifyContent: "space-between",
-              alignItems: "center",
-              paddingHorizontal: 24,
-              paddingTop: 20,
-              paddingBottom: 16,
-              borderBottomWidth: 1,
-              borderBottomColor: colors.border,
-              borderTopLeftRadius: 24,
-              borderTopRightRadius: 24,
-              backgroundColor: colors.bg.primary,
-            }}
-          >
-            <View>
-              <Text
-                style={{
-                  fontSize: 20,
-                  fontWeight: "700",
-                  color: colors.text.primary,
-                }}
-              >
-                {t("transferFundsModal")}
-              </Text>
-              <Text
-                style={{
-                  fontSize: 13,
-                  color: colors.text.secondary,
-                  marginTop: 2,
-                }}
-              >
-                {t("moveMoneyBetweenAccounts")}
-              </Text>
-            </View>
-            <TouchableOpacity
-              onPress={closeModal}
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: 16,
-                backgroundColor: colors.bg.tertiary,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <Ionicons name="close" size={20} color="#f43f5e" />
-            </TouchableOpacity>
-          </View>
-
-          {/* ── SCROLLABLE FORM CONTENT ───────────────────────────────── */}
-          <KeyboardAwareScrollView
-            bottomOffset={Platform.OS === "ios" ? 80 : 100}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-            style={{ flex: 1 }}
-          >
-            <View style={{ paddingHorizontal: 24, paddingVertical: 20 }}>
               <View className="gap-5">
                 {/* From Account */}
                 <Controller
@@ -737,56 +649,6 @@ export const TransferModal = ({
                   </View>
                 ) : null}
               </View>
-            </View>
-          </KeyboardAwareScrollView>
-
-          {/* ── FIXED FOOTER ─────────────────────────────────────────── */}
-          <View
-            style={{
-              paddingHorizontal: 24,
-              paddingTop: 12,
-              paddingBottom: Math.max(insets.bottom, 16),
-              borderTopWidth: 1,
-              borderTopColor: colors.border,
-              backgroundColor: colors.bg.primary,
-            }}
-          >
-            <TouchableOpacity
-              onPress={handleSubmit(handleFormSubmit)}
-              disabled={isSubmitting || uploadingAttachments}
-              className="rounded-2xl py-4 items-center shadow-lg"
-              style={{ backgroundColor: colors.info }}
-            >
-              {isSubmitting || uploadingAttachments ? (
-                <View className="flex-row items-center gap-2">
-                  <ActivityIndicator color="white" />
-                  <Text className="text-white font-bold text-base">
-                    {uploadingAttachments
-                      ? t("uploadingAttachments")
-                      : t("saving")}
-                  </Text>
-                </View>
-              ) : (
-                <View className="flex-row items-center gap-2">
-                  <Ionicons
-                    name={stagedFiles.length > 0 ? "attach" : "swap-horizontal"}
-                    size={20}
-                    color="white"
-                  />
-                  <Text className="text-white font-bold text-base">
-                    {stagedFiles.length > 0
-                      ? t("submitWithAttachments", {
-                          n: String(stagedFiles.length),
-                          s: stagedFiles.length > 1 ? "s" : "",
-                        })
-                      : t("submitTransfer")}
-                  </Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          </View>
-        </Animated.View>
-      </View>
-    </Modal>
+    </FormSheetModal>
   );
 };

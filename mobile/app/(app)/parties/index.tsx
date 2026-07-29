@@ -472,7 +472,7 @@ export default function PartiesScreen() {
           canManageParties ? (
             <TouchableOpacity
               className="p-2"
-              onPress={() => router.push("/(app)/parties/new" as any)}
+              onPress={() => router.push("/(app)/parties/create" as any)}
             >
               <Ionicons name="add-circle" size={28} color={colors.info} />
             </TouchableOpacity>

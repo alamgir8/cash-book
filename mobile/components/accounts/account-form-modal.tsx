@@ -2,27 +2,13 @@
  * AccountFormModal
  *
  * Bottom-sheet modal for creating or editing an account.
- * Extracted from accounts.tsx to keep the screen file lean.
  */
-import Animated from "react-native-reanimated";
-import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
-import {
-  Dimensions,
-  Keyboard,
-  Modal,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { Text, TextInput, View } from "react-native";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Ionicons } from "@expo/vector-icons";
 import { useEffect } from "react";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ActionButton } from "@/components/action-button";
+import { FormSheetModal } from "@/components/form-sheet-modal";
 import { VoiceInputButton } from "@/components/voice-input-button";
 import { useTheme } from "@/hooks/use-theme";
 import { useTranslation } from "@/hooks/use-translation";
@@ -52,7 +38,6 @@ export function AccountFormModal({
 }: Props) {
   const { colors } = useTheme();
   const { t } = useTranslation();
-  const insets = useSafeAreaInsets();
 
   const {
     control,
@@ -65,7 +50,6 @@ export function AccountFormModal({
     defaultValues: { name: "", description: "" },
   });
 
-  // Populate form when editing
   useEffect(() => {
     if (visible) {
       if (editingAccount) {
@@ -88,233 +72,96 @@ export function AccountFormModal({
       nameMatch
         ? nameMatch[1].trim()
         : transcript.split(" account")[0] || transcript,
-      {
-        shouldDirty: true,
-      },
+      { shouldDirty: true },
     );
     setValue("description", transcript, { shouldDirty: true });
   };
 
-  const handleClose = () => {
-    Keyboard.dismiss();
-    onClose();
-  };
-
   return (
-    <Modal
+    <FormSheetModal
       visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={handleClose}
+      onClose={onClose}
+      title={editingAccount ? t("editAccount") : t("newAccount")}
+      subtitle={
+        editingAccount
+          ? t("updateAccountDetails")
+          : t("createAccountSubtitle")
+      }
+      submitLabel={
+        editingAccount ? t("updateAccountBtn") : t("createAccountBtn")
+      }
+      submitIcon={editingAccount ? "checkmark-circle" : "add-circle"}
+      onSubmit={handleSubmit(onSubmit)}
+      isSubmitting={isSubmitting}
+      submittingLabel={t("saving")}
     >
-      <View
-        className="flex-1 justify-end"
-        style={{ backgroundColor: "rgba(0,0,0,0.4)" }}
-      >
-        <TouchableOpacity
-          activeOpacity={1}
-          onPress={() => {
-            Keyboard.dismiss();
-            handleClose();
-          }}
-          style={{ ...StyleSheet.absoluteFillObject }}
-        />
-
-        <Animated.View
-          style={[
-            {
-              height: Dimensions.get("window").height * 0.88,
-              backgroundColor: colors.bg.primary,
-              borderTopLeftRadius: 24,
-              borderTopRightRadius: 24,
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: -4 },
-              shadowOpacity: 0.12,
-              shadowRadius: 16,
-              elevation: 24,
-            },
-          ]}
-        >
-          {/* Header */}
-          <View style={[styles.header, { borderBottomColor: colors.border }]}>
-            <View>
-              <Text style={[styles.title, { color: colors.text.primary }]}>
-                {editingAccount ? t("editAccount") : t("newAccount")}
-              </Text>
-              <Text
+      <View className="gap-5">
+        <View>
+          <Text
+            className="text-sm font-semibold mb-2"
+            style={{ color: colors.text.primary }}
+          >
+            {t("accountNameLabel")}
+          </Text>
+          <Controller
+            control={control}
+            name="name"
+            render={({ field: { onChange, value } }) => (
+              <TextInput
+                value={value}
+                onChangeText={onChange}
+                placeholder={t("accountNamePlaceholder")}
+                placeholderTextColor={colors.text.tertiary}
                 style={{
-                  fontSize: 13,
-                  color: colors.text.secondary,
-                  marginTop: 2,
+                  backgroundColor: colors.bg.tertiary,
+                  color: colors.text.primary,
+                  borderColor: errors.name ? colors.error : colors.border,
                 }}
-              >
-                {editingAccount
-                  ? t("updateAccountDetails")
-                  : t("createAccountSubtitle")}
-              </Text>
-            </View>
-            <TouchableOpacity
-              onPress={handleClose}
-              style={[styles.closeBtn, { backgroundColor: colors.bg.tertiary }]}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <Ionicons name="close" size={20} color="#f43f5e" />
-            </TouchableOpacity>
-          </View>
-
-          {/* Form */}
-          <KeyboardAwareScrollView
-            bottomOffset={100}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-            style={{ flex: 1 }}
-            contentContainerStyle={{
-              paddingHorizontal: 24,
-              paddingVertical: 20,
-              gap: 20,
-            }}
-          >
-            {/* Account Name */}
-            <View>
-              <Text style={[styles.label, { color: colors.text.primary }]}>
-                {t("accountNameLabel")}
-              </Text>
-              <Controller
-                control={control}
-                name="name"
-                render={({ field: { onChange, value } }) => (
-                  <TextInput
-                    value={value}
-                    onChangeText={onChange}
-                    placeholder={t("accountNamePlaceholder")}
-                    placeholderTextColor={colors.text.tertiary}
-                    style={[
-                      styles.input,
-                      {
-                        backgroundColor: colors.bg.tertiary,
-                        color: colors.text.primary,
-                        borderColor: errors.name ? colors.error : colors.border,
-                      },
-                    ]}
-                  />
-                )}
+                className="px-4 py-3 rounded-xl border"
               />
-              {errors.name && (
-                <Text
-                  style={{ color: colors.error, fontSize: 12, marginTop: 4 }}
-                >
-                  {errors.name.message}
-                </Text>
-              )}
-            </View>
+            )}
+          />
+          {errors.name ? (
+            <Text className="text-sm mt-1" style={{ color: colors.error }}>
+              {errors.name.message}
+            </Text>
+          ) : null}
+        </View>
 
-            {/* Description */}
-            <View>
-              <Text style={[styles.label, { color: colors.text.primary }]}>
-                {t("accountDescriptionLabel")}{" "}
-                <Text
-                  style={{ color: colors.text.tertiary, fontWeight: "400" }}
-                >
-                  {t("accountDescriptionOptional")}
-                </Text>
-              </Text>
-              <Controller
-                control={control}
-                name="description"
-                render={({ field: { value, onChange } }) => (
-                  <TextInput
-                    value={value ?? ""}
-                    onChangeText={onChange}
-                    placeholder={t("accountDescriptionPlaceholder")}
-                    placeholderTextColor={colors.text.tertiary}
-                    style={[
-                      styles.input,
-                      styles.inputMultiline,
-                      {
-                        backgroundColor: colors.bg.tertiary,
-                        color: colors.text.primary,
-                        borderColor: colors.border,
-                      },
-                    ]}
-                    multiline
-                    textAlignVertical="top"
-                  />
-                )}
-              />
-            </View>
-
-            <VoiceInputButton onResult={handleVoiceResult} />
-          </KeyboardAwareScrollView>
-
-          {/* Footer */}
-          <View
-            style={[
-              styles.footer,
-              {
-                borderTopColor: colors.border,
-                paddingBottom: Math.max(insets.bottom, 16),
-              },
-            ]}
+        <View>
+          <Text
+            className="text-sm font-semibold mb-2"
+            style={{ color: colors.text.primary }}
           >
-            <ActionButton
-              label={
-                editingAccount ? t("updateAccountBtn") : t("createAccountBtn")
-              }
-              onPress={handleSubmit(onSubmit)}
-              isLoading={isSubmitting}
-              variant="primary"
-              size="medium"
-              icon={editingAccount ? "checkmark-circle" : "add-circle"}
-              fullWidth
-            />
-          </View>
-        </Animated.View>
+            {t("accountDescriptionLabel")}{" "}
+            <Text style={{ color: colors.text.tertiary, fontWeight: "400" }}>
+              {t("accountDescriptionOptional")}
+            </Text>
+          </Text>
+          <Controller
+            control={control}
+            name="description"
+            render={({ field: { value, onChange } }) => (
+              <TextInput
+                value={value ?? ""}
+                onChangeText={onChange}
+                placeholder={t("accountDescriptionPlaceholder")}
+                placeholderTextColor={colors.text.tertiary}
+                style={{
+                  backgroundColor: colors.bg.tertiary,
+                  color: colors.text.primary,
+                  borderColor: colors.border,
+                }}
+                className="px-4 py-3 rounded-xl border min-h-[80px]"
+                multiline
+                textAlignVertical="top"
+              />
+            )}
+          />
+        </View>
+
+        <VoiceInputButton onResult={handleVoiceResult} />
       </View>
-    </Modal>
+    </FormSheetModal>
   );
 }
-
-const styles = StyleSheet.create({
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 24,
-    paddingTop: 20,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: "700",
-  },
-  closeBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: "600",
-    marginBottom: 8,
-  },
-  input: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    fontSize: 15,
-  },
-  inputMultiline: {
-    minHeight: 80,
-  },
-  footer: {
-    paddingHorizontal: 24,
-    paddingTop: 12,
-    borderTopWidth: 1,
-  },
-});

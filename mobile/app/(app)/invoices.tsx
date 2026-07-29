@@ -107,7 +107,7 @@ export default function InvoicesScreen() {
   const handleCreateInvoice = useCallback(
     (type: InvoiceType) => {
       setCreateModalVisible(false);
-      router.push(`/invoices/new?type=${type}`);
+      router.push(`/invoices/create?type=${type}`);
     },
     [router],
   );

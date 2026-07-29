@@ -664,8 +664,9 @@ const styles = StyleSheet.create({
     paddingTop: 12,
   },
   submitBtn: {
-    minHeight: 48,
-    borderRadius: 12,
+    minHeight: 52,
+    borderRadius: 16,
+    paddingVertical: 16,
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
@@ -673,7 +674,7 @@ const styles = StyleSheet.create({
   },
   submitText: {
     color: "#fff",
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: "700",
   },
 });

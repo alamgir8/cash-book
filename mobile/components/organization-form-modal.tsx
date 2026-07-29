@@ -2,14 +2,10 @@ import React, { useEffect } from "react";
 import {
   View,
   Text,
-  Modal,
   TouchableOpacity,
-  Platform,
-  Keyboard,
-  Dimensions,
 } from "react-native";
-import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { Ionicons } from "@expo/vector-icons";
+import { FormSheetModal } from "./form-sheet-modal";
 import { organizationsApi, type Organization } from "../services/organizations";
 import { getApiErrorMessage } from "../lib/api";
 import { toast } from "../lib/toast";
@@ -17,8 +13,6 @@ import { z } from "zod";
 import { useForm, Controller } from "react-hook-form";
 import { CustomInput } from "./custom-input";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ActionButton } from "./action-button";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "../hooks/use-theme";
 
 const BUSINESS_TYPES = [
@@ -73,8 +67,6 @@ export function OrganizationFormModal({
 }: OrganizationFormModalProps) {
   const isEditing = !!organization;
   const [isLoading, setIsLoading] = React.useState(false);
-  const insets = useSafeAreaInsets();
-
   const {
     control,
     handleSubmit,
@@ -170,74 +162,22 @@ export function OrganizationFormModal({
   const { colors } = useTheme();
 
   return (
-    <Modal
+    <FormSheetModal
       visible={visible}
-      animationType="slide"
-      transparent
-      onRequestClose={onClose}
+      onClose={onClose}
+      title={isEditing ? "Edit Organization" : "New Organization"}
+      subtitle={
+        isEditing
+          ? "Update organization details"
+          : "Create a new organization"
+      }
+      submitLabel={isEditing ? "Save Changes" : "Create Organization"}
+      submitIcon={isEditing ? "checkmark-circle" : "add-circle"}
+      onSubmit={handleSubmit(onSubmit)}
+      isSubmitting={isLoading}
+      submittingLabel="Saving…"
     >
-      <View
-        style={{ flex: 1, backgroundColor: colors.modalOverlay }}
-        className="justify-end"
-      >
-        <TouchableOpacity
-          activeOpacity={1}
-          onPress={() => {
-            Keyboard.dismiss();
-            onClose();
-          }}
-          style={{ flex: 1 }}
-        />
-        <KeyboardAwareScrollView
-          bottomOffset={Platform.OS === "ios" ? 100 : 120}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-          style={{
-            backgroundColor: colors.bg.primary,
-            maxHeight: Dimensions.get("window").height * 0.85,
-            borderTopLeftRadius: 24,
-            borderTopRightRadius: 24,
-          }}
-        >
-          <View
-            style={{ backgroundColor: colors.bg.primary }}
-            className="rounded-t-3xl"
-          >
-            {/* Header */}
-            <View
-              style={{ borderColor: colors.border }}
-              className="flex-row justify-between items-center p-6 pb-4 border-b"
-            >
-              <View>
-                <Text
-                  style={{ color: colors.text.primary }}
-                  className="text-xl font-bold"
-                >
-                  {isEditing ? "Edit Organization" : "New Organization"}
-                </Text>
-                <Text
-                  style={{ color: colors.text.secondary }}
-                  className="text-sm"
-                >
-                  {isEditing
-                    ? "Update organization details"
-                    : "Create a new organization"}
-                </Text>
-              </View>
-              <TouchableOpacity
-                onPress={onClose}
-                style={{ backgroundColor: colors.bg.tertiary }}
-                className="w-8 h-8 rounded-full items-center justify-center"
-              >
-                <Ionicons
-                  name="close"
-                  size={20}
-                  color={colors.text.secondary}
-                />
-              </TouchableOpacity>
-            </View>
-
-            <View className="px-6 py-4">
+      <View className="gap-5">
               {/* Business Name */}
               <Controller
                 control={control}
@@ -508,28 +448,7 @@ export function OrganizationFormModal({
                   </View>
                 )}
               </View>
-            </View>
-
-            {/* Footer */}
-            <View
-              className="px-6 pt-4 border-t"
-              style={{
-                borderColor: colors.border,
-                paddingBottom: Math.max(insets.bottom, 16),
-              }}
-            >
-              <ActionButton
-                label={isEditing ? "Save Changes" : "Create Organization"}
-                onPress={handleSubmit(onSubmit)}
-                isLoading={isLoading}
-                disabled={isLoading}
-                fullWidth
-                size="medium"
-              />
-            </View>
-          </View>
-        </KeyboardAwareScrollView>
       </View>
-    </Modal>
+    </FormSheetModal>
   );
 }

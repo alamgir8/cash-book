@@ -80,7 +80,7 @@ export default function PartyDetailScreen() {
   };
 
   const handleNewInvoice = () => {
-    router.push(`/(app)/invoices/new?partyId=${partyId}` as any);
+    router.push(`/(app)/invoices/create?partyId=${partyId}` as any);
   };
 
   const handleEdit = () => {

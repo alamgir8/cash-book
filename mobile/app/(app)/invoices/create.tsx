@@ -29,6 +29,7 @@ import {
   transformInvoiceFormData,
 } from "@/lib/invoice-utils";
 import { useTheme } from "@/hooks/use-theme";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SearchableSelect } from "@/components/searchable-select";
 import type { SelectOption } from "@/components/searchable-select";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -43,13 +44,14 @@ type StagedFile = { uri: string; name: string; type: string; size?: number };
 const MAX_STAGED = 10;
 const MAX_RAW_MB = 10;
 
-export default function InvoiceScreen() {
+export default function CreateInvoiceScreen() {
   const { type: typeParam, partyId: partyIdParam } = useLocalSearchParams<{
     type?: string;
     partyId?: string;
   }>();
   const organizationId = useActiveOrgId();
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
 
   const invoiceType: InvoiceType =
     typeParam === "purchase" ? "purchase" : "sale";
@@ -305,33 +307,65 @@ export default function InvoiceScreen() {
     <View className="flex-1" style={{ backgroundColor: colors.bg.secondary }}>
       {/* Header */}
       <View
-        className="flex-row items-center justify-between px-5 py-3 border-b"
         style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          paddingHorizontal: 20,
+          paddingTop: 12,
+          paddingBottom: 16,
+          borderBottomWidth: 1,
+          borderBottomColor: colors.border,
           backgroundColor: colors.bg.primary,
-          borderColor: colors.border,
         }}
       >
         <TouchableOpacity
           onPress={() => router.back()}
-          className="w-10 h-10 items-center justify-center"
+          style={{
+            width: 32,
+            height: 32,
+            borderRadius: 16,
+            backgroundColor: colors.bg.tertiary,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
         >
-          <Ionicons name="arrow-back" size={24} color={colors.text.primary} />
+          <Ionicons name="arrow-back" size={20} color={colors.text.primary} />
         </TouchableOpacity>
-        <Text
-          className="text-lg font-bold"
-          style={{ color: colors.text.primary }}
-        >
-          New {invoiceType === "sale" ? "Sales" : "Purchase"} Invoice
-        </Text>
-        <View className="w-10" />
+        <View style={{ flex: 1, marginHorizontal: 12 }}>
+          <Text
+            style={{
+              fontSize: 20,
+              fontWeight: "700",
+              color: colors.text.primary,
+              textAlign: "center",
+            }}
+          >
+            New {invoiceType === "sale" ? "Sales" : "Purchase"} Invoice
+          </Text>
+          <Text
+            style={{
+              fontSize: 13,
+              color: colors.text.secondary,
+              textAlign: "center",
+              marginTop: 2,
+            }}
+          >
+            {invoiceType === "sale"
+              ? "Create a sales invoice"
+              : "Create a purchase invoice"}
+          </Text>
+        </View>
+        <View style={{ width: 32 }} />
       </View>
 
       <KeyboardAwareScrollView
-        bottomOffset={Platform.OS === "ios" ? 100 : 120}
+        bottomOffset={80}
+        extraKeyboardSpace={0}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingBottom: 220 }}
+        contentContainerStyle={{ paddingBottom: 24 }}
       >
         {/* ── Party Selection ──────────────────────────────────────── */}
         <View
@@ -1081,48 +1115,53 @@ export default function InvoiceScreen() {
           >
             {stagedFiles.length}/{MAX_STAGED} files · Max {MAX_RAW_MB} MB each
           </Text>
-
-          {/* Submit Button (inside scroll so it's not covered by keyboard) */}
-          <View
-            className="px-5 py-4 border-t"
-            style={{
-              backgroundColor: colors.bg.primary,
-              borderColor: colors.border,
-            }}
-          >
-            <TouchableOpacity
-              onPress={handleSubmit(onSubmit)}
-              disabled={isLoading}
-              className="rounded-xl py-4 items-center"
-              style={{
-                backgroundColor: isLoading ? colors.primary + "60" : colors.primary,
-              }}
-            >
-              {isLoading ? (
-                <View className="flex-row items-center gap-2">
-                  <ActivityIndicator color="white" size="small" />
-                  <Text className="text-white font-bold text-base">
-                    {uploadingAttachments ? "Uploading attachments…" : "Creating…"}
-                  </Text>
-                </View>
-              ) : (
-                <View className="flex-row items-center gap-2">
-                  <Ionicons
-                    name={stagedFiles.length > 0 ? "attach" : "checkmark-circle"}
-                    size={22}
-                    color="white"
-                  />
-                  <Text className="text-white font-bold text-base">
-                    {stagedFiles.length > 0
-                      ? `Create Invoice + ${stagedFiles.length} attachment${stagedFiles.length > 1 ? "s" : ""}`
-                      : "Create Invoice"}
-                  </Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          </View>
         </View>
       </KeyboardAwareScrollView>
+
+      <View
+        style={{
+          paddingHorizontal: 24,
+          paddingTop: 12,
+          paddingBottom: Math.max(insets.bottom, 16),
+          borderTopWidth: 1,
+          borderTopColor: colors.border,
+          backgroundColor: colors.bg.primary,
+        }}
+      >
+        <TouchableOpacity
+          onPress={handleSubmit(onSubmit)}
+          disabled={isLoading}
+          className="rounded-2xl py-4 items-center shadow-lg"
+          style={{
+            backgroundColor: colors.info,
+            opacity: isLoading ? 0.7 : 1,
+          }}
+        >
+          {isLoading ? (
+            <View className="flex-row items-center gap-2">
+              <ActivityIndicator color="white" size="small" />
+              <Text className="text-white font-bold text-base">
+                {uploadingAttachments
+                  ? "Uploading attachments…"
+                  : "Creating…"}
+              </Text>
+            </View>
+          ) : (
+            <View className="flex-row items-center gap-2">
+              <Ionicons
+                name={stagedFiles.length > 0 ? "attach" : "checkmark-circle"}
+                size={20}
+                color="white"
+              />
+              <Text className="text-white font-bold text-base">
+                {stagedFiles.length > 0
+                  ? `Create Invoice + ${stagedFiles.length} attachment${stagedFiles.length > 1 ? "s" : ""}`
+                  : "Create Invoice"}
+              </Text>
+            </View>
+          )}
+        </TouchableOpacity>
+      </View>
 
       {/* ── Date Picker ───────────────────────────────────────────── */}
       {showDatePicker && (
@@ -1133,7 +1172,6 @@ export default function InvoiceScreen() {
           onChange={handleDateChange}
         />
       )}
-
     </View>
   );
 }

@@ -151,7 +151,7 @@ export const HomeQuickFeatures = ({
       label: t("addInvoice"),
       color: "#ec4899",
       bgColor: "bg-pink-50",
-      onPress: () => router.push("/(app)/invoices/new?type=sale"),
+      onPress: () => router.push("/(app)/invoices/create?type=sale"),
       permission: canCreateInvoices, // Only if can create invoices
     },
     {
@@ -160,7 +160,7 @@ export const HomeQuickFeatures = ({
       label: t("addCustomer"),
       color: "#14b8a6",
       bgColor: "bg-teal-50",
-      onPress: () => router.push("/(app)/parties/new?type=customer"),
+      onPress: () => router.push("/(app)/parties/create?type=customer"),
       permission: canManageCustomers, // Only if can manage customers
     },
     {

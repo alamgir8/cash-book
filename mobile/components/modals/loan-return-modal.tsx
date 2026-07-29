@@ -3,23 +3,18 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
-  Dimensions,
-  Modal,
   Platform,
-  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
-import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import dayjs from "dayjs";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { FormSheetModal } from "@/components/form-sheet-modal";
 import { useTheme } from "@/hooks/use-theme";
 import { usePreferences } from "@/hooks/use-preferences";
 import { useTranslation } from "@/hooks/use-translation";
@@ -56,7 +51,6 @@ export const LoanReturnModal = ({
   const { colors } = useTheme();
   const { formatAmount } = usePreferences();
   const { t } = useTranslation();
-  const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
 
   const repaymentConfig = useMemo(
@@ -118,7 +112,9 @@ export const LoanReturnModal = ({
     onError: (err: any) => {
       Alert.alert(
         "Error",
-        err?.response?.data?.message ?? err?.message ?? "Could not record return",
+        err?.response?.data?.message ??
+          err?.message ??
+          "Could not record return",
       );
     },
   });
@@ -152,222 +148,143 @@ export const LoanReturnModal = ({
     "";
 
   return (
-    <Modal visible={visible} transparent animationType="slide">
-      <View
-        style={{
-          flex: 1,
-          backgroundColor: "rgba(0,0,0,0.45)",
-          justifyContent: "flex-end",
-        }}
-      >
-        <TouchableOpacity
-          style={{ ...StyleSheet.absoluteFillObject }}
-          activeOpacity={1}
-          onPress={onClose}
-        />
-
+    <FormSheetModal
+      visible={visible}
+      onClose={onClose}
+      title={t("returnLoan") ?? "Return Loan"}
+      subtitle={
+        isLoanGivenRoot(loanTxn)
+          ? `Receiving back from ${counterpartyLabel}`
+          : `Paying back to ${counterpartyLabel}`
+      }
+      submitLabel={
+        isFullReturn
+          ? (t("recordFullReturn") ?? "Record Full Return")
+          : (t("recordPartialReturn") ?? "Record Partial Return")
+      }
+      submitIcon="checkmark-circle"
+      onSubmit={handleSubmit}
+      isSubmitting={mutation.isPending}
+      submittingLabel={t("saving") ?? "Saving…"}
+    >
+      <View className="gap-5">
         <View
+          className="rounded-xl p-3"
           style={{
-            height: Math.min(680, Dimensions.get("window").height * 0.82),
-            backgroundColor: colors.bg.primary,
-            borderTopLeftRadius: 24,
-            borderTopRightRadius: 24,
+            backgroundColor: "#2563eb15",
+            borderWidth: 1,
+            borderColor: "#2563eb40",
           }}
         >
-          <View
+          <Text className="text-sm font-bold" style={{ color: "#2563eb" }}>
+            {loanTxn.category?.name ?? "Loan"}
+          </Text>
+          <Text
+            className="text-xs mt-1"
+            style={{ color: colors.text.secondary }}
+          >
+            {dayjs(loanTxn.date).format("MMM DD, YYYY")}
+            {loanTxn.description ? ` · ${loanTxn.description}` : ""}
+          </Text>
+          <Text
+            className="text-xs font-bold mt-1"
+            style={{ color: colors.text.primary }}
+          >
+            {t("remaining") ?? "Remaining"}: {formatAmount(remaining)}
+          </Text>
+        </View>
+
+        <View>
+          <Text
+            className="text-sm font-semibold mb-2"
+            style={{ color: colors.text.primary }}
+          >
+            {t("returnAmount") ?? "Return Amount"}
+          </Text>
+          <TextInput
+            value={amount}
+            onChangeText={(text) => setAmount(normalizeAmountInput(text))}
+            {...amountInputProps}
+            placeholder="0"
+            placeholderTextColor={colors.text.tertiary}
             style={{
-              flexDirection: "row",
-              justifyContent: "space-between",
-              alignItems: "center",
-              paddingHorizontal: 24,
-              paddingTop: 20,
-              paddingBottom: 16,
-              borderBottomWidth: 1,
-              borderBottomColor: colors.border,
+              backgroundColor: colors.bg.tertiary,
+              borderColor: colors.border,
+              color: colors.text.primary,
+            }}
+            className="px-4 py-3 rounded-xl border text-lg font-semibold"
+          />
+        </View>
+
+        <SearchableSelect
+          label={
+            isLoanGivenRoot(loanTxn)
+              ? "Received in Account"
+              : "Paid from Account"
+          }
+          placeholder="Select account"
+          value={accountId}
+          options={accountOptions}
+          onSelect={(v) => setAccountId(v ?? "")}
+        />
+
+        <View>
+          <Text
+            className="text-sm font-semibold mb-2"
+            style={{ color: colors.text.primary }}
+          >
+            {t("date") ?? "Date"}
+          </Text>
+          <TouchableOpacity
+            onPress={() => setShowDatePicker(true)}
+            className="px-4 py-3 rounded-xl border flex-row items-center justify-between"
+            style={{
+              backgroundColor: colors.bg.tertiary,
+              borderColor: colors.border,
             }}
           >
-            <View style={{ flex: 1 }}>
-              <Text
-                style={{
-                  fontSize: 18,
-                  fontWeight: "700",
-                  color: colors.text.primary,
-                }}
-              >
-                {t("returnLoan") ?? "Return Loan"}
-              </Text>
-              <Text
-                style={{
-                  fontSize: 12,
-                  color: colors.text.tertiary,
-                  marginTop: 2,
-                }}
-              >
-                {isLoanGivenRoot(loanTxn)
-                  ? `Receiving back from ${counterpartyLabel}`
-                  : `Paying back to ${counterpartyLabel}`}
-              </Text>
-            </View>
-            <TouchableOpacity onPress={onClose}>
-              <Ionicons name="close" size={22} color="#f43f5e" />
-            </TouchableOpacity>
-          </View>
+            <Text style={{ color: colors.text.primary }}>
+              {dayjs(date).format("MMM DD, YYYY")}
+            </Text>
+            <Ionicons
+              name="calendar-outline"
+              size={20}
+              color={colors.text.secondary}
+            />
+          </TouchableOpacity>
+          {showDatePicker ? (
+            <DateTimePicker
+              value={date}
+              mode="date"
+              display={Platform.OS === "ios" ? "compact" : "default"}
+              onChange={(_, d) => {
+                setShowDatePicker(false);
+                if (d) setDate(d);
+              }}
+            />
+          ) : null}
+        </View>
 
-          <KeyboardAwareScrollView
-            bottomOffset={Platform.OS === "ios" ? 100 : 120}
-            keyboardShouldPersistTaps="handled"
-            style={{ flex: 1 }}
+        <View>
+          <Text
+            className="text-sm font-semibold mb-2"
+            style={{ color: colors.text.primary }}
           >
-            <View style={{ paddingHorizontal: 24, paddingVertical: 16, gap: 16 }}>
-              <View
-                className="rounded-xl p-3"
-                style={{
-                  backgroundColor: "#2563eb15",
-                  borderWidth: 1,
-                  borderColor: "#2563eb40",
-                }}
-              >
-                <Text className="text-sm font-bold" style={{ color: "#2563eb" }}>
-                  {loanTxn.category?.name ?? "Loan"}
-                </Text>
-                <Text
-                  className="text-xs mt-1"
-                  style={{ color: colors.text.secondary }}
-                >
-                  {dayjs(loanTxn.date).format("MMM DD, YYYY")}
-                  {loanTxn.description ? ` · ${loanTxn.description}` : ""}
-                </Text>
-                <Text
-                  className="text-xs font-bold mt-1"
-                  style={{ color: colors.text.primary }}
-                >
-                  {t("remaining") ?? "Remaining"}: {formatAmount(remaining)}
-                </Text>
-              </View>
-
-              <View>
-                <Text
-                  className="text-sm font-semibold mb-2"
-                  style={{ color: colors.text.primary }}
-                >
-                  {t("returnAmount") ?? "Return Amount"}
-                </Text>
-                <TextInput
-                  value={amount}
-                  onChangeText={(text) =>
-                    setAmount(normalizeAmountInput(text))
-                  }
-                  {...amountInputProps}
-                  placeholder="0"
-                  placeholderTextColor={colors.text.tertiary}
-                  style={{
-                    backgroundColor: colors.bg.tertiary,
-                    borderColor: colors.border,
-                    color: colors.text.primary,
-                  }}
-                  className="px-4 py-3 rounded-xl border text-lg font-semibold"
-                />
-              </View>
-
-              <SearchableSelect
-                label={
-                  isLoanGivenRoot(loanTxn)
-                    ? "Received in Account"
-                    : "Paid from Account"
-                }
-                placeholder="Select account"
-                value={accountId}
-                options={accountOptions}
-                onSelect={(v) => setAccountId(v ?? "")}
-              />
-
-              <View>
-                <Text
-                  className="text-sm font-semibold mb-2"
-                  style={{ color: colors.text.primary }}
-                >
-                  {t("date") ?? "Date"}
-                </Text>
-                <TouchableOpacity
-                  onPress={() => setShowDatePicker(true)}
-                  className="px-4 py-3 rounded-xl border flex-row items-center justify-between"
-                  style={{
-                    backgroundColor: colors.bg.tertiary,
-                    borderColor: colors.border,
-                  }}
-                >
-                  <Text style={{ color: colors.text.primary }}>
-                    {dayjs(date).format("MMM DD, YYYY")}
-                  </Text>
-                  <Ionicons
-                    name="calendar-outline"
-                    size={20}
-                    color={colors.text.secondary}
-                  />
-                </TouchableOpacity>
-                {showDatePicker && (
-                  <DateTimePicker
-                    value={date}
-                    mode="date"
-                    display={Platform.OS === "ios" ? "compact" : "default"}
-                    onChange={(_, d) => {
-                      setShowDatePicker(false);
-                      if (d) setDate(d);
-                    }}
-                  />
-                )}
-              </View>
-
-              <View>
-                <Text
-                  className="text-sm font-semibold mb-2"
-                  style={{ color: colors.text.primary }}
-                >
-                  {t("noteOptional") ?? "Note (Optional)"}
-                </Text>
-                <TextInput
-                  value={description}
-                  onChangeText={setDescription}
-                  placeholderTextColor={colors.text.tertiary}
-                  style={{
-                    backgroundColor: colors.bg.tertiary,
-                    borderColor: colors.border,
-                    color: colors.text.primary,
-                  }}
-                  className="px-4 py-3 rounded-xl border"
-                />
-              </View>
-            </View>
-          </KeyboardAwareScrollView>
-
-          <View
+            {t("noteOptional") ?? "Note (Optional)"}
+          </Text>
+          <TextInput
+            value={description}
+            onChangeText={setDescription}
+            placeholderTextColor={colors.text.tertiary}
             style={{
-              paddingHorizontal: 24,
-              paddingTop: 12,
-              paddingBottom: Math.max(insets.bottom, 16),
-              borderTopWidth: 1,
-              borderTopColor: colors.border,
+              backgroundColor: colors.bg.tertiary,
+              borderColor: colors.border,
+              color: colors.text.primary,
             }}
-          >
-            <TouchableOpacity
-              onPress={handleSubmit}
-              disabled={mutation.isPending}
-              className="rounded-2xl py-4 items-center"
-              style={{ backgroundColor: isFullReturn ? "#16a34a" : "#2563eb" }}
-            >
-              {mutation.isPending ? (
-                <ActivityIndicator color="white" />
-              ) : (
-                <Text className="text-white font-bold text-base">
-                  {isFullReturn
-                    ? (t("recordFullReturn") ?? "Record Full Return")
-                    : (t("recordPartialReturn") ?? "Record Partial Return")}
-                </Text>
-              )}
-            </TouchableOpacity>
-          </View>
+            className="px-4 py-3 rounded-xl border"
+          />
         </View>
       </View>
-    </Modal>
+    </FormSheetModal>
   );
 };

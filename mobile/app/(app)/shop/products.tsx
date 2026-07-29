@@ -72,7 +72,7 @@ export default function ProductsScreen() {
         showBack
         rightAction={
           <TouchableOpacity
-            onPress={() => router.push("/(app)/shop/products/new" as any)}
+            onPress={() => router.push("/(app)/shop/products/create" as any)}
             style={{ padding: 6 }}
           >
             <Ionicons name="add-circle" size={28} color={colors.info} />

@@ -2,9 +2,9 @@ import {
   View,
   Text,
   TouchableOpacity,
-  KeyboardAvoidingView,
   Platform,
   TextInput,
+  ActivityIndicator,
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { router, useLocalSearchParams } from "expo-router";
@@ -19,6 +19,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useActiveOrgId, useOrganization } from "@/hooks/use-organization";
 import { getApiErrorMessage } from "@/lib/api";
 import { useTheme } from "@/hooks/use-theme";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { amountInputProps, integerInputProps } from "@/lib/amount-input";
 
 // Zod validation schema
@@ -47,12 +48,13 @@ const partySchema = z.object({
 
 type PartyFormData = z.infer<typeof partySchema>;
 
-export default function PartyScreen() {
+export default function CreatePartyScreen() {
   const queryClient = useQueryClient();
   const organizationId = useActiveOrgId();
   const { canManageCustomers, canManageSuppliers } = useOrganization();
   const params = useLocalSearchParams<{ type?: PartyType }>();
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
 
   // Determine default type based on permissions and query param
   const getDefaultType = (): PartyType => {
@@ -166,32 +168,66 @@ export default function PartyScreen() {
 
   return (
     <View className="flex-1" style={{ backgroundColor: colors.bg.secondary }}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        className="flex-1"
+      {/* Header */}
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          paddingHorizontal: 20,
+          paddingTop: 12,
+          paddingBottom: 16,
+          borderBottomWidth: 1,
+          borderBottomColor: colors.border,
+          backgroundColor: colors.bg.primary,
+        }}
       >
-        {/* Header */}
-        <View
-          className="flex-row items-center justify-between px-5 py-3 border-b"
-          style={{ backgroundColor: colors.bg.primary, borderColor: colors.border }}
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={{
+            width: 32,
+            height: 32,
+            borderRadius: 16,
+            backgroundColor: colors.bg.tertiary,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
         >
-          <TouchableOpacity
-            onPress={() => router.back()}
-            className="w-10 h-10 items-center justify-center"
+          <Ionicons name="arrow-back" size={20} color={colors.text.primary} />
+        </TouchableOpacity>
+        <View style={{ flex: 1, marginHorizontal: 12 }}>
+          <Text
+            style={{
+              fontSize: 20,
+              fontWeight: "700",
+              color: colors.text.primary,
+              textAlign: "center",
+            }}
           >
-            <Ionicons name="arrow-back" size={24} color={colors.text.primary} />
-          </TouchableOpacity>
-          <Text className="text-lg font-bold" style={{ color: colors.text.primary }}>
             New Party
           </Text>
-          <View className="w-10" />
+          <Text
+            style={{
+              fontSize: 13,
+              color: colors.text.secondary,
+              textAlign: "center",
+              marginTop: 2,
+            }}
+          >
+            Add a customer or supplier
+          </Text>
         </View>
+        <View style={{ width: 32 }} />
+      </View>
 
-        <KeyboardAwareScrollView
-          className="flex-1"
-          contentContainerStyle={{ paddingBottom: 160 }}
-          showsVerticalScrollIndicator={false}
-        >
+      <KeyboardAwareScrollView
+        style={{ flex: 1 }}
+        bottomOffset={80}
+        extraKeyboardSpace={0}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ paddingBottom: 24 }}
+        showsVerticalScrollIndicator={false}
+      >
           {/* Party Type Selection */}
           <View
             className="mx-4 mt-4 rounded-2xl p-5 shadow-sm"
@@ -727,42 +763,43 @@ export default function PartyScreen() {
             />
           </View>
 
-          {/* Submit Button (inside scroll so it's not covered by keyboard) */}
-          <View
-            className="px-5 py-4 border-t"
-            style={{
-              backgroundColor: colors.bg.primary,
-              borderColor: colors.border,
-            }}
-          >
-            <TouchableOpacity
-              onPress={handleSubmit(onSubmit)}
-              disabled={createMutation.isPending || isSubmitting}
-              className="rounded-xl py-4 items-center"
-              style={{
-                backgroundColor:
-                  createMutation.isPending || isSubmitting
-                    ? colors.primary + "60"
-                    : colors.primary,
-              }}
-            >
-              {createMutation.isPending ? (
-                <Text className="text-white font-semibold text-base">
-                  Creating...
-                </Text>
-              ) : (
-                <View className="flex-row items-center">
-                  <Ionicons name="add-circle-outline" size={22} color="white" />
-                  <Text className="text-white font-semibold text-base ml-2">
-                    Create Party
-                  </Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          </View>
-
+          {/* Submit moved to fixed footer */}
         </KeyboardAwareScrollView>
-      </KeyboardAvoidingView>
+
+      <View
+        style={{
+          paddingHorizontal: 24,
+          paddingTop: 12,
+          paddingBottom: Math.max(insets.bottom, 16),
+          borderTopWidth: 1,
+          borderTopColor: colors.border,
+          backgroundColor: colors.bg.primary,
+        }}
+      >
+        <TouchableOpacity
+          onPress={handleSubmit(onSubmit)}
+          disabled={createMutation.isPending || isSubmitting}
+          className="rounded-2xl py-4 items-center shadow-lg"
+          style={{
+            backgroundColor: colors.info,
+            opacity: createMutation.isPending || isSubmitting ? 0.7 : 1,
+          }}
+        >
+          {createMutation.isPending || isSubmitting ? (
+            <View className="flex-row items-center gap-2">
+              <ActivityIndicator color="white" />
+              <Text className="text-white font-bold text-base">Creating…</Text>
+            </View>
+          ) : (
+            <View className="flex-row items-center gap-2">
+              <Ionicons name="add-circle" size={20} color="white" />
+              <Text className="text-white font-bold text-base">
+                Create Party
+              </Text>
+            </View>
+          )}
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }

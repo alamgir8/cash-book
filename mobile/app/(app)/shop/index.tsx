@@ -154,7 +154,7 @@ export default function ShopDashboard() {
         <View style={{ flexDirection: "row", gap: 10, marginBottom: 20 }}>
           <TouchableOpacity
             onPress={() =>
-              router.push("/(app)/shop/invoices/new?type=sale" as any)
+              router.push("/(app)/shop/invoices/create?type=sale" as any)
             }
             style={{
               flex: 1,
@@ -173,7 +173,7 @@ export default function ShopDashboard() {
 
           <TouchableOpacity
             onPress={() =>
-              router.push("/(app)/shop/invoices/new?type=purchase" as any)
+              router.push("/(app)/shop/invoices/create?type=purchase" as any)
             }
             style={{
               flex: 1,
@@ -191,7 +191,7 @@ export default function ShopDashboard() {
           </TouchableOpacity>
 
           <TouchableOpacity
-            onPress={() => router.push("/(app)/shop/products/new" as any)}
+            onPress={() => router.push("/(app)/shop/products/create" as any)}
             style={{
               flex: 1,
               backgroundColor: colors.info,

@@ -186,7 +186,7 @@ export default function AppLayout() {
       <Tabs.Screen name="parties" options={{ href: null }} />
       <Tabs.Screen name="schemes" options={{ href: null }} />
       <Tabs.Screen name="invoices" options={{ href: null }} />
-      <Tabs.Screen name="invoices/new" options={{ href: null }} />
+      <Tabs.Screen name="invoices/create" options={{ href: null }} />
       <Tabs.Screen name="invoices/[invoiceId]" options={{ href: null }} />
       <Tabs.Screen name="import" options={{ href: null }} />
     </Tabs>

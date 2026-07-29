@@ -2,18 +2,18 @@ import React, { useState, useCallback } from "react";
 import {
   View,
   Text,
-  ScrollView,
   TextInput,
   TouchableOpacity,
   Alert,
   ActivityIndicator,
-  KeyboardAvoidingView,
   Platform,
   Switch,
+  ScrollView,
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/hooks/use-theme";
 import { useActiveOrgId } from "@/hooks/use-organization";
 import { useCreateProduct } from "@/hooks/use-products";
@@ -40,8 +40,9 @@ const UNITS: ProductUnit[] = [
   "carton",
 ];
 
-export default function NewProductScreen() {
+export default function CreateProductScreen() {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const organizationId = useActiveOrgId();
 
@@ -103,31 +104,15 @@ export default function NewProductScreen() {
   ]);
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: colors.bg.primary }}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
-      <ScreenHeader
-        title="Add Product"
-        showBack
-        rightAction={
-          mutation.isPending ? (
-            <ActivityIndicator color={colors.info} />
-          ) : (
-            <TouchableOpacity onPress={handleSubmit} style={{ padding: 6 }}>
-              <Text
-                style={{ color: colors.info, fontWeight: "700", fontSize: 16 }}
-              >
-                Save
-              </Text>
-            </TouchableOpacity>
-          )
-        }
-      />
+    <View style={{ flex: 1, backgroundColor: colors.bg.primary }}>
+      <ScreenHeader title="Add Product" showBack />
 
       <KeyboardAwareScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ padding: 16, paddingBottom: 200 }}
+        bottomOffset={80}
+        extraKeyboardSpace={0}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ padding: 16, paddingBottom: 24 }}
         showsVerticalScrollIndicator={false}
       >
         {/* Basic Info */}
@@ -335,32 +320,37 @@ export default function NewProductScreen() {
 
       </KeyboardAwareScrollView>
 
-      {/* Footer Save button (kept outside the scroll area) */}
       <View
-        className="px-5 py-4 border-t"
         style={{
+          paddingHorizontal: 24,
+          paddingTop: 12,
+          paddingBottom: Math.max(insets.bottom, 16),
+          borderTopWidth: 1,
+          borderTopColor: colors.border,
           backgroundColor: colors.bg.primary,
-          borderColor: colors.border,
         }}
       >
         <TouchableOpacity
           onPress={handleSubmit}
           disabled={mutation.isPending}
+          className="rounded-2xl py-4 items-center shadow-lg"
           style={{
-            backgroundColor: mutation.isPending
-              ? colors.bg.tertiary
-              : colors.info,
-            borderRadius: 12,
-            paddingVertical: 16,
-            alignItems: "center",
+            backgroundColor: colors.info,
+            opacity: mutation.isPending ? 0.7 : 1,
           }}
         >
           {mutation.isPending ? (
-            <ActivityIndicator color="#fff" />
+            <View className="flex-row items-center gap-2">
+              <ActivityIndicator color="#fff" />
+              <Text className="text-white font-bold text-base">Saving…</Text>
+            </View>
           ) : (
-            <Text style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}>
-              Save Product
-            </Text>
+            <View className="flex-row items-center gap-2">
+              <Ionicons name="checkmark-circle" size={20} color="white" />
+              <Text className="text-white font-bold text-base">
+                Save Product
+              </Text>
+            </View>
           )}
         </TouchableOpacity>
       </View>
@@ -371,7 +361,7 @@ export default function NewProductScreen() {
         onScan={handleScan}
         title="Scan Product Barcode"
       />
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 
