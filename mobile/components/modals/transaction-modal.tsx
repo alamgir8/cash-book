@@ -55,6 +55,10 @@ import { QUERY_KEYS } from "@/lib/queryKeys";
 import { getPartyRefId } from "@/lib/transaction-filters";
 import { uploadAttachments } from "@/services/attachments";
 import { AttachmentPicker } from "../transactions/attachment-picker";
+import {
+  amountInputProps,
+  parseAmountInput,
+} from "@/lib/amount-input";
 
 type TransactionModalProps = {
   visible: boolean;
@@ -1020,11 +1024,11 @@ export const TransactionModal = ({
                       name="amount"
                       render={({ field: { onChange, value } }) => (
                         <TextInput
-                          value={String(value || "")}
+                          value={value ? String(value) : ""}
                           onChangeText={(text) =>
-                            onChange(Number(text.replace(/[^0-9.]/g, "")) || 0)
+                            onChange(parseAmountInput(text))
                           }
-                          keyboardType="numeric"
+                          {...amountInputProps}
                           placeholder="0"
                           placeholderTextColor={colors.text.tertiary}
                           style={{

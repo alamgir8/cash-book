@@ -15,6 +15,10 @@ import { useTranslation } from "../hooks/use-translation";
 import type { TransactionFilters } from "../services/transactions";
 import { mergeTransactionFilters } from "../lib/transaction-filters";
 import { SearchableSelect, type SelectOption } from "./searchable-select";
+import {
+  amountInputProps,
+  parseAmountInput,
+} from "../lib/amount-input";
 
 const getDateRangeFromQuickFilter = (
   filter: string,
@@ -691,10 +695,12 @@ export const FilterBar = ({
                   onChangeText={(value) =>
                     setFormFilters({
                       ...formFilters,
-                      minAmount: value ? Number(value) : undefined,
+                      minAmount: value
+                        ? parseAmountInput(value) || undefined
+                        : undefined,
                     })
                   }
-                  keyboardType="numeric"
+                  {...amountInputProps}
                   placeholder={t("minPlaceholder")}
                   placeholderTextColor={colors.text.tertiary}
                   style={{
@@ -711,10 +717,12 @@ export const FilterBar = ({
                   onChangeText={(value) =>
                     setFormFilters({
                       ...formFilters,
-                      maxAmount: value ? Number(value) : undefined,
+                      maxAmount: value
+                        ? parseAmountInput(value) || undefined
+                        : undefined,
                     })
                   }
-                  keyboardType="numeric"
+                  {...amountInputProps}
                   placeholder={t("maxPlaceholder")}
                   placeholderTextColor={colors.text.tertiary}
                   style={{

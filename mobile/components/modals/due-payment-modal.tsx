@@ -23,6 +23,10 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import dayjs from "dayjs";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  amountInputProps,
+  normalizeAmountInput,
+} from "@/lib/amount-input";
 import { useTheme } from "@/hooks/use-theme";
 import { usePreferences } from "@/hooks/use-preferences";
 import { createDuePayment, type Transaction } from "@/services/transactions";
@@ -263,8 +267,10 @@ export const DuePaymentModal = ({
                 </Text>
                 <TextInput
                   value={amount}
-                  onChangeText={setAmount}
-                  keyboardType="numeric"
+                  onChangeText={(text) =>
+                    setAmount(normalizeAmountInput(text))
+                  }
+                  {...amountInputProps}
                   placeholder="0"
                   placeholderTextColor={colors.text.tertiary}
                   style={{

@@ -23,6 +23,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/hooks/use-theme";
 import { usePreferences } from "@/hooks/use-preferences";
 import { useTranslation } from "@/hooks/use-translation";
+import {
+  amountInputProps,
+  normalizeAmountInput,
+} from "@/lib/amount-input";
 import { createTransaction, type Transaction } from "@/services/transactions";
 import { fetchCategories } from "@/services/categories";
 import { refreshTransactionData } from "@/lib/refresh-app-data";
@@ -250,8 +254,10 @@ export const LoanReturnModal = ({
                 </Text>
                 <TextInput
                   value={amount}
-                  onChangeText={setAmount}
-                  keyboardType="numeric"
+                  onChangeText={(text) =>
+                    setAmount(normalizeAmountInput(text))
+                  }
+                  {...amountInputProps}
                   placeholder="0"
                   placeholderTextColor={colors.text.tertiary}
                   style={{
