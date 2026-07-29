@@ -66,6 +66,64 @@ npm run dev
 
 ---
 
+## 📱 Physical device + local API (`mobile/.env.local`)
+
+Simulators/emulators can reach the backend via `127.0.0.1`. A **physical phone cannot** — `127.0.0.1` on the device is the phone itself, so the app opens but lists stay empty / requests fail.
+
+### 1. Point the app at your Mac’s LAN IP
+
+In `mobile/.env.local`:
+
+```env
+# Simulator / same machine only — will NOT work on a real phone:
+# EXPO_PUBLIC_BASE_URL=http://127.0.0.1:5050/api
+
+# Physical device (phone and Mac on the same Wi‑Fi):
+EXPO_PUBLIC_BASE_URL=http://YOUR_MAC_LAN_IP:5050/api
+
+# Or use the deployed API:
+# EXPO_PUBLIC_BASE_URL=https://cash-book-seven.vercel.app/api
+```
+
+Find your Mac IP:
+
+```shell
+ipconfig getifaddr en0
+```
+
+Example: if that prints `192.168.0.166`, use:
+
+```env
+EXPO_PUBLIC_BASE_URL=http://192.168.0.166:5050/api
+```
+
+### 2. Restart Metro after changing env
+
+Expo bakes `EXPO_PUBLIC_*` at start time. After editing `.env.local`:
+
+```shell
+cd mobile
+# stop the running Metro process, then:
+npx expo start --clear
+```
+
+Rebuild / reopen the **development build** on the phone (Expo Go is not required if you already installed a dev client).
+
+### 3. Backend must listen on the LAN
+
+Run the API on the same port as in the URL (e.g. `5050`). Allow connections from other devices on your network (firewall). Phone and Mac must be on the **same Wi‑Fi** (guest networks often isolate devices).
+
+### 4. Quick check
+
+- Wrong host → login may fail or home/accounts show no data.
+- Correct LAN URL → same data as when testing on simulator against local Mongo.
+
+### 5. Switch account on one device
+
+Settings → **Switch Account** signs out, clears React Query cache and user-scoped storage (active org, preferences), then opens sign-in so another user can log in without leftover ledger data.
+
+---
+
 ## 🤖 Android Build Commands
 
 Build Android `.apk`:

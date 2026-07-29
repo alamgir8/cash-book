@@ -11,8 +11,9 @@ import type {
   OrganizationSummary,
   OrganizationPermissions,
 } from "../services/organizations";
+import { ACTIVE_ORG_STORAGE_KEY } from "../lib/clear-user-data";
 
-const ACTIVE_ORG_KEY = "@active_organization";
+const ACTIVE_ORG_KEY = ACTIVE_ORG_STORAGE_KEY;
 
 interface OrganizationContextValue {
   organizations: OrganizationSummary[];
@@ -86,6 +87,10 @@ export function OrganizationProvider({
 
   const setOrganizations = useCallback((orgs: OrganizationSummary[]) => {
     setOrganizationsState(orgs);
+    // Logout / switch-account clears the list — drop in-memory active org too
+    if (orgs.length === 0) {
+      setActiveOrganization(null);
+    }
   }, []);
 
   const switchOrganization = useCallback(

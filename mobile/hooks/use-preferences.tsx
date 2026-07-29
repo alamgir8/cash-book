@@ -10,6 +10,8 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "./use-auth";
 
+const PREFERENCES_STORAGE_KEY = "user_preferences";
+
 interface UserPreferences {
   currency: string;
   currency_symbol: string;
@@ -43,8 +45,6 @@ const defaultPreferences: UserPreferences = {
   language: "en",
   language_label: "English",
 };
-
-const PREFERENCES_STORAGE_KEY = "user_preferences";
 
 // Currency mapping
 export const currencyMap: Record<
@@ -113,7 +113,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   const [preferences, setPreferences] =
     useState<UserPreferences>(defaultPreferences);
 
-  // Load preferences from auth user or storage on mount
+  // Load preferences from auth user; reset when signed out
   useEffect(() => {
     if (state.status === "authenticated" && state.user?.settings) {
       const userSettings = state.user.settings;
@@ -126,25 +126,9 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         language: userSettings.language,
         language_label: languageMap[userSettings.language] || "English",
       });
-    } else if (state.status !== "authenticated") {
-      // Fallback to local storage only when not authenticated
-      AsyncStorage.getItem(PREFERENCES_STORAGE_KEY)
-        .then((stored) => {
-          if (stored) {
-            const parsed = JSON.parse(stored);
-            setPreferences({
-              ...parsed,
-              currency_symbol: currencyMap[parsed.currency]?.symbol || "$",
-              locale: currencyMap[parsed.currency]?.locale || "en-US",
-              date_format: "MMM D, YYYY",
-              time_format: "12h",
-              language_label: languageMap[parsed.language] || "English",
-            });
-          }
-        })
-        .catch((error) => {
-          console.warn("Failed to load preferences:", error);
-        });
+    } else if (state.status === "unauthenticated") {
+      // Reset so a previous user's currency/language does not linger
+      setPreferences(defaultPreferences);
     }
   }, [state.status, state.user?.settings]);
 

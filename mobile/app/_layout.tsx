@@ -57,7 +57,7 @@ const OrganizationLoader = ({ children }: { children: React.ReactNode }) => {
       }
     };
 
-    // Reset when user logs out
+    // Reset when user logs out / switches account
     if (state.status === "unauthenticated") {
       hasLoadedOrgs.current = false;
       setOrganizations([]);

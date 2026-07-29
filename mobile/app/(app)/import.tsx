@@ -53,8 +53,8 @@ function StepIndicator({
 }) {
   const steps = [
     { label: "Upload", icon: "cloud-upload-outline" },
-    { label: "Map & Review", icon: "options-outline" },
-    { label: "Import", icon: "rocket-outline" },
+    { label: "Preview", icon: "eye-outline" },
+    { label: "Confirm", icon: "rocket-outline" },
   ];
 
   return (
@@ -249,14 +249,14 @@ function UploadStep({
               style={{ color: colors.text.primary }}
               className="text-xl font-bold mb-2"
             >
-              Upload Bank Statement
+              Upload spreadsheet
             </Text>
             <Text
               style={{ color: colors.text.secondary }}
               className="text-sm text-center mb-6 leading-5"
             >
-              Upload your PDF or Excel bank statement.{"\n"}
-              Supports Bengali (বাংলা) and English formats.
+              Prefer XLSX (Excel). Upload only builds a preview —{"\n"}
+              nothing is saved to your ledger until you confirm.
             </Text>
 
             <View
@@ -310,8 +310,10 @@ function UploadStep({
               <Text style={{ color: colors.info }} className="font-semibold">
                 Tip:
               </Text>{" "}
-              For best results, use XLSX (Excel) format. PDF files with Bengali
-              fonts may have text extraction issues.
+              Use <Text className="font-semibold">XLSX</Text> for Bangla. One
+              row = one transaction (person + amount). Upload → Preview → only
+              tap Confirm Import to write to the database. Discard anytime from
+              history without deleting ledger data.
             </Text>
           </View>
         </View>
@@ -1443,7 +1445,7 @@ export default function ImportScreen() {
 
     Alert.alert(
       "Confirm Import",
-      `This will import ${pendingCount} transactions into ${accountInfo}. This action cannot be undone.`,
+      `Save ${pendingCount} transaction${pendingCount === 1 ? "" : "s"} into ${accountInfo}?\n\nUntil you confirm, data is only a preview and is not in your ledger.`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -1486,12 +1488,12 @@ export default function ImportScreen() {
   const handleDeleteImport = useCallback(
     (importId: string) => {
       Alert.alert(
-        "Delete Import",
-        "Are you sure you want to delete this import record?",
+        "Discard import preview?",
+        "Removes this import session only. Transactions are written to your ledger only after you tap Confirm Import — discard before that and the ledger stays unchanged. If you already confirmed, ledger rows stay and must be deleted separately.",
         [
           { text: "Cancel", style: "cancel" },
           {
-            text: "Delete",
+            text: "Discard",
             style: "destructive",
             onPress: () => deleteMutation.mutate(importId),
           },

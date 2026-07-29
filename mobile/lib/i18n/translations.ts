@@ -144,6 +144,10 @@ export type AppTranslations = {
   deleteMode: string;
   restoreUnlocked: string;
   signOut: string;
+  switchAccount: string;
+  switchAccountHint: string;
+  switchAccountConfirm: string;
+  signOutConfirm: string;
   balanceHealthCheck: string;
   verifyAndFixBalances: string;
   manageCategories: string;
@@ -586,6 +590,11 @@ const en: AppTranslations = {
   deleteMode: "Delete mode",
   restoreUnlocked: "Restore unlocked",
   signOut: "Sign Out",
+  switchAccount: "Switch Account",
+  switchAccountHint: "Sign out and log in as a different user on this device",
+  switchAccountConfirm:
+    "This clears cached data for the current user. You can then sign in with another account. Continue?",
+  signOutConfirm: "Sign out of this account on this device?",
   balanceHealthCheck: "Balance Health Check",
   verifyAndFixBalances:
     "Verify and fix account balances from transaction history",
@@ -1033,6 +1042,12 @@ const bn: AppTranslations = {
   deleteMode: "ডিলিট মোড",
   restoreUnlocked: "রিস্টোর আনলক হয়েছে",
   signOut: "সাইন আউট",
+  switchAccount: "অ্যাকাউন্ট পরিবর্তন",
+  switchAccountHint:
+    "সাইন আউট করে এই ডিভাইসে অন্য ইউজার হিসেবে লগইন করুন",
+  switchAccountConfirm:
+    "বর্তমান ইউজারের ক্যাশ ডেটা মুছে যাবে। এরপর অন্য অ্যাকাউন্টে সাইন ইন করতে পারবেন। চালিয়ে যাবেন?",
+  signOutConfirm: "এই ডিভাইস থেকে সাইন আউট করবেন?",
   balanceHealthCheck: "ব্যালেন্স হেলথ চেক",
   verifyAndFixBalances:
     "লেনদেন ইতিহাস থেকে অ্যাকাউন্ট ব্যালেন্স যাচাই ও সংশোধন করুন",

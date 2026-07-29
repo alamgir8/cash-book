@@ -44,7 +44,7 @@ type ExportType = "all" | "category" | "counterparty" | "account" | null;
 
 export default function SettingsScreen() {
   const { t } = useTranslation();
-  const { state, signOut } = useAuth();
+  const { state, signOut, switchAccount } = useAuth();
   const {
     activeOrganization,
     isPersonalMode,
@@ -426,17 +426,47 @@ export default function SettingsScreen() {
         {/* App Info Section */}
         <AppInfoSection />
 
-        {/* Sign Out Section */}
+        {/* Account switch / Sign Out */}
         <View
-          className="rounded-3xl p-6 border shadow-lg"
+          className="rounded-3xl p-6 border shadow-lg gap-3"
           style={{
             backgroundColor: colors.bg.secondary,
             borderColor: colors.error + "40",
           }}
         >
           <ActionButton
+            label={t("switchAccount")}
+            subLabel={t("switchAccountHint")}
+            onPress={() => {
+              Alert.alert(t("switchAccount"), t("switchAccountConfirm"), [
+                { text: t("cancel"), style: "cancel" },
+                {
+                  text: t("switchAccount"),
+                  onPress: () => {
+                    void switchAccount();
+                  },
+                },
+              ]);
+            }}
+            variant="secondary"
+            size="medium"
+            icon="swap-horizontal-outline"
+            fullWidth
+          />
+          <ActionButton
             label={t("signOut")}
-            onPress={signOut}
+            onPress={() => {
+              Alert.alert(t("signOut"), t("signOutConfirm"), [
+                { text: t("cancel"), style: "cancel" },
+                {
+                  text: t("signOut"),
+                  style: "destructive",
+                  onPress: () => {
+                    void signOut();
+                  },
+                },
+              ]);
+            }}
             variant="danger"
             size="medium"
             icon="log-out-outline"

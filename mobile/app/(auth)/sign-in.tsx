@@ -15,7 +15,8 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Ionicons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
-import { useAuth } from "@/hooks/use-auth";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useAuth, SKIP_BIOMETRIC_AUTO_LOGIN_KEY } from "@/hooks/use-auth";
 import { useTheme } from "@/hooks/use-theme";
 import { useBiometric } from "@/hooks/use-biometric";
 import { getBiometricUsers } from "@/services/biometric";
@@ -81,6 +82,8 @@ export default function SignInScreen() {
   const [usePinLogin, setUsePinLogin] = useState(false);
   // Whether any user on this device has biometric stored (doesn't need userIdentifier)
   const [hasBiometricStored, setHasBiometricStored] = useState(false);
+  // After Switch Account: skip auto Face ID so user can type another account
+  const [skipBiometricAuto, setSkipBiometricAuto] = useState(true);
   const { t } = useTranslation();
 
   // First-login restore modal
@@ -93,11 +96,24 @@ export default function SignInScreen() {
   });
   // Prevents triggering the check more than once per session
   const freshDeviceCheckedRef = useRef(false);
+  const biometricAutoAttemptedRef = useRef(false);
 
   useEffect(() => {
-    getBiometricUsers().then((users) =>
-      setHasBiometricStored(users.length > 0),
-    );
+    void (async () => {
+      const users = await getBiometricUsers();
+      setHasBiometricStored(users.length > 0);
+      try {
+        const skip = await AsyncStorage.getItem(SKIP_BIOMETRIC_AUTO_LOGIN_KEY);
+        if (skip === "1") {
+          await AsyncStorage.removeItem(SKIP_BIOMETRIC_AUTO_LOGIN_KEY);
+          setSkipBiometricAuto(true);
+        } else {
+          setSkipBiometricAuto(false);
+        }
+      } catch {
+        setSkipBiometricAuto(false);
+      }
+    })();
   }, []);
 
   // After successful login, check if this is a fresh device with server data
@@ -177,15 +193,27 @@ export default function SignInScreen() {
     }
   }, [isAuthenticating, loading, findBiometricCredentials, signIn, router, t]);
 
-  // Auto-prompt biometric on mount
+  // Auto-prompt biometric on mount — skipped after Switch Account
   useEffect(() => {
-    if (hasBiometricStored && !biometricLoading) {
-      const timer = setTimeout(() => {
-        handleBiometricLogin();
-      }, 500);
-      return () => clearTimeout(timer);
+    if (
+      skipBiometricAuto ||
+      biometricAutoAttemptedRef.current ||
+      !hasBiometricStored ||
+      biometricLoading
+    ) {
+      return;
     }
-  }, [hasBiometricStored, biometricLoading, handleBiometricLogin]);
+    biometricAutoAttemptedRef.current = true;
+    const timer = setTimeout(() => {
+      void handleBiometricLogin();
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [
+    skipBiometricAuto,
+    hasBiometricStored,
+    biometricLoading,
+    handleBiometricLogin,
+  ]);
 
   useEffect(() => {
     if (usePinLogin) {
