@@ -152,6 +152,79 @@ export type AppTranslations = {
   verifyAndFixBalances: string;
   manageCategories: string;
   addOrEditCategories: string;
+  // Collection schemes
+  collectionSchemes: string;
+  collectionSchemesSubtitle: string;
+  collectionScheme: string;
+  selectSchemeOptional: string;
+  createScheme: string;
+  createLabel: string;
+  archiveLabel: string;
+  removeLabel: string;
+  schemeName: string;
+  schemeNamePlaceholder: string;
+  schemeNameRequired: string;
+  schemeRateRequired: string;
+  ratePerMember: string;
+  descriptionOptional: string;
+  notesOptional: string;
+  schemeDescriptionPlaceholder: string;
+  schemeCreated: string;
+  schemeCreateFailed: string;
+  editScheme: string;
+  schemeUpdated: string;
+  schemeUpdateFailed: string;
+  duplicateScheme: string;
+  duplicateSchemeName: string;
+  duplicateSchemeNamePlaceholder: string;
+  duplicateSchemeHint: string;
+  duplicateLabel: string;
+  schemeDuplicated: string;
+  schemeDuplicateFailed: string;
+  deleteScheme: string;
+  deleteSchemeConfirm: string;
+  deleteSchemeHasFamilies: string;
+  deleteLabel: string;
+  schemeDeleted: string;
+  deleteFailed: string;
+  archiveScheme: string;
+  archiveSchemeConfirm: string;
+  schemeArchived: string;
+  schemeArchiveFailed: string;
+  noSchemesYet: string;
+  noSchemesYetHint: string;
+  familiesCount: string;
+  families: string;
+  statusPaid: string;
+  statusPartial: string;
+  statusDue: string;
+  expected: string;
+  searchFamilies: string;
+  noFamiliesInScheme: string;
+  noFamiliesInSchemeHint: string;
+  enrollFamily: string;
+  family: string;
+  selectFamily: string;
+  selectFamilyRequired: string;
+  memberCount: string;
+  memberCountRequired: string;
+  membersLabel: string;
+  enroll: string;
+  familyEnrolled: string;
+  enrollFailed: string;
+  recordPayment: string;
+  paymentRecorded: string;
+  paymentFailed: string;
+  amountRequired: string;
+  amountLabel: string;
+  noPaymentsYet: string;
+  removeFromScheme: string;
+  removeFromSchemeConfirm: string;
+  memberRemoved: string;
+  updateMemberCount: string;
+  updateMemberCountHint: string;
+  memberUpdated: string;
+  memberUpdateFailed: string;
   backupCreatedSuccessfully: string;
   failedToCreateBackup: string;
   pleaseRestoreBackup: string;
@@ -600,6 +673,80 @@ const en: AppTranslations = {
     "Verify and fix account balances from transaction history",
   manageCategories: "Manage Categories",
   addOrEditCategories: "Add or edit income & expense categories",
+  collectionSchemes: "Collection Schemes",
+  collectionSchemesSubtitle: "Track family contributions — paid vs due",
+  collectionScheme: "Collection scheme",
+  selectSchemeOptional: "Optional — link to a scheme",
+  createScheme: "Create scheme",
+  createLabel: "Create",
+  archiveLabel: "Archive",
+  removeLabel: "Remove",
+  schemeName: "Scheme name",
+  schemeNamePlaceholder: "e.g. New 500 Taka (4)",
+  schemeNameRequired: "Enter a scheme name",
+  schemeRateRequired: "Enter a valid rate per member",
+  ratePerMember: "Rate per member",
+  descriptionOptional: "Description (optional)",
+  notesOptional: "Notes (optional)",
+  schemeDescriptionPlaceholder: "Optional notes about this collection",
+  schemeCreated: "Scheme created",
+  schemeCreateFailed: "Could not create scheme",
+  editScheme: "Edit scheme",
+  schemeUpdated: "Scheme updated",
+  schemeUpdateFailed: "Failed to update scheme",
+  duplicateScheme: "Duplicate scheme",
+  duplicateSchemeName: "New scheme name",
+  duplicateSchemeNamePlaceholder: "Copy of the original scheme",
+  duplicateSchemeHint:
+    "This duplicates the scheme and its families. Payments/paid/due will start fresh for the new scheme.",
+  duplicateLabel: "Duplicate",
+  schemeDuplicated: "Scheme duplicated",
+  schemeDuplicateFailed: "Could not duplicate scheme",
+  deleteScheme: "Delete scheme",
+  deleteSchemeConfirm: 'Permanently delete "{name}"? This cannot be undone.',
+  deleteSchemeHasFamilies: "Cannot delete a scheme that has enrolled families. Remove all families first.",
+  deleteLabel: "Delete",
+  schemeDeleted: "Scheme deleted",
+  deleteFailed: "Failed to delete",
+  archiveScheme: "Archive scheme",
+  archiveSchemeConfirm: 'Archive "{name}"? The roster will be hidden.',
+  schemeArchived: "Scheme archived",
+  schemeArchiveFailed: "Could not archive scheme",
+  noSchemesYet: "No schemes yet",
+  noSchemesYetHint: "Create a scheme like 500tk to track family payments and dues.",
+  familiesCount: "{count} families enrolled",
+  families: "Families",
+  statusPaid: "Paid",
+  statusPartial: "Partial",
+  statusDue: "Due",
+  expected: "Expected",
+  searchFamilies: "Search families…",
+  noFamiliesInScheme: "No families enrolled",
+  noFamiliesInSchemeHint: "Tap + to enroll a family with member count.",
+  enrollFamily: "Enroll family",
+  family: "Family",
+  selectFamily: "Select family",
+  selectFamilyRequired: "Select a family to enroll",
+  memberCount: "Number of members",
+  memberCountRequired: "Member count must be at least 1",
+  membersLabel: "Members",
+  enroll: "Enroll",
+  familyEnrolled: "Family enrolled",
+  enrollFailed: "Could not enroll family",
+  recordPayment: "Record payment",
+  paymentRecorded: "Payment recorded",
+  paymentFailed: "Could not record payment",
+  amountRequired: "Enter a valid amount",
+  amountLabel: "Amount",
+  noPaymentsYet: "No payments yet for this family",
+  removeFromScheme: "Remove from scheme",
+  removeFromSchemeConfirm:
+    'Remove "{name}" from this scheme? Past payments stay in the ledger.',
+  memberRemoved: "Removed from scheme",
+  updateMemberCount: "Update member count",
+  updateMemberCountHint: "Expected amount = members × rate",
+  memberUpdated: "Member updated",
+  memberUpdateFailed: "Could not update member",
   backupCreatedSuccessfully: "Backup created successfully",
   failedToCreateBackup: "Failed to create backup",
   pleaseRestoreBackup: "Restore Backup",
@@ -1053,6 +1200,81 @@ const bn: AppTranslations = {
     "লেনদেন ইতিহাস থেকে অ্যাকাউন্ট ব্যালেন্স যাচাই ও সংশোধন করুন",
   manageCategories: "ক্যাটাগরি পরিচালনা",
   addOrEditCategories: "আয় ও ব্যয়ের ক্যাটাগরি যোগ বা সম্পাদনা করুন",
+  collectionSchemes: "কালেকশন স্কিম",
+  collectionSchemesSubtitle: "পরিবারভিত্তিক জমা — পরিশোধ ও বকেয়া",
+  collectionScheme: "কালেকশন স্কিম",
+  selectSchemeOptional: "ঐচ্ছিক — স্কিমের সাথে লিংক করুন",
+  createScheme: "স্কিম তৈরি করুন",
+  createLabel: "তৈরি",
+  archiveLabel: "আর্কাইভ",
+  removeLabel: "সরান",
+  schemeName: "স্কিমের নাম",
+  schemeNamePlaceholder: "যেমন: নতুন ৫০০ টাকা (৪)",
+  schemeNameRequired: "স্কিমের নাম লিখুন",
+  schemeRateRequired: "সদস্যপ্রতি সঠিক রেট লিখুন",
+  ratePerMember: "সদস্যপ্রতি রেট",
+  descriptionOptional: "বিবরণ (ঐচ্ছিক)",
+  notesOptional: "নোট (ঐচ্ছিক)",
+  schemeDescriptionPlaceholder: "এই কালেকশন সম্পর্কে ঐচ্ছিক নোট",
+  schemeCreated: "স্কিম তৈরি হয়েছে",
+  schemeCreateFailed: "স্কিম তৈরি করা যায়নি",
+  editScheme: "স্কিম সম্পাদনা",
+  schemeUpdated: "স্কিম আপডেট হয়েছে",
+  schemeUpdateFailed: "স্কিম আপডেট ব্যর্থ",
+  duplicateScheme: "স্কিম ডুপ্লিকেট করুন",
+  duplicateSchemeName: "নতুন স্কিমের নাম",
+  duplicateSchemeNamePlaceholder: "মূল স্কিমের কপি",
+  duplicateSchemeHint:
+    "এই ডুপ্লিকেশনে স্কিম ও তার পরিবারগুলো কপি হয়। নতুন স্কিমের জন্য পরিশোধ/বকেয়া শুরু থেকে গণনা হবে।",
+  duplicateLabel: "ডুপ্লিকেট",
+  schemeDuplicated: "স্কিম ডুপ্লিকেট হয়েছে",
+  schemeDuplicateFailed: "স্কিম ডুপ্লিকেট করা যায়নি",
+  deleteScheme: "স্কিম মুছুন",
+  deleteSchemeConfirm: '"{name}" স্থায়ীভাবে মুছে ফেলবেন? এটি পূর্বাবস্থায় ফেরানো যাবে না।',
+  deleteSchemeHasFamilies: "পরিবার নথিভুক্ত থাকা স্কিম মুছতে পারবেন না। আগে সব পরিবার সরান।",
+  deleteLabel: "মুছুন",
+  schemeDeleted: "স্কিম মুছে ফেলা হয়েছে",
+  deleteFailed: "মুছতে ব্যর্থ",
+  archiveScheme: "স্কিম আর্কাইভ",
+  archiveSchemeConfirm: '"{name}" আর্কাইভ করবেন? রোস্টার লুকানো হবে।',
+  schemeArchived: "স্কিম আর্কাইভ হয়েছে",
+  schemeArchiveFailed: "স্কিম আর্কাইভ করা যায়নি",
+  noSchemesYet: "এখনো কোনো স্কিম নেই",
+  noSchemesYetHint:
+    "৫০০টাকার মতো স্কিম তৈরি করে পরিবারের জমা ও বকেয়া ট্র্যাক করুন।",
+  familiesCount: "{count} পরিবার তালিকাভুক্ত",
+  families: "পরিবার",
+  statusPaid: "পরিশোধিত",
+  statusPartial: "আংশিক",
+  statusDue: "বকেয়া",
+  expected: "প্রত্যাশিত",
+  searchFamilies: "পরিবার খুঁজুন…",
+  noFamiliesInScheme: "কোনো পরিবার নেই",
+  noFamiliesInSchemeHint: "+ চাপুন — সদস্য সংখ্যাসহ পরিবার যোগ করুন।",
+  enrollFamily: "পরিবার যোগ করুন",
+  family: "পরিবার",
+  selectFamily: "পরিবার নির্বাচন",
+  selectFamilyRequired: "যোগ করার জন্য পরিবার নির্বাচন করুন",
+  memberCount: "লোকসংখ্যা",
+  memberCountRequired: "লোকসংখ্যা কমপক্ষে ১ হতে হবে",
+  membersLabel: "সদস্য",
+  enroll: "যোগ করুন",
+  familyEnrolled: "পরিবার যোগ হয়েছে",
+  enrollFailed: "পরিবার যোগ করা যায়নি",
+  recordPayment: "জমা রেকর্ড",
+  paymentRecorded: "জমা রেকর্ড হয়েছে",
+  paymentFailed: "জমা রেকর্ড করা যায়নি",
+  amountRequired: "সঠিক পরিমাণ লিখুন",
+  amountLabel: "পরিমাণ",
+  noPaymentsYet: "এই পরিবারের কোনো জমা নেই",
+  removeFromScheme: "স্কিম থেকে সরান",
+  removeFromSchemeConfirm:
+    '"{name}" এই স্কিম থেকে সরাবেন? আগের জমা লেজারে থাকবে।',
+  memberRemoved: "স্কিম থেকে সরানো হয়েছে",
+  updateMemberCount: "লোকসংখ্যা আপডেট",
+  updateMemberCountHint: "প্রত্যাশিত = সদস্য × রেট",
+  memberUpdated: "আপডেট হয়েছে",
+  memberUpdateFailed: "আপডেট করা যায়নি",
   backupCreatedSuccessfully: "ব্যাকআপ সফলভাবে তৈরি হয়েছে",
   failedToCreateBackup: "ব্যাকআপ তৈরিতে ব্যর্থ হয়েছে",
   pleaseRestoreBackup: "ব্যাকআপ রিস্টোর করুন",

@@ -11,6 +11,7 @@ import {
   Platform,
   Switch,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/use-theme";
@@ -123,7 +124,10 @@ export default function NewProductScreen() {
         }
       />
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+      <KeyboardAwareScrollView
+        contentContainerStyle={{ padding: 16, paddingBottom: 200 }}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Basic Info */}
         <SectionTitle title="Basic Information" colors={colors} />
 
@@ -327,7 +331,16 @@ export default function NewProductScreen() {
           </View>
         )}
 
-        {/* Save button */}
+      </KeyboardAwareScrollView>
+
+      {/* Footer Save button (kept outside the scroll area) */}
+      <View
+        className="px-5 py-4 border-t"
+        style={{
+          backgroundColor: colors.bg.primary,
+          borderColor: colors.border,
+        }}
+      >
         <TouchableOpacity
           onPress={handleSubmit}
           disabled={mutation.isPending}
@@ -338,7 +351,6 @@ export default function NewProductScreen() {
             borderRadius: 12,
             paddingVertical: 16,
             alignItems: "center",
-            marginTop: 16,
           }}
         >
           {mutation.isPending ? (
@@ -349,7 +361,7 @@ export default function NewProductScreen() {
             </Text>
           )}
         </TouchableOpacity>
-      </ScrollView>
+      </View>
 
       <BarcodeScannerModal
         visible={scannerVisible}
@@ -411,11 +423,11 @@ function Field({
 
 const inputStyle = (colors: any) => ({
   backgroundColor: colors.bg.secondary,
-  borderRadius: 10,
+  borderRadius: 12,
   borderWidth: 1,
   borderColor: colors.border,
-  paddingHorizontal: 12,
-  paddingVertical: 11,
-  fontSize: 15,
+  paddingHorizontal: 16,
+  paddingVertical: 12,
+  fontSize: 16,
   color: colors.text.primary,
 });

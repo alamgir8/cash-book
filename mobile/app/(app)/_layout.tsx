@@ -90,6 +90,7 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
           "organizations",
           "invoices",
           "import",
+          "schemes",
         ];
         const isSettingsChild = settingsRoots.some(
           (root) =>
@@ -183,6 +184,7 @@ export default function AppLayout() {
         options={{ href: null }}
       />
       <Tabs.Screen name="parties" options={{ href: null }} />
+      <Tabs.Screen name="schemes" options={{ href: null }} />
       <Tabs.Screen name="invoices" options={{ href: null }} />
       <Tabs.Screen name="invoices/new" options={{ href: null }} />
       <Tabs.Screen name="invoices/[invoiceId]" options={{ href: null }} />

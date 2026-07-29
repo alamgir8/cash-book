@@ -41,6 +41,12 @@ const transactionSchema = new Schema(
       ref: "Party",
       index: true,
     },
+    // Optional collection scheme (mosque/village contribution roster)
+    scheme: {
+      type: Schema.Types.ObjectId,
+      ref: "CollectionScheme",
+      index: true,
+    },
     // Link to invoice if this transaction is a payment
     invoice: {
       type: Schema.Types.ObjectId,

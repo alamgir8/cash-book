@@ -11,6 +11,7 @@ import invoiceRoutes from "./invoice.routes.js";
 import importRoutes from "./import.routes.js";
 import reconciliationRoutes from "./reconciliation.routes.js";
 import productRoutes from "./product.routes.js";
+import collectionSchemeRoutes from "./collection-scheme.routes.js";
 
 const router = Router();
 
@@ -26,5 +27,6 @@ router.use("/invoices", invoiceRoutes);
 router.use("/imports", importRoutes);
 router.use("/reconciliation", reconciliationRoutes);
 router.use("/products", productRoutes);
+router.use("/collection-schemes", collectionSchemeRoutes);
 
 export default router;

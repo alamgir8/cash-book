@@ -53,6 +53,8 @@ const createSchema = z.object({
     keyword: z.string().optional(),
     party: z.string().trim().optional(),
     for_party: z.string().trim().optional(),
+    scheme: z.string().trim().optional(),
+    scheme_id: z.string().trim().optional(),
     payment_status: z.enum(["paid", "due"]).optional(),
     due_date: dateValidator,
     parent_due_id: z.string().trim().optional(), // link payment to a due transaction
@@ -124,6 +126,8 @@ const updateSchema = z.object({
       keyword: z.string().optional(),
       party: z.string().trim().optional(),
       for_party: z.string().trim().optional(),
+      scheme: z.string().trim().optional(),
+      scheme_id: z.string().trim().optional(),
       payment_status: z.enum(["paid", "due"]).optional(),
       due_date: dateValidator,
       categoryId: z.string().optional(),
@@ -141,6 +145,8 @@ const updateSchema = z.object({
         data.keyword === undefined &&
         data.party === undefined &&
         data.for_party === undefined &&
+        data.scheme === undefined &&
+        data.scheme_id === undefined &&
         data.payment_status === undefined &&
         data.due_date === undefined &&
         data.categoryId === undefined &&

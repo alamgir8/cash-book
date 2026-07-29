@@ -207,6 +207,7 @@ export function useTransactionsScreen() {
       categoryId: values.categoryId || undefined,
       party: values.party || undefined,
       for_party: (values as any).for_party || undefined,
+      scheme: (values as any).scheme || undefined,
       payment_status: values.payment_status || "paid",
       due_date: values.due_date?.trim() || undefined,
     } as any);

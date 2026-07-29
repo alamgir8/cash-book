@@ -301,6 +301,7 @@ export const listTransactions = async (req, res, next) => {
         .populate("category_id", "name type")
         .populate("party", "name code type")
         .populate("for_party", "name code type")
+        .populate("scheme", "name rate_per_member")
         .populate(
           "parent_due_id",
           "amount due_remaining due_settled_at date description party payment_status",
@@ -328,6 +329,7 @@ export const listTransactions = async (req, res, next) => {
         .populate("category_id", "name type")
         .populate("party", "name code type")
         .populate("for_party", "name code type")
+        .populate("scheme", "name rate_per_member")
         .populate(
           "parent_due_id",
           "amount due_remaining due_settled_at date description party payment_status",
@@ -458,6 +460,7 @@ export const getTransaction = async (req, res, next) => {
       .populate("category_id", "name type")
       .populate("party", "name code type")
       .populate("for_party", "name code type")
+        .populate("scheme", "name rate_per_member")
       .populate(
         "parent_due_id",
         "amount due_remaining due_settled_at date description party payment_status",
@@ -507,6 +510,8 @@ export const createTransaction = async (req, res, next) => {
       organization,
       party,
       for_party,
+      scheme: schemeAlias,
+      scheme_id: schemeIdAlias,
     } = req.body;
 
     // Check organization access if provided
@@ -602,6 +607,7 @@ export const createTransaction = async (req, res, next) => {
       category_id: categoryDocument?._id,
       party,
       for_party,
+      scheme: schemeAlias || schemeIdAlias || undefined,
       type,
       amount,
       date: txnDate,
@@ -905,6 +911,8 @@ export const updateTransaction = async (req, res, next) => {
       keyword,
       party: incomingParty,
       for_party: incomingForParty,
+      scheme: incomingSchemeAlias,
+      scheme_id: incomingSchemeId,
       payment_status: newPaymentStatus,
       due_date,
       meta_data: metaData,
@@ -1097,6 +1105,9 @@ export const updateTransaction = async (req, res, next) => {
           transaction.party = incomingParty || undefined;
         if (incomingForParty !== undefined)
           transaction.for_party = incomingForParty || undefined;
+        const incomingScheme = incomingSchemeAlias ?? incomingSchemeId;
+        if (incomingScheme !== undefined)
+          transaction.scheme = incomingScheme || undefined;
         if (due_date !== undefined)
           transaction.due_date = due_date ? new Date(due_date) : null;
         if (newPaymentStatus !== undefined)
@@ -1176,6 +1187,7 @@ export const updateTransaction = async (req, res, next) => {
       .populate("category_id", "name type")
       .populate("party", "name code type")
       .populate("for_party", "name code type")
+        .populate("scheme", "name rate_per_member")
       .lean();
 
     res.json({ transaction: populated });

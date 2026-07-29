@@ -19,12 +19,13 @@ export const CustomInput: React.FC<CustomInputProps> = ({
   ...props
 }) => {
   const { colors } = useTheme();
+  const borderColor = error ? colors.error : colors.border;
 
   return (
     <View className={`${containerClassName}`}>
       <Text
-        style={{ color: colors.text.primary }}
-        className={`mb-3 text-base font-medium ${labelClassName}`}
+        style={{ color: colors.text.secondary }}
+        className={`mb-2 text-sm font-medium ${labelClassName}`}
       >
         {label}
       </Text>
@@ -32,14 +33,14 @@ export const CustomInput: React.FC<CustomInputProps> = ({
         style={{
           backgroundColor: colors.bg.secondary,
           color: colors.text.primary,
-          borderColor: colors.border,
+          borderColor,
         }}
-        className="px-4 py-4 rounded-2xl border text-base shadow-sm"
+        className="px-4 py-3 rounded-xl border text-base"
         placeholderTextColor={colors.text.tertiary}
         {...props}
       />
       {error && (
-        <Text style={{ color: colors.error }} className="text-sm mt-2">
+        <Text style={{ color: colors.error }} className="text-xs mt-1">
           {error}
         </Text>
       )}

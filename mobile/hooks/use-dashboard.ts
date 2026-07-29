@@ -258,6 +258,7 @@ export function useDashboard() {
         ...basePayload,
         party: values.party || undefined,
         for_party: values.for_party || undefined,
+        scheme: values.scheme || undefined,
       } as any);
       return;
     }
@@ -271,6 +272,7 @@ export function useDashboard() {
             ...basePayload,
             party: entry.party || undefined,
             for_party: entry.for_party || undefined,
+            scheme: values.scheme || undefined,
           } as any);
           createdIds.push(created._id);
         }
@@ -300,6 +302,7 @@ export function useDashboard() {
       ...basePayload,
       party: values.party || undefined,
       for_party: values.for_party || undefined,
+      scheme: values.scheme || undefined,
     } as any);
     return { _id: created._id };
   };

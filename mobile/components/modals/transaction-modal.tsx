@@ -38,6 +38,7 @@ import {
 import { usePreferences } from "@/hooks/use-preferences";
 import { useTheme } from "@/hooks/use-theme";
 import { useTranslation } from "@/hooks/use-translation";
+import { useSchemes } from "@/hooks/use-schemes";
 import {
   transactionSchema,
   expandBulkPartyEntries,
@@ -142,10 +143,21 @@ export const TransactionModal = ({
       categoryId: "",
       party: "",
       for_party: "",
+      scheme: "",
       payment_status: "paid",
       due_date: "",
     },
   });
+
+  const { data: schemesList = [] } = useSchemes();
+  const schemeOptions = useMemo(
+    () =>
+      schemesList.map((s) => ({
+        value: s._id,
+        label: `${s.name} (${s.rate_per_member})`,
+      })),
+    [schemesList],
+  );
 
   const currentAmount = watch("amount");
   const selectedType = watch("type");
@@ -493,6 +505,11 @@ export const TransactionModal = ({
           categoryId: editingTransaction.category?._id || "",
           party: getPartyRefId(editingTransaction.party) || "",
           for_party: getPartyRefId(editingTransaction.for_party) || "",
+          scheme:
+            typeof editingTransaction.scheme === "object" &&
+            editingTransaction.scheme?._id
+              ? editingTransaction.scheme._id
+              : "",
           payment_status: editingTransaction.payment_status || "paid",
           due_date: editingTransaction.due_date
             ? dayjs(editingTransaction.due_date).format("YYYY-MM-DD")
@@ -510,6 +527,7 @@ export const TransactionModal = ({
           categoryId: "",
           party: "",
           for_party: "",
+          scheme: "",
           payment_status: "paid",
           due_date: "",
         });
@@ -1009,6 +1027,28 @@ export const TransactionModal = ({
                     </View>
                   )}
                 />
+
+                {/* Collection scheme (optional) */}
+                {schemeOptions.length > 0 ? (
+                  <Controller
+                    control={control}
+                    name="scheme"
+                    render={({ field: { value, onChange } }) => (
+                      <View className="gap-2">
+                        <SearchableSelect
+                          label={t("collectionScheme") ?? "Collection scheme"}
+                          placeholder={
+                            t("selectSchemeOptional") ??
+                            "Optional — link to a scheme"
+                          }
+                          value={value}
+                          options={schemeOptions}
+                          onSelect={(val) => onChange(val || "")}
+                        />
+                      </View>
+                    )}
+                  />
+                ) : null}
 
                 {/* Amount and Type Row */}
                 <View className="flex-row gap-4">

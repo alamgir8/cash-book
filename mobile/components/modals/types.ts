@@ -10,6 +10,7 @@ export const transactionSchema = z.object({
   categoryId: z.string().optional().or(z.literal("")),
   party: z.string().optional(), // vendor/supplier Party ObjectId
   for_party: z.string().optional(), // beneficiary/for-whom Party ObjectId
+  scheme: z.string().optional(), // collection scheme ObjectId
   payment_status: z.enum(["paid", "due"]).default("paid"),
   due_date: z.string().optional(),
 });

@@ -24,6 +24,9 @@ export const queryKeys = {
   summary: ["summary"],
   organizations: ["organizations"],
   parties: ["parties"],
+  schemes: ["schemes"],
+  scheme: (schemeId: string) => ["scheme", schemeId] as const,
+  schemeRoster: (schemeId: string) => ["schemeRoster", schemeId] as const,
   invoices: ["invoices"],
   imports: ["imports"],
 } as const;

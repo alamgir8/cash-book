@@ -35,6 +35,7 @@ export type Transaction = {
   vendor?: string; // legacy — cleared after migration
   party?: PartyRef | null; // vendor/supplier Party ObjectId ref (post-migration)
   for_party?: PartyRef | null; // beneficiary/for-whom Party ObjectId ref
+  scheme?: { _id: string; name: string; rate_per_member?: number } | null;
   payment_status?: "paid" | "due";
   due_date?: string;
   due_remaining?: number; // remaining unpaid (lives on the root due transaction)
@@ -211,6 +212,13 @@ export const normalizeTransaction = (
     vendor: transaction.vendor ?? undefined,
     party: transaction.party ?? null,
     for_party: transaction.for_party ?? null,
+    scheme: transaction.scheme
+      ? {
+          _id: String(transaction.scheme._id ?? transaction.scheme),
+          name: transaction.scheme.name ?? "",
+          rate_per_member: transaction.scheme.rate_per_member,
+        }
+      : null,
     payment_status: transaction.payment_status ?? undefined,
     due_date: transaction.due_date ?? undefined,
     due_remaining: transaction.due_remaining ?? undefined,
@@ -276,6 +284,7 @@ type CreateTransactionPayload = {
   categoryId?: string;
   party?: string; // vendor/supplier Party ObjectId
   for_party?: string; // beneficiary/for-whom Party ObjectId
+  scheme?: string; // collection scheme ObjectId
   payment_status?: "paid" | "due";
   due_date?: string;
 };
@@ -294,6 +303,7 @@ export const createTransaction = async (payload: CreateTransactionPayload) => {
   if (payload.party !== undefined) requestBody.party = payload.party || null;
   if (payload.for_party !== undefined)
     requestBody.for_party = payload.for_party || null;
+  if (payload.scheme !== undefined) requestBody.scheme = payload.scheme || null;
   if (payload.payment_status)
     requestBody.payment_status = payload.payment_status;
   if (payload.due_date !== undefined) requestBody.due_date = payload.due_date;
@@ -369,6 +379,7 @@ type UpdateTransactionPayload = {
   categoryId?: string;
   party?: string; // vendor/supplier Party ObjectId
   for_party?: string; // beneficiary/for-whom Party ObjectId
+  scheme?: string;
   payment_status?: "paid" | "due";
   due_date?: string;
 };
@@ -395,6 +406,7 @@ export const updateTransaction = async ({
   if (payload.party !== undefined) requestBody.party = payload.party || null;
   if (payload.for_party !== undefined)
     requestBody.for_party = payload.for_party || null;
+  if (payload.scheme !== undefined) requestBody.scheme = payload.scheme || null;
   if (payload.payment_status)
     requestBody.payment_status = payload.payment_status;
   if (payload.due_date !== undefined) requestBody.due_date = payload.due_date;

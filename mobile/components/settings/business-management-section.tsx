@@ -114,6 +114,40 @@ export function BusinessManagementSection({
           </TouchableOpacity>
         )}
 
+        {canManageParties && (
+          <TouchableOpacity
+            onPress={() => router.push("/schemes")}
+            className="flex-row items-center gap-4 rounded-2xl p-4 active:scale-98"
+            style={{ backgroundColor: colors.info + "15" }}
+          >
+            <View
+              className="w-12 h-12 rounded-full items-center justify-center"
+              style={{ backgroundColor: colors.info + "25" }}
+            >
+              <Ionicons name="albums" size={24} color={colors.info} />
+            </View>
+            <View className="flex-1">
+              <Text
+                className="font-bold text-base"
+                style={{ color: colors.text.primary }}
+              >
+                Collection Schemes
+              </Text>
+              <Text
+                className="text-sm"
+                style={{ color: colors.text.secondary }}
+              >
+                Family rosters with paid vs due (e.g. 500tk)
+              </Text>
+            </View>
+            <Ionicons
+              name="chevron-forward"
+              size={20}
+              color={colors.text.tertiary}
+            />
+          </TouchableOpacity>
+        )}
+
         {/* Invoices - Show only if user has permission */}
         {canManageInvoices && (
           <TouchableOpacity

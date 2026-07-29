@@ -1,12 +1,12 @@
 import {
   View,
   Text,
-  ScrollView,
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
   TextInput,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { router, useLocalSearchParams } from "expo-router";
 import { toast } from "@/lib/toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -186,9 +186,9 @@ export default function PartyScreen() {
           <View className="w-10" />
         </View>
 
-        <ScrollView
+        <KeyboardAwareScrollView
           className="flex-1"
-          contentContainerStyle={{ paddingBottom: 100 }}
+          contentContainerStyle={{ paddingBottom: 160 }}
           showsVerticalScrollIndicator={false}
         >
           {/* Party Type Selection */}
@@ -725,12 +725,15 @@ export default function PartyScreen() {
               )}
             />
           </View>
-        </ScrollView>
+        </KeyboardAwareScrollView>
 
         {/* Submit Button */}
         <View
-          className="absolute bottom-0 left-0 right-0 px-5 py-4 border-t"
-          style={{ backgroundColor: colors.bg.primary, borderColor: colors.border }}
+          className="px-5 py-4 border-t"
+          style={{
+            backgroundColor: colors.bg.primary,
+            borderColor: colors.border,
+          }}
         >
           <TouchableOpacity
             onPress={handleSubmit(onSubmit)}

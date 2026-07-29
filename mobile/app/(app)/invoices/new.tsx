@@ -330,7 +330,7 @@ export default function InvoiceScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingBottom: 120 }}
+        contentContainerStyle={{ paddingBottom: 220 }}
       >
         {/* ── Party Selection ──────────────────────────────────────── */}
         <View
@@ -1095,7 +1095,7 @@ export default function InvoiceScreen() {
 
       {/* ── Submit Button ─────────────────────────────────────────── */}
       <View
-        className="absolute bottom-0 left-0 right-0 px-5 py-4 border-t"
+        className="px-5 py-4 border-t"
         style={{
           backgroundColor: colors.bg.primary,
           borderColor: colors.border,
