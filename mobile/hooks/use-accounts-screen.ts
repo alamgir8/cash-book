@@ -4,12 +4,14 @@
  * Encapsulates all business logic for the Accounts screen.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Alert } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Toast from "react-native-toast-message";
 import dayjs from "dayjs";
 import {
   createAccount,
+  deleteAccount,
   fetchAccountsOverview,
   updateAccount,
   type Account,
@@ -18,6 +20,8 @@ import {
 import { queryKeys } from "@/lib/queryKeys";
 import { useOrganization } from "@/hooks/use-organization";
 import { usePreferences } from "@/hooks/use-preferences";
+import { useDeleteMode } from "@/hooks/use-delete-mode";
+import { getApiErrorMessage } from "@/lib/api";
 import type { AccountFormValues } from "@/components/accounts/account-form-modal";
 
 export function useAccountsScreen() {
@@ -26,6 +30,7 @@ export function useAccountsScreen() {
   const queryClient = useQueryClient();
   const { canManageAccounts } = useOrganization();
   const { formatAmount } = usePreferences();
+  const { isDeleteModeActive } = useDeleteMode();
 
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
@@ -85,6 +90,21 @@ export function useAccountsScreen() {
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: deleteAccount,
+    onSuccess: async () => {
+      Toast.show({ type: "success", text1: "Account deleted" });
+      await invalidateAccountData();
+    },
+    onError: (error) => {
+      Toast.show({
+        type: "error",
+        text1: "Cannot delete account",
+        text2: getApiErrorMessage(error),
+      });
+    },
+  });
+
   // ── Handlers ─────────────────────────────────────────────────────────────
   const openModal = useCallback((account?: Account | AccountOverview) => {
     if (account) {
@@ -132,6 +152,38 @@ export function useAccountsScreen() {
       } as any);
     },
     [router],
+  );
+
+  const handleDeleteAccount = useCallback(
+    (accountId: string, accountName: string, transactionCount = 0) => {
+      if (!canManageAccounts || !isDeleteModeActive) return;
+
+      if (transactionCount > 0) {
+        Alert.alert(
+          "Cannot delete",
+          `"${accountName}" has ${transactionCount} transaction${
+            transactionCount > 1 ? "s" : ""
+          }. Move or delete those transactions first.`,
+        );
+        return;
+      }
+
+      Alert.alert(
+        "Delete account?",
+        `Remove "${accountName}"? This cannot be undone.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Delete",
+            style: "destructive",
+            onPress: () => {
+              void deleteMutation.mutateAsync(accountId);
+            },
+          },
+        ],
+      );
+    },
+    [canManageAccounts, isDeleteModeActive, deleteMutation],
   );
 
   // ── Deep-link: open modal for a specific account via URL param ───────────
@@ -195,13 +247,16 @@ export function useAccountsScreen() {
     lastActivityLabel,
     // permissions
     canManageAccounts,
+    isDeleteModeActive,
     // mutation state
     isSubmitting: createMutation.isPending || updateMutation.isPending,
+    isDeleting: deleteMutation.isPending,
     // handlers
     openModal,
     closeModal,
     handleSubmit,
     handleViewHistory,
+    handleDeleteAccount,
     // utils
     formatAmount,
     formatSignedAmount,

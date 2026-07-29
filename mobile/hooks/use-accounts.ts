@@ -7,6 +7,7 @@ import {
   fetchAccountTransactions,
   createAccount,
   updateAccount,
+  deleteAccount,
 } from "@/services/accounts";
 import { queryKeys } from "@/lib/queryKeys";
 import type { AccountPayload } from "@/types/account";
@@ -117,17 +118,13 @@ export const useUpdateAccount = () => {
 };
 
 /**
- * Hook to delete an account
- * Note: Delete API endpoint may not exist yet
+ * Hook to delete an account (blocked server-side if it has transactions)
  */
 export const useDeleteAccount = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (accountId: string) => {
-      // TODO: Implement when API endpoint is available
-      throw new Error("Delete account API not implemented");
-    },
+    mutationFn: (accountId: string) => deleteAccount(accountId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
       queryClient.invalidateQueries({ queryKey: queryKeys.accountsOverview });

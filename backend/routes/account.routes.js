@@ -5,6 +5,7 @@ import {
   createAccount,
   updateAccount,
   archiveAccount,
+  deleteAccount,
   getAccountSummary,
   getAccountDetail,
   getAccountTransactions,
@@ -123,6 +124,14 @@ const accountTransactionsSchema = z.object({
   query: transactionQuerySchema,
 });
 
+const deleteSchema = z.object({
+  params: z.object({
+    accountId: z.string(),
+  }),
+  body: z.object({}).optional(),
+  query: z.object({}).optional(),
+});
+
 router.use(authenticate);
 
 router.get("/", validate(listQuerySchema), listAccounts);
@@ -131,6 +140,7 @@ router.post("/", validate(createSchema), createAccount);
 router.put("/:accountId", validate(updateSchema), updateAccount);
 router.patch("/:accountId", validate(updateSchema), updateAccount);
 router.patch("/:accountId/archive", validate(archiveSchema), archiveAccount);
+router.delete("/:accountId", validate(deleteSchema), deleteAccount);
 router.get(
   "/:accountId/detail",
   validate(accountParamsSchema),

@@ -11,10 +11,16 @@ import type { AccountOverview } from "../services/accounts";
 type Props = {
   account: AccountOverview;
   onEdit: (accountId: string) => void;
-  onDelete: (accountId: string, accountName: string) => void;
+  onDelete?: (accountId: string, accountName: string) => void;
+  showDelete?: boolean;
 };
 
-const AccountCardComponent = ({ account, onEdit, onDelete }: Props) => {
+const AccountCardComponent = ({
+  account,
+  onEdit,
+  onDelete,
+  showDelete = false,
+}: Props) => {
   const { formatAmount } = usePreferences();
   const { colors } = useTheme();
   const { t } = useTranslation();
@@ -164,17 +170,19 @@ const AccountCardComponent = ({ account, onEdit, onDelete }: Props) => {
           >
             <Ionicons name="create" size={18} color={colors.info} />
           </TouchableOpacity>
-          <TouchableOpacity
-            style={{
-              backgroundColor: colors.error + "15",
-              borderWidth: 1,
-              borderColor: colors.error + "40",
-            }}
-            onPress={() => onDelete(account._id, account.name)}
-            className="rounded-xl px-4 py-3 active:scale-95"
-          >
-            <Ionicons name="trash" size={18} color={colors.error} />
-          </TouchableOpacity>
+          {showDelete && onDelete ? (
+            <TouchableOpacity
+              style={{
+                backgroundColor: colors.error + "15",
+                borderWidth: 1,
+                borderColor: colors.error + "40",
+              }}
+              onPress={() => onDelete(account._id, account.name)}
+              className="rounded-xl px-4 py-3 active:scale-95"
+            >
+              <Ionicons name="trash" size={18} color={colors.error} />
+            </TouchableOpacity>
+          ) : null}
         </View>
       </View>
     </View>
@@ -199,6 +207,7 @@ export const AccountCard = memo(
         nextProps.account.summary.totalTransactions &&
       prevProps.account.summary.lastTransactionDate ===
         nextProps.account.summary.lastTransactionDate &&
+      prevProps.showDelete === nextProps.showDelete &&
       prevProps.onEdit === nextProps.onEdit &&
       prevProps.onDelete === nextProps.onDelete
     );

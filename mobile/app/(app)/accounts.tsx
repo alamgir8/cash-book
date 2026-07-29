@@ -31,11 +31,13 @@ export default function AccountsScreen() {
     totals,
     lastActivityLabel,
     canManageAccounts,
+    isDeleteModeActive,
     isSubmitting,
     openModal,
     closeModal,
     handleSubmit,
     handleViewHistory,
+    handleDeleteAccount,
     formatAmount,
     formatSignedAmount,
   } = useAccountsScreen();
@@ -390,6 +392,25 @@ export default function AccountsScreen() {
                 </Text>
               </TouchableOpacity>
             )}
+            {canManageAccounts && isDeleteModeActive ? (
+              <TouchableOpacity
+                onPress={() =>
+                  handleDeleteAccount(
+                    item._id,
+                    item.name,
+                    item.summary.totalTransactions ?? 0,
+                  )
+                }
+                className="flex-row items-center justify-center gap-2 rounded-xl px-4 py-2.5"
+                style={{
+                  backgroundColor: colors.error + "18",
+                  borderColor: colors.error + "55",
+                  borderWidth: 1,
+                }}
+              >
+                <Ionicons name="trash" size={18} color={colors.error} />
+              </TouchableOpacity>
+            ) : null}
           </View>
         </View>
       );
@@ -397,10 +418,13 @@ export default function AccountsScreen() {
     [
       colors,
       canManageAccounts,
+      isDeleteModeActive,
       formatAmount,
       formatSignedAmount,
       handleViewHistory,
+      handleDeleteAccount,
       openModal,
+      t,
     ],
   );
 
@@ -416,6 +440,22 @@ export default function AccountsScreen() {
         }
         icon="analytics"
       />
+
+      {isDeleteModeActive && canManageAccounts ? (
+        <View
+          className="mx-4 mt-3 px-3 py-2.5 rounded-xl border flex-row items-center gap-2"
+          style={{
+            backgroundColor: colors.error + "12",
+            borderColor: colors.error + "40",
+          }}
+        >
+          <Ionicons name="trash" size={16} color={colors.error} />
+          <Text className="text-xs font-semibold flex-1" style={{ color: colors.error }}>
+            Delete Mode — empty accounts can be removed. Accounts with
+            transactions are blocked.
+          </Text>
+        </View>
+      ) : null}
 
       <FlatList
         data={accounts}

@@ -131,6 +131,13 @@ export const updateAccount = async ({
   return normalizeAccount(data.account);
 };
 
+export const deleteAccount = async (accountId: string) => {
+  const { data } = await api.delete<{ message: string }>(
+    `/accounts/${accountId}`,
+  );
+  return data;
+};
+
 export const fetchAccountDetail = async (
   accountId: string
 ): Promise<AccountDetail> => {

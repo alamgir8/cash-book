@@ -340,6 +340,52 @@ export const archiveAccount = async (req, res, next) => {
   }
 };
 
+export const deleteAccount = async (req, res, next) => {
+  try {
+    const { accountId } = req.params;
+
+    const account = await Account.findById(accountId);
+    if (!account) {
+      return res.status(404).json({ message: "Account not found" });
+    }
+
+    if (account.organization) {
+      const access = await checkOrgAccess(
+        req.user.id,
+        account.organization,
+        "manage_accounts",
+      );
+      if (!access.hasAccess) {
+        return res.status(403).json({ message: access.error });
+      }
+    } else if (account.admin.toString() !== req.user.id) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    const transactionCount = await Transaction.countDocuments({
+      account: account._id,
+      is_deleted: { $ne: true },
+    });
+
+    if (transactionCount > 0) {
+      return res.status(400).json({
+        message: `Cannot delete "${account.name}". It has ${transactionCount} transaction${
+          transactionCount > 1 ? "s" : ""
+        }. Move or delete those transactions first.`,
+        transactionCount,
+        accountId: account._id,
+        accountName: account.name,
+      });
+    }
+
+    await Account.deleteOne({ _id: account._id });
+
+    res.json({ message: "Account deleted successfully" });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const getAccountSummary = async (req, res, next) => {
   try {
     const { accountId } = req.params;
