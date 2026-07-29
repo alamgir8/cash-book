@@ -19,6 +19,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useActiveOrgId, useOrganization } from "@/hooks/use-organization";
 import { getApiErrorMessage } from "@/lib/api";
 import { useTheme } from "@/hooks/use-theme";
+import { amountInputProps, integerInputProps } from "@/lib/amount-input";
 
 // Zod validation schema
 const partySchema = z.object({
@@ -557,7 +558,7 @@ export default function PartyScreen() {
                       onBlur={onBlur}
                       placeholder="0.00"
                       placeholderTextColor={colors.inputPlaceholder}
-                      keyboardType="decimal-pad"
+                      {...amountInputProps}
                       className="border rounded-xl px-4 py-3.5 text-base"
                       style={{
                         backgroundColor: colors.bg.secondary,
@@ -582,7 +583,7 @@ export default function PartyScreen() {
                       onBlur={onBlur}
                       placeholder="30"
                       placeholderTextColor={colors.inputPlaceholder}
-                      keyboardType="number-pad"
+                      {...integerInputProps}
                       className="border rounded-xl px-4 py-3.5 text-base"
                       style={{
                         backgroundColor: colors.bg.secondary,
@@ -681,7 +682,7 @@ export default function PartyScreen() {
                     onBlur={onBlur}
                     placeholder="0.00"
                     placeholderTextColor={colors.inputPlaceholder}
-                    keyboardType="decimal-pad"
+                    {...amountInputProps}
                     className="border rounded-xl px-4 py-3.5 text-base"
                     style={{
                       backgroundColor: colors.bg.secondary,
@@ -725,40 +726,42 @@ export default function PartyScreen() {
               )}
             />
           </View>
-        </KeyboardAwareScrollView>
 
-        {/* Submit Button */}
-        <View
-          className="px-5 py-4 border-t"
-          style={{
-            backgroundColor: colors.bg.primary,
-            borderColor: colors.border,
-          }}
-        >
-          <TouchableOpacity
-            onPress={handleSubmit(onSubmit)}
-            disabled={createMutation.isPending || isSubmitting}
-            className="rounded-xl py-4 items-center"
+          {/* Submit Button (inside scroll so it's not covered by keyboard) */}
+          <View
+            className="px-5 py-4 border-t"
             style={{
-              backgroundColor: createMutation.isPending || isSubmitting
-                ? colors.primary + '60'
-                : colors.primary,
+              backgroundColor: colors.bg.primary,
+              borderColor: colors.border,
             }}
           >
-            {createMutation.isPending ? (
-              <Text className="text-white font-semibold text-base">
-                Creating...
-              </Text>
-            ) : (
-              <View className="flex-row items-center">
-                <Ionicons name="add-circle-outline" size={22} color="white" />
-                <Text className="text-white font-semibold text-base ml-2">
-                  Create Party
+            <TouchableOpacity
+              onPress={handleSubmit(onSubmit)}
+              disabled={createMutation.isPending || isSubmitting}
+              className="rounded-xl py-4 items-center"
+              style={{
+                backgroundColor:
+                  createMutation.isPending || isSubmitting
+                    ? colors.primary + "60"
+                    : colors.primary,
+              }}
+            >
+              {createMutation.isPending ? (
+                <Text className="text-white font-semibold text-base">
+                  Creating...
                 </Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        </View>
+              ) : (
+                <View className="flex-row items-center">
+                  <Ionicons name="add-circle-outline" size={22} color="white" />
+                  <Text className="text-white font-semibold text-base ml-2">
+                    Create Party
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
+
+        </KeyboardAwareScrollView>
       </KeyboardAvoidingView>
     </View>
   );

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import Animated, { useAnimatedStyle } from "react-native-reanimated";
+import Animated from "react-native-reanimated";
 import {
   ActivityIndicator,
   Alert,
@@ -16,7 +16,6 @@ import {
 } from "react-native";
 import {
   KeyboardAwareScrollView,
-  useReanimatedKeyboardAnimation,
 } from "react-native-keyboard-controller";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
@@ -87,10 +86,7 @@ export const TransferModal = ({
   const MAX_STAGED = 10;
   const MAX_RAW_MB = 10;
 
-  const { height: kbHeight } = useReanimatedKeyboardAnimation();
-  const sheetAnimStyle = useAnimatedStyle(() => ({
-    paddingBottom: -kbHeight.value,
-  }));
+  // Keyboard spacing is handled by KeyboardAwareScrollView.
 
   const { control, handleSubmit, reset, setValue, watch } =
     useForm<TransferFormValues>({
@@ -289,7 +285,6 @@ export const TransferModal = ({
               shadowRadius: 16,
               elevation: 24,
             },
-            sheetAnimStyle,
           ]}
         >
           {/* ── FIXED HEADER ─────────────────────────────────────────── */}
@@ -340,13 +335,13 @@ export const TransferModal = ({
               }}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <Ionicons name="close" size={20} color={colors.text.secondary} />
+              <Ionicons name="close" size={20} color="#f43f5e" />
             </TouchableOpacity>
           </View>
 
           {/* ── SCROLLABLE FORM CONTENT ───────────────────────────────── */}
           <KeyboardAwareScrollView
-            bottomOffset={Platform.OS === "ios" ? 100 : 120}
+            bottomOffset={Platform.OS === "ios" ? 80 : 100}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
             style={{ flex: 1 }}

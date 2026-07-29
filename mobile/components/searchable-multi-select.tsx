@@ -32,6 +32,8 @@ type SearchableMultiSelectProps = {
   addNewLabel?: string;
   /** Called when user tries to add while at maxCount */
   onMaxReached?: () => void;
+  /** Called when the options sheet is opened */
+  onOpen?: () => void;
 };
 
 type RenderItem =
@@ -50,6 +52,7 @@ export function SearchableMultiSelect({
   onAddNew,
   addNewLabel,
   onMaxReached,
+  onOpen,
 }: SearchableMultiSelectProps) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -337,7 +340,11 @@ export function SearchableMultiSelect({
           opacity: disabled ? 0.5 : 1,
           ...styles.trigger,
         }}
-        onPress={() => !disabled && setVisible(true)}
+        onPress={() => {
+          if (disabled) return;
+          onOpen?.();
+          setVisible(true);
+        }}
         activeOpacity={0.85}
       >
         {selectedOptions.length > 0 ? (

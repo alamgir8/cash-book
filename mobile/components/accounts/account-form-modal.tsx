@@ -4,11 +4,8 @@
  * Bottom-sheet modal for creating or editing an account.
  * Extracted from accounts.tsx to keep the screen file lean.
  */
-import Animated, { useAnimatedStyle } from "react-native-reanimated";
-import {
-  useReanimatedKeyboardAnimation,
-  KeyboardAwareScrollView,
-} from "react-native-keyboard-controller";
+import Animated from "react-native-reanimated";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import {
   Dimensions,
   Keyboard,
@@ -56,10 +53,6 @@ export function AccountFormModal({
   const { colors } = useTheme();
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
-  const { height: kbHeight } = useReanimatedKeyboardAnimation();
-  const sheetAnimStyle = useAnimatedStyle(() => ({
-    paddingBottom: -kbHeight.value,
-  }));
 
   const {
     control,
@@ -130,7 +123,7 @@ export function AccountFormModal({
         <Animated.View
           style={[
             {
-              height: Dimensions.get("window").height * 0.85,
+              height: Dimensions.get("window").height * 0.88,
               backgroundColor: colors.bg.primary,
               borderTopLeftRadius: 24,
               borderTopRightRadius: 24,
@@ -140,7 +133,6 @@ export function AccountFormModal({
               shadowRadius: 16,
               elevation: 24,
             },
-            sheetAnimStyle,
           ]}
         >
           {/* Header */}
@@ -166,7 +158,7 @@ export function AccountFormModal({
               style={[styles.closeBtn, { backgroundColor: colors.bg.tertiary }]}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <Ionicons name="close" size={20} color={colors.text.secondary} />
+              <Ionicons name="close" size={20} color="#f43f5e" />
             </TouchableOpacity>
           </View>
 

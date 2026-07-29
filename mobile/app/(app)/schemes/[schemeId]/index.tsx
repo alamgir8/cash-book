@@ -41,6 +41,7 @@ import { fetchAccounts } from "@/services/accounts";
 import { QUERY_KEYS } from "@/lib/queryKeys";
 import {
   amountInputProps,
+  integerInputProps,
   normalizeAmountInput,
   parseAmountInput,
 } from "@/lib/amount-input";
@@ -583,7 +584,7 @@ export default function SchemeDetailScreen() {
               <TextInput
                 value={enrollMembers}
                 onChangeText={setEnrollMembers}
-                keyboardType="number-pad"
+                {...integerInputProps}
                 className="rounded-xl px-4 py-3 border"
                 style={{
                   color: colors.text.primary,
@@ -779,7 +780,7 @@ export default function SchemeDetailScreen() {
             <TextInput
               value={editCountValue}
               onChangeText={setEditCountValue}
-              keyboardType="number-pad"
+              {...integerInputProps}
               className="rounded-xl px-4 py-3 border"
               style={{
                 color: colors.text.primary,

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import Animated, { useAnimatedStyle } from "react-native-reanimated";
+import Animated from "react-native-reanimated";
 import {
   ActivityIndicator,
   Alert,
@@ -18,7 +18,7 @@ import {
 } from "react-native";
 import {
   KeyboardAwareScrollView,
-  useReanimatedKeyboardAnimation,
+  useKeyboardState,
 } from "react-native-keyboard-controller";
 import Toast from "react-native-toast-message";
 import * as ImagePicker from "expo-image-picker";
@@ -31,6 +31,7 @@ import dayjs from "dayjs";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SearchableSelect } from "../searchable-select";
 import { SearchableMultiSelect } from "../searchable-multi-select";
+import { AmountKeypad } from "../amount-keypad";
 import {
   translateCategoryName,
   translateCategoryGroup,
@@ -58,6 +59,8 @@ import { uploadAttachments } from "@/services/attachments";
 import { AttachmentPicker } from "../transactions/attachment-picker";
 import {
   amountInputProps,
+  applyAmountKey,
+  normalizeAmountInput,
   parseAmountInput,
 } from "@/lib/amount-input";
 
@@ -99,6 +102,11 @@ export const TransactionModal = ({
   const insets = useSafeAreaInsets();
   const organizationId = useActiveOrgId();
   const queryClient = useQueryClient();
+  // Android: in-app pad so Avro/other IMEs cannot force QWERTY on amount
+  const useInAppAmountPad = Platform.OS === "android";
+  const [amountFocused, setAmountFocused] = useState(false);
+  const [amountText, setAmountText] = useState("");
+  const amountInputRef = useRef<TextInput>(null);
 
   // Newly added parties: staged locally, created in background
   const [newlyAddedParties, setNewlyAddedParties] = useState<SelectOption[]>(
@@ -494,6 +502,7 @@ export const TransactionModal = ({
       setBulkMode(false);
       setBulkParties([]);
       setBulkForParties([]);
+      setAmountFocused(false);
       if (editingTransaction) {
         reset({
           accountId: editingTransaction.account._id,
@@ -515,6 +524,9 @@ export const TransactionModal = ({
             ? dayjs(editingTransaction.due_date).format("YYYY-MM-DD")
             : "",
         });
+        setAmountText(
+          editingTransaction.amount ? String(editingTransaction.amount) : "",
+        );
         setSelectedDate(new Date(editingTransaction.date));
       } else {
         reset({
@@ -531,11 +543,33 @@ export const TransactionModal = ({
           payment_status: "paid",
           due_date: "",
         });
+        setAmountText("");
         setSelectedDate(new Date());
         setStagedFiles([]);
       }
     }
   }, [visible, editingTransaction, reset]);
+
+  const syncAmountText = useCallback(
+    (next: string) => {
+      const normalized = normalizeAmountInput(next);
+      setAmountText(normalized);
+      setValue("amount", parseAmountInput(normalized), { shouldValidate: true });
+    },
+    [setValue],
+  );
+
+  const handleAmountKey = useCallback(
+    (key: "digit" | "decimal" | "backspace", digit?: string) => {
+      syncAmountText(applyAmountKey(amountText, key, digit));
+    },
+    [amountText, syncAmountText],
+  );
+
+  const dismissAmountPad = useCallback(() => {
+    setAmountFocused(false);
+    amountInputRef.current?.blur();
+  }, []);
 
   // Clear category if it doesn't match the current flow type
   useEffect(() => {
@@ -852,12 +886,56 @@ export const TransactionModal = ({
     onClose();
   };
 
-  const screenHeight = Dimensions.get("window").height;
-  const { height: kbHeight } = useReanimatedKeyboardAnimation();
-  const sheetAnimStyle = useAnimatedStyle(() => ({
-    // kbHeight is negative when keyboard is open; negate it for paddingBottom
-    paddingBottom: -kbHeight.value,
-  }));
+  const screenHeight = Dimensions.get("screen").height;
+  const showAmountKeypad = useInAppAmountPad && amountFocused;
+  const kbStateHeight = useKeyboardState((s) => (s.isVisible ? s.height : 0));
+  const [kbEventHeight, setKbEventHeight] = useState(0);
+  const KEYBOARD_BUTTON_GAP = 10;
+  // Height captured when modal opens — keyboard must not grow the sheet into the status bar
+  const [lockedSheetHeight, setLockedSheetHeight] = useState(
+    () => Dimensions.get("window").height * 0.88,
+  );
+
+  useEffect(() => {
+    if (visible) {
+      setLockedSheetHeight(Dimensions.get("window").height * 0.88);
+      setKbEventHeight(0);
+    }
+  }, [visible]);
+
+  useEffect(() => {
+    const showEvent =
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent =
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const showSub = Keyboard.addListener(showEvent, (e) => {
+      setKbEventHeight(e.endCoordinates?.height ?? 0);
+    });
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      setKbEventHeight(0);
+    });
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  const keyboardHeight = Math.max(kbStateHeight, kbEventHeight);
+  const keyboardOpen = keyboardHeight > 0 || showAmountKeypad;
+  // Keep open height; only shrink if lift would overlap the status bar
+  const maxHeightAboveKeyboard =
+    keyboardHeight > 0
+      ? Math.max(0, screenHeight - keyboardHeight - insets.top)
+      : lockedSheetHeight;
+  const sheetHeight =
+    keyboardHeight > 0
+      ? Math.min(lockedSheetHeight, maxHeightAboveKeyboard)
+      : lockedSheetHeight;
+  // Small gap between save button and keyboard
+  const footerPadBottom = keyboardOpen
+    ? KEYBOARD_BUTTON_GAP
+    : Math.max(insets.bottom, 16);
+  const scrollBottomOffset = showAmountKeypad ? 280 : 80;
 
   return (
     <Modal visible={visible} transparent animationType="slide">
@@ -870,16 +948,18 @@ export const TransactionModal = ({
           activeOpacity={1}
           onPress={() => {
             Keyboard.dismiss();
+            dismissAmountPad();
             closeModal();
           }}
           style={{ ...StyleSheet.absoluteFillObject }}
         />
 
-        {/* Bottom sheet — explicit height so KeyboardAwareScrollView can flex:1 */}
+        {/* Bottom sheet — same open height; lifts above keyboard without entering status bar */}
         <Animated.View
           style={[
             {
-              height: screenHeight * 0.88,
+              height: sheetHeight,
+              marginBottom: keyboardHeight,
               backgroundColor: colors.bg.primary,
               borderTopLeftRadius: 24,
               borderTopRightRadius: 24,
@@ -889,8 +969,8 @@ export const TransactionModal = ({
               shadowOpacity: 0.12,
               shadowRadius: 16,
               elevation: 24,
+              overflow: "hidden",
             },
-            sheetAnimStyle,
           ]}
         >
           {/* ── FIXED HEADER ─────────────────────────────────────────── */}
@@ -945,13 +1025,15 @@ export const TransactionModal = ({
               }}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <Ionicons name="close" size={20} color={colors.text.secondary} />
+              <Ionicons name="close" size={20} color="#f43f5e" />
             </TouchableOpacity>
           </View>
 
           {/* ── SCROLLABLE FORM CONTENT ───────────────────────────────── */}
           <KeyboardAwareScrollView
-            bottomOffset={Platform.OS === "ios" ? 100 : 120}
+            bottomOffset={scrollBottomOffset}
+            // Sheet already cleared the keyboard — don't add another keyboard inset
+            extraKeyboardSpace={keyboardHeight > 0 ? -keyboardHeight : 0}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
             style={{ flex: 1 }}
@@ -965,6 +1047,7 @@ export const TransactionModal = ({
                   render={({ field: { value, onChange }, fieldState }) => (
                     <View className="gap-2">
                       <SearchableSelect
+                        onOpen={dismissAmountPad}
                         label={t("accountFilter")}
                         placeholder={
                           isAccountsLoading
@@ -999,6 +1082,7 @@ export const TransactionModal = ({
                   render={({ field: { value, onChange } }) => (
                     <View className="gap-2">
                       <SearchableSelect
+                        onOpen={dismissAmountPad}
                         label={t("categoryFilter")}
                         placeholder={
                           isCategoriesLoading
@@ -1036,6 +1120,7 @@ export const TransactionModal = ({
                     render={({ field: { value, onChange } }) => (
                       <View className="gap-2">
                         <SearchableSelect
+                          onOpen={dismissAmountPad}
                           label={t("collectionScheme") ?? "Collection scheme"}
                           placeholder={
                             t("selectSchemeOptional") ??
@@ -1062,19 +1147,33 @@ export const TransactionModal = ({
                     <Controller
                       control={control}
                       name="amount"
-                      render={({ field: { onChange, value } }) => (
+                      render={({ field: { onChange } }) => (
                         <TextInput
-                          value={value ? String(value) : ""}
-                          onChangeText={(text) =>
-                            onChange(parseAmountInput(text))
-                          }
+                          ref={amountInputRef}
+                          value={amountText}
+                          onChangeText={(text) => {
+                            const normalized = normalizeAmountInput(text);
+                            setAmountText(normalized);
+                            onChange(parseAmountInput(normalized));
+                          }}
+                          onFocus={() => {
+                            setAmountFocused(true);
+                          }}
+                          onBlur={() => {
+                            // Delay so in-app keypad taps don't dismiss immediately
+                            if (useInAppAmountPad) return;
+                            setAmountFocused(false);
+                          }}
+                          showSoftInputOnFocus={!useInAppAmountPad}
                           {...amountInputProps}
                           placeholder="0"
                           placeholderTextColor={colors.text.tertiary}
                           style={{
                             backgroundColor: colors.bg.tertiary,
                             color: colors.text.primary,
-                            borderColor: colors.border,
+                            borderColor: amountFocused
+                              ? colors.info
+                              : colors.border,
                           }}
                           className="px-4 py-3 rounded-xl border text-lg font-semibold"
                         />
@@ -1104,7 +1203,10 @@ export const TransactionModal = ({
                           {(["debit", "credit"] as const).map((option) => (
                             <TouchableOpacity
                               key={option}
-                              onPress={() => onChange(option)}
+                              onPress={() => {
+                                dismissAmountPad();
+                                onChange(option);
+                              }}
                               className="flex-1 py-3 rounded-xl border-2"
                               style={{
                                 backgroundColor:
@@ -1156,7 +1258,10 @@ export const TransactionModal = ({
                     render={({ field: { value } }) => (
                       <View>
                         <TouchableOpacity
-                          onPress={() => setShowDatePicker(true)}
+                          onPress={() => {
+                            dismissAmountPad();
+                            setShowDatePicker(true);
+                          }}
                           style={{
                             backgroundColor: colors.bg.tertiary,
                             borderColor: colors.border,
@@ -1217,6 +1322,7 @@ export const TransactionModal = ({
                       <TextInput
                         value={value || ""}
                         onChangeText={onChange}
+                        onFocus={dismissAmountPad}
                         placeholder={t("descriptionPlaceholder")}
                         placeholderTextColor={colors.text.tertiary}
                         style={{
@@ -1286,6 +1392,7 @@ export const TransactionModal = ({
 
                   {bulkMode && !editingTransaction ? (
                     <SearchableMultiSelect
+                      onOpen={dismissAmountPad}
                       values={bulkParties}
                       placeholder={
                         t("selectOrAddVendors") ?? "Select or add vendors"
@@ -1343,6 +1450,7 @@ export const TransactionModal = ({
                           );
                         return (
                           <SearchableSelect
+                            onOpen={dismissAmountPad}
                             value={value || ""}
                             placeholder={
                               t("selectOrAddVendor") ?? "Select vendor"
@@ -1391,6 +1499,7 @@ export const TransactionModal = ({
                   </Text>
                   {bulkMode && !editingTransaction ? (
                     <SearchableMultiSelect
+                      onOpen={dismissAmountPad}
                       values={bulkForParties}
                       placeholder={
                         t("selectOrAddCounterparties") ??
@@ -1449,6 +1558,7 @@ export const TransactionModal = ({
                           );
                         return (
                           <SearchableSelect
+                            onOpen={dismissAmountPad}
                             value={value || ""}
                             placeholder={
                               t("selectOrAddCounterparty") ??
@@ -1499,7 +1609,10 @@ export const TransactionModal = ({
                       >
                         <TouchableOpacity
                           activeOpacity={0.8}
-                          onPress={() => onChange("paid")}
+                          onPress={() => {
+                            dismissAmountPad();
+                            onChange("paid");
+                          }}
                           className="flex-1 flex-row items-center justify-center gap-2"
                           style={{
                             backgroundColor:
@@ -1536,7 +1649,10 @@ export const TransactionModal = ({
 
                         <TouchableOpacity
                           activeOpacity={0.8}
-                          onPress={() => onChange("due")}
+                          onPress={() => {
+                            dismissAmountPad();
+                            onChange("due");
+                          }}
                           className="flex-1 flex-row items-center justify-center gap-2"
                           style={{
                             backgroundColor:
@@ -1652,6 +1768,7 @@ export const TransactionModal = ({
                       <TextInput
                         value={value || ""}
                         onChangeText={onChange}
+                        onFocus={dismissAmountPad}
                         placeholder={t("additionalDetailsPlaceholder")}
                         placeholderTextColor={colors.text.tertiary}
                         style={{
@@ -1879,62 +1996,79 @@ export const TransactionModal = ({
             </View>
           </KeyboardAwareScrollView>
 
-          {/* ── FIXED FOOTER ─────────────────────────────────────────── */}
-          <View
-            style={{
-              paddingHorizontal: 24,
-              paddingTop: 12,
-              paddingBottom: Math.max(insets.bottom, 16),
-              borderTopWidth: 1,
-              borderTopColor: colors.border,
-              backgroundColor: colors.bg.primary,
-            }}
-          >
-            <TouchableOpacity
-              onPress={handleSubmit(handleFormSubmit)}
-              disabled={isSubmitting || localSubmitting || uploadingAttachments}
-              className="rounded-2xl py-4 items-center shadow-lg"
-              style={{ backgroundColor: colors.info }}
+          {/* ── FIXED FOOTER — sheet bottom = keyboard top, zero gap ──── */}
+          <View style={{ backgroundColor: colors.bg.primary }}>
+            {showAmountKeypad ? (
+              <AmountKeypad
+                onDigit={(d) => handleAmountKey("digit", d)}
+                onDecimal={() => handleAmountKey("decimal")}
+                onBackspace={() => handleAmountKey("backspace")}
+                onDone={dismissAmountPad}
+                backgroundColor={colors.bg.secondary}
+                keyColor={colors.bg.tertiary}
+                keyTextColor={colors.text.primary}
+                borderColor={colors.border}
+                accentColor={colors.info}
+              />
+            ) : null}
+            <View
+              style={{
+                paddingHorizontal: 24,
+                paddingTop: 12,
+                paddingBottom: footerPadBottom,
+                borderTopWidth: 1,
+                borderTopColor: colors.border,
+                backgroundColor: colors.bg.primary,
+              }}
             >
-              {isSubmitting || localSubmitting || uploadingAttachments ? (
-                <View className="flex-row items-center gap-2">
-                  <ActivityIndicator color="white" />
-                  <Text className="text-white font-bold text-base">
-                    {uploadingAttachments
-                      ? t("uploadingAttachments")
-                      : t("saving")}
-                  </Text>
-                </View>
-              ) : (
-                <View className="flex-row items-center gap-2">
-                  <Ionicons
-                    name={
-                      editingTransaction
-                        ? "checkmark-circle"
-                        : stagedFiles.length > 0
-                          ? "attach"
-                          : "checkmark-circle"
-                    }
-                    size={20}
-                    color="white"
-                  />
-                  <Text className="text-white font-bold text-base">
-                    {editingTransaction
-                      ? t("updateTransactionBtn")
-                      : bulkMode && bulkEntryCount > 1
-                        ? t("saveBulkTransactions", {
-                            count: String(bulkEntryCount),
-                          })
-                        : stagedFiles.length > 0
-                          ? t("saveWithAttachments", {
-                              n: String(stagedFiles.length),
-                              s: stagedFiles.length > 1 ? "s" : "",
+              <TouchableOpacity
+                onPress={handleSubmit(handleFormSubmit)}
+                disabled={
+                  isSubmitting || localSubmitting || uploadingAttachments
+                }
+                className="rounded-2xl py-4 items-center shadow-lg"
+                style={{ backgroundColor: colors.info }}
+              >
+                {isSubmitting || localSubmitting || uploadingAttachments ? (
+                  <View className="flex-row items-center gap-2">
+                    <ActivityIndicator color="white" />
+                    <Text className="text-white font-bold text-base">
+                      {uploadingAttachments
+                        ? t("uploadingAttachments")
+                        : t("saving")}
+                    </Text>
+                  </View>
+                ) : (
+                  <View className="flex-row items-center gap-2">
+                    <Ionicons
+                      name={
+                        editingTransaction
+                          ? "checkmark-circle"
+                          : stagedFiles.length > 0
+                            ? "attach"
+                            : "checkmark-circle"
+                      }
+                      size={20}
+                      color="white"
+                    />
+                    <Text className="text-white font-bold text-base">
+                      {editingTransaction
+                        ? t("updateTransactionBtn")
+                        : bulkMode && bulkEntryCount > 1
+                          ? t("saveBulkTransactions", {
+                              count: String(bulkEntryCount),
                             })
-                          : t("saveTransaction")}
-                  </Text>
-                </View>
-              )}
-            </TouchableOpacity>
+                          : stagedFiles.length > 0
+                            ? t("saveWithAttachments", {
+                                n: String(stagedFiles.length),
+                                s: stagedFiles.length > 1 ? "s" : "",
+                              })
+                            : t("saveTransaction")}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
         </Animated.View>
       </View>

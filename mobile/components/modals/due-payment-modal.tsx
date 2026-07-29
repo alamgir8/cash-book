@@ -192,7 +192,7 @@ export const DuePaymentModal = ({
               }}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <Ionicons name="close" size={18} color={colors.text.secondary} />
+              <Ionicons name="close" size={18} color="#f43f5e" />
             </TouchableOpacity>
           </View>
 

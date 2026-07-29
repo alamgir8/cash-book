@@ -1,5 +1,18 @@
 import type { Transaction } from "@/services/transactions";
-import { getPartyRefId } from "@/lib/transaction-filters";
+
+const getPartyRefId = (
+  ref:
+    | Transaction["party"]
+    | Transaction["for_party"]
+    | string
+    | null
+    | undefined,
+): string | undefined => {
+  if (!ref) return undefined;
+  if (typeof ref === "string") return ref;
+  const id = ref._id;
+  return id != null ? String(id) : undefined;
+};
 
 export const isLoanCategoryType = (type?: string) =>
   type === "loan_in" || type === "loan_out";

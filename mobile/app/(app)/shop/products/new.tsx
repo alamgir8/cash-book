@@ -20,6 +20,7 @@ import { useCreateProduct } from "@/hooks/use-products";
 import { BarcodeScannerModal } from "@/components/invoices/barcode-scanner-modal";
 import { ScreenHeader } from "@/components/screen-header";
 import type { ProductUnit } from "@/types/product";
+import { amountInputProps } from "@/lib/amount-input";
 
 const UNITS: ProductUnit[] = [
   "pcs",
@@ -125,6 +126,7 @@ export default function NewProductScreen() {
       />
 
       <KeyboardAwareScrollView
+        style={{ flex: 1 }}
         contentContainerStyle={{ padding: 16, paddingBottom: 200 }}
         showsVerticalScrollIndicator={false}
       >
@@ -236,7 +238,7 @@ export default function NewProductScreen() {
               onChangeText={setPurchasePrice}
               placeholder="0.00"
               placeholderTextColor={colors.text.tertiary}
-              keyboardType="decimal-pad"
+              {...amountInputProps}
             />
           </Field>
           <Field label="Sale Price" colors={colors} style={{ flex: 1 }}>
@@ -246,7 +248,7 @@ export default function NewProductScreen() {
               onChangeText={setSalePrice}
               placeholder="0.00"
               placeholderTextColor={colors.text.tertiary}
-              keyboardType="decimal-pad"
+              {...amountInputProps}
             />
           </Field>
         </View>
@@ -258,7 +260,7 @@ export default function NewProductScreen() {
             onChangeText={setTaxRate}
             placeholder="0"
             placeholderTextColor={colors.text.tertiary}
-            keyboardType="decimal-pad"
+            {...amountInputProps}
           />
         </Field>
 
@@ -315,7 +317,7 @@ export default function NewProductScreen() {
                 onChangeText={setOpeningStock}
                 placeholder="0"
                 placeholderTextColor={colors.text.tertiary}
-                keyboardType="decimal-pad"
+                {...amountInputProps}
               />
             </Field>
             <Field label="Low Stock Alert" colors={colors} style={{ flex: 1 }}>
@@ -325,7 +327,7 @@ export default function NewProductScreen() {
                 onChangeText={setLowStockThreshold}
                 placeholder="0"
                 placeholderTextColor={colors.text.tertiary}
-                keyboardType="decimal-pad"
+                {...amountInputProps}
               />
             </Field>
           </View>

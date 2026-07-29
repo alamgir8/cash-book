@@ -37,6 +37,7 @@ import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import { uploadAttachments } from "@/services/attachments";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
+import { amountInputProps } from "@/lib/amount-input";
 
 type StagedFile = { uri: string; name: string; type: string; size?: number };
 const MAX_STAGED = 10;
@@ -639,7 +640,7 @@ export default function InvoiceScreen() {
                   onBlur={onBlur}
                   placeholder="0"
                   placeholderTextColor={colors.inputPlaceholder}
-                  keyboardType="decimal-pad"
+                  {...amountInputProps}
                   className="flex-1 border rounded-xl px-4 py-3 text-base"
                   style={{
                     backgroundColor: colors.bg.secondary,
@@ -849,7 +850,7 @@ export default function InvoiceScreen() {
                         onChangeText={onChange}
                         placeholder="0"
                         placeholderTextColor={colors.inputPlaceholder}
-                        keyboardType="decimal-pad"
+                        {...amountInputProps}
                         className="border rounded-xl px-4 py-3.5 text-base"
                         style={{
                           backgroundColor: colors.bg.secondary,
@@ -1080,6 +1081,46 @@ export default function InvoiceScreen() {
           >
             {stagedFiles.length}/{MAX_STAGED} files · Max {MAX_RAW_MB} MB each
           </Text>
+
+          {/* Submit Button (inside scroll so it's not covered by keyboard) */}
+          <View
+            className="px-5 py-4 border-t"
+            style={{
+              backgroundColor: colors.bg.primary,
+              borderColor: colors.border,
+            }}
+          >
+            <TouchableOpacity
+              onPress={handleSubmit(onSubmit)}
+              disabled={isLoading}
+              className="rounded-xl py-4 items-center"
+              style={{
+                backgroundColor: isLoading ? colors.primary + "60" : colors.primary,
+              }}
+            >
+              {isLoading ? (
+                <View className="flex-row items-center gap-2">
+                  <ActivityIndicator color="white" size="small" />
+                  <Text className="text-white font-bold text-base">
+                    {uploadingAttachments ? "Uploading attachments…" : "Creating…"}
+                  </Text>
+                </View>
+              ) : (
+                <View className="flex-row items-center gap-2">
+                  <Ionicons
+                    name={stagedFiles.length > 0 ? "attach" : "checkmark-circle"}
+                    size={22}
+                    color="white"
+                  />
+                  <Text className="text-white font-bold text-base">
+                    {stagedFiles.length > 0
+                      ? `Create Invoice + ${stagedFiles.length} attachment${stagedFiles.length > 1 ? "s" : ""}`
+                      : "Create Invoice"}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
       </KeyboardAwareScrollView>
 
@@ -1093,45 +1134,6 @@ export default function InvoiceScreen() {
         />
       )}
 
-      {/* ── Submit Button ─────────────────────────────────────────── */}
-      <View
-        className="px-5 py-4 border-t"
-        style={{
-          backgroundColor: colors.bg.primary,
-          borderColor: colors.border,
-        }}
-      >
-        <TouchableOpacity
-          onPress={handleSubmit(onSubmit)}
-          disabled={isLoading}
-          className="rounded-xl py-4 items-center"
-          style={{
-            backgroundColor: isLoading ? colors.primary + "60" : colors.primary,
-          }}
-        >
-          {isLoading ? (
-            <View className="flex-row items-center gap-2">
-              <ActivityIndicator color="white" size="small" />
-              <Text className="text-white font-bold text-base">
-                {uploadingAttachments ? "Uploading attachments…" : "Creating…"}
-              </Text>
-            </View>
-          ) : (
-            <View className="flex-row items-center gap-2">
-              <Ionicons
-                name={stagedFiles.length > 0 ? "attach" : "checkmark-circle"}
-                size={22}
-                color="white"
-              />
-              <Text className="text-white font-bold text-base">
-                {stagedFiles.length > 0
-                  ? `Create Invoice + ${stagedFiles.length} attachment${stagedFiles.length > 1 ? "s" : ""}`
-                  : "Create Invoice"}
-              </Text>
-            </View>
-          )}
-        </TouchableOpacity>
-      </View>
     </View>
   );
 }

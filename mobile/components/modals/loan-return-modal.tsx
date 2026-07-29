@@ -209,7 +209,7 @@ export const LoanReturnModal = ({
               </Text>
             </View>
             <TouchableOpacity onPress={onClose}>
-              <Ionicons name="close" size={22} color={colors.text.secondary} />
+              <Ionicons name="close" size={22} color="#f43f5e" />
             </TouchableOpacity>
           </View>
 

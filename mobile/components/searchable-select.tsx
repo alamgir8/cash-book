@@ -38,6 +38,8 @@ type SearchableSelectProps = {
   onAddNew?: (name: string) => Promise<SelectOption | null>;
   /** Label shown in the "+ Add" button, e.g. "customer" → '+ Add "Alamgir" as customer' */
   addNewLabel?: string;
+  /** Called when the options sheet is opened */
+  onOpen?: () => void;
 };
 
 type RenderItem =
@@ -56,6 +58,7 @@ export const SearchableSelect = ({
   fetchOptions,
   onAddNew,
   addNewLabel,
+  onOpen,
 }: SearchableSelectProps) => {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -246,7 +249,11 @@ export const SearchableSelect = ({
           opacity: disabled ? 0.5 : 1,
           ...styles.trigger,
         }}
-        onPress={() => !disabled && setVisible(true)}
+        onPress={() => {
+          if (disabled) return;
+          onOpen?.();
+          setVisible(true);
+        }}
         activeOpacity={0.85}
       >
         <Text
