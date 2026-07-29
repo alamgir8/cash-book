@@ -19,8 +19,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useActiveOrgId, useOrganization } from "@/hooks/use-organization";
 import { getApiErrorMessage } from "@/lib/api";
 import { useTheme } from "@/hooks/use-theme";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { amountInputProps, integerInputProps } from "@/lib/amount-input";
+import { useKeyboardFooterLift } from "@/hooks/use-keyboard-footer-lift";
 
 // Zod validation schema
 const partySchema = z.object({
@@ -54,7 +54,7 @@ export default function CreatePartyScreen() {
   const { canManageCustomers, canManageSuppliers } = useOrganization();
   const params = useLocalSearchParams<{ type?: PartyType }>();
   const { colors } = useTheme();
-  const insets = useSafeAreaInsets();
+  const { footerContainerStyle, scrollProps } = useKeyboardFooterLift();
 
   // Determine default type based on permissions and query param
   const getDefaultType = (): PartyType => {
@@ -222,11 +222,8 @@ export default function CreatePartyScreen() {
 
       <KeyboardAwareScrollView
         style={{ flex: 1 }}
-        bottomOffset={80}
-        extraKeyboardSpace={0}
-        keyboardShouldPersistTaps="handled"
+        {...scrollProps}
         contentContainerStyle={{ paddingBottom: 24 }}
-        showsVerticalScrollIndicator={false}
       >
           {/* Party Type Selection */}
           <View
@@ -768,10 +765,7 @@ export default function CreatePartyScreen() {
 
       <View
         style={{
-          paddingHorizontal: 24,
-          paddingTop: 12,
-          paddingBottom: Math.max(insets.bottom, 16),
-          borderTopWidth: 1,
+          ...footerContainerStyle,
           borderTopColor: colors.border,
           backgroundColor: colors.bg.primary,
         }}

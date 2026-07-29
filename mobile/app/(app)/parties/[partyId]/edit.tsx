@@ -2,17 +2,18 @@ import { useEffect } from "react";
 import {
   View,
   Text,
-  ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
   TextInput,
   StyleSheet,
+  Platform,
 } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { toast } from "@/lib/toast";
+import { useTheme } from "@/hooks/use-theme";
+import { ScreenHeader } from "@/components/screen-header";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
+import { useKeyboardFooterLift } from "@/hooks/use-keyboard-footer-lift";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { partiesApi, PartyType } from "@/services/parties";
 import { getApiErrorMessage } from "@/lib/api";
@@ -22,8 +23,6 @@ import { safeGoBack } from "@/lib/navigation";
 import { z } from "zod";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useTheme } from "@/hooks/use-theme";
-import { ScreenHeader } from "@/components/screen-header";
 
 const partySchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -52,7 +51,7 @@ export default function EditPartyScreen() {
   const { partyId } = useLocalSearchParams<{ partyId: string }>();
   const queryClient = useQueryClient();
   const { colors } = useTheme();
-  const insets = useSafeAreaInsets();
+  const { footerContainerStyle, scrollProps } = useKeyboardFooterLift();
 
   const goBack = () =>
     safeGoBack(`/(app)/parties/${partyId}`, router);
@@ -216,19 +215,11 @@ export default function EditPartyScreen() {
     <View style={{ flex: 1, backgroundColor: colors.bg.primary }}>
       <ScreenHeader title="Edit Party" showBack onBack={goBack} />
 
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      <KeyboardAwareScrollView
         style={{ flex: 1 }}
+        {...scrollProps}
+        contentContainerStyle={{ padding: 16, paddingBottom: 24 }}
       >
-        <ScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={{
-            padding: 16,
-            paddingBottom: 24 + Math.max(insets.bottom, 12) + 64,
-          }}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
           {/* Party type */}
           <View
             style={{
@@ -565,36 +556,40 @@ export default function EditPartyScreen() {
               )}
             />
           </View>
-        </ScrollView>
+      </KeyboardAwareScrollView>
 
-        <View
+      <View
+        style={{
+          ...footerContainerStyle,
+          borderTopColor: colors.border,
+          backgroundColor: colors.bg.primary,
+        }}
+      >
+        <TouchableOpacity
+          onPress={handleSubmit(onSubmit)}
+          disabled={busy}
+          activeOpacity={0.85}
+          className="rounded-2xl py-4 items-center shadow-lg"
           style={{
-            ...styles.footer,
-            backgroundColor: colors.bg.primary,
-            borderTopColor: colors.border,
-            paddingBottom: Math.max(insets.bottom, 12),
+            backgroundColor: colors.info,
+            opacity: busy ? 0.7 : 1,
+            flexDirection: "row",
+            justifyContent: "center",
+            gap: 8,
           }}
         >
-          <TouchableOpacity
-            onPress={handleSubmit(onSubmit)}
-            disabled={busy}
-            activeOpacity={0.85}
-            style={{
-              ...styles.submitBtn,
-              backgroundColor: busy ? colors.info + "80" : colors.info,
-            }}
-          >
-            {busy ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <>
-                <Ionicons name="checkmark-circle" size={20} color="#fff" />
-                <Text style={styles.submitText}>Update Party</Text>
-              </>
-            )}
-          </TouchableOpacity>
-        </View>
-      </KeyboardAvoidingView>
+          {busy ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <>
+              <Ionicons name="checkmark-circle" size={20} color="#fff" />
+              <Text className="text-white font-bold text-base">
+                Update Party
+              </Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }

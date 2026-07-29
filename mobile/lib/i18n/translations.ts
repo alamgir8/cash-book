@@ -221,6 +221,9 @@ export type AppTranslations = {
   removeFromScheme: string;
   removeFromSchemeConfirm: string;
   memberRemoved: string;
+  cannotRemoveFamilyWithPayments: string;
+  editFamily: string;
+  deleteFamily: string;
   updateMemberCount: string;
   updateMemberCountHint: string;
   memberUpdated: string;
@@ -741,8 +744,12 @@ const en: AppTranslations = {
   noPaymentsYet: "No payments yet for this family",
   removeFromScheme: "Remove from scheme",
   removeFromSchemeConfirm:
-    'Remove "{name}" from this scheme? Past payments stay in the ledger.',
+    'Remove "{name}" from this scheme? This cannot be undone.',
   memberRemoved: "Removed from scheme",
+  cannotRemoveFamilyWithPayments:
+    "Cannot delete — this family already has linked payments/transactions.",
+  editFamily: "Edit family",
+  deleteFamily: "Delete family",
   updateMemberCount: "Update member count",
   updateMemberCountHint: "Expected amount = members × rate",
   memberUpdated: "Member updated",
@@ -1269,8 +1276,12 @@ const bn: AppTranslations = {
   noPaymentsYet: "এই পরিবারের কোনো জমা নেই",
   removeFromScheme: "স্কিম থেকে সরান",
   removeFromSchemeConfirm:
-    '"{name}" এই স্কিম থেকে সরাবেন? আগের জমা লেজারে থাকবে।',
+    '"{name}" এই স্কিম থেকে সরাবেন? এটি পূর্বাবস্থায় ফেরানো যাবে না।',
   memberRemoved: "স্কিম থেকে সরানো হয়েছে",
+  cannotRemoveFamilyWithPayments:
+    "মুছা যাবে না — এই পরিবারের সাথে জমা/লেনদেন যুক্ত আছে।",
+  editFamily: "পরিবার এডিট",
+  deleteFamily: "পরিবার মুছুন",
   updateMemberCount: "লোকসংখ্যা আপডেট",
   updateMemberCountHint: "প্রত্যাশিত = সদস্য × রেট",
   memberUpdated: "আপডেট হয়েছে",

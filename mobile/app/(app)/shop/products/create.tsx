@@ -13,7 +13,6 @@ import {
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/hooks/use-theme";
 import { useActiveOrgId } from "@/hooks/use-organization";
 import { useCreateProduct } from "@/hooks/use-products";
@@ -21,6 +20,7 @@ import { BarcodeScannerModal } from "@/components/invoices/barcode-scanner-modal
 import { ScreenHeader } from "@/components/screen-header";
 import type { ProductUnit } from "@/types/product";
 import { amountInputProps } from "@/lib/amount-input";
+import { useKeyboardFooterLift } from "@/hooks/use-keyboard-footer-lift";
 
 const UNITS: ProductUnit[] = [
   "pcs",
@@ -42,7 +42,7 @@ const UNITS: ProductUnit[] = [
 
 export default function CreateProductScreen() {
   const { colors } = useTheme();
-  const insets = useSafeAreaInsets();
+  const { footerContainerStyle, scrollProps } = useKeyboardFooterLift();
   const router = useRouter();
   const organizationId = useActiveOrgId();
 
@@ -109,11 +109,8 @@ export default function CreateProductScreen() {
 
       <KeyboardAwareScrollView
         style={{ flex: 1 }}
-        bottomOffset={80}
-        extraKeyboardSpace={0}
-        keyboardShouldPersistTaps="handled"
+        {...scrollProps}
         contentContainerStyle={{ padding: 16, paddingBottom: 24 }}
-        showsVerticalScrollIndicator={false}
       >
         {/* Basic Info */}
         <SectionTitle title="Basic Information" colors={colors} />
@@ -322,10 +319,7 @@ export default function CreateProductScreen() {
 
       <View
         style={{
-          paddingHorizontal: 24,
-          paddingTop: 12,
-          paddingBottom: Math.max(insets.bottom, 16),
-          borderTopWidth: 1,
+          ...footerContainerStyle,
           borderTopColor: colors.border,
           backgroundColor: colors.bg.primary,
         }}
@@ -399,12 +393,8 @@ function Field({
   return (
     <View style={[{ marginBottom: 12 }, style]}>
       <Text
-        style={{
-          fontSize: 13,
-          fontWeight: "600",
-          color: colors.text.secondary,
-          marginBottom: 6,
-        }}
+        className="text-sm font-semibold mb-2"
+        style={{ color: colors.text.primary }}
       >
         {label}
       </Text>
@@ -414,7 +404,7 @@ function Field({
 }
 
 const inputStyle = (colors: any) => ({
-  backgroundColor: colors.bg.secondary,
+  backgroundColor: colors.bg.tertiary,
   borderRadius: 12,
   borderWidth: 1,
   borderColor: colors.border,
@@ -422,4 +412,5 @@ const inputStyle = (colors: any) => ({
   paddingVertical: 12,
   fontSize: 16,
   color: colors.text.primary,
+  minHeight: 48,
 });

@@ -16,6 +16,7 @@ export const CustomInput: React.FC<CustomInputProps> = ({
   containerClassName = "",
   labelClassName = "",
   inputClassName = "",
+  style,
   ...props
 }) => {
   const { colors } = useTheme();
@@ -24,26 +25,30 @@ export const CustomInput: React.FC<CustomInputProps> = ({
   return (
     <View className={`${containerClassName}`}>
       <Text
-        style={{ color: colors.text.secondary }}
-        className={`mb-2 text-sm font-medium ${labelClassName}`}
+        style={{ color: colors.text.primary }}
+        className={`mb-2 text-sm font-semibold ${labelClassName}`}
       >
         {label}
       </Text>
       <TextInput
-        style={{
-          backgroundColor: colors.bg.secondary,
-          color: colors.text.primary,
-          borderColor,
-        }}
-        className="px-4 py-3 rounded-xl border text-base"
+        style={[
+          {
+            backgroundColor: colors.bg.tertiary,
+            color: colors.text.primary,
+            borderColor,
+            minHeight: props.multiline ? undefined : 48,
+          },
+          style,
+        ]}
+        className={`px-4 py-3 rounded-xl border text-base ${inputClassName}`}
         placeholderTextColor={colors.text.tertiary}
         {...props}
       />
-      {error && (
-        <Text style={{ color: colors.error }} className="text-xs mt-1">
+      {error ? (
+        <Text style={{ color: colors.error }} className="text-sm mt-1">
           {error}
         </Text>
-      )}
+      ) : null}
     </View>
   );
 };

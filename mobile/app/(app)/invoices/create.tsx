@@ -29,7 +29,7 @@ import {
   transformInvoiceFormData,
 } from "@/lib/invoice-utils";
 import { useTheme } from "@/hooks/use-theme";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useKeyboardFooterLift } from "@/hooks/use-keyboard-footer-lift";
 import { SearchableSelect } from "@/components/searchable-select";
 import type { SelectOption } from "@/components/searchable-select";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -51,7 +51,7 @@ export default function CreateInvoiceScreen() {
   }>();
   const organizationId = useActiveOrgId();
   const { colors } = useTheme();
-  const insets = useSafeAreaInsets();
+  const { footerContainerStyle, scrollProps } = useKeyboardFooterLift();
 
   const invoiceType: InvoiceType =
     typeParam === "purchase" ? "purchase" : "sale";
@@ -360,10 +360,7 @@ export default function CreateInvoiceScreen() {
       </View>
 
       <KeyboardAwareScrollView
-        bottomOffset={80}
-        extraKeyboardSpace={0}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
+        {...scrollProps}
         style={{ flex: 1 }}
         contentContainerStyle={{ paddingBottom: 24 }}
       >
@@ -1120,10 +1117,7 @@ export default function CreateInvoiceScreen() {
 
       <View
         style={{
-          paddingHorizontal: 24,
-          paddingTop: 12,
-          paddingBottom: Math.max(insets.bottom, 16),
-          borderTopWidth: 1,
+          ...footerContainerStyle,
           borderTopColor: colors.border,
           backgroundColor: colors.bg.primary,
         }}

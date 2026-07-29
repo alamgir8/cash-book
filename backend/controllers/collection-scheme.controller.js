@@ -627,6 +627,35 @@ export const removeMember = async (req, res, next) => {
       return res.status(404).json({ message: "Member not found" });
     }
 
+    // Owner / personal-mode only (super admin)
+    const orgId = resolveSchemeOrgId(req, result.scheme);
+    if (orgId) {
+      const access = await checkOrgAccess(req.user.id, orgId);
+      if (!access.hasAccess) {
+        return res.status(403).json({ message: access.error || "Access denied" });
+      }
+      if (!access.isPersonal && access.membership?.role !== "owner") {
+        return res
+          .status(403)
+          .json({ message: "Only the organization owner can remove families" });
+      }
+    } else if (result.scheme.admin.toString() !== req.user.id) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    const transactionCount = await Transaction.countDocuments({
+      scheme: result.scheme._id,
+      party: member.party,
+      is_deleted: { $ne: true },
+    });
+    if (transactionCount > 0) {
+      return res.status(400).json({
+        message:
+          "Cannot remove family with linked payments/transactions. Remove those transactions first.",
+        transactionCount,
+      });
+    }
+
     member.archived = true;
     member.archived_at = new Date();
     await member.save();

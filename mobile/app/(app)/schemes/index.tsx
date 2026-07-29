@@ -6,12 +6,8 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
-  Modal,
   TextInput,
   RefreshControl,
-  Keyboard,
-  Platform,
-  Dimensions,
 } from "react-native";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -34,16 +30,14 @@ import {
 import { useDeleteMode } from "@/hooks/use-delete-mode";
 import { useOrganization } from "@/hooks/use-organization";
 import { amountInputProps, normalizeAmountInput } from "@/lib/amount-input";
+import { FormSheetModal } from "@/components/form-sheet-modal";
 import { schemesApi, type CollectionScheme } from "@/services/schemes";
-import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function SchemesScreen() {
   const { colors } = useTheme();
   const { t } = useTranslation();
   const { formatAmount } = usePreferences();
   const { canManageCustomers } = useOrganization();
-  const insets = useSafeAreaInsets();
   const { data: schemes = [], isLoading, refetch, isRefetching } = useSchemes();
   const createMutation = useCreateScheme();
   const archiveMutation = useArchiveScheme();
@@ -351,217 +345,144 @@ export default function SchemesScreen() {
         />
       )}
 
-      <Modal visible={showCreate} animationType="slide" transparent>
-        <View className="flex-1 justify-end" style={{ backgroundColor: "#00000066" }}>
-          <TouchableOpacity
-            activeOpacity={1}
-            style={{ flex: 1 }}
-            onPress={() => {
-              Keyboard.dismiss();
-              setShowCreate(false);
-              setEditingScheme(null);
-              resetForm();
-            }}
-          />
-          <KeyboardAwareScrollView
-            bottomOffset={Platform.OS === "ios" ? 100 + insets.bottom : 120}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-            style={{
-              backgroundColor: colors.bg.primary,
-              maxHeight: Dimensions.get("window").height * 0.9,
-            }}
-          >
-            <View
-              className="rounded-t-3xl p-6 gap-4"
-              style={{ backgroundColor: colors.bg.primary }}
-            >
-            <View className="flex-row items-center justify-between">
-              <Text
-                className="text-xl font-bold"
-                style={{ color: colors.text.primary }}
-              >
-                {editingScheme ? t("editScheme") : t("createScheme")}
-              </Text>
-              <TouchableOpacity
-                onPress={() => {
-                  setShowCreate(false);
-                  setEditingScheme(null);
-                  resetForm();
-                }}
-                className="w-9 h-9 rounded-full items-center justify-center"
-                style={{ backgroundColor: "#f43f5e22" }}
-              >
-                <Ionicons name="close" size={18} color="#f43f5e" />
-              </TouchableOpacity>
-            </View>
-            <Controller
-              control={control}
-              name="name"
-              render={({ field: { value, onChange } }) => (
-                <View>
-                  <Text
-                    className="text-sm mb-2"
-                    style={{ color: colors.text.secondary }}
-                  >
-                    {t("schemeName")}
-                  </Text>
-                  <TextInput
-                    value={value}
-                    onChangeText={onChange}
-                    placeholder={t("schemeNamePlaceholder")}
-                    placeholderTextColor={colors.text.tertiary}
-                    className="rounded-xl px-4 py-3 border"
-                    style={{
-                      color: colors.text.primary,
-                      borderColor: errors.name ? colors.error : colors.border,
-                      backgroundColor: colors.bg.secondary,
-                    }}
-                  />
-                  {errors.name ? (
-                    <Text className="text-xs mt-1" style={{ color: colors.error }}>
-                      {errors.name.message}
-                    </Text>
-                  ) : null}
-                </View>
-              )}
-            />
-            <Controller
-              control={control}
-              name="rate"
-              render={({ field: { value, onChange } }) => (
-                <View>
-                  <Text
-                    className="text-sm mb-2"
-                    style={{ color: colors.text.secondary }}
-                  >
-                    {t("ratePerMember")}
-                  </Text>
-                  <TextInput
-                    value={value}
-                    onChangeText={(text) => onChange(normalizeAmountInput(text))}
-                    {...amountInputProps}
-                    placeholder="500"
-                    placeholderTextColor={colors.text.tertiary}
-                    className="rounded-xl px-4 py-3 border"
-                    style={{
-                      color: colors.text.primary,
-                      borderColor: errors.rate ? colors.error : colors.border,
-                      backgroundColor: colors.bg.secondary,
-                    }}
-                  />
-                  {errors.rate ? (
-                    <Text className="text-xs mt-1" style={{ color: colors.error }}>
-                      {errors.rate.message}
-                    </Text>
-                  ) : null}
-                </View>
-              )}
-            />
-            <Controller
-              control={control}
-              name="description"
-              render={({ field: { value, onChange } }) => (
-                <View>
-                  <Text
-                    className="text-sm mb-2"
-                    style={{ color: colors.text.secondary }}
-                  >
-                    {t("descriptionOptional")}
-                  </Text>
-                  <TextInput
-                    value={value}
-                    onChangeText={onChange}
-                    placeholder={t("schemeDescriptionPlaceholder")}
-                    placeholderTextColor={colors.text.tertiary}
-                    className="rounded-xl px-4 py-3 border"
-                    style={{
-                      color: colors.text.primary,
-                      borderColor: colors.border,
-                      backgroundColor: colors.bg.secondary,
-                    }}
-                  />
-                </View>
-              )}
-            />
-            <View className="flex-row gap-3 mt-2">
-              <TouchableOpacity
-                onPress={() => {
-                  setShowCreate(false);
-                  setEditingScheme(null);
-                  resetForm();
-                }}
-                className="flex-1 py-3 rounded-xl items-center"
-                style={{ backgroundColor: colors.bg.tertiary }}
-              >
-                <Text style={{ color: colors.text.primary }}>{t("cancel")}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={handleSubmit(handleSave)}
-                disabled={createMutation.isPending}
-                className="flex-1 py-3 rounded-xl items-center"
-                style={{ backgroundColor: colors.info }}
-              >
-                {createMutation.isPending ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                <Text className="text-white font-semibold">
-                  {editingScheme ? t("save") : t("createLabel")}
+      <FormSheetModal
+        visible={showCreate}
+        onClose={() => {
+          setShowCreate(false);
+          setEditingScheme(null);
+          resetForm();
+        }}
+        title={editingScheme ? t("editScheme") : t("createScheme")}
+        subtitle={
+          editingScheme
+            ? t("updateSchemeDetails") ?? "Update collection scheme"
+            : t("createSchemeSubtitle") ?? "Set name and rate per member"
+        }
+        submitLabel={editingScheme ? t("save") : t("createLabel")}
+        submitIcon={editingScheme ? "checkmark-circle" : "add-circle"}
+        onSubmit={handleSubmit(handleSave)}
+        isSubmitting={createMutation.isPending}
+        submittingLabel={t("saving") ?? "Saving…"}
+        sheetRatio={0.72}
+      >
+        <View className="gap-5">
+          <Controller
+            control={control}
+            name="name"
+            render={({ field: { value, onChange } }) => (
+              <View>
+                <Text
+                  className="text-sm font-semibold mb-2"
+                  style={{ color: colors.text.primary }}
+                >
+                  {t("schemeName")}
                 </Text>
-                )}
-              </TouchableOpacity>
-            </View>
-            </View>
-          </KeyboardAwareScrollView>
-        </View>
-      </Modal>
-      {/* Duplicate modal */}
-      <Modal visible={showDuplicate} animationType="slide" transparent>
-        <View className="flex-1 justify-end" style={{ backgroundColor: "#00000066" }}>
-          <TouchableOpacity
-            activeOpacity={1}
-            style={{ flex: 1 }}
-            onPress={() => {
-              Keyboard.dismiss();
-              setShowDuplicate(false);
-              setDuplicateTarget(null);
-            }}
+                <TextInput
+                  value={value}
+                  onChangeText={onChange}
+                  placeholder={t("schemeNamePlaceholder")}
+                  placeholderTextColor={colors.text.tertiary}
+                  className="px-4 py-3 rounded-xl border"
+                  style={{
+                    color: colors.text.primary,
+                    borderColor: errors.name ? colors.error : colors.border,
+                    backgroundColor: colors.bg.tertiary,
+                    minHeight: 48,
+                  }}
+                />
+                {errors.name ? (
+                  <Text className="text-sm mt-1" style={{ color: colors.error }}>
+                    {errors.name.message}
+                  </Text>
+                ) : null}
+              </View>
+            )}
           />
-          <KeyboardAwareScrollView
-            bottomOffset={Platform.OS === "ios" ? 100 + insets.bottom : 120}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-            style={{
-              backgroundColor: colors.bg.primary,
-              maxHeight: Dimensions.get("window").height * 0.9,
-            }}
-          >
-            <View
-              className="rounded-t-3xl p-6 gap-4"
-              style={{ backgroundColor: colors.bg.primary }}
-            >
-            <View className="flex-row items-center justify-between">
-              <Text
-                className="text-xl font-bold"
-                style={{ color: colors.text.primary }}
-              >
-                {t("duplicateScheme")}
-              </Text>
-              <TouchableOpacity
-                onPress={() => {
-                  setShowDuplicate(false);
-                  setDuplicateTarget(null);
-                }}
-                className="w-9 h-9 rounded-full items-center justify-center"
-                style={{ backgroundColor: "#f43f5e22" }}
-              >
-                <Ionicons name="close" size={18} color="#f43f5e" />
-              </TouchableOpacity>
-            </View>
+          <Controller
+            control={control}
+            name="rate"
+            render={({ field: { value, onChange } }) => (
+              <View>
+                <Text
+                  className="text-sm font-semibold mb-2"
+                  style={{ color: colors.text.primary }}
+                >
+                  {t("ratePerMember")}
+                </Text>
+                <TextInput
+                  value={value}
+                  onChangeText={(text) => onChange(normalizeAmountInput(text))}
+                  {...amountInputProps}
+                  placeholder="500"
+                  placeholderTextColor={colors.text.tertiary}
+                  className="px-4 py-3 rounded-xl border text-lg font-semibold"
+                  style={{
+                    color: colors.text.primary,
+                    borderColor: errors.rate ? colors.error : colors.border,
+                    backgroundColor: colors.bg.tertiary,
+                    minHeight: 48,
+                  }}
+                />
+                {errors.rate ? (
+                  <Text className="text-sm mt-1" style={{ color: colors.error }}>
+                    {errors.rate.message}
+                  </Text>
+                ) : null}
+              </View>
+            )}
+          />
+          <Controller
+            control={control}
+            name="description"
+            render={({ field: { value, onChange } }) => (
+              <View>
+                <Text
+                  className="text-sm font-semibold mb-2"
+                  style={{ color: colors.text.primary }}
+                >
+                  {t("descriptionOptional")}
+                </Text>
+                <TextInput
+                  value={value}
+                  onChangeText={onChange}
+                  placeholder={t("schemeDescriptionPlaceholder")}
+                  placeholderTextColor={colors.text.tertiary}
+                  className="px-4 py-3 rounded-xl border min-h-[80px]"
+                  style={{
+                    color: colors.text.primary,
+                    borderColor: colors.border,
+                    backgroundColor: colors.bg.tertiary,
+                  }}
+                  multiline
+                  textAlignVertical="top"
+                />
+              </View>
+            )}
+          />
+        </View>
+      </FormSheetModal>
 
+      {/* Duplicate modal */}
+      <FormSheetModal
+        visible={showDuplicate}
+        onClose={() => {
+          setShowDuplicate(false);
+          setDuplicateTarget(null);
+        }}
+        title={t("duplicateScheme")}
+        subtitle={t("duplicateSchemeHint")}
+        submitLabel={t("duplicateLabel")}
+        submitIcon="copy-outline"
+        onSubmit={() => void handleDuplicate()}
+        isSubmitting={duplicateMutation.isPending}
+        submittingLabel={t("saving") ?? "Saving…"}
+        sheetRatio={0.55}
+      >
+        <View className="gap-5">
+          <View>
             <Text
-              className="text-sm mb-2"
-              style={{ color: colors.text.secondary }}
+              className="text-sm font-semibold mb-2"
+              style={{ color: colors.text.primary }}
             >
               {t("duplicateSchemeName")}
             </Text>
@@ -570,49 +491,17 @@ export default function SchemesScreen() {
               onChangeText={setDuplicateName}
               placeholder={t("duplicateSchemeNamePlaceholder")}
               placeholderTextColor={colors.text.tertiary}
-              className="rounded-xl px-4 py-3 border"
+              className="px-4 py-3 rounded-xl border"
               style={{
                 color: colors.text.primary,
                 borderColor: colors.border,
-                backgroundColor: colors.bg.secondary,
+                backgroundColor: colors.bg.tertiary,
+                minHeight: 48,
               }}
             />
-
-            <Text
-              className="text-xs"
-              style={{ color: colors.text.tertiary }}
-            >
-              {t("duplicateSchemeHint")}
-            </Text>
-
-            <View className="flex-row gap-3 mt-2">
-              <TouchableOpacity
-                onPress={() => {
-                  setShowDuplicate(false);
-                  setDuplicateTarget(null);
-                }}
-                className="flex-1 py-3 rounded-xl items-center"
-                style={{ backgroundColor: colors.bg.tertiary }}
-              >
-                <Text style={{ color: colors.text.primary }}>{t("cancel")}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => void handleDuplicate()}
-                disabled={duplicateMutation.isPending}
-                className="flex-1 py-3 rounded-xl items-center"
-                style={{ backgroundColor: colors.info }}
-              >
-                {duplicateMutation.isPending ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text className="text-white font-semibold">{t("duplicateLabel")}</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-            </View>
-          </KeyboardAwareScrollView>
+          </View>
         </View>
-      </Modal>
+      </FormSheetModal>
     </View>
   );
 }
