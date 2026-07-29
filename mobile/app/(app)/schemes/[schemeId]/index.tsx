@@ -507,7 +507,7 @@ export default function SchemeDetailScreen() {
         }
       />
 
-      <View className="px-4 pb-3" style={{ gap: 12 }}>
+      <View className="px-4 pb-3" style={{ gap: 12, paddingTop: 8 }}>
         <View className="flex-row gap-2">
           {[
             {
@@ -574,10 +574,7 @@ export default function SchemeDetailScreen() {
 
         <View
           className="flex-row gap-2 p-1.5 rounded-2xl"
-          style={{
-            backgroundColor: colors.bg.secondary,
-            marginTop: 16,
-          }}
+          style={{ backgroundColor: colors.bg.secondary }}
         >
           {filters.map((f) => {
             const active = statusFilter === f.key;
