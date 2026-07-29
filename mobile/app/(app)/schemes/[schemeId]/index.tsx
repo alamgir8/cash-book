@@ -22,6 +22,7 @@ import { useTheme } from "@/hooks/use-theme";
 import { useTranslation } from "@/hooks/use-translation";
 import { usePreferences } from "@/hooks/use-preferences";
 import { useActiveOrgId, useOrganization } from "@/hooks/use-organization";
+import { useDeleteMode } from "@/hooks/use-delete-mode";
 import {
   useScheme,
   useSchemeRoster,
@@ -61,6 +62,7 @@ export default function SchemeDetailScreen() {
   const { formatAmount } = usePreferences();
   const orgId = useActiveOrgId();
   const { isOwner } = useOrganization();
+  const { isDeleteModeActive } = useDeleteMode();
   const queryClient = useQueryClient();
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -158,12 +160,12 @@ export default function SchemeDetailScreen() {
       });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.parties });
       setEnrollPartyId(party._id);
-      Toast.show({ type: "success", text1: t("partyAdded") ?? "Family added" });
+      Toast.show({ type: "success", text1: t("partyAdded") });
       return { value: party._id, label: party.name };
     } catch (error: any) {
       Toast.show({
         type: "error",
-        text1: t("failedToAddParty") ?? "Could not add family",
+        text1: t("failedToAddParty"),
         text2: error?.response?.data?.message || error?.message,
       });
       return null;
@@ -240,7 +242,7 @@ export default function SchemeDetailScreen() {
   };
 
   const handleRemove = (member: SchemeRosterMember) => {
-    if (!isOwner) return;
+    if (!isOwner || !isDeleteModeActive) return;
     if ((member.payment_count ?? 0) > 0 || member.paid > 0) {
       Toast.show({
         type: "error",
@@ -313,8 +315,10 @@ export default function SchemeDetailScreen() {
     ({ item }: { item: SchemeRosterMember }) => {
       const badge = statusColor(item.status, colors);
       const selected = selectedMember?._id === item._id;
-      const canDelete =
-        isOwner && (item.payment_count ?? 0) === 0 && item.paid <= 0;
+      const hasLinkedPayments =
+        (item.payment_count ?? 0) > 0 || item.paid > 0;
+      const showDelete = isOwner && isDeleteModeActive;
+      const canDelete = showDelete && !hasLinkedPayments;
       return (
         <TouchableOpacity
           onPress={() =>
@@ -377,9 +381,10 @@ export default function SchemeDetailScreen() {
                     color={colors.info}
                   />
                 </TouchableOpacity>
-                {isOwner ? (
+                {showDelete ? (
                   <TouchableOpacity
                     onPress={() => handleRemove(item)}
+                    disabled={!canDelete}
                     className="p-2 rounded-full"
                     style={{
                       backgroundColor: canDelete
@@ -473,6 +478,7 @@ export default function SchemeDetailScreen() {
       paymentsData,
       paymentsLoading,
       isOwner,
+      isDeleteModeActive,
     ],
   );
 
@@ -501,7 +507,7 @@ export default function SchemeDetailScreen() {
         }
       />
 
-      <View className="px-4 pb-2 gap-3">
+      <View className="px-4 pb-3" style={{ gap: 12 }}>
         <View className="flex-row gap-2">
           {[
             {
@@ -567,8 +573,11 @@ export default function SchemeDetailScreen() {
         />
 
         <View
-          className="flex-row gap-2 mt-2 p-1.5 rounded-2xl"
-          style={{ backgroundColor: colors.bg.secondary }}
+          className="flex-row gap-2 p-1.5 rounded-2xl"
+          style={{
+            backgroundColor: colors.bg.secondary,
+            marginTop: 16,
+          }}
         >
           {filters.map((f) => {
             const active = statusFilter === f.key;
@@ -578,9 +587,7 @@ export default function SchemeDetailScreen() {
                 onPress={() => setStatusFilter(f.key)}
                 className="flex-1 py-2.5 rounded-xl items-center"
                 style={{
-                  backgroundColor: active
-                    ? colors.info
-                    : "transparent",
+                  backgroundColor: active ? colors.info : "transparent",
                 }}
               >
                 <Text
@@ -634,7 +641,7 @@ export default function SchemeDetailScreen() {
           setEnrollNotes("");
         }}
         title={t("enrollFamily")}
-        subtitle={t("enrollFamilyHint") ?? "Select or add a family to this scheme"}
+        subtitle={t("enrollFamilyHint")}
         submitLabel={t("enroll")}
         submitIcon="person-add"
         onSubmit={() => void handleEnroll()}

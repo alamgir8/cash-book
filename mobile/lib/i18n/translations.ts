@@ -203,6 +203,7 @@ export type AppTranslations = {
   noFamiliesInScheme: string;
   noFamiliesInSchemeHint: string;
   enrollFamily: string;
+  enrollFamilyHint: string;
   family: string;
   selectFamily: string;
   selectFamilyRequired: string;
@@ -212,6 +213,7 @@ export type AppTranslations = {
   enroll: string;
   familyEnrolled: string;
   enrollFailed: string;
+  partyAdded: string;
   recordPayment: string;
   paymentRecorded: string;
   paymentFailed: string;
@@ -727,6 +729,7 @@ const en: AppTranslations = {
   noFamiliesInScheme: "No families enrolled",
   noFamiliesInSchemeHint: "Tap + to enroll a family with member count.",
   enrollFamily: "Enroll family",
+  enrollFamilyHint: "Select or add a family to this scheme",
   family: "Family",
   selectFamily: "Select family",
   selectFamilyRequired: "Select a family to enroll",
@@ -736,6 +739,7 @@ const en: AppTranslations = {
   enroll: "Enroll",
   familyEnrolled: "Family enrolled",
   enrollFailed: "Could not enroll family",
+  partyAdded: "Family added",
   recordPayment: "Record payment",
   paymentRecorded: "Payment recorded",
   paymentFailed: "Could not record payment",
@@ -1259,6 +1263,7 @@ const bn: AppTranslations = {
   noFamiliesInScheme: "কোনো পরিবার নেই",
   noFamiliesInSchemeHint: "+ চাপুন — সদস্য সংখ্যাসহ পরিবার যোগ করুন।",
   enrollFamily: "পরিবার যোগ করুন",
+  enrollFamilyHint: "এই স্কিমে পরিবার নির্বাচন বা যোগ করুন",
   family: "পরিবার",
   selectFamily: "পরিবার নির্বাচন",
   selectFamilyRequired: "যোগ করার জন্য পরিবার নির্বাচন করুন",
@@ -1268,6 +1273,7 @@ const bn: AppTranslations = {
   enroll: "যোগ করুন",
   familyEnrolled: "পরিবার যোগ হয়েছে",
   enrollFailed: "পরিবার যোগ করা যায়নি",
+  partyAdded: "পরিবার যোগ হয়েছে",
   recordPayment: "জমা রেকর্ড",
   paymentRecorded: "জমা রেকর্ড হয়েছে",
   paymentFailed: "জমা রেকর্ড করা যায়নি",
