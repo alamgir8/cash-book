@@ -26,6 +26,13 @@ const schemeMemberSchema = new Schema(
       min: 1,
       default: 1,
     },
+    /** Village / walking order (1…N) for serial listing */
+    sort_order: {
+      type: Number,
+      min: 1,
+      max: 10000,
+      index: true,
+    },
     notes: {
       type: String,
       trim: true,
@@ -65,5 +72,6 @@ schemeMemberSchema.index(
     partialFilterExpression: { archived: false },
   },
 );
+schemeMemberSchema.index({ scheme: 1, sort_order: 1, archived: 1 });
 
 export const SchemeMember = mongoose.model("SchemeMember", schemeMemberSchema);

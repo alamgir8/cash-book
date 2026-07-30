@@ -111,6 +111,7 @@ const buildRosterRows = async (scheme, members) => {
       _id: m._id,
       party: m.party,
       member_count: m.member_count,
+      sort_order: m.sort_order ?? null,
       notes: m.notes,
       expected,
       paid,
@@ -122,6 +123,28 @@ const buildRosterRows = async (scheme, members) => {
       updatedAt: m.updatedAt,
     };
   });
+};
+
+const sortRosterRows = (rows) =>
+  [...rows].sort((a, b) => {
+    const ao = Number(a.sort_order);
+    const bo = Number(b.sort_order);
+    const aHas = Number.isFinite(ao) && ao > 0;
+    const bHas = Number.isFinite(bo) && bo > 0;
+    if (aHas && bHas && ao !== bo) return ao - bo;
+    if (aHas && !bHas) return -1;
+    if (!aHas && bHas) return 1;
+    return String(a.party?.name || "").localeCompare(
+      String(b.party?.name || ""),
+      "bn",
+    );
+  });
+
+const normalizeSortOrder = (value) => {
+  if (value === undefined || value === null || value === "") return undefined;
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 1) return undefined;
+  return Math.min(10000, Math.round(n));
 };
 
 const summarizeRoster = (rows) => {
@@ -470,10 +493,10 @@ export const getRoster = async (req, res, next) => {
       archived: { $ne: true },
     })
       .populate("party", "name code type phone")
-      .sort({ createdAt: 1 })
+      .sort({ sort_order: 1, createdAt: 1 })
       .lean();
 
-    let rows = await buildRosterRows(result.scheme, members);
+    let rows = sortRosterRows(await buildRosterRows(result.scheme, members));
     if (statusFilter !== "all") {
       rows = rows.filter((r) => r.status === statusFilter);
     }
@@ -507,7 +530,7 @@ export const addMember = async (req, res, next) => {
     if (result.error) {
       return res.status(result.error.status).json({ message: result.error.message });
     }
-    const { party: partyId, member_count, notes } = req.body;
+    const { party: partyId, member_count, notes, sort_order } = req.body;
     if (!partyId) {
       return res.status(400).json({ message: "party is required" });
     }
@@ -515,6 +538,7 @@ export const addMember = async (req, res, next) => {
     if (!Number.isFinite(count) || count < 1) {
       return res.status(400).json({ message: "member_count must be >= 1" });
     }
+    const sortOrder = normalizeSortOrder(sort_order);
 
     const party = await Party.findById(partyId);
     if (!party || party.archived) {
@@ -544,12 +568,14 @@ export const addMember = async (req, res, next) => {
       archived.archived_at = undefined;
       archived.member_count = count;
       archived.notes = notes?.trim() || undefined;
+      if (sortOrder !== undefined) archived.sort_order = sortOrder;
       member = await archived.save();
     } else {
       member = await SchemeMember.create({
         scheme: result.scheme._id,
         party: partyId,
         member_count: count,
+        sort_order: sortOrder,
         notes: notes?.trim() || undefined,
         admin: req.user.id,
         organization: result.scheme.organization || undefined,
@@ -588,7 +614,7 @@ export const updateMember = async (req, res, next) => {
       return res.status(404).json({ message: "Member not found" });
     }
 
-    const { member_count, notes } = req.body;
+    const { member_count, notes, sort_order } = req.body;
     if (member_count !== undefined) {
       const count = Number(member_count);
       if (!Number.isFinite(count) || count < 1) {
@@ -598,6 +624,16 @@ export const updateMember = async (req, res, next) => {
     }
     if (notes !== undefined) {
       member.notes = String(notes).trim() || undefined;
+    }
+    if (sort_order !== undefined) {
+      const sortOrder = normalizeSortOrder(sort_order);
+      if (sort_order === null || sort_order === "") {
+        member.sort_order = undefined;
+      } else if (sortOrder === undefined) {
+        return res.status(400).json({ message: "sort_order must be >= 1" });
+      } else {
+        member.sort_order = sortOrder;
+      }
     }
     await member.save();
 

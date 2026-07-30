@@ -209,6 +209,9 @@ export type AppTranslations = {
   selectFamilyRequired: string;
   memberCount: string;
   memberCountRequired: string;
+  sortOrder: string;
+  sortOrderHint: string;
+  sortOrderRequired: string;
   membersLabel: string;
   enroll: string;
   familyEnrolled: string;
@@ -735,6 +738,9 @@ const en: AppTranslations = {
   selectFamilyRequired: "Select a family to enroll",
   memberCount: "Number of members",
   memberCountRequired: "Member count must be at least 1",
+  sortOrder: "Sort no.",
+  sortOrderHint: "Village order (1, 2, 3…) — list walks from one end to the other",
+  sortOrderRequired: "Sort number must be at least 1",
   membersLabel: "Members",
   enroll: "Enroll",
   familyEnrolled: "Family enrolled",
@@ -1269,6 +1275,9 @@ const bn: AppTranslations = {
   selectFamilyRequired: "যোগ করার জন্য পরিবার নির্বাচন করুন",
   memberCount: "লোকসংখ্যা",
   memberCountRequired: "লোকসংখ্যা কমপক্ষে ১ হতে হবে",
+  sortOrder: "ক্রমিক নং",
+  sortOrderHint: "গ্রামের ক্রম (১, ২, ৩…) — এক প্রান্ত থেকে অন্য প্রান্তে সাজানো",
+  sortOrderRequired: "ক্রমিক নম্বর কমপক্ষে ১ হতে হবে",
   membersLabel: "সদস্য",
   enroll: "যোগ করুন",
   familyEnrolled: "পরিবার যোগ হয়েছে",

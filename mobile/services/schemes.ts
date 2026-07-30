@@ -37,6 +37,7 @@ export type SchemeRosterMember = {
     phone?: string;
   };
   member_count: number;
+  sort_order?: number | null;
   notes?: string;
   expected: number;
   paid: number;
@@ -73,6 +74,7 @@ export type DuplicateSchemeParams = {
 export type EnrollMemberParams = {
   party: string;
   member_count: number;
+  sort_order?: number;
   notes?: string;
 };
 
@@ -162,7 +164,7 @@ export const schemesApi = {
   updateMember: async (
     schemeId: string,
     memberId: string,
-    payload: { member_count?: number; notes?: string },
+    payload: { member_count?: number; sort_order?: number | null; notes?: string },
   ) => {
     const { data } = await api.patch<{ member: SchemeRosterMember }>(
       `/collection-schemes/${schemeId}/members/${memberId}`,

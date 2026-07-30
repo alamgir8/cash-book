@@ -73,6 +73,7 @@ export default function SchemeDetailScreen() {
   const [showEnroll, setShowEnroll] = useState(false);
   const [enrollPartyId, setEnrollPartyId] = useState("");
   const [enrollMembers, setEnrollMembers] = useState("1");
+  const [enrollSortOrder, setEnrollSortOrder] = useState("");
   const [enrollNotes, setEnrollNotes] = useState("");
 
   const [showPay, setShowPay] = useState(false);
@@ -81,6 +82,7 @@ export default function SchemeDetailScreen() {
   const [payNote, setPayNote] = useState("");
   const [editMember, setEditMember] = useState<SchemeRosterMember | null>(null);
   const [editCountValue, setEditCountValue] = useState("1");
+  const [editSortOrder, setEditSortOrder] = useState("");
   const [editNotesValue, setEditNotesValue] = useState("");
 
   const { data: schemeData, isLoading: schemeLoading } = useScheme(id);
@@ -137,6 +139,14 @@ export default function SchemeDetailScreen() {
   const scheme = schemeData?.scheme;
   const summary = rosterData?.summary ?? schemeData?.summary;
   const members = rosterData?.members ?? [];
+  const nextSortOrder = useMemo(() => {
+    let max = 0;
+    for (const m of members) {
+      const n = Number(m.sort_order);
+      if (Number.isFinite(n) && n > max) max = n;
+    }
+    return String(max + 1);
+  }, [members]);
 
   const filters: { key: StatusFilter; label: string }[] = [
     { key: "all", label: t("filterAll") },
@@ -182,15 +192,26 @@ export default function SchemeDetailScreen() {
       Toast.show({ type: "error", text1: t("memberCountRequired") });
       return;
     }
+    const sortRaw = enrollSortOrder.trim();
+    const sortOrder = sortRaw ? Number(sortRaw) : undefined;
+    if (
+      sortRaw &&
+      (!Number.isFinite(sortOrder) || !sortOrder || sortOrder < 1)
+    ) {
+      Toast.show({ type: "error", text1: t("sortOrderRequired") });
+      return;
+    }
     try {
       await enrollMutation.mutateAsync({
         party: enrollPartyId,
         member_count: count,
+        sort_order: sortOrder,
         notes: enrollNotes.trim() || undefined,
       });
       setShowEnroll(false);
       setEnrollPartyId("");
       setEnrollMembers("1");
+      setEnrollSortOrder("");
       setEnrollNotes("");
       Toast.show({ type: "success", text1: t("familyEnrolled") });
     } catch (error: any) {
@@ -284,6 +305,11 @@ export default function SchemeDetailScreen() {
   const handleEditFamily = (member: SchemeRosterMember) => {
     setEditMember(member);
     setEditCountValue(String(member.member_count));
+    setEditSortOrder(
+      member.sort_order != null && member.sort_order >= 1
+        ? String(member.sort_order)
+        : "",
+    );
     setEditNotesValue(member.notes || "");
   };
 
@@ -294,10 +320,20 @@ export default function SchemeDetailScreen() {
       Toast.show({ type: "error", text1: t("memberCountRequired") });
       return;
     }
+    const sortRaw = editSortOrder.trim();
+    const sortOrder = sortRaw ? Number(sortRaw) : null;
+    if (
+      sortRaw &&
+      (!Number.isFinite(sortOrder) || !sortOrder || sortOrder < 1)
+    ) {
+      Toast.show({ type: "error", text1: t("sortOrderRequired") });
+      return;
+    }
     try {
       await updateMemberMutation.mutateAsync({
         memberId: editMember._id,
         member_count: count,
+        sort_order: sortOrder,
         notes: editNotesValue.trim(),
       });
       setEditMember(null);
@@ -333,27 +369,42 @@ export default function SchemeDetailScreen() {
           }}
         >
           <View className="flex-row items-start justify-between gap-3">
-            <View className="flex-1">
-              <Text
-                className="text-base font-bold"
-                style={{ color: colors.text.primary }}
-              >
-                {item.party.name}
-              </Text>
-              <Text
-                className="text-xs mt-1"
-                style={{ color: colors.text.secondary }}
-              >
-                {t("membersLabel")}: {item.member_count} · {t("expected")}:{" "}
-                {formatAmount(item.expected)}
-              </Text>
-              <Text
-                className="text-xs mt-1"
-                style={{ color: colors.text.secondary }}
-              >
-                {t("paid")}: {formatAmount(item.paid)} · {t("due")}:{" "}
-                {formatAmount(item.due)}
-              </Text>
+            <View className="flex-1 flex-row items-start gap-2">
+              {item.sort_order != null && item.sort_order >= 1 ? (
+                <View
+                  className="min-w-[28px] h-7 px-1.5 rounded-lg items-center justify-center mt-0.5"
+                  style={{ backgroundColor: colors.bg.tertiary }}
+                >
+                  <Text
+                    className="text-xs font-bold"
+                    style={{ color: colors.text.secondary }}
+                  >
+                    {item.sort_order}
+                  </Text>
+                </View>
+              ) : null}
+              <View className="flex-1">
+                <Text
+                  className="text-base font-bold"
+                  style={{ color: colors.text.primary }}
+                >
+                  {item.party.name}
+                </Text>
+                <Text
+                  className="text-xs mt-1"
+                  style={{ color: colors.text.secondary }}
+                >
+                  {t("membersLabel")}: {item.member_count} · {t("expected")}:{" "}
+                  {formatAmount(item.expected)}
+                </Text>
+                <Text
+                  className="text-xs mt-1"
+                  style={{ color: colors.text.secondary }}
+                >
+                  {t("paid")}: {formatAmount(item.paid)} · {t("due")}:{" "}
+                  {formatAmount(item.due)}
+                </Text>
+              </View>
             </View>
             <View className="items-end gap-2">
               <View
@@ -498,7 +549,10 @@ export default function SchemeDetailScreen() {
         showBack
         rightAction={
           <TouchableOpacity
-            onPress={() => setShowEnroll(true)}
+            onPress={() => {
+              setEnrollSortOrder(nextSortOrder);
+              setShowEnroll(true);
+            }}
             className="w-10 h-10 rounded-full items-center justify-center"
             style={{ backgroundColor: colors.info + "20" }}
           >
@@ -635,6 +689,7 @@ export default function SchemeDetailScreen() {
           setShowEnroll(false);
           setEnrollPartyId("");
           setEnrollMembers("1");
+          setEnrollSortOrder("");
           setEnrollNotes("");
         }}
         title={t("enrollFamily")}
@@ -644,7 +699,7 @@ export default function SchemeDetailScreen() {
         onSubmit={() => void handleEnroll()}
         isSubmitting={enrollMutation.isPending}
         submittingLabel={t("saving") ?? "Saving…"}
-        sheetRatio={0.75}
+        sheetRatio={0.8}
       >
         <View className="gap-5">
           <SearchableSelect
@@ -656,26 +711,53 @@ export default function SchemeDetailScreen() {
             onAddNew={handleAddFamily}
             addNewLabel="family"
           />
-          <View>
-            <Text
-              className="text-sm font-semibold mb-2"
-              style={{ color: colors.text.primary }}
-            >
-              {t("memberCount")}
-            </Text>
-            <TextInput
-              value={enrollMembers}
-              onChangeText={setEnrollMembers}
-              {...integerInputProps}
-              className="px-4 py-3 rounded-xl border"
-              style={{
-                color: colors.text.primary,
-                borderColor: colors.border,
-                backgroundColor: colors.bg.tertiary,
-                minHeight: 48,
-              }}
-            />
+          <View className="flex-row gap-3">
+            <View className="flex-1">
+              <Text
+                className="text-sm font-semibold mb-2"
+                style={{ color: colors.text.primary }}
+              >
+                {t("sortOrder")}
+              </Text>
+              <TextInput
+                value={enrollSortOrder}
+                onChangeText={setEnrollSortOrder}
+                {...integerInputProps}
+                placeholder="1"
+                placeholderTextColor={colors.text.tertiary}
+                className="px-4 py-3 rounded-xl border"
+                style={{
+                  color: colors.text.primary,
+                  borderColor: colors.border,
+                  backgroundColor: colors.bg.tertiary,
+                  minHeight: 48,
+                }}
+              />
+            </View>
+            <View className="flex-1">
+              <Text
+                className="text-sm font-semibold mb-2"
+                style={{ color: colors.text.primary }}
+              >
+                {t("memberCount")}
+              </Text>
+              <TextInput
+                value={enrollMembers}
+                onChangeText={setEnrollMembers}
+                {...integerInputProps}
+                className="px-4 py-3 rounded-xl border"
+                style={{
+                  color: colors.text.primary,
+                  borderColor: colors.border,
+                  backgroundColor: colors.bg.tertiary,
+                  minHeight: 48,
+                }}
+              />
+            </View>
           </View>
+          <Text className="text-xs -mt-2" style={{ color: colors.text.tertiary }}>
+            {t("sortOrderHint")}
+          </Text>
           <View>
             <Text
               className="text-sm font-semibold mb-2"
@@ -774,35 +856,56 @@ export default function SchemeDetailScreen() {
         onSubmit={() => void saveEditFamily()}
         isSubmitting={updateMemberMutation.isPending}
         submittingLabel={t("saving") ?? "Saving…"}
-        sheetRatio={0.55}
+        sheetRatio={0.6}
       >
         <View className="gap-5">
-          <View>
-            <Text
-              className="text-sm font-semibold mb-2"
-              style={{ color: colors.text.primary }}
-            >
-              {t("memberCount")}
-            </Text>
-            <TextInput
-              value={editCountValue}
-              onChangeText={setEditCountValue}
-              {...integerInputProps}
-              className="px-4 py-3 rounded-xl border"
-              style={{
-                color: colors.text.primary,
-                borderColor: colors.border,
-                backgroundColor: colors.bg.tertiary,
-                minHeight: 48,
-              }}
-            />
-            <Text
-              className="text-xs mt-2"
-              style={{ color: colors.text.tertiary }}
-            >
-              {t("updateMemberCountHint")}
-            </Text>
+          <View className="flex-row gap-3">
+            <View className="flex-1">
+              <Text
+                className="text-sm font-semibold mb-2"
+                style={{ color: colors.text.primary }}
+              >
+                {t("sortOrder")}
+              </Text>
+              <TextInput
+                value={editSortOrder}
+                onChangeText={setEditSortOrder}
+                {...integerInputProps}
+                placeholder="1"
+                placeholderTextColor={colors.text.tertiary}
+                className="px-4 py-3 rounded-xl border"
+                style={{
+                  color: colors.text.primary,
+                  borderColor: colors.border,
+                  backgroundColor: colors.bg.tertiary,
+                  minHeight: 48,
+                }}
+              />
+            </View>
+            <View className="flex-1">
+              <Text
+                className="text-sm font-semibold mb-2"
+                style={{ color: colors.text.primary }}
+              >
+                {t("memberCount")}
+              </Text>
+              <TextInput
+                value={editCountValue}
+                onChangeText={setEditCountValue}
+                {...integerInputProps}
+                className="px-4 py-3 rounded-xl border"
+                style={{
+                  color: colors.text.primary,
+                  borderColor: colors.border,
+                  backgroundColor: colors.bg.tertiary,
+                  minHeight: 48,
+                }}
+              />
+            </View>
           </View>
+          <Text className="text-xs -mt-2" style={{ color: colors.text.tertiary }}>
+            {t("sortOrderHint")}
+          </Text>
           <View>
             <Text
               className="text-sm font-semibold mb-2"

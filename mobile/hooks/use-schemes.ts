@@ -139,6 +139,7 @@ export function useUpdateSchemeMember(schemeId: string) {
     }: {
       memberId: string;
       member_count?: number;
+      sort_order?: number | null;
       notes?: string;
     }) => schemesApi.updateMember(schemeId, memberId, payload),
     onSuccess: () => invalidateSchemeQueries(queryClient, schemeId),

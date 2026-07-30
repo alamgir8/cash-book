@@ -7,6 +7,12 @@ import { Party } from "../models/Party.js";
 import { Category } from "../models/Category.js";
 import { parseFile, processRow } from "../utils/importParser.js";
 import { checkOrgAccess, getOrgFromRequest } from "../utils/organization.js";
+import {
+  findOrCreateImportParty,
+  findOrCreateImportScheme,
+  upsertImportSchemeMember,
+  adjustImportPartyBalance,
+} from "../utils/importSchemeSync.js";
 
 // ─── Multer Configuration ─────────────────────────────────────────────────────
 
@@ -575,11 +581,21 @@ export const executeImport = async (req, res, next) => {
     let importedCount = 0;
     let skippedCount = 0;
     let failedCount = 0;
+    const partyCache = new Map();
+    const schemeCache = new Map();
+
+    // Process older rows first so member_count updates chronologically
+    const orderedItems = [...importRecord.items].sort((a, b) => {
+      const da = a.date ? new Date(a.date).getTime() : 0;
+      const db = b.date ? new Date(b.date).getTime() : 0;
+      if (da !== db) return da - db;
+      return (a.row_index || 0) - (b.row_index || 0);
+    });
 
     session.startTransaction();
 
     try {
-      for (const item of importRecord.items) {
+      for (const item of orderedItems) {
         if (item.status !== "pending") {
           skippedCount++;
           continue;
@@ -593,11 +609,26 @@ export const executeImport = async (req, res, next) => {
         }
 
         try {
+          // Create the transaction
+          // For ledger mode, resolve account from account_name column mapping
+          let targetAccountId = item.account || accountId;
+          if (isLedger && item.account_name) {
+            const mappedAccount = accountNameMap.get(item.account_name);
+            if (mappedAccount) {
+              targetAccountId = mappedAccount._id;
+            } else if (!targetAccountId) {
+              item.status = "skipped";
+              item.error_message = `No account mapped for column: ${item.account_name}`;
+              skippedCount++;
+              continue;
+            }
+          }
+
           // Check for duplicates if enabled
           if (skip_duplicates && item.date && item.amount) {
             const duplicateFilter = {
               admin: req.user.id,
-              account: item.account || accountId,
+              account: targetAccountId || item.account || accountId,
               amount: item.amount,
               type: item.type,
               is_deleted: false,
@@ -618,6 +649,10 @@ export const executeImport = async (req, res, next) => {
               duplicateFilter.description = item.description;
             }
 
+            if (item.account_name) {
+              duplicateFilter["meta_data.account_name"] = item.account_name;
+            }
+
             const existing = await Transaction.findOne(duplicateFilter)
               .session(session)
               .lean();
@@ -630,18 +665,60 @@ export const executeImport = async (req, res, next) => {
             }
           }
 
-          // Create the transaction
-          // For ledger mode, resolve account from account_name column mapping
-          let targetAccountId = item.account || accountId;
-          if (isLedger && item.account_name) {
-            const mappedAccount = accountNameMap.get(item.account_name);
-            if (mappedAccount) {
-              targetAccountId = mappedAccount._id;
-            } else if (!targetAccountId) {
-              item.status = "skipped";
-              item.error_message = `No account mapped for column: ${item.account_name}`;
-              skippedCount++;
-              continue;
+          // When member_count is present, sync collection scheme + family enrollment
+          // Skip obvious cash/expense ledger columns — those stay as plain account txns.
+          let resolvedPartyId = item.party || undefined;
+          let resolvedSchemeId = undefined;
+          const memberCount = Number(item.member_count);
+          const partyName = String(
+            item.counterparty ||
+              item.description ||
+              item.raw_counterparty ||
+              item.raw_description ||
+              "",
+          ).trim();
+          const isNonSchemeColumn =
+            /ক্যাশ\s*হিসাব|cash\s*account|cash\b|অতিরিক্ত\s*খরচ|additional\s*expense|expense|খরচ/i.test(
+              String(item.account_name || ""),
+            );
+
+          if (
+            !isNonSchemeColumn &&
+            Number.isFinite(memberCount) &&
+            memberCount >= 1 &&
+            partyName &&
+            item.account_name
+          ) {
+            const party = await findOrCreateImportParty({
+              adminId: req.user.id,
+              organizationId: organizationId || undefined,
+              name: partyName,
+              session,
+              cache: partyCache,
+            });
+            const scheme = await findOrCreateImportScheme({
+              adminId: req.user.id,
+              organizationId: organizationId || undefined,
+              name: item.account_name,
+              defaultAccountId: targetAccountId,
+              session,
+              cache: schemeCache,
+            });
+
+            if (party && scheme) {
+              await upsertImportSchemeMember({
+                scheme,
+                party,
+                memberCount,
+                sortOrder: item.sort_order,
+                adminId: req.user.id,
+                organizationId: organizationId || undefined,
+                session,
+              });
+              resolvedPartyId = party._id;
+              resolvedSchemeId = scheme._id;
+              item.party = party._id;
+              item.scheme = scheme._id;
             }
           }
 
@@ -650,19 +727,25 @@ export const executeImport = async (req, res, next) => {
             organization: organizationId || undefined,
             account: targetAccountId,
             category_id: item.category_id || undefined,
-            party: item.party || undefined,
+            party: resolvedPartyId,
+            scheme: resolvedSchemeId,
             type: item.type,
             amount: item.amount,
             date: item.date || new Date(),
             description: item.description || undefined,
             counterparty: item.counterparty || undefined,
             note: item.notes || undefined,
+            payment_status: resolvedSchemeId ? "paid" : undefined,
             meta_data: {
               imported: true,
               import_id: importRecord._id,
               row_index: item.row_index,
               original_filename: importRecord.original_filename,
               account_name: item.account_name || undefined,
+              member_count: Number.isFinite(memberCount)
+                ? memberCount
+                : undefined,
+              sort_order: item.sort_order || undefined,
             },
           };
 
@@ -691,6 +774,21 @@ export const executeImport = async (req, res, next) => {
 
             transaction.balance_after_transaction =
               targetAccount.current_balance;
+          }
+
+          if (resolvedPartyId) {
+            const partyBalance = await adjustImportPartyBalance({
+              partyId: resolvedPartyId,
+              amount: item.amount,
+              type: item.type,
+              session,
+            });
+            if (partyBalance !== null) {
+              transaction.party_balance_after = partyBalance;
+            }
+          }
+
+          if (targetAccount || resolvedPartyId) {
             await transaction.save({ session });
           }
 

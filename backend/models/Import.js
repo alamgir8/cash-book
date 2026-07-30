@@ -13,10 +13,16 @@ const importItemSchema = new mongoose.Schema(
     account_name: { type: String, trim: true },
     notes: { type: String, trim: true },
 
+    // Family member count from "Number of members" column (ledger collection sheets)
+    member_count: { type: Number, min: 1 },
+    // Village walking / sorting number (1…N)
+    sort_order: { type: Number, min: 1, max: 10000 },
+
     // Resolved references (set after mapping)
     account: { type: mongoose.Schema.Types.ObjectId, ref: "Account" },
     category_id: { type: mongoose.Schema.Types.ObjectId, ref: "Category" },
     party: { type: mongoose.Schema.Types.ObjectId, ref: "Party" },
+    scheme: { type: mongoose.Schema.Types.ObjectId, ref: "CollectionScheme" },
 
     // Raw parsed values (for display)
     raw_date: { type: String },

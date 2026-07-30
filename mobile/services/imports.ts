@@ -12,9 +12,12 @@ export type ImportItem = {
   type: "debit" | "credit";
   account_name?: string | null;
   notes?: string | null;
+  member_count?: number | null;
+  sort_order?: number | null;
   account?: { _id: string; name: string; kind?: string } | string | null;
   category_id?: { _id: string; name: string; type: string } | string | null;
   party?: { _id: string; name: string; code?: string } | string | null;
+  scheme?: { _id: string; name: string } | string | null;
   raw_date: string | null;
   raw_amount: string | null;
   raw_description: string | null;

@@ -642,6 +642,32 @@ function ImportItemCard({
               {item.account_name}
             </Text>
           </View>
+          {item.member_count != null && item.member_count >= 1 ? (
+            <View
+              className="px-2 py-0.5 rounded-full"
+              style={{ backgroundColor: colors.success + "18" }}
+            >
+              <Text
+                style={{ color: colors.success }}
+                className="text-xs font-medium"
+              >
+                {item.member_count} members
+              </Text>
+            </View>
+          ) : null}
+          {item.sort_order != null && item.sort_order >= 1 ? (
+            <View
+              className="px-2 py-0.5 rounded-full"
+              style={{ backgroundColor: colors.warning + "18" }}
+            >
+              <Text
+                style={{ color: colors.warning }}
+                className="text-xs font-medium"
+              >
+                #{item.sort_order}
+              </Text>
+            </View>
+          ) : null}
         </View>
       )}
 

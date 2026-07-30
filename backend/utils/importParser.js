@@ -169,11 +169,16 @@ const COLUMN_PATTERNS = {
     /payer/i,
     /beneficiary/i,
     /party/i,
+    /vendor/i,
+    /vendors/i,
+    /family/i,
+    /families/i,
     /sender/i,
     /receiver/i,
     /name/i,
     /প্রাপক/i,
     /প্রেরক/i,
+    /পরিবার/i,
   ],
   debit: [
     /debit/i,
@@ -450,13 +455,17 @@ export const processLedgerSheet = (rawData, headers, options = {}) => {
   const accountColumns = []; // { index, name, type }
 
   // ─── Identify special columns ──────────────────────────────
-  // Patterns for non-account columns (dates, descriptions, totals, notes)
+  // Patterns for non-account columns (dates, descriptions, totals, notes, member counts)
   const DATE_HEADER = /date|তারিখ/i;
-  const DESC_HEADER = /description|particulars|narration|বিবরণ|name|নাম/i;
+  const DESC_HEADER =
+    /description|particulars|narration|বিবরণ|name|নাম|vendor|vendors|family|families|পরিবার|পার্টি/i;
   const TOTAL_HEADER =
     /total|মোট|sum|subtotal|actual|প্রদান|balance|ব্যালেন্স/i;
   const NOTES_HEADER = /note|remark|comment|মন্তব্য|কথায়/i;
-  const SERIAL_HEADER = /sl|serial|no|#|ক্রম/i;
+  const SERIAL_HEADER =
+    /sorting|sort\s*(no|number|order)?|serial(\s*no)?|^sl\.?$|^\s*#\s*$|ক্রমিক|ক্রম|সিরিয়?াল/i;
+  const MEMBER_HEADER =
+    /number\s*of\s*members|member\s*counts?|members?|সদস্য\s*সংখ্যা|সদস্যসংখ্যা|লোকসংখ্যা|লোক\s*সংখ্যা|সদস্য/i;
   const DEBIT_SECTION_HINT =
     /খরচ|expense|debit|ব্যয়|কেনা|mistri|rod|cement|বালু|ইট|সিমেন্ট|রড|মিস্ত্রি|ওয়ারিং|গ্রীল|জানালা|মিস্ত্রিদের|পরিবহন|ভাড়া|মজুরী/i;
   const CREDIT_SECTION_HINT =
@@ -468,11 +477,13 @@ export const processLedgerSheet = (rawData, headers, options = {}) => {
   const notesCols = [];
   const totalCols = [];
   const serialCols = [];
+  const memberCols = [];
 
   for (let i = 0; i < headers.length; i++) {
     const h = String(headers[i] || "").trim();
     if (!h) continue;
     if (DATE_HEADER.test(h)) dateCols.push(i);
+    else if (MEMBER_HEADER.test(h)) memberCols.push(i);
     else if (DESC_HEADER.test(h)) descCols.push(i);
     else if (NOTES_HEADER.test(h)) notesCols.push(i);
     else if (TOTAL_HEADER.test(h)) totalCols.push(i);
@@ -509,6 +520,7 @@ export const processLedgerSheet = (rawData, headers, options = {}) => {
         // Exclude known non-account columns
         if (DATE_HEADER.test(ht)) return false;
         if (DESC_HEADER.test(ht)) return false;
+        if (MEMBER_HEADER.test(ht)) return false;
         if (TOTAL_HEADER.test(ht)) return false;
         if (NOTES_HEADER.test(ht)) return false;
         if (SERIAL_HEADER.test(ht)) return false;
@@ -560,6 +572,7 @@ export const processLedgerSheet = (rawData, headers, options = {}) => {
     ...notesCols,
     ...totalCols,
     ...serialCols,
+    ...memberCols,
   ]);
 
   for (const section of sections) {
@@ -617,6 +630,44 @@ export const processLedgerSheet = (rawData, headers, options = {}) => {
           : null;
       const notes = notesRaw ? convertBanglaToEnglish(notesRaw) : null;
 
+      // Member count for this row (applies to all scheme amount cells on the row)
+      let memberCount = null;
+      for (const mc of memberCols) {
+        if (mc < section.start || mc >= section.end) continue;
+        const cellValue = row[mc];
+        if (
+          cellValue === null ||
+          cellValue === undefined ||
+          String(cellValue).trim() === ""
+        ) {
+          continue;
+        }
+        const parsed = parseAmount(cellValue);
+        if (parsed !== null && parsed >= 1) {
+          memberCount = Math.round(parsed);
+          break;
+        }
+      }
+
+      // Village / walking serial (1…N) for this family row
+      let sortOrder = null;
+      for (const sc of serialCols) {
+        if (sc < section.start || sc >= section.end) continue;
+        const cellValue = row[sc];
+        if (
+          cellValue === null ||
+          cellValue === undefined ||
+          String(cellValue).trim() === ""
+        ) {
+          continue;
+        }
+        const parsed = parseAmount(cellValue);
+        if (parsed !== null && parsed >= 1) {
+          sortOrder = Math.min(10000, Math.round(parsed));
+          break;
+        }
+      }
+
       // Check each account column in this section for amounts
       for (const accCol of accountColumns) {
         if (accCol.section !== section) continue;
@@ -643,6 +694,8 @@ export const processLedgerSheet = (rawData, headers, options = {}) => {
           amount,
           type: accCol.type || section.type,
           account_name: accCol.name,
+          member_count: memberCount || undefined,
+          sort_order: sortOrder || undefined,
           raw_date: dateValue ? String(dateValue) : null,
           raw_amount: String(cellValue),
           raw_description: descRaw,

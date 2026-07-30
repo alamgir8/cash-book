@@ -10,6 +10,7 @@ import {
   deleteImportRecord,
 } from "@/services/imports";
 import type { ColumnMapping, AccountColumnMapping } from "@/services/imports";
+import { QUERY_KEYS } from "@/lib/queryKeys";
 
 // ─── Query Keys ───────────────────────────────────────────────────────────────
 
@@ -213,6 +214,8 @@ export const useExecuteImport = () => {
       queryClient.invalidateQueries({ queryKey: ["transactions"] });
       queryClient.invalidateQueries({ queryKey: ["accounts"] });
       queryClient.invalidateQueries({ queryKey: ["summary"] });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.parties });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.schemes });
       Toast.show({
         type: "success",
         text1: "Import completed",
