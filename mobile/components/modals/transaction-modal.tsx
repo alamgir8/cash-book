@@ -389,7 +389,7 @@ export const TransactionModal = ({
   // Stable fetchOptions for vendor search (excludes selected for_party by ID and name)
   const fetchVendorOptions = useCallback(
     async (q: string) => {
-      const res = await fetchVendors(q);
+      const res = await fetchVendors(q, organizationId || undefined);
       const excludeIds = new Set(
         bulkMode
           ? bulkForParties
@@ -414,13 +414,14 @@ export const TransactionModal = ({
       bulkForPartyNames,
       selectedForParty,
       selectedForPartyName,
+      organizationId,
     ],
   );
 
   // Stable fetchOptions for for_party search (excludes selected vendor by ID and name)
   const fetchForPartyOptions = useCallback(
     async (q: string) => {
-      const res = await fetchVendors(q);
+      const res = await fetchVendors(q, organizationId || undefined);
       const excludeIds = new Set(
         bulkMode ? bulkParties : selectedVendor ? [selectedVendor] : [],
       );
@@ -441,14 +442,16 @@ export const TransactionModal = ({
       bulkPartyNames,
       selectedVendor,
       selectedVendorName,
+      organizationId,
     ],
   );
 
   const fetchCategoryOptions = useCallback(
     async (q: string) => {
       const cats = await queryClient.fetchQuery({
-        queryKey: QUERY_KEYS.categories.all,
-        queryFn: () => fetchCategories(),
+        queryKey: [...QUERY_KEYS.categories.all, organizationId ?? "personal"],
+        queryFn: () =>
+          fetchCategories({ organizationId: organizationId || undefined }),
       });
       const targetFlow = selectedType === "credit" ? "credit" : "debit";
       const normalized = q.trim().toLowerCase();
@@ -475,7 +478,7 @@ export const TransactionModal = ({
           };
         });
     },
-    [language, queryClient, selectedType],
+    [language, queryClient, selectedType, organizationId],
   );
 
   // Filter categories based on selected transaction type (debit/credit)

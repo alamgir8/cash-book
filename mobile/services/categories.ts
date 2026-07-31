@@ -13,11 +13,15 @@ export type Category = {
 export const fetchCategories = async (
   options: {
     includeArchived?: boolean;
+    organizationId?: string | null;
   } = {}
 ) => {
-  const { includeArchived = false } = options;
+  const { includeArchived = false, organizationId } = options;
+  const params: Record<string, string> = {};
+  if (includeArchived) params.include_archived = "true";
+  if (organizationId) params.organization = organizationId;
   const { data } = await api.get<{ categories: Category[] }>("/categories", {
-    params: includeArchived ? { include_archived: "true" } : undefined,
+    params: Object.keys(params).length ? params : undefined,
   });
   return includeArchived
     ? data.categories

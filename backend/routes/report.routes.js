@@ -20,6 +20,8 @@ const baseReportQuery = z.object({
   categoryId: z.string().optional(),
   category_id: z.string().optional(),
   loan_filter: z.enum(["loan_given", "loan_received"]).optional(),
+  organization: z.string().optional(),
+  organization_id: z.string().optional(),
 });
 
 const summarySchema = z.object({
@@ -43,6 +45,8 @@ const accountBalanceSchema = z.object({
   params: z.object({}).optional(),
   query: z.object({
     on: z.string().optional(),
+    organization: z.string().optional(),
+    organization_id: z.string().optional(),
   }),
 });
 

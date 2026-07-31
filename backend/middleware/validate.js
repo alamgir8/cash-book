@@ -8,7 +8,9 @@ export const validate = (schema) => (req, res, next) => {
     const parseResult = schema.parse(data);
     req.body = parseResult.body ?? {};
     req.params = parseResult.params ?? {};
-    req.query = parseResult.query ?? {};
+    // Keep unknown query keys (e.g. organization). Zod object schemas strip
+    // them by default, which forced personal-scope filters and empty org data.
+    req.query = { ...req.query, ...(parseResult.query ?? {}) };
     return next();
   } catch (error) {
     const formatted = error.errors?.map((issue) => ({

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type { Transaction, TransactionFilters } from "@/services/transactions";
 import {
@@ -16,11 +16,18 @@ type QuerySlice = {
   };
   isPending: boolean;
   isFetching: boolean;
+  isPlaceholderData?: boolean;
 };
 
 type Options = {
   defaultLimit?: number;
   preserveKeys?: (keyof TransactionFilters)[];
+};
+
+const signatureWithoutPage = (filters: TransactionFilters) => {
+  const serialized = serializeTransactionFilters(filters);
+  delete serialized.page;
+  return JSON.stringify(serialized);
 };
 
 /**
@@ -43,6 +50,21 @@ export function useTransactionListState(
     () => JSON.stringify(serializeTransactionFilters(filters)),
     [filters],
   );
+  const scopeSignature = useMemo(
+    () => signatureWithoutPage(filters),
+    [filters],
+  );
+  const prevScopeRef = useRef(scopeSignature);
+
+  // Drop stale rows as soon as org/account/chips change (don't keep personal list
+  // visible while the org request is in flight with placeholderData).
+  useEffect(() => {
+    if (prevScopeRef.current === scopeSignature) return;
+    prevScopeRef.current = scopeSignature;
+    setAllTransactions([]);
+    setHasMorePages(true);
+    setLoadingMore(false);
+  }, [scopeSignature]);
 
   const visibleTransactions = useMemo(
     () => filterTransactionsByActiveFilters(allTransactions, filters),
@@ -50,7 +72,9 @@ export function useTransactionListState(
   );
 
   useEffect(() => {
-    if (!query.data || query.isPending || query.isFetching) return;
+    if (!query.data || query.isPending) return;
+    // Placeholder is previous query's rows — never commit those under a new scope
+    if (query.isPlaceholderData) return;
 
     const freshData = query.data.transactions ?? [];
     const pagination = query.data.pagination;
@@ -81,7 +105,7 @@ export function useTransactionListState(
   }, [
     query.data,
     query.isPending,
-    query.isFetching,
+    query.isPlaceholderData,
     filters.page,
     filters.limit,
     filterSignature,

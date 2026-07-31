@@ -22,6 +22,8 @@ const listSchema = z.object({
   query: z.object({
     include_archived: z.string().optional(),
     includeArchived: z.string().optional(),
+    organization: z.string().optional(),
+    organization_id: z.string().optional(),
   }),
 });
 
@@ -32,6 +34,7 @@ const createSchema = z.object({
     description: z.string().trim().max(512).optional(),
     color: z.string().trim().max(32).optional(),
     flow: z.enum(CATEGORY_FLOW_OPTIONS).optional(),
+    organization: z.string().optional(),
   }),
   params: z.object({}).optional(),
   query: z.object({}).optional(),

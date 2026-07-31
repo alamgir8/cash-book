@@ -18,7 +18,7 @@ import {
   type AccountOverview,
 } from "@/services/accounts";
 import { queryKeys } from "@/lib/queryKeys";
-import { useOrganization } from "@/hooks/use-organization";
+import { useOrganization, useActiveOrgId } from "@/hooks/use-organization";
 import { usePreferences } from "@/hooks/use-preferences";
 import { useDeleteMode } from "@/hooks/use-delete-mode";
 import { getApiErrorMessage } from "@/lib/api";
@@ -29,6 +29,8 @@ export function useAccountsScreen() {
   const params = useLocalSearchParams<{ accountId?: string }>();
   const queryClient = useQueryClient();
   const { canManageAccounts } = useOrganization();
+  const organizationId = useActiveOrgId();
+  const orgKey = organizationId ?? "personal";
   const { formatAmount } = usePreferences();
   const { isDeleteModeActive } = useDeleteMode();
 
@@ -37,8 +39,8 @@ export function useAccountsScreen() {
 
   // ── Queries ──────────────────────────────────────────────────────────────
   const accountsQuery = useQuery({
-    queryKey: queryKeys.accountsOverview,
-    queryFn: fetchAccountsOverview,
+    queryKey: [...queryKeys.accountsOverview, orgKey],
+    queryFn: () => fetchAccountsOverview(organizationId || undefined),
   });
 
   const accounts = useMemo(
@@ -130,6 +132,7 @@ export function useAccountsScreen() {
       const payload = {
         name: values.name,
         description: values.description,
+        ...(organizationId ? { organization: organizationId } : {}),
       };
       if (selectedAccount) {
         await updateMutation.mutateAsync({
@@ -141,7 +144,12 @@ export function useAccountsScreen() {
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [selectedAccount, createMutation.mutateAsync, updateMutation.mutateAsync],
+    [
+      selectedAccount,
+      organizationId,
+      createMutation.mutateAsync,
+      updateMutation.mutateAsync,
+    ],
   );
 
   const handleViewHistory = useCallback(

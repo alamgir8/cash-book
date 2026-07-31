@@ -252,10 +252,14 @@ export const fetchTransactions = async (filters: TransactionFilters) => {
  */
 export const fetchCounterparties = async (
   search?: string,
+  organizationId?: string | null,
 ): Promise<string[]> => {
   const params: Record<string, string> = {};
   if (search?.trim()) {
     params.search = search.trim();
+  }
+  if (organizationId) {
+    params.organization = organizationId;
   }
   const { data } = await api.get<string[]>("/transactions/counterparties", {
     params,
@@ -263,10 +267,16 @@ export const fetchCounterparties = async (
   return data;
 };
 
-export const fetchVendors = async (search?: string): Promise<PartyRef[]> => {
+export const fetchVendors = async (
+  search?: string,
+  organizationId?: string | null,
+): Promise<PartyRef[]> => {
   const params: Record<string, string> = {};
   if (search?.trim()) {
     params.search = search.trim();
+  }
+  if (organizationId) {
+    params.organization = organizationId;
   }
   const { data } = await api.get<PartyRef[]>("/transactions/vendors", {
     params,

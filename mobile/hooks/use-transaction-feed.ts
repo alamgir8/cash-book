@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { fetchAccountTransactions } from "@/services/accounts";
 import {
@@ -13,6 +13,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import { useTransactionListState } from "@/hooks/use-transaction-list-state";
 import { useTransactionFilterOptions } from "@/hooks/use-transaction-filter-options";
 import { usePreferences } from "@/hooks/use-preferences";
+import { useActiveOrgId } from "@/hooks/use-organization";
 
 /** Default page sizes — keep first paint light */
 export const FEED_PAGE_LIMIT = 30;
@@ -32,11 +33,13 @@ export type TransactionFeedConfig = {
 const buildDefaultFilters = (
   accountId: string | undefined,
   pageLimit: number,
+  organizationId: string | null | undefined,
   initial?: Partial<TransactionFilters>,
 ): TransactionFilters => ({
   page: 1,
   limit: pageLimit,
   ...(accountId ? { accountId } : {}),
+  ...(organizationId ? { organizationId } : {}),
   ...initial,
 });
 
@@ -89,41 +92,54 @@ export function useTransactionFeed({
   includeEmptyCategoryOption = false,
   enabled = true,
 }: TransactionFeedConfig) {
+  const organizationId = useActiveOrgId();
   const { formatAmount, preferences } = usePreferences();
   const language = preferences.language ?? "en";
   const resolvedLimit =
     pageLimit ?? (accountId ? ACCOUNT_FEED_PAGE_LIMIT : FEED_PAGE_LIMIT);
+  const orgKey = organizationId ?? "personal";
 
   const defaultFilters = useMemo(
-    () => buildDefaultFilters(accountId, resolvedLimit, initialFilters),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [accountId, resolvedLimit],
+    () =>
+      buildDefaultFilters(
+        accountId,
+        resolvedLimit,
+        organizationId,
+        initialFilters,
+      ),
+    [accountId, resolvedLimit, organizationId, initialFilters],
   );
 
   const [filters, setFilters] = useState<TransactionFilters>(defaultFilters);
 
+  // Keep filters scoped when switching org / personal mode
+  useEffect(() => {
+    setFilters(defaultFilters);
+  }, [defaultFilters]);
+
   // Shared filter metadata — long staleTime so dual Home+Ledger mounts don't double-fetch
   const accountsQuery = useQuery({
-    queryKey: queryKeys.accounts,
-    queryFn: fetchAccounts,
+    queryKey: [...queryKeys.accounts, orgKey],
+    queryFn: () => fetchAccounts(organizationId || undefined),
     staleTime: 5 * 60_000,
   });
 
   const categoriesQuery = useQuery({
-    queryKey: queryKeys.categories.all,
-    queryFn: () => fetchCategories(),
+    queryKey: [...queryKeys.categories.all, orgKey],
+    queryFn: () =>
+      fetchCategories({ organizationId: organizationId || undefined }),
     staleTime: 5 * 60_000,
   });
 
   const counterpartiesQuery = useQuery({
-    queryKey: queryKeys.counterparties,
-    queryFn: () => fetchCounterparties(),
+    queryKey: [...queryKeys.counterparties, orgKey],
+    queryFn: () => fetchCounterparties(undefined, organizationId || undefined),
     staleTime: 5 * 60_000,
   });
 
   const vendorsQuery = useQuery({
-    queryKey: queryKeys.vendors,
-    queryFn: () => fetchVendors(),
+    queryKey: [...queryKeys.vendors, orgKey],
+    queryFn: () => fetchVendors(undefined, organizationId || undefined),
     staleTime: 5 * 60_000,
   });
 
@@ -135,8 +151,7 @@ export function useTransactionFeed({
       accountId
         ? fetchAccountTransactions(accountId, filters)
         : fetchTransactions(filters),
-    enabled:
-      enabled && (accountId !== undefined ? Boolean(accountId) : true),
+    enabled: enabled && (accountId !== undefined ? Boolean(accountId) : true),
     staleTime: 45_000,
     placeholderData: keepPreviousData,
   });
@@ -148,10 +163,13 @@ export function useTransactionFeed({
       data: transactionsQuery.data,
       isPending: transactionsQuery.isPending,
       isFetching: transactionsQuery.isFetching,
+      isPlaceholderData: transactionsQuery.isPlaceholderData,
     },
     {
       defaultLimit: resolvedLimit,
-      preserveKeys: accountId ? ["accountId"] : [],
+      preserveKeys: accountId
+        ? ["accountId", "organizationId"]
+        : ["organizationId"],
     },
   );
 

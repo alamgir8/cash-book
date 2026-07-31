@@ -21,13 +21,15 @@ import {
 } from "@/services/categories";
 import { queryKeys } from "@/lib/queryKeys";
 import { refreshAppData } from "@/lib/refresh-app-data";
-import { useOrganization } from "@/hooks/use-organization";
+import { useOrganization, useActiveOrgId } from "@/hooks/use-organization";
 import { useTheme } from "@/hooks/use-theme";
 import { useTranslation } from "@/hooks/use-translation";
 
 export default function CategoriesScreen() {
   const queryClient = useQueryClient();
   const { canManageCategories } = useOrganization();
+  const organizationId = useActiveOrgId();
+  const orgKey = organizationId ?? "personal";
   const { colors } = useTheme();
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<"credit" | "debit">("debit");
@@ -42,8 +44,9 @@ export default function CategoriesScreen() {
     isRefetching,
     refetch,
   } = useQuery({
-    queryKey: queryKeys.categories.all,
-    queryFn: () => fetchCategories(),
+    queryKey: [...queryKeys.categories.all, orgKey],
+    queryFn: () =>
+      fetchCategories({ organizationId: organizationId || undefined }),
   });
 
   const onRefresh = useCallback(() => {

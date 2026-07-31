@@ -68,9 +68,14 @@ export const getOrgFromRequest = (req) => {
   );
 };
 
-/** Organization scope for transaction queries — explicit query param only. */
+/** Organization scope for transaction list filters — query, body, or header. */
 export const getOrgFilterFromRequest = (req) =>
-  req.query.organization ?? req.query.organization_id ?? null;
+  req.query.organization ??
+  req.query.organization_id ??
+  req.body?.organization ??
+  req.body?.organization_id ??
+  req.headers["x-organization-id"] ??
+  null;
 
 /** Organization scope for party/category name resolution — includes header. */
 export const getOrgLookupFromRequest = (req) =>

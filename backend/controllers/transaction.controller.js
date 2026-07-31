@@ -230,9 +230,10 @@ const extractAccountBalanceMap = async ({
 
 export const listTransactions = async (req, res, next) => {
   try {
-    const organizationId = getOrgFromRequest(req);
-    const organizationFilterId = getOrgFilterFromRequest(req);
-    const organizationLookupId = getOrgLookupFromRequest(req);
+    const organizationId =
+      getOrgFilterFromRequest(req) || getOrgFromRequest(req);
+    const organizationFilterId = organizationId;
+    const organizationLookupId = getOrgLookupFromRequest(req) || organizationId;
 
     // Check organization access if provided
     if (organizationId) {

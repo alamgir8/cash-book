@@ -62,6 +62,7 @@ const createSchema = z.object({
     category_id: z.string().optional(),
     meta_data: metaSchema,
     client_request_id: z.string().trim().max(128).optional(),
+    organization: z.string().optional(),
   }),
   params: z.object({}).optional(),
   query: z.object({}).optional(),
@@ -81,6 +82,7 @@ const transferSchema = z.object({
       counterparty: z.string().optional(),
       meta_data: metaSchema,
       client_request_id: z.string().trim().max(128).optional(),
+      organization: z.string().optional(),
     })
     .superRefine((data, ctx) => {
       const source = data.fromAccountId ?? data.from_account_id;
@@ -200,6 +202,8 @@ const listQuerySchema = z.object({
     include_deleted: z.string().optional(),
     page: z.string().optional(),
     limit: z.string().optional(),
+    organization: z.string().optional(),
+    organization_id: z.string().optional(),
   }),
 });
 

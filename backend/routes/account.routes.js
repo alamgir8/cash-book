@@ -22,6 +22,8 @@ const listQuerySchema = z.object({
   query: z.object({
     include_archived: z.string().optional(),
     includeArchived: z.string().optional(),
+    organization: z.string().optional(),
+    organization_id: z.string().optional(),
   }),
 });
 
@@ -33,6 +35,7 @@ const createSchema = z.object({
     opening_balance: z.coerce.number().optional(),
     currency_code: z.string().trim().max(8).optional(),
     currency_symbol: z.string().trim().max(4).optional(),
+    organization: z.string().optional(),
   }),
   params: z.object({}).optional(),
   query: z.object({}).optional(),
@@ -114,6 +117,8 @@ const transactionQuerySchema = z.object({
   max_amount: z.string().optional(),
   page: z.string().optional(),
   limit: z.string().optional(),
+  organization: z.string().optional(),
+  organization_id: z.string().optional(),
 });
 
 const accountTransactionsSchema = z.object({

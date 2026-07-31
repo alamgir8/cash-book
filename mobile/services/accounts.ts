@@ -89,16 +89,26 @@ const normalizeOverview = (
   summary: normalizeAccountSummary(account.summary ?? {}),
 });
 
-export const fetchAccounts = async (): Promise<AccountOverview[]> => {
+export const fetchAccounts = async (
+  organizationId?: string | null,
+): Promise<AccountOverview[]> => {
   const { data } = await api.get<{ accounts: Record<string, any>[] }>(
-    "/accounts"
+    "/accounts",
+    {
+      params: organizationId ? { organization: organizationId } : undefined,
+    },
   );
   return data.accounts.map(normalizeOverview);
 };
 
-export const fetchAccountsOverview = async (): Promise<AccountOverview[]> => {
+export const fetchAccountsOverview = async (
+  organizationId?: string | null,
+): Promise<AccountOverview[]> => {
   const { data } = await api.get<{ accounts: Record<string, any>[] }>(
-    "/accounts/overview"
+    "/accounts/overview",
+    {
+      params: organizationId ? { organization: organizationId } : undefined,
+    },
   );
   return data.accounts.map(normalizeOverview);
 };
@@ -110,6 +120,7 @@ type AccountPayload = {
   opening_balance?: number;
   currency_code?: string;
   currency_symbol?: string;
+  organization?: string;
 };
 
 export const createAccount = async (payload: AccountPayload) => {
