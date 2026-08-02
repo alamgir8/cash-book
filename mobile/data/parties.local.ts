@@ -44,23 +44,28 @@ export async function fetchLocalParties(
   // Local-first: organization id, or personal (null). scope=all without org → personal.
   let scopeOrg = params?.organization ? String(params.organization) : null;
 
+  const listOpts = {
+    includeArchived: params?.archived === "all" ? true : includeArchived,
+    includeDeleted: false,
+  };
   let rows = await partiesRepo.listParties(
     db,
     { organizationId: scopeOrg },
-    {
-      includeArchived: params?.archived === "all" ? true : includeArchived,
-      includeDeleted: false,
-    },
+    listOpts,
   );
   if (scopeOrg && rows.length === 0) {
     rows = await partiesRepo.listParties(
       db,
       { organizationId: null },
-      {
-        includeArchived: params?.archived === "all" ? true : includeArchived,
-        includeDeleted: false,
-      },
+      listOpts,
     );
+  } else if (!scopeOrg) {
+    const all = await partiesRepo.listParties(
+      db,
+      { allOrganizations: true },
+      listOpts,
+    );
+    if (all.length > rows.length) rows = all;
   }
 
   if (params?.archived === true) {
@@ -473,6 +478,9 @@ export async function fetchLocalVendors(
   let rows = await partiesRepo.listParties(db, { organizationId: orgId });
   if (orgId && rows.length === 0) {
     rows = await partiesRepo.listParties(db, { organizationId: null });
+  } else if (!orgId) {
+    const all = await partiesRepo.listParties(db, { allOrganizations: true });
+    if (all.length > rows.length) rows = all;
   }
   if (q) {
     rows = rows.filter((r) => r.name.toLowerCase().includes(q));

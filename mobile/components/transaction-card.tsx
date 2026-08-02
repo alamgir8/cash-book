@@ -346,7 +346,11 @@ const TransactionCardComponent = ({
               {transaction.vendor}
             </Text>
           </TouchableOpacity>
-        ) : transaction.counterparty ? (
+        ) : transaction.counterparty &&
+          // Transfers store counterparty as "Transfer" — don't show as Vendor.
+          !transaction.transfer_id &&
+          !transaction.transfer_direction &&
+          transaction.counterparty.trim().toLowerCase() !== "transfer" ? (
           <TouchableOpacity
             activeOpacity={onCounterpartyPress ? 0.8 : 1}
             onPress={() => {
@@ -624,6 +628,9 @@ export const TransactionCard = memo(
     prevProps.transaction.amount === nextProps.transaction.amount &&
     prevProps.transaction.type === nextProps.transaction.type &&
     prevProps.transaction.description === nextProps.transaction.description &&
+    prevProps.transaction.comment === nextProps.transaction.comment &&
+    prevProps.transaction.keyword === nextProps.transaction.keyword &&
+    prevProps.transaction.vendor === nextProps.transaction.vendor &&
     prevProps.transaction.date === nextProps.transaction.date &&
     prevProps.transaction.due_remaining ===
       nextProps.transaction.due_remaining &&
@@ -643,13 +650,17 @@ export const TransactionCard = memo(
       nextProps.transaction.category?.name &&
     prevProps.transaction.counterparty === nextProps.transaction.counterparty &&
     (typeof prevProps.transaction.party === "object"
-      ? prevProps.transaction.party?._id
+      ? `${prevProps.transaction.party?._id}:${prevProps.transaction.party?.name ?? ""}`
       : prevProps.transaction.party) ===
       (typeof nextProps.transaction.party === "object"
-        ? nextProps.transaction.party?._id
+        ? `${nextProps.transaction.party?._id}:${nextProps.transaction.party?.name ?? ""}`
         : nextProps.transaction.party) &&
-    prevProps.transaction.payment_status ===
-      nextProps.transaction.payment_status &&
+    (typeof prevProps.transaction.for_party === "object"
+      ? `${prevProps.transaction.for_party?._id}:${prevProps.transaction.for_party?.name ?? ""}`
+      : prevProps.transaction.for_party) ===
+      (typeof nextProps.transaction.for_party === "object"
+        ? `${nextProps.transaction.for_party?._id}:${nextProps.transaction.for_party?.name ?? ""}`
+        : nextProps.transaction.for_party) &&
     (prevProps.transaction.attachments?.length ?? 0) ===
       (nextProps.transaction.attachments?.length ?? 0) &&
     prevProps.onCategoryPress === nextProps.onCategoryPress &&

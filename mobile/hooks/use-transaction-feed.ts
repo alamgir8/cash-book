@@ -7,7 +7,10 @@ import {
   dalFetchAccounts,
   dalFetchAccountTransactions,
 } from "@/data/accounts";
-import { dalFetchTransactions } from "@/data/transactions";
+import {
+  dalFetchTransactionTotals,
+  dalFetchTransactions,
+} from "@/data/transactions";
 import { dalFetchCategories } from "@/data/categories";
 import { dalFetchCounterparties, dalFetchVendors } from "@/data/parties";
 import { queryKeys } from "@/lib/queryKeys";
@@ -16,6 +19,7 @@ import { useTransactionFilterOptions } from "@/hooks/use-transaction-filter-opti
 import { usePreferences } from "@/hooks/use-preferences";
 import { useActiveOrgId } from "@/hooks/use-organization";
 import { useLocalFirstFlags } from "@/hooks/use-local-first-flags";
+import { serializeTransactionFilters } from "@/lib/transaction-filters";
 
 /** Default page sizes — keep first paint light */
 export const FEED_PAGE_LIMIT = 30;
@@ -171,6 +175,30 @@ export function useTransactionFeed({
     placeholderData: keepPreviousData,
   });
 
+  // Full-ledger debit/credit for StatsCards — same filters as the list (no page).
+  const totalsQuery = useQuery({
+    queryKey: [
+      "transaction-totals",
+      orgKey,
+      accountId ?? "all",
+      serializeTransactionFilters({ ...filters, page: undefined }),
+    ],
+    queryFn: () =>
+      dalFetchTransactionTotals({
+        ...filters,
+        page: undefined,
+        limit: undefined,
+        accountId: accountId || filters.accountId,
+        organizationId: organizationId || filters.organizationId,
+      }),
+    enabled:
+      flagsReady &&
+      enabled &&
+      localFirstEnabled &&
+      (accountId !== undefined ? Boolean(accountId) : true),
+    staleTime: 45_000,
+  });
+
   const listState = useTransactionListState(
     filters,
     setFilters,
@@ -206,8 +234,17 @@ export function useTransactionFeed({
   );
 
   const totalTransactionCount =
+    totalsQuery.data?.count ??
     transactionsQuery.data?.pagination?.total ??
     listState.allTransactions.length;
+
+  const ledgerTotals = useMemo(() => {
+    if (!totalsQuery.data) return null;
+    return {
+      debit: totalsQuery.data.debit,
+      credit: totalsQuery.data.credit,
+    };
+  }, [totalsQuery.data]);
 
   const handleResetFilters = useCallback(() => {
     listState.resetToFilters(defaultFilters);
@@ -228,6 +265,8 @@ export function useTransactionFeed({
     categoriesQuery,
     hasActiveFilters,
     totalTransactionCount,
+    ledgerTotals,
+    totalsQuery,
     ...listState,
     ...filterOptions,
     handleResetFilters,

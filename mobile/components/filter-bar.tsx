@@ -228,7 +228,24 @@ export const FilterBar = ({
         {ranges.map((range) => (
           <TouchableOpacity
             key={range.value}
-            onPress={() => onChange({ range: range.value, page: 1 })}
+            onPress={() =>
+              onChange(
+                filters.range === range.value
+                  ? {
+                      // Tap again to clear Daily/Weekly/Monthly/Yearly
+                      range: undefined,
+                      page: 1,
+                    }
+                  : {
+                      range: range.value,
+                      startDate: undefined,
+                      endDate: undefined,
+                      from: undefined,
+                      to: undefined,
+                      page: 1,
+                    },
+              )
+            }
             style={{
               backgroundColor:
                 filters.range === range.value
@@ -456,6 +473,8 @@ export const FilterBar = ({
                     onChange({
                       startDate: undefined,
                       endDate: undefined,
+                      from: undefined,
+                      to: undefined,
                       range: undefined,
                       page: 1,
                     });
@@ -464,6 +483,9 @@ export const FilterBar = ({
                   const dateRange = getDateRangeFromQuickFilter(qf.value);
                   onChange({
                     ...dateRange,
+                    range: undefined,
+                    from: undefined,
+                    to: undefined,
                     page: 1,
                   });
                 }}

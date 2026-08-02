@@ -94,4 +94,6 @@ export type LocalTransfer = SyncableColumns & {
 
 export type ScopeFilter = {
   organizationId?: string | null;
+  /** When true, ignore organization_id and read the whole local ledger. */
+  allOrganizations?: boolean;
 };

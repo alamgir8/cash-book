@@ -28,6 +28,21 @@ export async function dalFetchTransactions(
   return local.fetchLocalTransactions(filters);
 }
 
+export async function dalFetchTransactionTotals(
+  filters: TransactionFilters = {},
+): Promise<{ debit: number; credit: number; count: number }> {
+  await ensureLocalFirstFlags();
+  if (!shouldUseLocalPersonalLedger(filters.organizationId)) {
+    // Cloud path: approximate from first page is wrong — fetch a summary page.
+    const page = await fetchTransactions({ ...filters, page: 1, limit: 1 });
+    const total = page.pagination?.total ?? page.transactions.length;
+    // Without a dedicated summary endpoint, leave debit/credit to the caller.
+    return { debit: 0, credit: 0, count: total };
+  }
+  const local = await import("./transactions.local");
+  return local.fetchLocalTransactionTotals(filters);
+}
+
 type CreatePayload = {
   accountId: string;
   amount: number;

@@ -2,6 +2,8 @@ import type { Db } from "./client";
 import { scopeWhere } from "./meta";
 import type { ScopeFilter } from "./types";
 
+const PAID_CLAUSE = `(payment_status = 'paid' OR payment_status IS NULL OR payment_status = '')`;
+
 /**
  * Recompute account + party balances from opening + paid transactions.
  * Call after restore and after sync apply.
@@ -12,24 +14,25 @@ export async function recalculateBalances(
 ): Promise<{ accounts: number; parties: number }> {
   const { sql, params } = scopeWhere("", scope);
 
-  const accounts = await db.getAllAsync<{ id: string; opening_balance: number }>(
-    `SELECT id, opening_balance FROM accounts WHERE ${sql} AND deleted_at IS NULL`,
+  const accounts = await db.getAllAsync<{
+    id: string;
+    server_id: string | null;
+    opening_balance: number;
+  }>(
+    `SELECT id, server_id, opening_balance FROM accounts WHERE ${sql} AND deleted_at IS NULL`,
     ...params,
   );
 
   for (const account of accounts) {
-    const full = await db.getFirstAsync<{ id: string; server_id: string | null }>(
-      `SELECT id, server_id FROM accounts WHERE id = ?`,
-      account.id,
-    );
+    const serverId = account.server_id || account.id;
     const sum = await db.getFirstAsync<{ net: number | null }>(
       `SELECT COALESCE(SUM(CASE WHEN type = 'credit' THEN amount ELSE -amount END), 0) as net
        FROM transactions
-       WHERE (account_id = ? OR account_id = ?)
-         AND deleted_at IS NULL
-         AND (payment_status = 'paid' OR payment_status IS NULL OR payment_status = '')`,
+       WHERE deleted_at IS NULL
+         AND ${PAID_CLAUSE}
+         AND (account_id = ? OR account_id = ?)`,
       account.id,
-      full?.server_id ?? account.id,
+      serverId,
     );
     const current = Number(account.opening_balance) + Number(sum?.net ?? 0);
     await db.runAsync(
@@ -39,19 +42,26 @@ export async function recalculateBalances(
     );
   }
 
-  const parties = await db.getAllAsync<{ id: string; opening_balance: number }>(
-    `SELECT id, opening_balance FROM parties WHERE ${sql} AND deleted_at IS NULL`,
+  const parties = await db.getAllAsync<{
+    id: string;
+    server_id: string | null;
+    opening_balance: number;
+  }>(
+    `SELECT id, server_id, opening_balance FROM parties WHERE ${sql} AND deleted_at IS NULL`,
     ...params,
   );
 
   for (const party of parties) {
+    const serverId = party.server_id || party.id;
+    // Match local UUID or Mongo server id stored on the txn (migrate/dual-write).
     const sum = await db.getFirstAsync<{ net: number | null }>(
       `SELECT COALESCE(SUM(CASE WHEN type = 'credit' THEN amount ELSE -amount END), 0) as net
        FROM transactions
-       WHERE party_id = ?
-         AND deleted_at IS NULL
-         AND (payment_status = 'paid' OR payment_status IS NULL OR payment_status = '')`,
+       WHERE deleted_at IS NULL
+         AND ${PAID_CLAUSE}
+         AND (party_id = ? OR party_id = ?)`,
       party.id,
+      serverId,
     );
     const current = Number(party.opening_balance) + Number(sum?.net ?? 0);
     await db.runAsync(

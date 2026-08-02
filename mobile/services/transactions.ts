@@ -66,6 +66,8 @@ export type Transaction = {
     is_settled: boolean;
   };
   balance_after_transaction?: number;
+  transfer_id?: string | null;
+  transfer_direction?: "outgoing" | "incoming" | null;
   is_deleted?: boolean;
   attachments?: {
     url: string;

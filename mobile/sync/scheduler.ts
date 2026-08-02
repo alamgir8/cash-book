@@ -46,11 +46,16 @@ async function maybeSync(reason: string): Promise<void> {
   try {
     const result = await runSync();
     if (!result.ok) {
-      if (/not on this server|resource not found/i.test(result.error || "")) {
+      const missingApi = /not on this server|resource not found/i.test(
+        result.error || "",
+      );
+      if (missingApi) {
         lastHardFailAt = Date.now();
+        // Expected on Vercel until /sync is deployed — one quiet skip, no warn spam.
+      } else {
+        console.warn(`[sync/scheduler] ${reason} failed:`, result.error);
       }
-      console.warn(`[sync/scheduler] ${reason} failed:`, result.error);
-      } else if (result.pulled > 0 || result.pushed > 0) {
+    } else if (result.pulled > 0 || result.pushed > 0) {
       // Multi-device: refresh UI from SQLite after sync applied remote rows.
       const { queryClient } = await import("@/lib/queryClient");
       await queryClient.invalidateQueries({ refetchType: "active" });
