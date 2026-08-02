@@ -8,6 +8,7 @@ import {
   Alert,
   Modal,
   TextInput,
+  FlatList,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/use-theme";
@@ -24,14 +25,16 @@ import {
   getDriveAccessToken,
   listDriveBackupDates,
   restoreFromDriveFile,
-  setDriveAccessToken,
   uploadDatedDriveBackup,
+  type DriveBackupEntry,
 } from "@/services/drive-backup";
 import {
+  clearDriveSession,
   hasGoogleOAuthConfigured,
   persistDriveAccessToken,
-  promptGoogleDriveAccessToken,
 } from "@/services/drive-auth";
+import { maybeUploadDriveBackup } from "@/services/drive-scheduler";
+import { DriveGoogleConnectButton } from "@/components/settings/drive-google-connect-button";
 import { useAuth } from "@/hooks/use-auth";
 import { warmLocalFirstRuntime } from "@/lib/local-first/warm";
 import { queryClient } from "@/lib/queryClient";
@@ -53,6 +56,9 @@ export function LocalFirstSection() {
   const [driveConnected, setDriveConnected] = useState(false);
   const [tokenModal, setTokenModal] = useState(false);
   const [tokenDraft, setTokenDraft] = useState("");
+  const [restoreModal, setRestoreModal] = useState(false);
+  const [driveEntries, setDriveEntries] = useState<DriveBackupEntry[]>([]);
+  const [lastDriveAt, setLastDriveAt] = useState<string | null>(null);
   const oauthReady = hasGoogleOAuthConfigured();
 
   useEffect(() => {
@@ -64,10 +70,12 @@ export function LocalFirstSection() {
     if (!flags.localFirstEnabled) return;
     try {
       const { getDb } = await import("@/db/client");
-      await getDb();
+      const { getMeta, META_KEYS } = await import("@/db/meta");
+      const db = await getDb();
       const s = await getSyncStatus();
       setSyncInfo({ lastSyncAt: s.lastSyncAt, lastError: s.lastError });
       setDriveConnected(Boolean(await getDriveAccessToken()));
+      setLastDriveAt(await getMeta(db, META_KEYS.LAST_DRIVE_BACKUP_AT));
     } catch {
       /* db may not be ready */
     }
@@ -98,6 +106,16 @@ export function LocalFirstSection() {
             type: "success",
             text1: "Migration complete",
             text2: `${result.summary?.transactionsCount ?? 0} transactions now on this device`,
+          });
+          // Best-effort Drive snapshot after migrate (if connected).
+          void maybeUploadDriveBackup("post-migrate").then((r) => {
+            if (r.ok) {
+              Toast.show({
+                type: "success",
+                text1: "Drive backup uploaded",
+                text2: r.path,
+              });
+            }
           });
         }
         const next = await loadLocalFirstFlags();
@@ -164,7 +182,20 @@ export function LocalFirstSection() {
         {
           text: already ? "Re-migrate" : "Migrate",
           style: already ? "destructive" : "default",
-          onPress: () => void runMigrate(already),
+          onPress: () => {
+            void (async () => {
+              if (already) {
+                const { requireDeviceAuth } = await import(
+                  "@/lib/local-first/secure-gate"
+                );
+                const ok = await requireDeviceAuth(
+                  "Authenticate to replace local data",
+                );
+                if (!ok) return;
+              }
+              await runMigrate(already);
+            })();
+          },
         },
       ],
     );
@@ -204,48 +235,32 @@ export function LocalFirstSection() {
       });
       await refreshStatus();
     } catch (e: any) {
+      const msg = String(e?.message || "Upload failed");
       Toast.show({
         type: "error",
         text1: "Drive upload failed",
-        text2: e?.message,
+        text2: msg.slice(0, 160),
+        visibilityTime: 6000,
       });
     } finally {
       setBusy(null);
     }
   };
 
-  const onDriveRestore = async () => {
+  const openDriveRestorePicker = async () => {
     setBusy("drive-restore");
     try {
       const entries = await listDriveBackupDates(String(userKey));
       if (!entries.length) {
-        Toast.show({ type: "info", text1: "No Drive backups found" });
+        Toast.show({
+          type: "info",
+          text1: "No Drive backups found",
+          text2: "Upload a dated backup first",
+        });
         return;
       }
-      const latest = entries[0];
-      Alert.alert(
-        "Restore from Drive",
-        `Restore ${latest.fileName}? This replaces local personal data.`,
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Restore",
-            style: "destructive",
-            onPress: async () => {
-              try {
-                await restoreFromDriveFile(latest.fileId);
-                Toast.show({ type: "success", text1: "Drive restore done" });
-              } catch (e: any) {
-                Toast.show({
-                  type: "error",
-                  text1: "Restore failed",
-                  text2: e?.message,
-                });
-              }
-            },
-          },
-        ],
-      );
+      setDriveEntries(entries);
+      setRestoreModal(true);
     } catch (e: any) {
       Toast.show({
         type: "error",
@@ -257,59 +272,83 @@ export function LocalFirstSection() {
     }
   };
 
-  const connectViaGoogle = async () => {
-    if (!oauthReady) {
-      setTokenModal(true);
-      return;
-    }
-    try {
-      setBusy("drive-auth");
-      const token = await promptGoogleDriveAccessToken();
-      if (!token) {
-        Toast.show({ type: "info", text1: "Google sign-in cancelled" });
-        return;
-      }
-      if (await persistDriveAccessToken(token)) {
-        setDriveConnected(true);
-        Toast.show({
-          type: "success",
-          text1: "Drive connected",
-          text2: "Tap Upload dated Drive backup next",
-        });
-      }
-    } catch (e: any) {
-      Toast.show({
-        type: "error",
-        text1: "Google sign-in failed",
-        text2: e?.message,
-      });
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  const onConnectDriveHelp = () => {
+  const confirmRestoreEntry = (entry: DriveBackupEntry) => {
     Alert.alert(
-      "Why is Drive empty?",
-      "Migrate and Device backups do NOT create files in Google Drive.\n\n1) Device backups / Share latest file → phone storage or the system share sheet (manual).\n2) Upload dated Drive backup → needs Connect Google Drive first, then upload.",
+      "Restore from Drive?",
+      `${entry.fileName}\n\nThis replaces local personal data on this phone.`,
       [
         { text: "Cancel", style: "cancel" },
         {
-          text: oauthReady ? "Sign in with Google" : "Paste access token",
-          onPress: () => void connectViaGoogle(),
-        },
-        {
-          text: "Paste token",
-          onPress: () => setTokenModal(true),
-        },
-        {
-          text: "Clear token",
+          text: "Restore",
           style: "destructive",
           onPress: async () => {
-            await setDriveAccessToken(null);
-            setDriveConnected(false);
+            const { requireDeviceAuth } = await import(
+              "@/lib/local-first/secure-gate"
+            );
+            const ok = await requireDeviceAuth(
+              "Authenticate to restore from Drive",
+            );
+            if (!ok) {
+              Toast.show({
+                type: "info",
+                text1: "Restore cancelled",
+                text2: "Authentication required",
+              });
+              return;
+            }
+            setBusy("drive-restore");
+            setRestoreModal(false);
+            try {
+              await restoreFromDriveFile(entry.fileId);
+              await refreshLocalQueries();
+              Toast.show({ type: "success", text1: "Drive restore done" });
+            } catch (e: any) {
+              Toast.show({
+                type: "error",
+                text1: "Restore failed",
+                text2: e?.message,
+              });
+            } finally {
+              setBusy(null);
+            }
           },
         },
+      ],
+    );
+  };
+
+  const onManageDrive = () => {
+    Alert.alert(
+      driveConnected ? "Google Drive" : "Connect Google Drive",
+      "Backups stay in your Google account — we don’t host them.\n\nDevice backups / Share latest file are separate (phone only).\n\nTip: Expo Go may block Google OAuth; a development build works best. Paste token is a fallback.",
+      [
+        { text: "Cancel", style: "cancel" },
+        ...(driveConnected
+          ? [
+              {
+                text: "Disconnect",
+                style: "destructive" as const,
+                onPress: async () => {
+                  await clearDriveSession();
+                  setDriveConnected(false);
+                },
+              },
+            ]
+          : [
+              {
+                text: "Paste token",
+                onPress: async () => {
+                  const { requireDeviceAuth } = await import(
+                    "@/lib/local-first/secure-gate"
+                  );
+                  const ok = await requireDeviceAuth(
+                    "Authenticate to connect Google Drive",
+                  );
+                  if (!ok) return;
+                  setTokenModal(true);
+                },
+              },
+            ]),
       ],
     );
   };
@@ -431,10 +470,14 @@ export function LocalFirstSection() {
           Sync error: {syncInfo.lastError}
         </Text>
       ) : null}
+      <Text className="text-xs mb-2" style={{ color: colors.text.secondary }}>
+        Drive API: {driveConnected ? "connected" : "not connected"}
+        {lastDriveAt ? ` · Last Drive backup ${lastDriveAt}` : ""}
+      </Text>
       <Text className="text-xs mb-4" style={{ color: colors.text.secondary }}>
-        Drive API: {driveConnected ? "connected" : "not connected"} · JSON
-        device files are under “Device backups” above · Org books stay on cloud
-        in v1
+        JSON on-phone files are under “Device backups” above. Org books stay on
+        cloud in v1. Drive backups stay in your Google account — we don’t host
+        them.
       </Text>
 
       <View className="gap-3">
@@ -459,18 +502,31 @@ export function LocalFirstSection() {
         >
           Google Drive (API — separate from Share latest file)
         </Text>
+        {oauthReady ? (
+          <DriveGoogleConnectButton
+            colors={colors}
+            busy={busy === "drive-auth"}
+            connected={driveConnected}
+            onConnected={() => {
+              setDriveConnected(true);
+              void refreshStatus();
+            }}
+            onPasteToken={() => setTokenModal(true)}
+            onDisconnect={onManageDrive}
+          />
+        ) : (
+          <Action
+            colors={colors}
+            icon="key"
+            label="Connect Google Drive (token)"
+            onPress={() => setTokenModal(true)}
+          />
+        )}
         <Action
           colors={colors}
-          icon="key"
-          label={
-            driveConnected
-              ? "Drive connected · manage"
-              : oauthReady
-                ? "Connect Google Drive"
-                : "Connect Google Drive (token)"
-          }
-          onPress={onConnectDriveHelp}
-          busy={busy === "drive-auth"}
+          icon="information-circle"
+          label="Drive help / disconnect"
+          onPress={onManageDrive}
         />
         <Action
           colors={colors}
@@ -483,12 +539,70 @@ export function LocalFirstSection() {
         <Action
           colors={colors}
           icon="download"
-          label="Restore latest from Drive"
-          onPress={onDriveRestore}
+          label="Restore from Drive (pick date)"
+          onPress={openDriveRestorePicker}
           busy={busy === "drive-restore"}
           disabled={!flags.driveBackupEnabled || !driveConnected}
         />
       </View>
+
+      <Modal visible={restoreModal} transparent animationType="fade">
+        <View
+          className="flex-1 justify-center px-6"
+          style={{ backgroundColor: "#00000088" }}
+        >
+          <View
+            className="rounded-3xl p-5 max-h-[70%]"
+            style={{ backgroundColor: colors.bg.secondary }}
+          >
+            <Text
+              className="text-lg font-bold mb-1"
+              style={{ color: colors.text.primary }}
+            >
+              Restore from Drive
+            </Text>
+            <Text
+              className="text-xs mb-3"
+              style={{ color: colors.text.secondary }}
+            >
+              Pick a dated backup. Checksum is verified before import.
+            </Text>
+            <FlatList
+              data={driveEntries}
+              keyExtractor={(item) => item.fileId}
+              style={{ maxHeight: 320 }}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  className="rounded-2xl p-3 mb-2"
+                  style={{ backgroundColor: colors.bg.primary }}
+                  onPress={() => confirmRestoreEntry(item)}
+                >
+                  <Text
+                    className="font-semibold"
+                    style={{ color: colors.text.primary }}
+                  >
+                    {item.date}
+                  </Text>
+                  <Text
+                    className="text-xs mt-0.5"
+                    style={{ color: colors.text.secondary }}
+                    numberOfLines={1}
+                  >
+                    {item.fileName}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            />
+            <TouchableOpacity
+              className="rounded-2xl py-3 items-center mt-2"
+              style={{ backgroundColor: colors.bg.primary }}
+              onPress={() => setRestoreModal(false)}
+            >
+              <Text style={{ color: colors.text.secondary }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       <Modal visible={tokenModal} transparent animationType="fade">
         <View

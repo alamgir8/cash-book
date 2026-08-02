@@ -12,7 +12,8 @@ Uses **expo-sqlite** (SDK 57) per [Expo docs](https://docs.expo.dev/versions/lat
 | Schema version | `PRAGMA user_version` (not a custom table) |
 | Bulk DDL | `db.execAsync(multiStatementSql)` |
 | Atomic writes | `withExclusiveTransactionAsync` via `withDbTransaction()` |
-| Expo Go | Supported (do **not** enable `useSQLCipher` — not in Expo Go) |
+| Expo Go | Supported (do **not** enable SQLCipher — not in Expo Go) |
+| Encryption | `USE_SQLCIPHER = false` until a dev/production build adopts SQLCipher / Op-SQLite |
 
 ## Dev tips
 

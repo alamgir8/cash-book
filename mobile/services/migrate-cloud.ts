@@ -7,6 +7,10 @@ import {
   getLocalFirstFlagsSync,
   setLocalFirstFlags,
 } from "@/lib/local-first/flags";
+import {
+  errorCodeFromUnknown,
+  trackLfEvent,
+} from "@/lib/local-first/telemetry";
 import type { BackupData } from "@/services/backup";
 
 /**
@@ -21,38 +25,47 @@ export async function migrateCloudToLocal(opts?: {
     return { migrated: false };
   }
 
-  const { data } = await api.get<BackupData>("/backup/export");
-
   try {
-    const listed = await partiesApi.list({
-      scope: "personal",
-      limit: 10000,
-      page: 1,
-    });
-    if (Array.isArray(listed.parties)) {
-      (data as any).data.parties = listed.parties;
+    const { data } = await api.get<BackupData>("/backup/export");
+
+    try {
+      const listed = await partiesApi.list({
+        scope: "personal",
+        limit: 10000,
+        page: 1,
+      });
+      if (Array.isArray(listed.parties)) {
+        (data as any).data.parties = listed.parties;
+      }
+    } catch {
+      // Backup may already include parties from server export
     }
-  } catch {
-    // Backup may already include parties from server export
+
+    const summary = await importLocalBackup(data, { mode: "replace" });
+    const completedAt = new Date().toISOString();
+    const db = await getDb();
+    await setMeta(db, META_KEYS.MIGRATION_COMPLETED_AT, completedAt);
+    await setLocalFirstFlags({
+      localFirstEnabled: true,
+      migrationCompletedAt: completedAt,
+    });
+
+    void trackLfEvent("migration_success", {
+      count: summary.transactionsCount,
+    });
+
+    return {
+      migrated: true,
+      summary: {
+        accountsCount: summary.accountsCount,
+        categoriesCount: summary.categoriesCount,
+        partiesCount: summary.partiesCount,
+        transactionsCount: summary.transactionsCount,
+        transfersCount: summary.transfersCount,
+      },
+    };
+  } catch (e) {
+    void trackLfEvent("migration_fail", { code: errorCodeFromUnknown(e) });
+    throw e;
   }
-
-  const summary = await importLocalBackup(data, { mode: "replace" });
-  const completedAt = new Date().toISOString();
-  const db = await getDb();
-  await setMeta(db, META_KEYS.MIGRATION_COMPLETED_AT, completedAt);
-  await setLocalFirstFlags({
-    localFirstEnabled: true,
-    migrationCompletedAt: completedAt,
-  });
-
-  return {
-    migrated: true,
-    summary: {
-      accountsCount: summary.accountsCount,
-      categoriesCount: summary.categoriesCount,
-      partiesCount: summary.partiesCount,
-      transactionsCount: summary.transactionsCount,
-      transfersCount: summary.transfersCount,
-    },
-  };
 }

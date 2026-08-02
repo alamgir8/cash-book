@@ -29,6 +29,8 @@
 			<array>
 				<string>hisab-boi</string>
 				<string>com.alamgir.hisabboi</string>
+				<!-- Google iOS OAuth reverse client ID (EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID) -->
+				<string>com.googleusercontent.apps.470488515683-kph1sb42urad1fg019l975kh4pf00prk</string>
 			</array>
 		</dict>
 	</array>

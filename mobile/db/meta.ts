@@ -47,4 +47,6 @@ export const META_KEYS = {
   LAST_LOCAL_BACKUP_AT: "last_local_backup_at",
   LAST_DRIVE_BACKUP_AT: "last_drive_backup_at",
   OWNER_ADMIN_ID: "owner_admin_id",
+  LAST_VACUUM_AT: "last_vacuum_at",
+  CLOCK_OFFSET_MS: "clock_offset_ms",
 } as const;

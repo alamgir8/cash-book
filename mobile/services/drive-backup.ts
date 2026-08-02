@@ -10,39 +10,56 @@ import {
 import { getDb } from "@/db/client";
 import { META_KEYS, setMeta } from "@/db/meta";
 import { isDriveBackupEnabled } from "@/lib/local-first/flags";
+import { verifyChecksum } from "@/lib/local-first/checksum";
+import {
+  clearDriveSession,
+  getValidDriveAccessToken,
+  persistDriveAccessToken,
+  setDriveTokenBundle,
+} from "@/services/drive-auth";
 
-const DRIVE_ACCESS_TOKEN_KEY = "hisabboi_drive_access_token";
 const DRIVE_ROOT_FOLDER = "HisabBoi";
+/** Keep this many dated backup JSON files on Drive (oldest deleted). */
+export const DRIVE_RETENTION_COUNT = 30;
 
 export type DriveBackupEntry = {
   date: string;
   fileId: string;
   fileName: string;
+  createdTime?: string;
   manifest?: BackupManifest;
 };
 
+/** @deprecated prefer getValidDriveAccessToken — kept for Settings checks */
 export async function getDriveAccessToken(): Promise<string | null> {
-  return SecureStore.getItemAsync(DRIVE_ACCESS_TOKEN_KEY);
+  return getValidDriveAccessToken();
 }
 
+/** Clears Drive session (connect again to upload). */
 export async function setDriveAccessToken(token: string | null): Promise<void> {
   if (!token) {
-    await SecureStore.deleteItemAsync(DRIVE_ACCESS_TOKEN_KEY);
+    await clearDriveSession();
     return;
   }
-  await SecureStore.setItemAsync(DRIVE_ACCESS_TOKEN_KEY, token);
+  await persistDriveAccessToken(token);
 }
 
 function drivePathParts(userKey: string, exportedAt: string) {
   const day = exportedAt.slice(0, 10);
-  const stamp = exportedAt.replace(/[:.]/g, "").replace("T", "T").slice(0, 16);
   return {
     day,
     backupFileName: `hisabboi-backup-${exportedAt.replace(/[:.]/g, "-")}.json`,
     manifestFileName: "manifest.json",
     folderPath: `${DRIVE_ROOT_FOLDER}/backups/${userKey}/${day}`,
-    stamp,
   };
+}
+
+function driveApiErrorMessage(json: any, fallback: string): string {
+  const msg = String(json?.error?.message || json?.error_description || "");
+  if (/insufficient.*(auth|scope)/i.test(msg)) {
+    return "Google token missing Drive permission — disconnect Drive, add drive.file scope in Google Cloud → Data Access, then Sign in with Google again";
+  }
+  return msg || fallback;
 }
 
 async function driveFetch(
@@ -50,13 +67,23 @@ async function driveFetch(
   token: string,
   init?: RequestInit,
 ): Promise<Response> {
-  return fetch(`https://www.googleapis.com/drive/v3${path}`, {
+  const res = await fetch(`https://www.googleapis.com/drive/v3${path}`, {
     ...init,
     headers: {
       Authorization: `Bearer ${token}`,
       ...(init?.headers || {}),
     },
   });
+  if (!res.ok) {
+    let json: any = null;
+    try {
+      json = await res.json();
+    } catch {
+      /* ignore */
+    }
+    throw new Error(driveApiErrorMessage(json, `Drive API ${res.status}`));
+  }
+  return res;
 }
 
 async function ensureFolder(
@@ -80,11 +107,13 @@ async function ensureFolder(
     body: JSON.stringify({
       name,
       mimeType: "application/vnd.google-apps.folder",
-      parents: parentId ? [parentId] : undefined,
+      parents: parentId ? [parentId] : ["root"],
     }),
   });
   const created = await create.json();
-  if (!created.id) throw new Error(created.error?.message || "Folder create failed");
+  if (!created.id) {
+    throw new Error(driveApiErrorMessage(created, "Folder create failed"));
+  }
   return created.id;
 }
 
@@ -120,13 +149,44 @@ async function uploadJsonFile(
     },
   );
   const json = await res.json();
-  if (!json.id) throw new Error(json.error?.message || "Drive upload failed");
+  if (!json.id) {
+    throw new Error(driveApiErrorMessage(json, "Drive upload failed"));
+  }
   return json.id as string;
+}
+
+async function trashFile(token: string, fileId: string): Promise<void> {
+  await driveFetch(`/files/${fileId}`, token, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ trashed: true }),
+  });
+}
+
+/**
+ * Delete oldest hisabboi-backup-*.json beyond retention.
+ */
+export async function pruneDriveBackups(
+  token: string,
+  keep = DRIVE_RETENTION_COUNT,
+): Promise<number> {
+  const q = `name contains 'hisabboi-backup-' and trashed=false`;
+  const res = await driveFetch(
+    `/files?q=${encodeURIComponent(q)}&spaces=drive&fields=files(id,name,createdTime)&orderBy=createdTime desc&pageSize=100`,
+    token,
+  );
+  const json = await res.json();
+  const files: { id: string }[] = json.files ?? [];
+  let deleted = 0;
+  for (let i = keep; i < files.length; i++) {
+    await trashFile(token, files[i].id);
+    deleted += 1;
+  }
+  return deleted;
 }
 
 /**
  * Upload dated backup + manifest to Google Drive.
- * Requires a Drive OAuth access token with drive.file scope stored via setDriveAccessToken.
  */
 export async function uploadDatedDriveBackup(userKey: string): Promise<{
   fileId: string;
@@ -134,85 +194,138 @@ export async function uploadDatedDriveBackup(userKey: string): Promise<{
   path: string;
 }> {
   if (!isDriveBackupEnabled()) {
-    throw new Error("Drive backup is disabled");
+    throw new Error("Drive backup is disabled — turn on Google Drive backups");
   }
-  const token = await getDriveAccessToken();
+  const token = await getValidDriveAccessToken();
   if (!token) {
     throw new Error("Connect Google Drive first");
   }
 
-  const backup = await exportLocalBackup();
-  const { fileName, manifest } = await writeBackupToDocumentDir(backup);
-  const parts = drivePathParts(userKey, backup.exportedAt);
-
-  const rootId = await ensureFolder(token, DRIVE_ROOT_FOLDER);
-  const backupsId = await ensureFolder(token, "backups", rootId);
-  const userId = await ensureFolder(token, userKey, backupsId);
-  const dayId = await ensureFolder(token, parts.day, userId);
-
-  const local = new File(Paths.document, fileName);
-  const content = await local.text();
-  const fileId = await uploadJsonFile(
-    token,
-    dayId,
-    parts.backupFileName,
-    content,
+  const { confirmBackupIfLowSpace } = await import(
+    "@/lib/local-first/storage-guard"
   );
-  await uploadJsonFile(
-    token,
-    dayId,
-    parts.manifestFileName,
-    JSON.stringify(manifest, null, 2),
+  const { errorCodeFromUnknown, trackLfEvent } = await import(
+    "@/lib/local-first/telemetry"
   );
 
-  const db = await getDb();
-  await setMeta(db, META_KEYS.LAST_DRIVE_BACKUP_AT, backup.exportedAt);
+  try {
+    if (!(await confirmBackupIfLowSpace())) {
+      throw Object.assign(new Error("Drive backup cancelled — low storage"), {
+        code: "low_space_cancelled",
+      });
+    }
 
-  return {
-    fileId,
-    manifest,
-    path: `${parts.folderPath}/${parts.backupFileName}`,
-  };
+    const backup = await exportLocalBackup();
+    const { fileName, manifest } = await writeBackupToDocumentDir(backup);
+    const parts = drivePathParts(userKey, backup.exportedAt);
+
+    const rootId = await ensureFolder(token, DRIVE_ROOT_FOLDER);
+    const backupsId = await ensureFolder(token, "backups", rootId);
+    const userId = await ensureFolder(token, userKey, backupsId);
+    const dayId = await ensureFolder(token, parts.day, userId);
+
+    const local = new File(Paths.document, fileName);
+    const content = await local.text();
+    const fileId = await uploadJsonFile(
+      token,
+      dayId,
+      parts.backupFileName,
+      content,
+    );
+    await uploadJsonFile(
+      token,
+      dayId,
+      parts.manifestFileName,
+      JSON.stringify(manifest, null, 2),
+    );
+
+    await pruneDriveBackups(token, DRIVE_RETENTION_COUNT);
+
+    const db = await getDb();
+    await setMeta(db, META_KEYS.LAST_DRIVE_BACKUP_AT, backup.exportedAt);
+    await setMeta(db, "last_drive_file_id", fileId);
+    await setMeta(db, "last_drive_checksum", backup.checksum);
+
+    void trackLfEvent("drive_backup_success", {
+      count: backup.summary.transactionsCount,
+    });
+
+    return {
+      fileId,
+      manifest,
+      path: `${parts.folderPath}/${parts.backupFileName}`,
+    };
+  } catch (e: any) {
+    void trackLfEvent("drive_backup_fail", {
+      code: e?.code || errorCodeFromUnknown(e),
+    });
+    throw e;
+  }
 }
 
 export async function listDriveBackupDates(
-  userKey: string,
+  _userKey?: string,
 ): Promise<DriveBackupEntry[]> {
-  const token = await getDriveAccessToken();
+  const token = await getValidDriveAccessToken();
   if (!token) return [];
 
-  // Simplified: search app-created backup JSON files by name prefix
   const q = `name contains 'hisabboi-backup-' and trashed=false`;
   const res = await driveFetch(
     `/files?q=${encodeURIComponent(q)}&spaces=drive&fields=files(id,name,createdTime)&orderBy=createdTime desc&pageSize=50`,
     token,
   );
   const json = await res.json();
+  if (json.error) {
+    throw new Error(json.error.message || "Failed to list Drive backups");
+  }
   return (json.files ?? []).map((f: any) => ({
-    date: (f.name as string).match(/\d{4}-\d{2}-\d{2}/)?.[0] ?? f.createdTime,
+    date:
+      (f.name as string).match(/\d{4}-\d{2}-\d{2}/)?.[0] ??
+      String(f.createdTime || "").slice(0, 10),
     fileId: f.id,
     fileName: f.name,
+    createdTime: f.createdTime,
   }));
 }
 
 export async function restoreFromDriveFile(fileId: string): Promise<void> {
-  const token = await getDriveAccessToken();
-  if (!token) throw new Error("Connect Google Drive first");
-
-  const res = await fetch(
-    `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
-    { headers: { Authorization: `Bearer ${token}` } },
+  const { errorCodeFromUnknown, trackLfEvent } = await import(
+    "@/lib/local-first/telemetry"
   );
-  if (!res.ok) throw new Error("Failed to download Drive backup");
-  const text = await res.text();
-  const parsed = JSON.parse(text) as BackupV3;
-  await importLocalBackup(parsed, { mode: "replace" });
+  try {
+    const token = await getValidDriveAccessToken();
+    if (!token) throw new Error("Connect Google Drive first");
+
+    const res = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    if (!res.ok) throw new Error("Failed to download Drive backup");
+    const text = await res.text();
+    let parsed: BackupV3;
+    try {
+      parsed = JSON.parse(text) as BackupV3;
+    } catch {
+      throw new Error("Downloaded file is not valid JSON");
+    }
+
+    if (parsed.checksum) {
+      const ok = await verifyChecksum(parsed.data, parsed.checksum);
+      if (!ok) {
+        throw new Error("Backup checksum mismatch — file may be tampered");
+      }
+    }
+
+    await importLocalBackup(parsed, { mode: "replace" });
+    void trackLfEvent("drive_restore_success");
+  } catch (e) {
+    void trackLfEvent("drive_restore_fail", { code: errorCodeFromUnknown(e) });
+    throw e;
+  }
 }
 
-/**
- * OAuth note: wire Expo AuthSession + Google client IDs in EAS secrets,
- * then call setDriveAccessToken(accessToken) after successful auth.
- * Scope required: https://www.googleapis.com/auth/drive.file
- */
-export const DRIVE_OAUTH_SCOPE =
-  "https://www.googleapis.com/auth/drive.file";
+export { DRIVE_OAUTH_SCOPE } from "@/services/drive-auth";
+
+// silence unused if tree-shaken
+void SecureStore;
+void setDriveTokenBundle;

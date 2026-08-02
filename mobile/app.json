@@ -23,7 +23,16 @@
         "NSPhotoLibraryAddUsageDescription": "Allow Hisab Boi to save photos to your library.",
         "NSFaceIDUsageDescription": "Use Face ID to quickly and securely sign in to Hisab Boi.",
         "NSMicrophoneUsageDescription": "Allow Hisab Boi to use the microphone for voice input when adding transactions.",
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": [
+              "hisab-boi",
+              "com.alamgir.hisabboi",
+              "com.googleusercontent.apps.470488515683-kph1sb42urad1fg019l975kh4pf00prk"
+            ]
+          }
+        ]
       },
       "config": {
         "usesNonExemptEncryption": false

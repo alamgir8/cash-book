@@ -7,7 +7,12 @@
  * - PRAGMA foreign_keys = ON
  * - Migrations via PRAGMA user_version + execAsync
  * - withExclusiveTransactionAsync for atomic multi-writes
+ *
+ * Encryption: `useSQLCipher` stays false for Expo Go. Production/dev builds
+ * should move to encrypted storage (SQLCipher / OS data-protection) before
+ * public cutover — see docs/LOCAL_FIRST_PRODUCTION_PLAN.md Phase 8.
  */
+export const USE_SQLCIPHER = false;
 import * as SQLite from "expo-sqlite";
 import type { SQLiteDatabase } from "expo-sqlite";
 import { DB_NAME, LOCAL_SCHEMA_VERSION } from "./types";

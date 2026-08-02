@@ -22,6 +22,10 @@ import { organizationsApi } from "../services/organizations";
 import type { OrganizationSummary } from "../services/organizations";
 import { bootstrapLocalFirst } from "../lib/local-first/bootstrap";
 import { startSyncScheduler } from "../sync/scheduler";
+import {
+  setDriveBackupUserKeyProvider,
+  startDriveBackupScheduler,
+} from "../services/drive-scheduler";
 import { OfflineBanner } from "../components/offline-banner";
 import "../global.css";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -85,10 +89,25 @@ const RootContent = () => {
     void bootstrapLocalFirst().finally(() => setReady(true));
   }, []);
 
+  const authUserKey =
+    state.status === "authenticated"
+      ? String(
+          (state.user as { _id?: string; email?: string })?._id ||
+            (state.user as { email?: string })?.email ||
+            "user",
+        )
+      : null;
+
   useEffect(() => {
-    if (!isReady || state.status !== "authenticated") return;
-    return startSyncScheduler();
-  }, [isReady, state.status]);
+    if (!isReady || !authUserKey) return;
+    setDriveBackupUserKeyProvider(() => authUserKey);
+    const stopSync = startSyncScheduler();
+    const stopDrive = startDriveBackupScheduler();
+    return () => {
+      stopSync();
+      stopDrive();
+    };
+  }, [isReady, authUserKey]);
 
   useEffect(() => {
     const maybeHideSplash = async () => {

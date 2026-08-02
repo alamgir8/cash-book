@@ -5,6 +5,11 @@ import { LOCAL_SCHEMA_VERSION } from "@/db/types";
 import { isCloudSyncEnabled } from "@/lib/local-first/flags";
 import { resolveLastWriteWins } from "@/lib/local-first/conflicts";
 import { createLocalId, nowIso } from "@/lib/local-first/ids";
+import { applyServerTime, clampUpdatedAt } from "@/lib/local-first/clock";
+import {
+  errorCodeFromUnknown,
+  trackLfEvent,
+} from "@/lib/local-first/telemetry";
 import { getOrCreateDeviceId } from "@/services/device";
 import { recalculateBalances } from "@/db/balances";
 import * as accountsRepo from "@/db/repos/accounts";
@@ -283,8 +288,18 @@ export async function runSync(): Promise<SyncResult> {
       throw new Error("App update required before sync");
     }
 
+    const offsetMs = applyServerTime(handshake.serverTime);
+    await setMeta(db, META_KEYS.CLOCK_OFFSET_MS, String(offsetMs));
+
     await setMeta(db, META_KEYS.SYNC_STAGE, "push");
-    const changes = await collectDirtyChanges();
+    const dirty = await collectDirtyChanges();
+    const changes = dirty.map((c) => ({
+      ...c,
+      updated_at: clampUpdatedAt(c.updated_at, handshake.serverTime),
+      deleted_at: c.deleted_at
+        ? clampUpdatedAt(c.deleted_at, handshake.serverTime)
+        : null,
+    }));
     const { data: pushResult } = await api.post<{
       accepted: Array<{ id: string; server_id?: string }>;
       rejected: Array<{ id: string; reason: string }>;
@@ -317,10 +332,14 @@ export async function runSync(): Promise<SyncResult> {
 
     await recalculateBalances(db, { organizationId: null });
 
+    const pushed = pushResult.accepted?.length ?? 0;
+    const pulled = pull.changes?.length ?? 0;
+    void trackLfEvent("sync_success", { count: pushed, count2: pulled });
+
     return {
       ok: true,
-      pushed: pushResult.accepted?.length ?? 0,
-      pulled: pull.changes?.length ?? 0,
+      pushed,
+      pulled,
       serverTime: handshake.serverTime,
     };
   } catch (e: any) {
@@ -331,7 +350,10 @@ export async function runSync(): Promise<SyncResult> {
         ? "Cloud sync API not on this server yet (deploy backend /sync routes)"
         : String(raw);
     await setMeta(db, META_KEYS.LAST_SYNC_ERROR, message);
-    console.warn("[sync]", message);
+    void trackLfEvent("sync_fail", { code: errorCodeFromUnknown(e) });
+    if (__DEV__) {
+      console.warn("[sync]", message);
+    }
     return { ok: false, pushed: 0, pulled: 0, error: message };
   } finally {
     syncLock = false;

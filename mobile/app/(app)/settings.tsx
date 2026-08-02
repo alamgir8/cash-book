@@ -174,7 +174,25 @@ export default function SettingsScreen() {
       { text: t("cancel"), style: "cancel" },
       {
         text: t("selectFile"),
-        onPress: performRestore,
+        onPress: () => {
+          void (async () => {
+            const { requireDeviceAuth } = await import(
+              "@/lib/local-first/secure-gate"
+            );
+            const ok = await requireDeviceAuth(
+              "Authenticate to restore a backup",
+            );
+            if (!ok) {
+              Toast.show({
+                type: "info",
+                text1: "Restore cancelled",
+                text2: "Authentication required",
+              });
+              return;
+            }
+            await performRestore();
+          })();
+        },
       },
     ]);
   };

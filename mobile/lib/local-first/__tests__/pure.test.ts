@@ -4,6 +4,11 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { resolveLastWriteWins } from "../conflicts.ts";
+import {
+  MAX_CLOCK_SKEW_MS,
+  clampUpdatedAt,
+  setClockOffsetMs,
+} from "../clock.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -57,4 +62,20 @@ test("migration 001 contains core tables", () => {
   assert.match(src, /CREATE TABLE IF NOT EXISTS transactions/);
   assert.match(src, /CREATE TABLE IF NOT EXISTS parties/);
   assert.doesNotMatch(src, /CREATE TABLE IF NOT EXISTS schema_version/);
+});
+
+test("clampUpdatedAt leaves timestamps within skew alone", () => {
+  setClockOffsetMs(0);
+  const server = "2026-08-03T12:00:00.000Z";
+  const local = "2026-08-03T12:02:00.000Z";
+  assert.equal(clampUpdatedAt(local, server), local);
+});
+
+test("clampUpdatedAt clamps far-future device clocks", () => {
+  setClockOffsetMs(0);
+  const server = "2026-08-03T12:00:00.000Z";
+  const skewed = new Date(
+    Date.parse(server) + MAX_CLOCK_SKEW_MS + 60_000,
+  ).toISOString();
+  assert.equal(clampUpdatedAt(skewed, server), server);
 });

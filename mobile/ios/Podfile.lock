@@ -1,5 +1,7 @@
 PODS:
   - CocoaAsyncSocket (7.6.5)
+  - EXApplication (57.0.2):
+    - ExpoModulesCore
   - EXConstants (57.0.7):
     - ExpoModulesCore
   - Expo (57.0.8):
@@ -36,6 +38,8 @@ PODS:
     - ExpoModulesCore
   - ExpoCameraBarcodeScanning (57.0.3):
     - ExpoCamera
+  - ExpoCrypto (57.0.1):
+    - ExpoModulesCore
   - ExpoDevice (57.0.1):
     - ExpoModulesCore
   - ExpoDocumentPicker (57.0.1):
@@ -107,6 +111,8 @@ PODS:
   - ExpoSharing (57.0.7):
     - ExpoModulesCore
   - ExpoSplashScreen (57.0.5):
+    - ExpoModulesCore
+  - ExpoSQLite (57.0.1):
     - ExpoModulesCore
   - ExpoSymbols (57.0.1):
     - ExpoModulesCore
@@ -2461,12 +2467,14 @@ PODS:
   - Yoga (0.0.0)
 
 DEPENDENCIES:
+  - EXApplication (from `../node_modules/expo-application/ios`)
   - EXConstants (from `../node_modules/expo-constants/ios`)
   - Expo (from `../node_modules/expo`)
   - ExpoAsset (from `../node_modules/expo-asset/ios`)
   - ExpoBlur (from `../node_modules/expo-blur/ios`)
   - ExpoCamera (from `../node_modules/expo-camera/ios/ExpoCamera.podspec`)
   - ExpoCameraBarcodeScanning (from `../node_modules/expo-camera/ios/ExpoCameraBarcodeScanning.podspec`)
+  - ExpoCrypto (from `../node_modules/expo-crypto/ios`)
   - ExpoDevice (from `../node_modules/expo-device/ios`)
   - ExpoDocumentPicker (from `../node_modules/expo-document-picker/ios`)
   - "ExpoDomWebView (from `../node_modules/@expo/dom-webview/ios`)"
@@ -2489,6 +2497,7 @@ DEPENDENCIES:
   - ExpoSecureStore (from `../node_modules/expo-secure-store/ios`)
   - ExpoSharing (from `../node_modules/expo-sharing/ios`)
   - ExpoSplashScreen (from `../node_modules/expo-splash-screen/ios`)
+  - ExpoSQLite (from `../node_modules/expo-sqlite/ios`)
   - ExpoSymbols (from `../node_modules/expo-symbols/ios`)
   - ExpoSystemUI (from `../node_modules/expo-system-ui/ios`)
   - "ExpoUI (from `../node_modules/@expo/ui/ios`)"
@@ -2590,6 +2599,8 @@ SPEC REPOS:
     - CocoaAsyncSocket
 
 EXTERNAL SOURCES:
+  EXApplication:
+    :path: "../node_modules/expo-application/ios"
   EXConstants:
     :path: "../node_modules/expo-constants/ios"
   Expo:
@@ -2602,6 +2613,8 @@ EXTERNAL SOURCES:
     :podspec: "../node_modules/expo-camera/ios/ExpoCamera.podspec"
   ExpoCameraBarcodeScanning:
     :podspec: "../node_modules/expo-camera/ios/ExpoCameraBarcodeScanning.podspec"
+  ExpoCrypto:
+    :path: "../node_modules/expo-crypto/ios"
   ExpoDevice:
     :path: "../node_modules/expo-device/ios"
   ExpoDocumentPicker:
@@ -2646,6 +2659,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-sharing/ios"
   ExpoSplashScreen:
     :path: "../node_modules/expo-splash-screen/ios"
+  ExpoSQLite:
+    :path: "../node_modules/expo-sqlite/ios"
   ExpoSymbols:
     :path: "../node_modules/expo-symbols/ios"
   ExpoSystemUI:
@@ -2838,12 +2853,14 @@ EXTERNAL SOURCES:
 
 SPEC CHECKSUMS:
   CocoaAsyncSocket: 065fd1e645c7abab64f7a6a2007a48038fdc6a99
+  EXApplication: bbd517d50878ca1d121fb3843392beb210181e28
   EXConstants: fa5647482320b7bde855057f8b86580456d4b9f0
   Expo: 4a3b7c95f7f7251c884c75699d60d653555ff9b9
   ExpoAsset: 98143758ff37e14c9ff2a4e7673097db00473011
   ExpoBlur: 69e67b4fbfed6f7325377af2aefa8aa4f00cd2af
   ExpoCamera: a5e9d9ce2fc06689eb2dd676f1f8d5f22f8aa292
   ExpoCameraBarcodeScanning: b869ac87ebe30bb99b26c55b0e0471301383c90b
+  ExpoCrypto: 366380ffafeb22cc9795438cddcbfa299e1aaf42
   ExpoDevice: 93a72d7c2bd656a4f0c0d580523e390e9ee7fba5
   ExpoDocumentPicker: 6fb67a6f39ba9beb53a4b4a3f2949e0b5e9bc3bf
   ExpoDomWebView: beaec034e51bd028428b98bb1f2633ab79c6d095
@@ -2866,6 +2883,7 @@ SPEC CHECKSUMS:
   ExpoSecureStore: 94793113049a2d7478dfe1a13aa15081e9f61755
   ExpoSharing: c13f24ffc10753e229c2e7bdcaf45cfb7287684c
   ExpoSplashScreen: 247464c0fe484f766892db0d66c3fe54f92a624e
+  ExpoSQLite: ddd65ed74bdebcff20f6766e682f9321ecb28ab8
   ExpoSymbols: 7c7c7bd3c52f0b6dcbba6e8af4088b0dc1ea7d29
   ExpoSystemUI: 6f2ce8968292aaa91f4aa553c23bdd8cee5cdc85
   ExpoUI: 19f2ca6e82d91240530ee9762dedccc31fc6f429

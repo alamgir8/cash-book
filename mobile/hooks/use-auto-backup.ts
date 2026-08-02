@@ -49,91 +49,113 @@ export async function writeBackupFile(
   userId: string,
   onProgress?: (step: string, pct: number) => void,
 ): Promise<BackupStats> {
-  onProgress?.(
-    isLocalFirstEnabled()
-      ? "Reading on-device database…"
-      : "Connecting to server…",
-    5,
+  const { confirmBackupIfLowSpace } = await import(
+    "@/lib/local-first/storage-guard"
   );
-  await new Promise((r) => setTimeout(r, 30));
-
-  onProgress?.(
-    isLocalFirstEnabled()
-      ? "Exporting local ledger…"
-      : "Fetching your account data…",
-    15,
+  const { errorCodeFromUnknown, trackLfEvent } = await import(
+    "@/lib/local-first/telemetry"
   );
-  await new Promise((r) => setTimeout(r, 30));
-
-  let stats: BackupStats;
-
-  if (isLocalFirstEnabled()) {
-    const {
-      exportLocalBackup,
-      writeBackupToDocumentDir,
-    } = await import("@/services/local-backup");
-    const backup = await exportLocalBackup();
-    stats = {
-      accounts: backup.summary.accountsCount,
-      categories: backup.summary.categoriesCount,
-      transactions: backup.summary.transactionsCount,
-      transfers: backup.summary.transfersCount,
-    };
-    onProgress?.(
-      `Processing ${stats.transactions} transaction${stats.transactions !== 1 ? "s" : ""}…`,
-      60,
-    );
-    await new Promise((r) => setTimeout(r, 30));
-    onProgress?.("Saving backup to device…", 78);
-    await writeBackupToDocumentDir(backup);
-    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const filename = `auto-backup-${timestamp}.json`;
-    const autoFile = new File(Paths.document, filename);
-    await autoFile.write(JSON.stringify(backup));
-  } else {
-    const backupData = await fetchBackupData();
-    stats = {
-      accounts: backupData.data.accounts?.length ?? 0,
-      categories: backupData.data.categories?.length ?? 0,
-      transactions: backupData.data.transactions?.length ?? 0,
-      transfers: backupData.data.transfers?.length ?? 0,
-    };
-    const txCount = stats.transactions;
-    onProgress?.(
-      `Processing ${txCount} transaction${txCount !== 1 ? "s" : ""}…`,
-      60,
-    );
-    await new Promise((r) => setTimeout(r, 30));
-    onProgress?.("Saving backup to device…", 78);
-    await new Promise((r) => setTimeout(r, 30));
-    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const filename = `auto-backup-${timestamp}.json`;
-    const file = new File(Paths.document, filename);
-    file.write(JSON.stringify(backupData));
-  }
-
-  onProgress?.("Finishing up…", 92);
-  await new Promise((r) => setTimeout(r, 30));
-
-  await AsyncStorage.setItem(tsKey(userId), String(Date.now()));
 
   try {
-    const dir = Paths.document;
-    const entries = dir.list() as { name: string }[];
-    const autoFiles = entries
-      .filter(
-        (e) => e.name.startsWith("auto-backup-") && e.name.endsWith(".json"),
-      )
-      .sort((a, b) => b.name.localeCompare(a.name));
-    for (let i = MAX_LOCAL_BACKUPS; i < autoFiles.length; i++) {
-      new File(dir, autoFiles[i].name).delete();
+    const spaceOk = await confirmBackupIfLowSpace();
+    if (!spaceOk) {
+      throw Object.assign(new Error("Backup cancelled — low storage"), {
+        code: "low_space_cancelled",
+      });
     }
-  } catch {
-    /* prune failures are non-fatal */
-  }
 
-  onProgress?.("Done", 100);
-  return stats;
+    onProgress?.(
+      isLocalFirstEnabled()
+        ? "Reading on-device database…"
+        : "Connecting to server…",
+      5,
+    );
+    await new Promise((r) => setTimeout(r, 30));
+
+    onProgress?.(
+      isLocalFirstEnabled()
+        ? "Exporting local ledger…"
+        : "Fetching your account data…",
+      15,
+    );
+    await new Promise((r) => setTimeout(r, 30));
+
+    let stats: BackupStats;
+
+    if (isLocalFirstEnabled()) {
+      const {
+        exportLocalBackup,
+        writeBackupToDocumentDir,
+      } = await import("@/services/local-backup");
+      const backup = await exportLocalBackup();
+      stats = {
+        accounts: backup.summary.accountsCount,
+        categories: backup.summary.categoriesCount,
+        transactions: backup.summary.transactionsCount,
+        transfers: backup.summary.transfersCount,
+      };
+      onProgress?.(
+        `Processing ${stats.transactions} transaction${stats.transactions !== 1 ? "s" : ""}…`,
+        60,
+      );
+      await new Promise((r) => setTimeout(r, 30));
+      onProgress?.("Saving backup to device…", 78);
+      await writeBackupToDocumentDir(backup);
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const filename = `auto-backup-${timestamp}.json`;
+      const autoFile = new File(Paths.document, filename);
+      await autoFile.write(JSON.stringify(backup));
+    } else {
+      const backupData = await fetchBackupData();
+      stats = {
+        accounts: backupData.data.accounts?.length ?? 0,
+        categories: backupData.data.categories?.length ?? 0,
+        transactions: backupData.data.transactions?.length ?? 0,
+        transfers: backupData.data.transfers?.length ?? 0,
+      };
+      const txCount = stats.transactions;
+      onProgress?.(
+        `Processing ${txCount} transaction${txCount !== 1 ? "s" : ""}…`,
+        60,
+      );
+      await new Promise((r) => setTimeout(r, 30));
+      onProgress?.("Saving backup to device…", 78);
+      await new Promise((r) => setTimeout(r, 30));
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const filename = `auto-backup-${timestamp}.json`;
+      const file = new File(Paths.document, filename);
+      file.write(JSON.stringify(backupData));
+    }
+
+    onProgress?.("Finishing up…", 92);
+    await new Promise((r) => setTimeout(r, 30));
+
+    await AsyncStorage.setItem(tsKey(userId), String(Date.now()));
+    void trackLfEvent("backup_success", { count: stats.transactions });
+
+    try {
+      const dir = Paths.document;
+      const entries = dir.list() as { name: string }[];
+      const autoFiles = entries
+        .filter(
+          (e) => e.name.startsWith("auto-backup-") && e.name.endsWith(".json"),
+        )
+        .sort((a, b) => b.name.localeCompare(a.name));
+      for (let i = MAX_LOCAL_BACKUPS; i < autoFiles.length; i++) {
+        new File(dir, autoFiles[i].name).delete();
+      }
+    } catch {
+      /* prune failures are non-fatal */
+    }
+
+    onProgress?.("Done", 100);
+    return stats;
+  } catch (e: any) {
+    void trackLfEvent("backup_fail", {
+      code: e?.code || errorCodeFromUnknown(e),
+    });
+    throw e;
+  }
 }
 
 export function useAutoBackup(userId: string | undefined) {
