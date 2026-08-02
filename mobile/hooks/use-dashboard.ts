@@ -9,13 +9,13 @@ import { Alert } from "react-native";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import Toast from "react-native-toast-message";
 import {
-  updateTransaction,
   type Transaction,
 } from "@/services/transactions";
 import {
   dalCreateTransaction,
   dalCreateTransfer,
   dalDeleteTransaction,
+  dalUpdateTransaction,
 } from "@/data/transactions";
 import { exportTransactionsPdf } from "@/services/reports";
 import {
@@ -108,7 +108,7 @@ export function useDashboard() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: updateTransaction,
+    mutationFn: dalUpdateTransaction,
     onSuccess: () => {
       setModalVisible(false);
       setEditingTransaction(null);

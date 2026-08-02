@@ -28,6 +28,12 @@ interface AutoBackupSectionProps {
     onProgress: (step: string, pct: number) => void,
   ) => Promise<BackupStats>;
   onShare: () => Promise<void>;
+  /** When set, shows Restore from file (used in local-first mode). */
+  onRestore?: () => void;
+  restoring?: boolean;
+  restoreEnabled?: boolean;
+  /** Local-first: copy explains device JSON, not cloud API / Drive API. */
+  localFirstMode?: boolean;
 }
 
 function formatRelativeTime(date: Date): string {
@@ -74,6 +80,10 @@ export function AutoBackupSection({
   onDefaultDeviceToggle,
   onBackupNow,
   onShare,
+  onRestore,
+  restoring = false,
+  restoreEnabled = true,
+  localFirstMode = false,
 }: AutoBackupSectionProps) {
   const { colors } = useTheme();
   const accentColor = "#10b981";
@@ -182,13 +192,15 @@ export function AutoBackupSection({
             className="text-xl font-bold"
             style={{ color: colors.text.primary }}
           >
-            Auto Backup
+            {localFirstMode ? "Device backups" : "Auto Backup"}
           </Text>
           <Text
             className="text-sm mt-0.5"
             style={{ color: colors.text.secondary }}
           >
-            Automatic local backup every 24 hours
+            {localFirstMode
+              ? "JSON snapshots on this phone (not Google Drive API)"
+              : "Automatic local backup every 24 hours"}
           </Text>
         </View>
         <Switch
@@ -208,9 +220,13 @@ export function AutoBackupSection({
         <View className="flex-row items-start gap-3">
           <Ionicons name="information-circle" size={20} color={accentColor} />
           <Text className="text-sm flex-1" style={{ color: accentColor }}>
-            {enabled
-              ? "Your data is automatically saved to this device on login and every 24 hours. Up to 5 backups are kept."
-              : "Auto backup is currently disabled. Tap the toggle to enable it."}
+            {localFirstMode
+              ? enabled
+                ? "Saves the on-device ledger to this phone every 24 hours (up to 5 files). Use Share to manually send a file via the system sheet. Dated Google Drive uploads are under On-device storage → after you connect Drive."
+                : "Device auto-backup is off. Enable to keep JSON snapshots on this phone."
+              : enabled
+                ? "Your data is automatically saved to this device on login and every 24 hours. Up to 5 backups are kept."
+                : "Auto backup is currently disabled. Tap the toggle to enable it."}
           </Text>
         </View>
       </View>
@@ -278,8 +294,18 @@ export function AutoBackupSection({
             {/* Step checklist */}
             <View className="gap-1.5">
               {[
-                { label: "Connecting to server", threshold: 0 },
-                { label: "Fetching account data", threshold: 10 },
+                {
+                  label: localFirstMode
+                    ? "Opening on-device database"
+                    : "Connecting to server",
+                  threshold: 0,
+                },
+                {
+                  label: localFirstMode
+                    ? "Exporting local ledger"
+                    : "Fetching account data",
+                  threshold: 10,
+                },
                 { label: "Processing records", threshold: 60 },
                 { label: "Saving to device", threshold: 75 },
                 { label: "Finishing up", threshold: 90 },
@@ -478,14 +504,14 @@ export function AutoBackupSection({
               className="text-base font-semibold"
               style={{ color: colors.text.primary }}
             >
-              Share to Google Drive / Email
+              Share latest file
             </Text>
             <Text
               className="text-sm mt-0.5"
               style={{ color: colors.text.secondary }}
             >
               {lastBackupAt
-                ? "Send latest backup via Google Drive, Gmail or Files"
+                ? "System share sheet → Files, Email, or Drive (manual)"
                 : "Create a backup first, then share it"}
             </Text>
           </View>
@@ -495,6 +521,71 @@ export function AutoBackupSection({
             color={colors.text.secondary}
           />
         </TouchableOpacity>
+
+        {onRestore ? (
+          <TouchableOpacity
+            onPress={restoreEnabled ? onRestore : undefined}
+            disabled={restoring || !restoreEnabled || isRunning}
+            activeOpacity={0.75}
+            className="flex-row items-center gap-4 rounded-2xl p-4"
+            style={{
+              backgroundColor: restoreEnabled
+                ? colors.warning + "15"
+                : colors.bg.primary,
+              opacity: restoring || isRunning ? 0.55 : 1,
+              borderWidth: restoreEnabled ? 0 : 1,
+              borderColor: colors.border,
+            }}
+          >
+            <View
+              className="w-12 h-12 rounded-full items-center justify-center"
+              style={{
+                backgroundColor: restoreEnabled
+                  ? colors.warning + "30"
+                  : colors.border + "60",
+              }}
+            >
+              {restoring ? (
+                <ActivityIndicator size="small" color={colors.warning} />
+              ) : (
+                <Ionicons
+                  name={
+                    restoreEnabled ? "folder-open-outline" : "lock-closed-outline"
+                  }
+                  size={22}
+                  color={
+                    restoreEnabled ? colors.warning : colors.text.secondary
+                  }
+                />
+              )}
+            </View>
+            <View className="flex-1">
+              <Text
+                className="text-base font-semibold"
+                style={{
+                  color: restoreEnabled
+                    ? colors.text.primary
+                    : colors.text.secondary,
+                }}
+              >
+                {restoring ? "Restoring…" : "Restore from file"}
+              </Text>
+              <Text
+                className="text-sm mt-0.5"
+                style={{ color: colors.text.secondary }}
+              >
+                {restoreEnabled
+                  ? "Import a JSON backup into this device"
+                  : "Unlock restore mode in Settings (tap restore area)"}
+              </Text>
+            </View>
+            <Ionicons
+              name={restoreEnabled ? "chevron-forward" : "lock-closed"}
+              size={18}
+              color={restoreEnabled ? colors.text.secondary : colors.border}
+            />
+          </TouchableOpacity>
+        ) : null}
 
         {/* Default Device toggle */}
         <View

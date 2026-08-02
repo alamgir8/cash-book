@@ -48,9 +48,8 @@ import {
   type SelectOption,
 } from "./types";
 import type { Transaction } from "@/services/transactions";
-import { fetchVendors } from "@/services/transactions";
 import { dalFetchCategories } from "@/data/categories";
-import { partiesApi } from "@/services/parties";
+import { dalCreateParty, dalFetchVendors } from "@/data/parties";
 import { useActiveOrgId } from "@/hooks/use-organization";
 import { useQueryClient } from "@tanstack/react-query";
 import { QUERY_KEYS } from "@/lib/queryKeys";
@@ -184,7 +183,7 @@ export const TransactionModal = ({
         { value: tempId, label: trimmed },
       ]);
 
-      const promise = partiesApi.create({
+      const promise = dalCreateParty({
         organization: organizationId || undefined,
         name: trimmed,
         type: "both",
@@ -389,7 +388,7 @@ export const TransactionModal = ({
   // Stable fetchOptions for vendor search (excludes selected for_party by ID and name)
   const fetchVendorOptions = useCallback(
     async (q: string) => {
-      const res = await fetchVendors(q, organizationId || undefined);
+      const res = await dalFetchVendors(q, organizationId || undefined);
       const excludeIds = new Set(
         bulkMode
           ? bulkForParties
@@ -421,7 +420,7 @@ export const TransactionModal = ({
   // Stable fetchOptions for for_party search (excludes selected vendor by ID and name)
   const fetchForPartyOptions = useCallback(
     async (q: string) => {
-      const res = await fetchVendors(q, organizationId || undefined);
+      const res = await dalFetchVendors(q, organizationId || undefined);
       const excludeIds = new Set(
         bulkMode ? bulkParties : selectedVendor ? [selectedVendor] : [],
       );

@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import {
-  fetchCounterparties,
-  fetchVendors,
   type TransactionFilters,
 } from "@/services/transactions";
 import {
@@ -11,6 +9,7 @@ import {
 } from "@/data/accounts";
 import { dalFetchTransactions } from "@/data/transactions";
 import { dalFetchCategories } from "@/data/categories";
+import { dalFetchCounterparties, dalFetchVendors } from "@/data/parties";
 import { queryKeys } from "@/lib/queryKeys";
 import { useTransactionListState } from "@/hooks/use-transaction-list-state";
 import { useTransactionFilterOptions } from "@/hooks/use-transaction-filter-options";
@@ -135,13 +134,13 @@ export function useTransactionFeed({
 
   const counterpartiesQuery = useQuery({
     queryKey: [...queryKeys.counterparties, orgKey],
-    queryFn: () => fetchCounterparties(undefined, organizationId || undefined),
+    queryFn: () => dalFetchCounterparties(undefined, organizationId || undefined),
     staleTime: 5 * 60_000,
   });
 
   const vendorsQuery = useQuery({
     queryKey: [...queryKeys.vendors, orgKey],
-    queryFn: () => fetchVendors(undefined, organizationId || undefined),
+    queryFn: () => dalFetchVendors(undefined, organizationId || undefined),
     staleTime: 5 * 60_000,
   });
 

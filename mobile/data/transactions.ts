@@ -1,7 +1,9 @@
 import {
   createTransaction as apiCreateTransaction,
   createTransfer as apiCreateTransfer,
+  createDuePayment as apiCreateDuePayment,
   deleteTransaction as apiDeleteTransaction,
+  updateTransaction as apiUpdateTransaction,
   fetchTransactions,
   type Transaction,
   type TransactionFilters,
@@ -44,6 +46,27 @@ export async function dalCreateTransaction(payload: CreatePayload) {
   return local.createLocalTransaction(payload);
 }
 
+export async function dalUpdateTransaction(payload: {
+  transactionId: string;
+  accountId?: string;
+  amount?: number;
+  type?: "debit" | "credit";
+  date?: string;
+  description?: string;
+  comment?: string;
+  categoryId?: string;
+  party?: string;
+  for_party?: string;
+  payment_status?: "paid" | "due";
+  due_date?: string;
+}) {
+  if (!isLocalFirstEnabled()) {
+    return apiUpdateTransaction(payload);
+  }
+  const local = await import("./transactions.local");
+  return local.updateLocalTransaction(payload);
+}
+
 export async function dalDeleteTransaction(transactionId: string) {
   if (!isLocalFirstEnabled()) {
     return apiDeleteTransaction(transactionId);
@@ -65,6 +88,22 @@ export async function dalCreateTransfer(payload: {
   }
   const local = await import("./transactions.local");
   return local.createLocalTransfer(payload);
+}
+
+export async function dalCreateDuePayment(payload: {
+  parentDueId: string;
+  accountId: string;
+  amount: number;
+  type: "debit" | "credit";
+  date?: string;
+  description?: string;
+  categoryId?: string;
+}) {
+  if (!isLocalFirstEnabled()) {
+    return apiCreateDuePayment(payload);
+  }
+  const local = await import("./transactions.local");
+  return local.createLocalDuePayment(payload);
 }
 
 export async function enrichLocalTransaction(...args: [any, any]) {

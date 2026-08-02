@@ -20,6 +20,12 @@ import {
   importBackupFromFile,
   shareLatestAutoBackup,
 } from "@/services/backup";
+import { importBackupFromPicker } from "@/services/local-backup";
+import {
+  isLocalFirstEnabled,
+  loadLocalFirstFlags,
+  subscribeLocalFirstFlags,
+} from "@/lib/local-first/flags";
 import { useAutoBackup, writeBackupFile } from "@/hooks/use-auto-backup";
 import { BalanceCheckModal } from "@/components/settings/balance-check-modal";
 import { ScreenHeader } from "@/components/screen-header";
@@ -96,6 +102,12 @@ export default function SettingsScreen() {
     setDefaultDevice,
   } = useAutoBackup(userId);
 
+  const [localFirstOn, setLocalFirstOn] = useState(isLocalFirstEnabled());
+  useEffect(() => {
+    void loadLocalFirstFlags().then((f) => setLocalFirstOn(f.localFirstEnabled));
+    return subscribeLocalFirstFlags((f) => setLocalFirstOn(f.localFirstEnabled));
+  }, []);
+
   const orgId = activeOrganization?.id;
 
   // Handlers
@@ -170,31 +182,50 @@ export default function SettingsScreen() {
   const performRestore = async () => {
     try {
       setRestoring(true);
-      const result = await importBackupFromFile();
 
-      if (!result || !result.summary) {
-        throw new Error("Invalid response from server");
+      let details: string[] = [];
+      let balanceText = "";
+
+      if (isLocalFirstEnabled()) {
+        const summary = await importBackupFromPicker();
+        queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
+        queryClient.invalidateQueries({ queryKey: queryKeys.categories.all });
+        queryClient.invalidateQueries({ queryKey: ["transactions"] });
+        queryClient.invalidateQueries({ queryKey: queryKeys.parties });
+        if (summary.accountsCount)
+          details.push(`${summary.accountsCount} accounts`);
+        if (summary.categoriesCount)
+          details.push(`${summary.categoriesCount} categories`);
+        if (summary.partiesCount)
+          details.push(`${summary.partiesCount} parties`);
+        if (summary.transactionsCount)
+          details.push(`${summary.transactionsCount} transactions`);
+        if (summary.transfersCount)
+          details.push(`${summary.transfersCount} transfers`);
+        balanceText = summary.totalBalance
+          ? ` (Balance: ${summary.totalBalance.toLocaleString()})`
+          : "";
+      } else {
+        const result = await importBackupFromFile();
+        if (!result || !result.summary) {
+          throw new Error("Invalid response from server");
+        }
+        queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
+        queryClient.invalidateQueries({ queryKey: queryKeys.categories.all });
+        queryClient.invalidateQueries({ queryKey: ["transactions"] });
+        const { summary } = result;
+        if (summary.accountsImported)
+          details.push(`${summary.accountsImported} accounts`);
+        if (summary.categoriesImported)
+          details.push(`${summary.categoriesImported} categories`);
+        if (summary.transactionsImported)
+          details.push(`${summary.transactionsImported} transactions`);
+        if (summary.transfersImported)
+          details.push(`${summary.transfersImported} transfers`);
+        balanceText = summary.totalBalance
+          ? ` (Balance: ${summary.totalBalance.toLocaleString()})`
+          : "";
       }
-
-      // Invalidate all queries to refresh data
-      queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
-      queryClient.invalidateQueries({ queryKey: queryKeys.categories.all });
-      queryClient.invalidateQueries({ queryKey: ["transactions"] });
-
-      const { summary } = result;
-      const details: string[] = [];
-      if (summary.accountsImported)
-        details.push(`${summary.accountsImported} accounts`);
-      if (summary.categoriesImported)
-        details.push(`${summary.categoriesImported} categories`);
-      if (summary.transactionsImported)
-        details.push(`${summary.transactionsImported} transactions`);
-      if (summary.transfersImported)
-        details.push(`${summary.transfersImported} transfers`);
-
-      const balanceText = summary.totalBalance
-        ? ` (Balance: ${summary.totalBalance.toLocaleString()})`
-        : "";
 
       Toast.show({
         type: "success",
@@ -360,8 +391,12 @@ export default function SettingsScreen() {
           />
         )}
 
-        {/* Backup Section - Owner or users with backup permission */}
-        {canBackupRestore && (
+        {/*
+          Backup layout (no duplicates):
+          - Cloud mode: BackupSection (server export) + AutoBackupSection (device files)
+          - Local-first: Device backups only (auto + share + restore); Drive lives in On-device storage
+        */}
+        {canBackupRestore && !localFirstOn && (
           <BackupSection
             backingUp={backingUp}
             restoring={restoring}
@@ -371,7 +406,6 @@ export default function SettingsScreen() {
           />
         )}
 
-        {/* Auto Backup Section */}
         <AutoBackupSection
           enabled={autoBackupEnabled}
           onToggle={(val) => void setAutoBackupEnabled(val)}
@@ -380,9 +414,15 @@ export default function SettingsScreen() {
           onDefaultDeviceToggle={(val) => void setDefaultDevice(val)}
           onBackupNow={handleAutoBackupNow}
           onShare={handleAutoShare}
+          localFirstMode={localFirstOn}
+          onRestore={
+            canBackupRestore || localFirstOn ? handleRestore : undefined
+          }
+          restoring={restoring}
+          restoreEnabled={isRestoreModeActive || localFirstOn}
         />
 
-        {/* Local-first / sync / Drive (feature-flagged; off by default) */}
+        {/* On-device DB + optional cloud sync + Drive API (not the share sheet) */}
         {(isPersonalMode || isOwner) && (
           <Suspense fallback={null}>
             <LocalFirstSection />

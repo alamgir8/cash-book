@@ -9,14 +9,13 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Toast from "react-native-toast-message";
 import dayjs from "dayjs";
+import type { Account, AccountOverview } from "@/services/accounts";
 import {
-  createAccount,
-  deleteAccount,
-  fetchAccountsOverview,
-  updateAccount,
-  type Account,
-  type AccountOverview,
-} from "@/services/accounts";
+  dalCreateAccount,
+  dalDeleteAccount,
+  dalFetchAccountsOverview,
+  dalUpdateAccount,
+} from "@/data/accounts";
 import { queryKeys } from "@/lib/queryKeys";
 import { useOrganization, useActiveOrgId } from "@/hooks/use-organization";
 import { usePreferences } from "@/hooks/use-preferences";
@@ -40,7 +39,7 @@ export function useAccountsScreen() {
   // ── Queries ──────────────────────────────────────────────────────────────
   const accountsQuery = useQuery({
     queryKey: [...queryKeys.accountsOverview, orgKey],
-    queryFn: () => fetchAccountsOverview(organizationId || undefined),
+    queryFn: () => dalFetchAccountsOverview(organizationId || undefined),
   });
 
   const accounts = useMemo(
@@ -73,7 +72,7 @@ export function useAccountsScreen() {
 
   // ── Mutations ────────────────────────────────────────────────────────────
   const createMutation = useMutation({
-    mutationFn: createAccount,
+    mutationFn: dalCreateAccount,
     onSuccess: async () => {
       Toast.show({ type: "success", text1: "Account added" });
       await invalidateAccountData();
@@ -83,7 +82,7 @@ export function useAccountsScreen() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: updateAccount,
+    mutationFn: dalUpdateAccount,
     onSuccess: async () => {
       Toast.show({ type: "success", text1: "Account updated" });
       await invalidateAccountData(selectedAccount?._id);
@@ -93,7 +92,7 @@ export function useAccountsScreen() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: deleteAccount,
+    mutationFn: dalDeleteAccount,
     onSuccess: async () => {
       Toast.show({ type: "success", text1: "Account deleted" });
       await invalidateAccountData();

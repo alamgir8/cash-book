@@ -21,6 +21,8 @@ import { queryClient } from "../lib/queryClient";
 import { organizationsApi } from "../services/organizations";
 import type { OrganizationSummary } from "../services/organizations";
 import { bootstrapLocalFirst } from "../lib/local-first/bootstrap";
+import { startSyncScheduler } from "../sync/scheduler";
+import { OfflineBanner } from "../components/offline-banner";
 import "../global.css";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -84,6 +86,11 @@ const RootContent = () => {
   }, []);
 
   useEffect(() => {
+    if (!isReady || state.status !== "authenticated") return;
+    return startSyncScheduler();
+  }, [isReady, state.status]);
+
+  useEffect(() => {
     const maybeHideSplash = async () => {
       // Only hide splash when both resources are ready AND auth check is complete
       if (isReady && state.status !== "loading") {
@@ -130,6 +137,7 @@ const RootContent = () => {
         style={isDark ? "light" : "dark"}
         backgroundColor={colors.bg.primary}
       />
+      <OfflineBanner />
       <Stack screenOptions={{ headerShown: false }} />
       <Toast position="top" topOffset={56} visibilityTime={3000} />
     </SafeAreaView>

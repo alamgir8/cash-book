@@ -15,7 +15,8 @@ import { ScreenHeader } from "@/components/screen-header";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useKeyboardFooterLift } from "@/hooks/use-keyboard-footer-lift";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { partiesApi, PartyType } from "@/services/parties";
+import { type PartyType } from "@/services/parties";
+import { dalFetchParty, dalUpdateParty } from "@/data/parties";
 import { getApiErrorMessage } from "@/lib/api";
 import { Ionicons } from "@expo/vector-icons";
 import { QUERY_KEYS } from "@/lib/queryKeys";
@@ -89,7 +90,7 @@ export default function EditPartyScreen() {
 
   const { data: party, isLoading } = useQuery({
     queryKey: ["party", partyId],
-    queryFn: () => partiesApi.get(partyId!),
+    queryFn: () => dalFetchParty(partyId!),
     enabled: !!partyId,
   });
 
@@ -125,8 +126,8 @@ export default function EditPartyScreen() {
   }, [party, reset]);
 
   const updateMutation = useMutation({
-    mutationFn: (data: Parameters<typeof partiesApi.update>[1]) =>
-      partiesApi.update(partyId!, data),
+    mutationFn: (data: Parameters<typeof dalUpdateParty>[1]) =>
+      dalUpdateParty(partyId!, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.parties });
       queryClient.invalidateQueries({ queryKey: ["party", partyId] });

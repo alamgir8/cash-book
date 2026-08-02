@@ -23,7 +23,8 @@ import {
 import { FormSheetModal } from "@/components/form-sheet-modal";
 import { useTheme } from "@/hooks/use-theme";
 import { usePreferences } from "@/hooks/use-preferences";
-import { createDuePayment, type Transaction } from "@/services/transactions";
+import { type Transaction } from "@/services/transactions";
+import { dalCreateDuePayment } from "@/data/transactions";
 import { refreshTransactionData } from "@/lib/refresh-app-data";
 import { SearchableSelect } from "../searchable-select";
 import type { SelectOption } from "./types";
@@ -67,7 +68,7 @@ export const DuePaymentModal = ({
   }, [visible, dueTxn, accountOptions]);
 
   const mutation = useMutation({
-    mutationFn: createDuePayment,
+    mutationFn: dalCreateDuePayment,
     onSuccess: () => {
       void refreshTransactionData(queryClient);
       onSuccess?.();

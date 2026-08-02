@@ -32,9 +32,9 @@ import {
   exportTransactionsByCounterpartyPdf,
 } from "@/services/reports";
 import {
-  updateTransaction,
-  deleteTransaction,
-} from "@/services/transactions";
+  dalDeleteTransaction,
+  dalUpdateTransaction,
+} from "@/data/transactions";
 import { usePreferences } from "@/hooks/use-preferences";
 import { useTheme } from "@/hooks/use-theme";
 import { useTranslation } from "@/hooks/use-translation";
@@ -121,7 +121,7 @@ export default function AccountDetailScreen() {
   } = feed;
 
   const updateMutation = useMutation({
-    mutationFn: updateTransaction,
+    mutationFn: dalUpdateTransaction,
     onSuccess: async () => {
       resetToPageOne();
       await refreshTransactionData(queryClient);
@@ -138,7 +138,7 @@ export default function AccountDetailScreen() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: deleteTransaction,
+    mutationFn: dalDeleteTransaction,
     onSuccess: async () => {
       resetToPageOne();
       await refreshTransactionData(queryClient);

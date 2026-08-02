@@ -31,7 +31,7 @@ import {
   type SelectOption,
 } from "./types";
 import { uploadAttachments } from "@/services/attachments";
-import { fetchCounterparties } from "@/services/transactions";
+import { dalFetchCounterparties } from "@/data/parties";
 
 type TransferModalProps = {
   visible: boolean;
@@ -463,7 +463,7 @@ export const TransferModal = ({
                       allowCustomValue={true}
                       customDisplayValue={value || ""}
                       fetchOptions={async (q) => {
-                        const res = await fetchCounterparties(q);
+                        const res = await dalFetchCounterparties(q);
                         return res.map((v) => ({ value: v, label: v }));
                       }}
                     />

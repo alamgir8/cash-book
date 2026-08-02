@@ -8,7 +8,9 @@ import type { LocalTransaction } from "@/db/types";
 import {
   createTransaction as apiCreateTransaction,
   createTransfer as apiCreateTransfer,
+  createDuePayment as apiCreateDuePayment,
   deleteTransaction as apiDeleteTransaction,
+  updateTransaction as apiUpdateTransaction,
   fetchTransactions,
   type Transaction,
   type TransactionFilters,
@@ -16,6 +18,19 @@ import {
 import { isDualWriteEnabled } from "@/lib/local-first/flags";
 import { getOrCreateDeviceId } from "@/services/device";
 import { createClientRequestId } from "@/lib/local-first/ids";
+
+async function resolveLocalTransaction(transactionId: string) {
+  const db = await getDb();
+  let row = await transactionsRepo.getTransactionById(db, transactionId);
+  if (!row) {
+    row =
+      (await db.getFirstAsync<LocalTransaction>(
+        `SELECT * FROM transactions WHERE server_id = ? AND deleted_at IS NULL LIMIT 1`,
+        transactionId,
+      )) ?? null;
+  }
+  return { db, row };
+}
 
 function mapLocalTxn(
   row: LocalTransaction,
@@ -193,22 +208,116 @@ export async function createLocalTransaction(payload: CreatePayload) {
 }
 
 export async function deleteLocalTransaction(transactionId: string) {
-  const db = await getDb();
+  const { db, row: existing } = await resolveLocalTransaction(transactionId);
+  if (!existing) throw new Error("Transaction not found");
   const device_id = await getOrCreateDeviceId();
-  const existing = await transactionsRepo.getTransactionById(db, transactionId);
-  await transactionsRepo.softDeleteTransaction(db, transactionId, device_id);
+  await transactionsRepo.softDeleteTransaction(db, existing.id, device_id);
 
-  if (isDualWriteEnabled() && existing?.server_id) {
+  if (isDualWriteEnabled() && existing.server_id) {
     try {
       await apiDeleteTransaction(existing.server_id);
-      await db.runAsync(
-        `UPDATE transactions SET dirty = 0 WHERE id = ?`,
-        transactionId,
-      );
+      await db.runAsync(`UPDATE transactions SET dirty = 0 WHERE id = ?`, existing.id);
     } catch (e) {
       console.warn("[dal] dual-write transaction delete failed", e);
     }
   }
+}
+
+type UpdatePayload = {
+  transactionId: string;
+  accountId?: string;
+  amount?: number;
+  type?: "debit" | "credit";
+  date?: string;
+  description?: string;
+  comment?: string;
+  categoryId?: string;
+  party?: string;
+  for_party?: string;
+  payment_status?: "paid" | "due";
+  due_date?: string;
+};
+
+export async function updateLocalTransaction(payload: UpdatePayload) {
+  const { db, row: existing } = await resolveLocalTransaction(
+    payload.transactionId,
+  );
+  if (!existing) throw new Error("Transaction not found");
+  const device_id = await getOrCreateDeviceId();
+
+  const updated = await transactionsRepo.updateTransaction(db, existing.id, {
+    device_id,
+    account_id: payload.accountId,
+    amount: payload.amount,
+    type: payload.type,
+    date: payload.date,
+    description: payload.description,
+    keyword: payload.comment,
+    category_id: payload.categoryId,
+    party_id: payload.party,
+    for_party_id: payload.for_party,
+    payment_status: payload.payment_status,
+    due_date: payload.due_date,
+  });
+
+  if (isDualWriteEnabled() && existing.server_id) {
+    try {
+      await apiUpdateTransaction({
+        ...payload,
+        transactionId: existing.server_id,
+      });
+      await db.runAsync(`UPDATE transactions SET dirty = 0 WHERE id = ?`, existing.id);
+    } catch (e) {
+      console.warn("[dal] dual-write transaction update failed", e);
+    }
+  }
+
+  return enrichLocalTransaction(db, updated);
+}
+
+export async function createLocalDuePayment(payload: {
+  parentDueId: string;
+  accountId: string;
+  amount: number;
+  type: "debit" | "credit";
+  date?: string;
+  description?: string;
+  categoryId?: string;
+}) {
+  const { db, row: parent } = await resolveLocalTransaction(payload.parentDueId);
+  if (!parent) throw new Error("Due transaction not found");
+  const device_id = await getOrCreateDeviceId();
+
+  const created = await transactionsRepo.createDuePaymentTransaction(db, {
+    parentDueId: parent.id,
+    account_id: payload.accountId,
+    amount: payload.amount,
+    type: payload.type,
+    date: payload.date ?? new Date().toISOString(),
+    description: payload.description ?? null,
+    category_id: payload.categoryId ?? null,
+    device_id,
+  });
+
+  if (isDualWriteEnabled() && parent.server_id) {
+    try {
+      const remote = await apiCreateDuePayment({
+        ...payload,
+        parentDueId: parent.server_id,
+      });
+      if (remote?._id) {
+        await db.runAsync(
+          `UPDATE transactions SET server_id = ?, dirty = 0 WHERE id = ?`,
+          remote._id,
+          created.id,
+        );
+      }
+    } catch (e) {
+      console.warn("[dal] dual-write due payment failed", e);
+    }
+  }
+
+  return enrichLocalTransaction(db, created);
 }
 
 export async function createLocalTransfer(payload: {

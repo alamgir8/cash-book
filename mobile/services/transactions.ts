@@ -579,6 +579,8 @@ export const fetchVendorLedger = async ({
 };
 
 type CreateDuePaymentPayload = {
+  parentDueId: string;
+  accountId: string;
   amount: number;
   type: "debit" | "credit";
   date?: string;

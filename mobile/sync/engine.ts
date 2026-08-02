@@ -324,7 +324,12 @@ export async function runSync(): Promise<SyncResult> {
       serverTime: handshake.serverTime,
     };
   } catch (e: any) {
-    const message = e?.response?.data?.message || e?.message || "Sync failed";
+    const status = e?.response?.status;
+    const raw = e?.response?.data?.message || e?.message || "Sync failed";
+    const message =
+      status === 404 || /resource not found/i.test(String(raw))
+        ? "Cloud sync API not on this server yet (deploy backend /sync routes)"
+        : String(raw);
     await setMeta(db, META_KEYS.LAST_SYNC_ERROR, message);
     console.warn("[sync]", message);
     return { ok: false, pushed: 0, pulled: 0, error: message };

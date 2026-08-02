@@ -246,6 +246,165 @@ export async function softDeleteTransaction(
   });
 }
 
+export type TransactionUpdatePatch = {
+  account_id?: string;
+  category_id?: string | null;
+  party_id?: string | null;
+  for_party_id?: string | null;
+  type?: "debit" | "credit";
+  amount?: number;
+  date?: string;
+  description?: string | null;
+  keyword?: string | null;
+  payment_status?: "paid" | "due";
+  due_date?: string | null;
+  device_id: string;
+};
+
+/**
+ * Update a transaction, reversing prior balance effects and applying the new ones.
+ */
+export async function updateTransaction(
+  db: Db,
+  id: string,
+  patch: TransactionUpdatePatch,
+): Promise<LocalTransaction> {
+  const existing = await getTransactionById(db, id);
+  if (!existing || existing.deleted_at) throw new Error("Transaction not found");
+
+  await withDbTransaction(db, async (txn) => {
+    if (existing.payment_status === "paid") {
+      const reverse = -signedDelta(existing.type, existing.amount);
+      await applyAccountDelta(txn, existing.account_id, reverse);
+      await applyPartyDelta(txn, existing.party_id, reverse);
+    }
+
+    const nextType = patch.type ?? existing.type;
+    const nextAmount =
+      patch.amount !== undefined ? Number(patch.amount) : Number(existing.amount);
+    const nextAccountId = patch.account_id ?? existing.account_id;
+    const nextPartyId =
+      patch.party_id !== undefined ? patch.party_id : existing.party_id;
+    const nextStatus = patch.payment_status ?? existing.payment_status;
+    const ts = nowIso();
+
+    let balanceAfter: number | null = existing.balance_after_transaction;
+    let partyBalanceAfter: number | null = existing.party_balance_after;
+
+    if (nextStatus === "paid") {
+      const delta = signedDelta(nextType, nextAmount);
+      balanceAfter = await applyAccountDelta(txn, nextAccountId, delta);
+      partyBalanceAfter = await applyPartyDelta(txn, nextPartyId, delta);
+    } else {
+      balanceAfter = null;
+      partyBalanceAfter = null;
+    }
+
+    await txn.runAsync(
+      `UPDATE transactions SET
+        account_id = ?, category_id = ?, party_id = ?, for_party_id = ?,
+        type = ?, amount = ?, date = ?, description = ?, keyword = ?,
+        payment_status = ?, due_date = ?,
+        due_remaining = CASE WHEN ? = 'due' THEN ? ELSE due_remaining END,
+        balance_after_transaction = ?, party_balance_after = ?,
+        updated_at = ?, dirty = 1, device_id = ?, sync_version = sync_version + 1
+       WHERE id = ?`,
+      nextAccountId,
+      patch.category_id !== undefined ? patch.category_id : existing.category_id,
+      nextPartyId,
+      patch.for_party_id !== undefined
+        ? patch.for_party_id
+        : existing.for_party_id,
+      nextType,
+      nextAmount,
+      patch.date ?? existing.date,
+      patch.description !== undefined ? patch.description : existing.description,
+      patch.keyword !== undefined ? patch.keyword : existing.keyword,
+      nextStatus,
+      patch.due_date !== undefined ? patch.due_date : existing.due_date,
+      nextStatus,
+      nextAmount,
+      balanceAfter,
+      partyBalanceAfter,
+      ts,
+      patch.device_id,
+      id,
+    );
+  });
+
+  const row = await getTransactionById(db, id);
+  if (!row) throw new Error("Failed to update transaction");
+  return row;
+}
+
+/**
+ * Record a payment against a due parent: create paid child + decrement remaining.
+ */
+export async function createDuePaymentTransaction(
+  db: Db,
+  input: {
+    parentDueId: string;
+    account_id: string;
+    amount: number;
+    type: "debit" | "credit";
+    date: string;
+    description?: string | null;
+    category_id?: string | null;
+    device_id: string;
+  },
+): Promise<LocalTransaction> {
+  const parent = await getTransactionById(db, input.parentDueId);
+  if (!parent || parent.deleted_at) throw new Error("Due transaction not found");
+  if (parent.payment_status !== "due") {
+    throw new Error("Parent transaction is not due");
+  }
+
+  const payAmount = Number(input.amount);
+  if (!(payAmount > 0)) throw new Error("Payment amount must be > 0");
+
+  const remaining = Number(parent.due_remaining ?? parent.amount);
+  if (payAmount > remaining + 1e-9) {
+    throw new Error("Payment exceeds remaining due amount");
+  }
+
+  let created: LocalTransaction | null = null;
+  await withDbTransaction(db, async (txn) => {
+    created = await createTransaction(txn, {
+      account_id: input.account_id,
+      category_id: input.category_id ?? parent.category_id,
+      party_id: parent.party_id,
+      for_party_id: parent.for_party_id,
+      type: input.type,
+      amount: payAmount,
+      date: input.date,
+      description: input.description ?? parent.description,
+      payment_status: "paid",
+      parent_due_id: parent.id,
+      due_group_id: parent.due_group_id ?? parent.id,
+      organization_id: parent.organization_id,
+      device_id: input.device_id,
+      applyBalance: true,
+    });
+
+    const nextRemaining = Math.max(0, remaining - payAmount);
+    const settledAt = nextRemaining <= 1e-9 ? nowIso() : null;
+    await txn.runAsync(
+      `UPDATE transactions SET
+        due_remaining = ?, due_settled_at = ?,
+        updated_at = ?, dirty = 1, device_id = ?, sync_version = sync_version + 1
+       WHERE id = ?`,
+      nextRemaining,
+      settledAt,
+      nowIso(),
+      input.device_id,
+      parent.id,
+    );
+  });
+
+  if (!created) throw new Error("Failed to create due payment");
+  return created;
+}
+
 export async function upsertTransactionFromSync(
   db: Db,
   row: LocalTransaction,

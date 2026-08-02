@@ -10,7 +10,8 @@ import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { router, useLocalSearchParams } from "expo-router";
 import { toast } from "@/lib/toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { partiesApi, PartyType } from "@/services/parties";
+import { type PartyType } from "@/services/parties";
+import { dalCreateParty } from "@/data/parties";
 import { QUERY_KEYS } from "@/lib/queryKeys";
 import { Ionicons } from "@expo/vector-icons";
 import { z } from "zod";
@@ -98,7 +99,7 @@ export default function CreatePartyScreen() {
   const selectedBalanceType = watch("opening_balance_type");
 
   const createMutation = useMutation({
-    mutationFn: partiesApi.create,
+    mutationFn: dalCreateParty,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.parties });
       toast.success("Party created successfully");

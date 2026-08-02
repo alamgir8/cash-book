@@ -6,11 +6,11 @@ import { Alert } from "react-native";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams } from "expo-router";
 import Toast from "react-native-toast-message";
+import { type Transaction } from "@/services/transactions";
 import {
-  updateTransaction,
-  deleteTransaction,
-  type Transaction,
-} from "@/services/transactions";
+  dalDeleteTransaction,
+  dalUpdateTransaction,
+} from "@/data/transactions";
 import { exportTransactionsPdf } from "@/services/reports";
 import { refreshTransactionData } from "@/lib/refresh-app-data";
 import {
@@ -103,7 +103,7 @@ export function useTransactionsScreen() {
   } = feed;
 
   const updateMutation = useMutation({
-    mutationFn: updateTransaction,
+    mutationFn: dalUpdateTransaction,
     onSuccess: async () => {
       resetToPageOne();
       setModalVisible(false);
@@ -120,7 +120,7 @@ export function useTransactionsScreen() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: deleteTransaction,
+    mutationFn: dalDeleteTransaction,
     onSuccess: async () => {
       resetToPageOne();
       await refreshTransactionData(queryClient);
