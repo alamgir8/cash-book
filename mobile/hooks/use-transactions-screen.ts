@@ -214,9 +214,11 @@ export function useTransactionsScreen() {
   };
 
   const handleRefresh = useCallback(() => {
-    resetToPageOne();
+    if (filters.page !== 1) {
+      resetToPageOne();
+    }
     void refreshTransactionData(queryClient);
-  }, [queryClient, resetToPageOne]);
+  }, [queryClient, resetToPageOne, filters.page]);
 
   const closeModal = useCallback(() => {
     setModalVisible(false);

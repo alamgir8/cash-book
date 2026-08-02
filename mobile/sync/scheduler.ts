@@ -50,6 +50,10 @@ async function maybeSync(reason: string): Promise<void> {
         lastHardFailAt = Date.now();
       }
       console.warn(`[sync/scheduler] ${reason} failed:`, result.error);
+      } else if (result.pulled > 0 || result.pushed > 0) {
+      // Multi-device: refresh UI from SQLite after sync applied remote rows.
+      const { queryClient } = await import("@/lib/queryClient");
+      await queryClient.invalidateQueries({ refetchType: "active" });
     }
   } catch (e) {
     console.warn(`[sync/scheduler] ${reason} error`, e);
@@ -58,9 +62,19 @@ async function maybeSync(reason: string): Promise<void> {
   }
 }
 
+let foregroundTimer: ReturnType<typeof setTimeout> | null = null;
+
 function onAppState(next: AppStateStatus) {
+  if (foregroundTimer) {
+    clearTimeout(foregroundTimer);
+    foregroundTimer = null;
+  }
+  // Defer so open modals / keyboard recovery aren't fighting SQLite + network.
   if (next === "active") {
-    void maybeSync("foreground");
+    foregroundTimer = setTimeout(() => {
+      foregroundTimer = null;
+      void maybeSync("foreground");
+    }, 2500);
   }
 }
 
@@ -97,6 +111,10 @@ export function startSyncScheduler(): () => void {
 export function stopSyncScheduler(): void {
   appStateSub?.remove();
   appStateSub = null;
+  if (foregroundTimer) {
+    clearTimeout(foregroundTimer);
+    foregroundTimer = null;
+  }
   if (timer) {
     clearInterval(timer);
     timer = null;

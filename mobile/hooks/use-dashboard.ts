@@ -89,9 +89,11 @@ export function useDashboard() {
   } = feed;
 
   const invalidateAll = useCallback(async () => {
-    resetToPageOne();
+    if (filters.page !== 1) {
+      resetToPageOne();
+    }
     await refreshTransactionData(queryClient);
-  }, [queryClient, resetToPageOne]);
+  }, [queryClient, resetToPageOne, filters.page]);
 
   const createMutation = useMutation({
     mutationFn: dalCreateTransaction,
@@ -211,9 +213,12 @@ export function useDashboard() {
   }, [feedResetFilters, queryClient]);
 
   const handleRefresh = useCallback(() => {
-    resetToPageOne();
+    // Stay on page 1 without wiping the list first (wipe + same RQ data = empty UI).
+    if (filters.page !== 1) {
+      resetToPageOne();
+    }
     void refreshTransactionData(queryClient);
-  }, [queryClient, resetToPageOne]);
+  }, [queryClient, resetToPageOne, filters.page]);
 
   const openTransferModal = useCallback(() => {
     if (accountsQuery.isLoading) {

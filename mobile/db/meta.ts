@@ -10,7 +10,8 @@ export function scopeWhere(
   if (orgId) {
     return { sql: `${col} = ?`, params: [orgId] };
   }
-  return { sql: `${col} IS NULL`, params: [] };
+  // Personal scope: NULL or legacy empty string (never drop rows on refresh).
+  return { sql: `(${col} IS NULL OR ${col} = '')`, params: [] };
 }
 
 export async function getMeta(db: Db, key: string): Promise<string | null> {
@@ -46,6 +47,10 @@ export const META_KEYS = {
   MIGRATION_COMPLETED_AT: "migration_completed_at",
   LAST_LOCAL_BACKUP_AT: "last_local_backup_at",
   LAST_DRIVE_BACKUP_AT: "last_drive_backup_at",
+  LAST_DRIVE_PATH: "last_drive_path",
+  LAST_DRIVE_FILE_ID: "last_drive_file_id",
+  LAST_DRIVE_CHECKSUM: "last_drive_checksum",
+  LAST_DRIVE_ERROR: "last_drive_error",
   OWNER_ADMIN_ID: "owner_admin_id",
   LAST_VACUUM_AT: "last_vacuum_at",
   CLOCK_OFFSET_MS: "clock_offset_ms",

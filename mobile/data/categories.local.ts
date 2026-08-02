@@ -40,13 +40,22 @@ const FLOW_BY_TYPE: Record<string, "credit" | "debit"> = {
 
 export async function fetchLocalCategories(options: {
   includeArchived?: boolean;
+  organizationId?: string | null;
 } = {}): Promise<Category[]> {
   const db = await getDb();
-  const rows = await categoriesRepo.listCategories(
+  const orgId = options.organizationId ?? null;
+  let rows = await categoriesRepo.listCategories(
     db,
-    { organizationId: null },
+    { organizationId: orgId },
     { includeArchived: options.includeArchived },
   );
+  if (orgId && rows.length === 0) {
+    rows = await categoriesRepo.listCategories(
+      db,
+      { organizationId: null },
+      { includeArchived: options.includeArchived },
+    );
+  }
   return rows.map(toApi);
 }
 
@@ -56,6 +65,7 @@ export async function createLocalCategory(payload: {
   flow?: "credit" | "debit";
   description?: string;
   color?: string;
+  organizationId?: string | null;
 }) {
   const db = await getDb();
   const device_id = await getOrCreateDeviceId();
@@ -65,7 +75,7 @@ export async function createLocalCategory(payload: {
     flow: payload.flow || FLOW_BY_TYPE[payload.type] || "debit",
     description: payload.description,
     color: payload.color,
-    organization_id: null,
+    organization_id: payload.organizationId ?? null,
     device_id,
   });
   if (isDualWriteEnabled()) {

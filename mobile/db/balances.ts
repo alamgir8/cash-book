@@ -18,13 +18,18 @@ export async function recalculateBalances(
   );
 
   for (const account of accounts) {
+    const full = await db.getFirstAsync<{ id: string; server_id: string | null }>(
+      `SELECT id, server_id FROM accounts WHERE id = ?`,
+      account.id,
+    );
     const sum = await db.getFirstAsync<{ net: number | null }>(
       `SELECT COALESCE(SUM(CASE WHEN type = 'credit' THEN amount ELSE -amount END), 0) as net
        FROM transactions
-       WHERE account_id = ?
+       WHERE (account_id = ? OR account_id = ?)
          AND deleted_at IS NULL
-         AND payment_status = 'paid'`,
+         AND (payment_status = 'paid' OR payment_status IS NULL OR payment_status = '')`,
       account.id,
+      full?.server_id ?? account.id,
     );
     const current = Number(account.opening_balance) + Number(sum?.net ?? 0);
     await db.runAsync(
@@ -45,7 +50,7 @@ export async function recalculateBalances(
        FROM transactions
        WHERE party_id = ?
          AND deleted_at IS NULL
-         AND payment_status = 'paid'`,
+         AND (payment_status = 'paid' OR payment_status IS NULL OR payment_status = '')`,
       party.id,
     );
     const current = Number(party.opening_balance) + Number(sum?.net ?? 0);

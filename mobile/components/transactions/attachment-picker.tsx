@@ -15,6 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { uploadAttachments, deleteAttachment } from "@/services/attachments";
 import type { Attachment } from "@/services/attachments";
 import { useTheme } from "@/hooks/use-theme";
+import { isLocalFirstEnabled } from "@/lib/local-first/flags";
 
 type AttachmentPickerProps = {
   transactionId: string;
@@ -83,12 +84,14 @@ export function AttachmentPicker({
     size: asset.fileSize,
   });
 
+  const imageQuality = isLocalFirstEnabled() ? 0.55 : 0.85;
+
   /** Quick photo — no crop editing */
   const handleCamera = async () => {
     if (!(await requestCameraPermission())) return;
     const result = await ImagePicker.launchCameraAsync({
       mediaTypes: ["images"],
-      quality: 0.85,
+      quality: imageQuality,
       allowsEditing: false,
       exif: false,
     });
@@ -101,7 +104,7 @@ export function AttachmentPicker({
     if (!(await requestCameraPermission())) return;
     const result = await ImagePicker.launchCameraAsync({
       mediaTypes: ["images"],
-      quality: 1, // max quality for scanned docs
+      quality: isLocalFirstEnabled() ? 0.7 : 1,
       allowsEditing: true, // lets user crop / straighten
       aspect: undefined, // free-form crop (not locked ratio)
       exif: false,
@@ -118,7 +121,7 @@ export function AttachmentPicker({
       mediaTypes: ["images"],
       allowsMultipleSelection: true,
       selectionLimit: remaining,
-      quality: 0.85,
+      quality: imageQuality,
       exif: false,
     });
     if (result.canceled || !result.assets?.length) return;
@@ -392,7 +395,10 @@ export function AttachmentPicker({
         </View>
       )}
       <Text style={{ color: colors.text.tertiary }} className="text-xs">
-        {attachments.length}/{maxFiles} files · Images ≤1 MB · PDF ≤1.5 MB ·
+        {attachments.length}/{maxFiles} files ·{" "}
+        {isLocalFirstEnabled()
+          ? "Saved on this phone · "
+          : "Images ≤1 MB · PDF ≤1.5 MB · "}
         JPG, PNG, WebP, HEIC, PDF
       </Text>
     </View>

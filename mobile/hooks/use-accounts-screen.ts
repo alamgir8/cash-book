@@ -18,6 +18,7 @@ import {
 } from "@/data/accounts";
 import { queryKeys } from "@/lib/queryKeys";
 import { useOrganization, useActiveOrgId } from "@/hooks/use-organization";
+import { useLocalFirstFlags } from "@/hooks/use-local-first-flags";
 import { usePreferences } from "@/hooks/use-preferences";
 import { useDeleteMode } from "@/hooks/use-delete-mode";
 import { getApiErrorMessage } from "@/lib/api";
@@ -28,8 +29,12 @@ export function useAccountsScreen() {
   const params = useLocalSearchParams<{ accountId?: string }>();
   const queryClient = useQueryClient();
   const { canManageAccounts } = useOrganization();
-  const organizationId = useActiveOrgId();
-  const orgKey = organizationId ?? "personal";
+  const activeOrgId = useActiveOrgId();
+  const { localFirstEnabled, ready: flagsReady } = useLocalFirstFlags();
+  const organizationId = activeOrgId;
+  const orgKey = localFirstEnabled
+    ? `local:${activeOrgId ?? "personal"}`
+    : activeOrgId ?? "personal";
   const { formatAmount } = usePreferences();
   const { isDeleteModeActive } = useDeleteMode();
 
@@ -40,6 +45,7 @@ export function useAccountsScreen() {
   const accountsQuery = useQuery({
     queryKey: [...queryKeys.accountsOverview, orgKey],
     queryFn: () => dalFetchAccountsOverview(organizationId || undefined),
+    enabled: flagsReady,
   });
 
   const accounts = useMemo(

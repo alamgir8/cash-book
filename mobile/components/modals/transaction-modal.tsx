@@ -15,6 +15,8 @@ import {
   View,
   Keyboard,
   Dimensions,
+  AppState,
+  type AppStateStatus,
 } from "react-native";
 import {
   KeyboardAwareScrollView,
@@ -506,16 +508,46 @@ export const TransactionModal = ({
       setBulkForParties([]);
       setAmountFocused(false);
       if (editingTransaction) {
+        const partyId = getPartyRefId(editingTransaction.party) || "";
+        const forPartyId = getPartyRefId(editingTransaction.for_party) || "";
+        const partyLabel =
+          typeof editingTransaction.party === "object"
+            ? editingTransaction.party?.name
+            : editingTransaction.vendor || "";
+        const forLabel =
+          typeof editingTransaction.for_party === "object"
+            ? editingTransaction.for_party?.name
+            : "";
+        // Seed select options so edit shows names even before search loads.
+        const seed: SelectOption[] = [];
+        if (partyId && partyLabel) {
+          seed.push({ value: partyId, label: partyLabel });
+        }
+        if (forPartyId && forLabel) {
+          seed.push({ value: forPartyId, label: forLabel });
+        }
+        if (seed.length) {
+          setNewlyAddedParties((prev) => {
+            const seen = new Set(prev.map((p) => p.value));
+            return [
+              ...prev,
+              ...seed.filter((s) => !seen.has(s.value)),
+            ];
+          });
+        }
         reset({
           accountId: editingTransaction.account._id,
           amount: editingTransaction.amount,
           type: editingTransaction.type,
           date: dayjs(editingTransaction.date).format("YYYY-MM-DD"),
           description: editingTransaction.description || "",
-          comment: editingTransaction.keyword || "",
+          comment:
+            editingTransaction.comment ||
+            editingTransaction.keyword ||
+            "",
           categoryId: editingTransaction.category?._id || "",
-          party: getPartyRefId(editingTransaction.party) || "",
-          for_party: getPartyRefId(editingTransaction.for_party) || "",
+          party: partyId,
+          for_party: forPartyId,
           scheme:
             typeof editingTransaction.scheme === "object" &&
             editingTransaction.scheme?._id
@@ -898,12 +930,55 @@ export const TransactionModal = ({
     () => Dimensions.get("window").height * 0.88,
   );
 
+  // Remount sheet after resume — iOS Modal + keyboard-controller can leave
+  // a frozen touch layer / stale keyboard height when returning from background.
+  const [resumeKey, setResumeKey] = useState(0);
+
+  const resetKeyboardChrome = useCallback(() => {
+    Keyboard.dismiss();
+    dismissAmountPad();
+    setKbEventHeight(0);
+    setShowDatePicker(false);
+    setLockedSheetHeight(Dimensions.get("window").height * 0.88);
+  }, [dismissAmountPad]);
+
   useEffect(() => {
     if (visible) {
       setLockedSheetHeight(Dimensions.get("window").height * 0.88);
       setKbEventHeight(0);
     }
   }, [visible]);
+
+  const leftToBackgroundRef = useRef(false);
+  useEffect(() => {
+    if (!visible) return;
+    const onAppState = (next: AppStateStatus) => {
+      if (next === "background") {
+        leftToBackgroundRef.current = true;
+        Keyboard.dismiss();
+        dismissAmountPad();
+        setKbEventHeight(0);
+        return;
+      }
+      if (next === "inactive") {
+        // Control Center / app switcher — clear keyboard chrome without remount.
+        Keyboard.dismiss();
+        dismissAmountPad();
+        setKbEventHeight(0);
+        return;
+      }
+      if (next === "active") {
+        resetKeyboardChrome();
+        // Full remount only after a real background (other app), not CC/shade.
+        if (leftToBackgroundRef.current) {
+          leftToBackgroundRef.current = false;
+          setResumeKey((k) => k + 1);
+        }
+      }
+    };
+    const sub = AppState.addEventListener("change", onAppState);
+    return () => sub.remove();
+  }, [visible, dismissAmountPad, resetKeyboardChrome]);
 
   useEffect(() => {
     const showEvent =
@@ -922,12 +997,21 @@ export const TransactionModal = ({
     };
   }, []);
 
-  const keyboardHeight = Math.max(kbStateHeight, kbEventHeight);
+  const rawKeyboardHeight = Math.max(kbStateHeight, kbEventHeight);
+  // Stale keyboard heights after background can equal nearly the full screen
+  // and collapse the sheet to 0 — clamp so the modal stays interactive.
+  const keyboardHeight =
+    rawKeyboardHeight > 0 && rawKeyboardHeight < screenHeight * 0.55
+      ? rawKeyboardHeight
+      : 0;
   const keyboardOpen = keyboardHeight > 0 || showAmountKeypad;
   // Keep open height; only shrink if lift would overlap the status bar
   const maxHeightAboveKeyboard =
     keyboardHeight > 0
-      ? Math.max(0, screenHeight - keyboardHeight - insets.top)
+      ? Math.max(
+          lockedSheetHeight * 0.45,
+          screenHeight - keyboardHeight - insets.top,
+        )
       : lockedSheetHeight;
   const sheetHeight =
     keyboardHeight > 0
@@ -940,8 +1024,14 @@ export const TransactionModal = ({
   const scrollBottomOffset = showAmountKeypad ? 280 : 80;
 
   return (
-    <Modal visible={visible} transparent animationType="slide">
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={closeModal}
+    >
       <View
+        key={`txn-modal-${resumeKey}`}
         className="flex-1 justify-end"
         style={{ backgroundColor: "rgba(0,0,0,0.4)" }}
       >

@@ -9,6 +9,12 @@ import {
   clampUpdatedAt,
   setClockOffsetMs,
 } from "../clock.ts";
+import { canonicalize } from "../checksum.ts";
+import { createClientRequestId } from "../ids.ts";
+import { errorCodeFromUnknown } from "../telemetry.ts";
+import { googleIosReversedScheme } from "../google-oauth.ts";
+import { computeUseLocalPersonalLedger } from "../ledger-scope-pure.ts";
+import { localDayKey } from "../day-key.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -78,4 +84,50 @@ test("clampUpdatedAt clamps far-future device clocks", () => {
     Date.parse(server) + MAX_CLOCK_SKEW_MS + 60_000,
   ).toISOString();
   assert.equal(clampUpdatedAt(skewed, server), server);
+});
+
+test("canonicalize sorts object keys stably", () => {
+  const a = canonicalize({ b: 1, a: { z: 2, y: 3 } });
+  const b = canonicalize({ a: { y: 3, z: 2 }, b: 1 });
+  assert.equal(a, b);
+  assert.equal(a, '{"a":{"y":3,"z":2},"b":1}');
+});
+
+test("createClientRequestId has expected prefix", () => {
+  assert.match(createClientRequestId(), /^crid-[a-z0-9]+-[a-z0-9]+$/i);
+});
+
+test("errorCodeFromUnknown maps common failures", () => {
+  assert.equal(
+    errorCodeFromUnknown({ response: { status: 404 } }),
+    "http_404",
+  );
+  assert.equal(
+    errorCodeFromUnknown(new Error("insufficient authentication scopes")),
+    "drive_scope_missing",
+  );
+  assert.equal(errorCodeFromUnknown(new Error("network down")), "network");
+});
+
+test("googleIosReversedScheme derives callback scheme", () => {
+  assert.equal(
+    googleIosReversedScheme(
+      "470488515683-abc.apps.googleusercontent.com",
+    ),
+    "com.googleusercontent.apps.470488515683-abc",
+  );
+  assert.equal(googleIosReversedScheme("bad"), null);
+});
+
+test("computeUseLocalPersonalLedger is offline-first when LF on", () => {
+  assert.equal(computeUseLocalPersonalLedger(false, false, null), false);
+  assert.equal(computeUseLocalPersonalLedger(true, false, null), true);
+  // Org scope still uses SQLite when local-first is on (not Mongo).
+  assert.equal(computeUseLocalPersonalLedger(true, false, "org1"), true);
+  assert.equal(computeUseLocalPersonalLedger(true, true, "org1"), true);
+  assert.equal(computeUseLocalPersonalLedger(true, true, null), true);
+});
+
+test("localDayKey formats YYYY-MM-DD", () => {
+  assert.equal(localDayKey(new Date(2026, 7, 3, 23, 30, 0)), "2026-08-03");
 });

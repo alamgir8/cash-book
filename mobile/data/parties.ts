@@ -4,20 +4,26 @@ import type {
   ListPartiesParams,
   UpdatePartyParams,
 } from "@/services/parties";
-import { isLocalFirstEnabled } from "@/lib/local-first/flags";
+import {
+  ensureLocalFirstFlags,
+  isLocalFirstEnabled,
+} from "@/lib/local-first/flags";
+import { shouldUseLocalPersonalLedger } from "@/lib/local-first/ledger-scope";
 
 export async function dalFetchParties(
   params?: ListPartiesParams,
   signal?: AbortSignal,
 ) {
-  if (!isLocalFirstEnabled() || params?.organization) {
+  await ensureLocalFirstFlags();
+  if (!shouldUseLocalPersonalLedger(params?.organization)) {
     return partiesApi.list(params, signal);
   }
   const local = await import("./parties.local");
-  return local.fetchLocalParties(params);
+  return local.fetchLocalParties(params || {});
 }
 
 export async function dalFetchParty(partyId: string) {
+  await ensureLocalFirstFlags();
   if (!isLocalFirstEnabled()) {
     return partiesApi.get(partyId);
   }
@@ -26,7 +32,8 @@ export async function dalFetchParty(partyId: string) {
 }
 
 export async function dalCreateParty(payload: CreatePartyParams) {
-  if (!isLocalFirstEnabled() || payload.organization) {
+  await ensureLocalFirstFlags();
+  if (!shouldUseLocalPersonalLedger(payload.organization)) {
     return partiesApi.create(payload);
   }
   const local = await import("./parties.local");
@@ -37,6 +44,7 @@ export async function dalUpdateParty(
   partyId: string,
   payload: UpdatePartyParams,
 ) {
+  await ensureLocalFirstFlags();
   if (!isLocalFirstEnabled()) {
     return partiesApi.update(partyId, payload);
   }
@@ -45,6 +53,7 @@ export async function dalUpdateParty(
 }
 
 export async function dalArchiveParty(partyId: string, archived: boolean) {
+  await ensureLocalFirstFlags();
   if (!isLocalFirstEnabled()) {
     return partiesApi.archive(partyId, archived);
   }
@@ -53,6 +62,7 @@ export async function dalArchiveParty(partyId: string, archived: boolean) {
 }
 
 export async function dalDeleteParty(partyId: string) {
+  await ensureLocalFirstFlags();
   if (!isLocalFirstEnabled()) {
     return partiesApi.delete(partyId);
   }
@@ -64,6 +74,7 @@ export async function dalMergeParties(
   sourcePartyId: string,
   targetPartyId: string,
 ) {
+  await ensureLocalFirstFlags();
   if (!isLocalFirstEnabled()) {
     return partiesApi.merge(sourcePartyId, targetPartyId);
   }
@@ -84,6 +95,7 @@ export async function dalFetchPartyLedger(
   },
   signal?: AbortSignal,
 ) {
+  await ensureLocalFirstFlags();
   if (!isLocalFirstEnabled()) {
     return partiesApi.getLedger(partyId, params, signal);
   }
@@ -95,22 +107,24 @@ export async function dalFetchCounterparties(
   search?: string,
   organizationId?: string | null,
 ) {
-  if (!isLocalFirstEnabled() || organizationId) {
+  await ensureLocalFirstFlags();
+  if (!shouldUseLocalPersonalLedger(organizationId)) {
     const { fetchCounterparties } = await import("@/services/transactions");
     return fetchCounterparties(search, organizationId);
   }
   const local = await import("./parties.local");
-  return local.fetchLocalCounterparties(search);
+  return local.fetchLocalCounterparties(search, organizationId);
 }
 
 export async function dalFetchVendors(
   search?: string,
   organizationId?: string | null,
 ) {
-  if (!isLocalFirstEnabled() || organizationId) {
+  await ensureLocalFirstFlags();
+  if (!shouldUseLocalPersonalLedger(organizationId)) {
     const { fetchVendors } = await import("@/services/transactions");
     return fetchVendors(search, organizationId);
   }
   const local = await import("./parties.local");
-  return local.fetchLocalVendors(search);
+  return local.fetchLocalVendors(search, organizationId);
 }

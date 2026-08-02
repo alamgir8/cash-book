@@ -305,9 +305,25 @@ export async function runSync(): Promise<SyncResult> {
       rejected: Array<{ id: string; reason: string }>;
     }>("/sync/push", { changes, device_id });
 
-    for (const a of pushResult.accepted ?? []) {
+    const accepted = pushResult.accepted ?? [];
+    const rejected = pushResult.rejected ?? [];
+
+    for (const a of accepted) {
       const match = changes.find((c) => c.id === a.id);
       if (match) await markClean(match.entity, a.id, a.server_id ?? null);
+    }
+
+    // Rejected rows stay dirty for retry; surface a concise reason.
+    if (rejected.length) {
+      const sample = rejected
+        .slice(0, 3)
+        .map((r) => `${r.id}: ${r.reason}`)
+        .join("; ");
+      await setMeta(
+        db,
+        META_KEYS.LAST_SYNC_ERROR,
+        `${rejected.length} push rejected — ${sample}`,
+      );
     }
 
     await setMeta(db, META_KEYS.SYNC_STAGE, "pull");
@@ -327,13 +343,31 @@ export async function runSync(): Promise<SyncResult> {
     await api.post("/sync/ack", { cursor: pull.cursor, run_id: runId });
     await setMeta(db, META_KEYS.LAST_SYNC_CURSOR, pull.cursor);
     await setMeta(db, META_KEYS.LAST_SYNC_AT, handshake.serverTime);
-    await setMeta(db, META_KEYS.LAST_SYNC_ERROR, null);
+    if (!rejected.length) {
+      await setMeta(db, META_KEYS.LAST_SYNC_ERROR, null);
+    }
     await setMeta(db, META_KEYS.SYNC_STAGE, "done");
 
     await recalculateBalances(db, { organizationId: null });
 
-    const pushed = pushResult.accepted?.length ?? 0;
+    const pushed = accepted.length;
     const pulled = pull.changes?.length ?? 0;
+
+    if (rejected.length) {
+      void trackLfEvent("sync_fail", {
+        code: "push_partial",
+        count: rejected.length,
+        count2: pushed,
+      });
+      return {
+        ok: false,
+        pushed,
+        pulled,
+        serverTime: handshake.serverTime,
+        error: `${rejected.length} change(s) rejected — will retry`,
+      };
+    }
+
     void trackLfEvent("sync_success", { count: pushed, count2: pulled });
 
     return {

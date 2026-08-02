@@ -1,7 +1,5 @@
-import { ActivityIndicator, Text, View } from "react-native";
+import { View } from "react-native";
 import { FilterBar } from "@/components/filter-bar";
-import { useTheme } from "@/hooks/use-theme";
-import { useTranslation } from "@/hooks/use-translation";
 import type { TransactionFilters } from "@/services/transactions";
 import type { SelectOption } from "@/components/searchable-select";
 
@@ -21,6 +19,7 @@ export type TransactionFilterSectionProps = {
   showVendorField?: boolean;
   vendors?: SelectOption[];
   showPaymentStatusFilter?: boolean;
+  /** @deprecated Unused — pull-to-refresh covers loading UX */
   isFetching?: boolean;
   isLoading?: boolean;
   loadingMore?: boolean;
@@ -42,13 +41,7 @@ export function TransactionFilterSection({
   showVendorField = true,
   vendors,
   showPaymentStatusFilter = true,
-  isFetching,
-  isLoading,
-  loadingMore,
 }: TransactionFilterSectionProps) {
-  const { colors } = useTheme();
-  const { t } = useTranslation();
-
   return (
     <View className="gap-4">
       <FilterBar
@@ -68,17 +61,6 @@ export function TransactionFilterSection({
         onReset={onReset}
         onApplyFilters={onApplyFilters}
       />
-      {isFetching && !isLoading && !loadingMore ? (
-        <View
-          className="flex-row items-center justify-center gap-2 py-2 rounded-xl"
-          style={{ backgroundColor: colors.info + "15" }}
-        >
-          <ActivityIndicator size="small" color={colors.info} />
-          <Text className="text-sm" style={{ color: colors.info }}>
-            {t("loading")}
-          </Text>
-        </View>
-      ) : null}
     </View>
   );
 }

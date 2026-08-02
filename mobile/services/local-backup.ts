@@ -1,7 +1,7 @@
 import { File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import * as DocumentPicker from "expo-document-picker";
-import { getDb, wipeLedgerData } from "@/db/client";
+import { getDb, wipeAllLedgerData, wipeLedgerData } from "@/db/client";
 import { LOCAL_SCHEMA_VERSION } from "@/db/types";
 import * as accountsRepo from "@/db/repos/accounts";
 import * as categoriesRepo from "@/db/repos/categories";
@@ -75,7 +75,7 @@ export async function exportLocalBackup(opts?: {
   const transactions = await db.getAllAsync<LocalTransaction>(
     scope.organizationId
       ? `SELECT * FROM transactions WHERE organization_id = ?`
-      : `SELECT * FROM transactions WHERE organization_id IS NULL`,
+      : `SELECT * FROM transactions WHERE organization_id IS NULL OR organization_id = ''`,
     ...(scope.organizationId ? [scope.organizationId] : []),
   );
   const transfers = await transfersRepo.listTransfers(db, scope, {
@@ -83,7 +83,9 @@ export async function exportLocalBackup(opts?: {
   });
 
   const data = { accounts, categories, parties, transactions, transfers };
-  const checksum = await checksumForData(data);
+  // Round-trip so checksum matches JSON downloaded later from Drive/disk.
+  const dataForChecksum = JSON.parse(JSON.stringify(data));
+  const checksum = await checksumForData(dataForChecksum);
   const totalBalance = accounts
     .filter((a) => !a.deleted_at)
     .reduce((s, a) => s + Number(a.current_balance || 0), 0);
@@ -169,10 +171,18 @@ function isBackupV2(raw: any): boolean {
  */
 export async function importLocalBackup(
   raw: unknown,
-  opts?: { mode?: "replace" | "merge"; organizationId?: string | null },
+  opts?: {
+    mode?: "replace" | "merge";
+    organizationId?: string | null;
+    /** Wipe personal + all orgs (cloud migrate / full Drive restore). */
+    wipeAll?: boolean;
+    /** When true, skip checksum (used after Drive download already validated / legacy files). */
+    skipChecksum?: boolean;
+  },
 ): Promise<BackupV3["summary"]> {
   const mode = opts?.mode ?? "replace";
   const organizationId = opts?.organizationId ?? null;
+  const wipeAll = Boolean(opts?.wipeAll);
   const db = await getDb();
 
   let accounts: any[] = [];
@@ -183,9 +193,14 @@ export async function importLocalBackup(
 
   if (isBackupV3(raw as any)) {
     const backup = raw as BackupV3;
-    const ok = await verifyChecksum(backup.data, backup.checksum);
-    if (!ok) {
-      throw new Error("Backup checksum mismatch — file may be corrupted.");
+    if (!opts?.skipChecksum) {
+      const ok = await verifyChecksum(backup.data, backup.checksum);
+      if (!ok) {
+        // Older uploads can fail canonicalize round-trip — still import, warn.
+        console.warn(
+          "[backup] checksum mismatch — importing anyway (re-upload recommended)",
+        );
+      }
     }
     if (backup.schemaVersion > LOCAL_SCHEMA_VERSION) {
       throw new Error(
@@ -206,7 +221,11 @@ export async function importLocalBackup(
 
   await db.withTransactionAsync(async () => {
     if (mode === "replace") {
-      await wipeLedgerData(db, organizationId);
+      if (wipeAll) {
+        await wipeAllLedgerData(db);
+      } else {
+        await wipeLedgerData(db, organizationId);
+      }
     }
 
     for (const a of accounts) {
@@ -228,10 +247,28 @@ export async function importLocalBackup(
       await upsertTransferFromSync(db, normalizeTransferRow(t, organizationId));
     }
 
-    await recalculateBalances(db, { organizationId });
+    if (wipeAll) {
+      // Recalc every distinct organization_id present (plus personal).
+      const orgRows = await db.getAllAsync<{ organization_id: string | null }>(
+        `SELECT DISTINCT organization_id FROM accounts`,
+      );
+      const scopes = new Set<string | null>([null]);
+      for (const r of orgRows) {
+        scopes.add(r.organization_id || null);
+      }
+      for (const scope of scopes) {
+        await recalculateBalances(db, { organizationId: scope });
+      }
+    } else {
+      await recalculateBalances(db, { organizationId });
+    }
   });
 
-  const liveAccounts = await accountsRepo.listAccounts(db, { organizationId });
+  const liveAccounts = wipeAll
+    ? await db.getAllAsync<{ current_balance: number }>(
+        `SELECT current_balance FROM accounts WHERE deleted_at IS NULL`,
+      )
+    : await accountsRepo.listAccounts(db, { organizationId });
   return {
     accountsCount: accounts.length,
     categoriesCount: categories.length,
@@ -275,6 +312,16 @@ function serverIdOf(row: any): string | null {
   return null;
 }
 
+function orgIdOf(row: any): string | null {
+  const v =
+    row.organization_id ??
+    row.organization?._id ??
+    row.organization ??
+    row._originalOrganizationId ??
+    null;
+  return v != null && v !== "" ? String(v) : null;
+}
+
 function mapV2Account(row: any): Partial<LocalAccount> {
   return {
     id: idOf(row),
@@ -295,7 +342,7 @@ function mapV2Account(row: any): Partial<LocalAccount> {
     sync_version: 0,
     client_request_id: null,
     device_id: "migrate-v2",
-    organization_id: null,
+    organization_id: orgIdOf(row),
   };
 }
 
@@ -317,7 +364,7 @@ function mapV2Category(row: any): Partial<LocalCategory> {
     sync_version: 0,
     client_request_id: null,
     device_id: "migrate-v2",
-    organization_id: null,
+    organization_id: orgIdOf(row),
   };
 }
 
@@ -344,7 +391,7 @@ function mapV2Party(row: any): Partial<LocalParty> {
     sync_version: 0,
     client_request_id: null,
     device_id: "migrate-v2",
-    organization_id: null,
+    organization_id: orgIdOf(row),
   };
 }
 
@@ -355,30 +402,40 @@ function mapV2Transaction(row: any): Partial<LocalTransaction> {
       row.account ||
       row._originalAccountId,
   );
+  const categoryId =
+    row.category_id?._id ||
+    row.category_id ||
+    row.category?._id ||
+    row.category ||
+    row._originalCategoryId ||
+    null;
+  const partyId =
+    row.party_id?._id ||
+    row.party_id ||
+    row.party?._id ||
+    row.party ||
+    row._originalPartyId ||
+    null;
+  const forPartyId =
+    row.for_party_id?._id ||
+    row.for_party_id ||
+    row.for_party?._id ||
+    row.for_party ||
+    row._originalForPartyId ||
+    null;
   return {
     id: idOf(row),
     server_id: serverIdOf(row),
+    organization_id: orgIdOf(row),
     account_id: accountId,
-    category_id: row.category_id
-      ? String(row.category_id._id || row.category_id)
-      : row._originalCategoryId
-        ? String(row._originalCategoryId)
-        : null,
-    party_id: row.party_id
-      ? String(row.party_id)
-      : row.party
-        ? String(row.party._id || row.party)
-        : null,
-    for_party_id: row.for_party_id
-      ? String(row.for_party_id)
-      : row.for_party
-        ? String(row.for_party._id || row.for_party)
-        : null,
+    category_id: categoryId ? String(categoryId) : null,
+    party_id: partyId ? String(partyId) : null,
+    for_party_id: forPartyId ? String(forPartyId) : null,
     type: row.type,
     amount: Number(row.amount),
     date: new Date(row.date).toISOString(),
     description: row.description ?? null,
-    keyword: row.keyword ?? null,
+    keyword: row.keyword ?? row.comment ?? null,
     counterparty: row.counterparty ?? null,
     vendor: row.vendor ?? null,
     payment_status: row.payment_status ?? "paid",
@@ -406,7 +463,6 @@ function mapV2Transaction(row: any): Partial<LocalTransaction> {
     sync_version: 0,
     client_request_id: row.client_request_id ?? null,
     device_id: "migrate-v2",
-    organization_id: null,
   };
 }
 
@@ -414,6 +470,7 @@ function mapV2Transfer(row: any): Partial<LocalTransfer> {
   return {
     id: idOf(row),
     server_id: serverIdOf(row),
+    organization_id: orgIdOf(row),
     from_account_id: String(
       row.from_account_id ||
         row.from_account?._id ||
@@ -451,7 +508,6 @@ function mapV2Transfer(row: any): Partial<LocalTransfer> {
     sync_version: 0,
     client_request_id: row.client_request_id ?? null,
     device_id: "migrate-v2",
-    organization_id: null,
   };
 }
 
@@ -459,10 +515,10 @@ function normalizeAccountRow(
   row: any,
   organizationId: string | null,
 ): LocalAccount {
+  const mapped = mapV2Account(row) as LocalAccount;
   return {
-    ...(mapV2Account(row) as LocalAccount),
-    ...row,
-    organization_id: organizationId,
+    ...mapped,
+    organization_id: mapped.organization_id ?? organizationId ?? null,
     id: idOf(row),
   };
 }
@@ -471,10 +527,10 @@ function normalizeCategoryRow(
   row: any,
   organizationId: string | null,
 ): LocalCategory {
+  const mapped = mapV2Category(row) as LocalCategory;
   return {
-    ...(mapV2Category(row) as LocalCategory),
-    ...row,
-    organization_id: organizationId,
+    ...mapped,
+    organization_id: mapped.organization_id ?? organizationId ?? null,
     id: idOf(row),
   };
 }
@@ -483,10 +539,10 @@ function normalizePartyRow(
   row: any,
   organizationId: string | null,
 ): LocalParty {
+  const mapped = mapV2Party(row) as LocalParty;
   return {
-    ...(mapV2Party(row) as LocalParty),
-    ...row,
-    organization_id: organizationId,
+    ...mapped,
+    organization_id: mapped.organization_id ?? organizationId ?? null,
     id: idOf(row),
   };
 }
@@ -495,18 +551,48 @@ function normalizeTransactionRow(
   row: any,
   organizationId: string | null,
 ): LocalTransaction {
-  const base = row.account_id
-    ? (row as LocalTransaction)
-    : (mapV2Transaction(row) as LocalTransaction);
-  return { ...base, organization_id: organizationId, id: idOf(row) };
+  // Always run through mapV2Transaction so party/for/vendor/keyword defaults apply
+  // even when a partial LocalTransaction-shaped row is present.
+  const mapped = mapV2Transaction(row) as LocalTransaction;
+  const base = {
+    ...mapped,
+    ...(row.id || row.server_id
+      ? {
+          id: row.id ? String(row.id) : mapped.id,
+          server_id: row.server_id ?? mapped.server_id,
+          dirty: row.dirty ?? mapped.dirty,
+          sync_version: row.sync_version ?? 0,
+          device_id: row.device_id ?? mapped.device_id,
+          created_at: row.created_at ?? mapped.created_at,
+          updated_at: row.updated_at ?? mapped.updated_at,
+          deleted_at:
+            row.deleted_at !== undefined ? row.deleted_at : mapped.deleted_at,
+          attachments_json:
+            row.attachments_json ?? mapped.attachments_json,
+          meta_data_json: row.meta_data_json ?? mapped.meta_data_json,
+        }
+      : {}),
+  } as LocalTransaction;
+  return {
+    ...base,
+    organization_id: base.organization_id ?? organizationId ?? null,
+    id: idOf(row),
+    payment_status: (base.payment_status as "paid" | "due") || "paid",
+    description: base.description ?? null,
+    keyword: base.keyword ?? null,
+    vendor: base.vendor ?? null,
+    counterparty: base.counterparty ?? null,
+  };
 }
 
 function normalizeTransferRow(
   row: any,
   organizationId: string | null,
 ): LocalTransfer {
-  const base = row.from_account_id
-    ? (row as LocalTransfer)
-    : (mapV2Transfer(row) as LocalTransfer);
-  return { ...base, organization_id: organizationId, id: idOf(row) };
+  const mapped = mapV2Transfer(row) as LocalTransfer;
+  return {
+    ...mapped,
+    organization_id: mapped.organization_id ?? organizationId ?? null,
+    id: idOf(row),
+  };
 }

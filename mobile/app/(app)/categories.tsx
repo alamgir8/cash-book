@@ -22,14 +22,19 @@ import type { Category } from "@/services/categories";
 import { queryKeys } from "@/lib/queryKeys";
 import { refreshAppData } from "@/lib/refresh-app-data";
 import { useOrganization, useActiveOrgId } from "@/hooks/use-organization";
+import { useLocalFirstFlags } from "@/hooks/use-local-first-flags";
 import { useTheme } from "@/hooks/use-theme";
 import { useTranslation } from "@/hooks/use-translation";
 
 export default function CategoriesScreen() {
   const queryClient = useQueryClient();
   const { canManageCategories } = useOrganization();
-  const organizationId = useActiveOrgId();
-  const orgKey = organizationId ?? "personal";
+  const activeOrgId = useActiveOrgId();
+  const { localFirstEnabled, ready: flagsReady } = useLocalFirstFlags();
+  const organizationId = activeOrgId;
+  const orgKey = localFirstEnabled
+    ? `local:${activeOrgId ?? "personal"}`
+    : activeOrgId ?? "personal";
   const { colors } = useTheme();
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<"credit" | "debit">("debit");
@@ -47,6 +52,7 @@ export default function CategoriesScreen() {
     queryKey: [...queryKeys.categories.all, orgKey],
     queryFn: () =>
       dalFetchCategories({ organizationId: organizationId || undefined }),
+    enabled: flagsReady,
   });
 
   const onRefresh = useCallback(() => {

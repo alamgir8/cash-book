@@ -21,12 +21,14 @@ import { queryClient } from "../lib/queryClient";
 import { organizationsApi } from "../services/organizations";
 import type { OrganizationSummary } from "../services/organizations";
 import { bootstrapLocalFirst } from "../lib/local-first/bootstrap";
+import { startDailyLocalFirstJobs } from "../lib/local-first/daily-jobs";
 import { startSyncScheduler } from "../sync/scheduler";
 import {
   setDriveBackupUserKeyProvider,
   startDriveBackupScheduler,
 } from "../services/drive-scheduler";
 import { OfflineBanner } from "../components/offline-banner";
+import { useInvalidateOnLocalFirstFlags } from "../hooks/use-invalidate-on-local-first";
 import "../global.css";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -83,6 +85,7 @@ const RootContent = () => {
   const [isReady, setReady] = useState(false);
   const [isNavigationReady, setNavigationReady] = useState(false);
   const { colors, isDark } = useTheme();
+  useInvalidateOnLocalFirstFlags();
 
   useEffect(() => {
     // Mark as ready immediately — add Font.loadAsync here if custom fonts are needed later
@@ -103,9 +106,12 @@ const RootContent = () => {
     setDriveBackupUserKeyProvider(() => authUserKey);
     const stopSync = startSyncScheduler();
     const stopDrive = startDriveBackupScheduler();
+    // Once per local day after midnight (on foreground / 15m poll): Mongo sync + Drive backup.
+    const stopDaily = startDailyLocalFirstJobs();
     return () => {
       stopSync();
       stopDrive();
+      stopDaily();
     };
   }, [isReady, authUserKey]);
 

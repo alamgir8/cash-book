@@ -59,6 +59,8 @@ export function LocalFirstSection() {
   const [restoreModal, setRestoreModal] = useState(false);
   const [driveEntries, setDriveEntries] = useState<DriveBackupEntry[]>([]);
   const [lastDriveAt, setLastDriveAt] = useState<string | null>(null);
+  const [lastDrivePath, setLastDrivePath] = useState<string | null>(null);
+  const [lastDriveError, setLastDriveError] = useState<string | null>(null);
   const oauthReady = hasGoogleOAuthConfigured();
 
   useEffect(() => {
@@ -76,6 +78,8 @@ export function LocalFirstSection() {
       setSyncInfo({ lastSyncAt: s.lastSyncAt, lastError: s.lastError });
       setDriveConnected(Boolean(await getDriveAccessToken()));
       setLastDriveAt(await getMeta(db, META_KEYS.LAST_DRIVE_BACKUP_AT));
+      setLastDrivePath(await getMeta(db, META_KEYS.LAST_DRIVE_PATH));
+      setLastDriveError(await getMeta(db, META_KEYS.LAST_DRIVE_ERROR));
     } catch {
       /* db may not be ready */
     }
@@ -402,7 +406,8 @@ export function LocalFirstSection() {
             className="text-sm mt-1"
             style={{ color: colors.text.secondary }}
           >
-            Local-first ledger (WhatsApp-style). Cloud sync optional.
+            Offline-first on this phone. Cloud sync and Drive are optional
+            backups — lists always read SQLite when this is on.
           </Text>
         </View>
       </View>
@@ -424,6 +429,13 @@ export function LocalFirstSection() {
         onValueChange={(v) => toggle("driveBackupEnabled", v)}
         disabled={!flags.localFirstEnabled}
       />
+      {flags.localFirstEnabled &&
+      (flags.cloudSyncEnabled || flags.driveBackupEnabled) ? (
+        <Text className="text-xs mb-2" style={{ color: colors.text.secondary }}>
+          Auto: once per local day (after midnight) when you open the app —
+          Mongo sync and/or Drive backup, depending on toggles above.
+        </Text>
+      ) : null}
       <Row
         label="Dual-write (keeps using API)"
         value={flags.dualWriteEnabled}
@@ -455,6 +467,12 @@ export function LocalFirstSection() {
           Local copy ready · Migrated {flags.migrationCompletedAt}
         </Text>
       ) : null}
+      {flags.migrationCompletedAt ? (
+        <Text className="text-xs mb-2" style={{ color: colors.text.secondary }}>
+          Missing rows / wrong balances / empty vendor-for-notes? Switch to your
+          organization (if books are org-scoped), then “Re-download from cloud”.
+        </Text>
+      ) : null}
       {flags.dualWriteEnabled ? (
         <Text className="text-xs mb-2" style={{ color: colors.warning }}>
           Dual-write is ON — every save still hits the server (dogfood only).
@@ -470,14 +488,23 @@ export function LocalFirstSection() {
           Sync error: {syncInfo.lastError}
         </Text>
       ) : null}
-      <Text className="text-xs mb-2" style={{ color: colors.text.secondary }}>
+      <Text className="text-xs mb-1" style={{ color: colors.text.secondary }}>
         Drive API: {driveConnected ? "connected" : "not connected"}
-        {lastDriveAt ? ` · Last Drive backup ${lastDriveAt}` : ""}
+        {lastDriveAt ? ` · Last upload ${lastDriveAt}` : ""}
       </Text>
+      {lastDrivePath ? (
+        <Text className="text-xs mb-1" style={{ color: colors.success }}>
+          Drive path: {lastDrivePath}
+        </Text>
+      ) : null}
+      {lastDriveError ? (
+        <Text className="text-xs mb-2" style={{ color: colors.error }}>
+          Drive error: {lastDriveError}
+        </Text>
+      ) : null}
       <Text className="text-xs mb-4" style={{ color: colors.text.secondary }}>
-        JSON on-phone files are under “Device backups” above. Org books stay on
-        cloud in v1. Drive backups stay in your Google account — we don’t host
-        them.
+        Look in My Drive → HisabBoi → backups. JSON on-phone files are under
+        “Device backups” above. Org books stay on cloud in v1.
       </Text>
 
       <View className="gap-3">

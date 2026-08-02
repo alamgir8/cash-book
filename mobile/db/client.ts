@@ -85,7 +85,7 @@ export async function wipeLedgerData(
 ): Promise<void> {
   const orgClause =
     organizationId === null
-      ? "organization_id IS NULL"
+      ? "(organization_id IS NULL OR organization_id = '')"
       : "organization_id = ?";
   const params = organizationId === null ? [] : [organizationId];
 
@@ -94,6 +94,15 @@ export async function wipeLedgerData(
   await db.runAsync(`DELETE FROM parties WHERE ${orgClause}`, ...params);
   await db.runAsync(`DELETE FROM categories WHERE ${orgClause}`, ...params);
   await db.runAsync(`DELETE FROM accounts WHERE ${orgClause}`, ...params);
+}
+
+/** Full wipe of all ledger tables (personal + every organization). */
+export async function wipeAllLedgerData(db: Db): Promise<void> {
+  await db.runAsync(`DELETE FROM transfers`);
+  await db.runAsync(`DELETE FROM transactions`);
+  await db.runAsync(`DELETE FROM parties`);
+  await db.runAsync(`DELETE FROM categories`);
+  await db.runAsync(`DELETE FROM accounts`);
 }
 
 export async function deleteDatabaseFile(): Promise<void> {

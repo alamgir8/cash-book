@@ -5,13 +5,20 @@ import {
   updateCategory as apiUpdateCategory,
   type Category,
 } from "@/services/categories";
-import { isLocalFirstEnabled } from "@/lib/local-first/flags";
+import {
+  ensureLocalFirstFlags,
+  isLocalFirstEnabled,
+} from "@/lib/local-first/flags";
+import { shouldUseLocalPersonalLedger } from "@/lib/local-first/ledger-scope";
 
-export async function dalFetchCategories(options: {
-  includeArchived?: boolean;
-  organizationId?: string | null;
-} = {}): Promise<Category[]> {
-  if (!isLocalFirstEnabled() || options.organizationId) {
+export async function dalFetchCategories(
+  options: {
+    includeArchived?: boolean;
+    organizationId?: string | null;
+  } = {},
+): Promise<Category[]> {
+  await ensureLocalFirstFlags();
+  if (!shouldUseLocalPersonalLedger(options.organizationId)) {
     return fetchCategories(options);
   }
   const local = await import("./categories.local");
@@ -26,7 +33,8 @@ export async function dalCreateCategory(payload: {
   color?: string;
   organizationId?: string | null;
 }) {
-  if (!isLocalFirstEnabled() || payload.organizationId) {
+  await ensureLocalFirstFlags();
+  if (!shouldUseLocalPersonalLedger(payload.organizationId)) {
     return apiCreateCategory(payload);
   }
   const local = await import("./categories.local");
@@ -43,6 +51,7 @@ export async function dalUpdateCategory(
     color?: string;
   },
 ) {
+  await ensureLocalFirstFlags();
   if (!isLocalFirstEnabled()) {
     return apiUpdateCategory(categoryId, payload);
   }
@@ -51,6 +60,7 @@ export async function dalUpdateCategory(
 }
 
 export async function dalDeleteCategory(categoryId: string) {
+  await ensureLocalFirstFlags();
   if (!isLocalFirstEnabled()) {
     return apiDeleteCategory(categoryId);
   }

@@ -5,24 +5,14 @@ import * as Google from "expo-auth-session/providers/google";
 import * as AuthSession from "expo-auth-session";
 import type { AuthSessionResult } from "expo-auth-session";
 import { useEffect } from "react";
+import { googleIosReversedScheme } from "@/lib/local-first/google-oauth";
 
 export const DRIVE_OAUTH_SCOPE =
   "https://www.googleapis.com/auth/drive.file";
 
-WebBrowser.maybeCompleteAuthSession();
+export { googleIosReversedScheme };
 
-/**
- * Google iOS OAuth expects the reversed client ID as the callback scheme:
- * `com.googleusercontent.apps.<CLIENT>:/oauthredirect`
- * (must also be listed under CFBundleURLSchemes).
- */
-export function googleIosReversedScheme(iosClientId: string): string | null {
-  const match = iosClientId.match(
-    /^([a-z0-9-]+)\.apps\.googleusercontent\.com$/i,
-  );
-  if (!match) return null;
-  return `com.googleusercontent.apps.${match[1]}`;
-}
+WebBrowser.maybeCompleteAuthSession();
 
 export function googleIosRedirectUri(iosClientId: string): string | undefined {
   const scheme = googleIosReversedScheme(iosClientId);

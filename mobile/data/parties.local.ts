@@ -41,14 +41,27 @@ export async function fetchLocalParties(
 ): Promise<{ parties: Party[]; pagination: { page: number; limit: number; total: number; pages: number } }> {
   const db = await getDb();
   const includeArchived = params?.archived === true || params?.archived === "all";
+  // Local-first: organization id, or personal (null). scope=all without org → personal.
+  let scopeOrg = params?.organization ? String(params.organization) : null;
+
   let rows = await partiesRepo.listParties(
     db,
-    { organizationId: null },
+    { organizationId: scopeOrg },
     {
       includeArchived: params?.archived === "all" ? true : includeArchived,
       includeDeleted: false,
     },
   );
+  if (scopeOrg && rows.length === 0) {
+    rows = await partiesRepo.listParties(
+      db,
+      { organizationId: null },
+      {
+        includeArchived: params?.archived === "all" ? true : includeArchived,
+        includeDeleted: false,
+      },
+    );
+  }
 
   if (params?.archived === true) {
     rows = rows.filter((r) => r.archived === 1);
@@ -119,7 +132,7 @@ export async function createLocalParty(payload: CreatePartyParams): Promise<Part
     opening_balance: payload.opening_balance ?? 0,
     credit_limit: payload.credit_limit ?? null,
     notes: payload.notes ?? null,
-    organization_id: null,
+    organization_id: payload.organization ? String(payload.organization) : null,
     device_id,
   });
 
@@ -420,29 +433,47 @@ export async function fetchLocalPartyLedger(
   };
 }
 
-export async function fetchLocalCounterparties(search?: string): Promise<string[]> {
+export async function fetchLocalCounterparties(
+  search?: string,
+  organizationId?: string | null,
+): Promise<string[]> {
   const db = await getDb();
   const q = search?.trim();
+  const orgClause = organizationId
+    ? "AND organization_id = ?"
+    : "AND (organization_id IS NULL OR organization_id = '')";
+  const orgParams = organizationId ? [organizationId] : [];
   const rows = q
     ? await db.getAllAsync<{ counterparty: string }>(
         `SELECT DISTINCT counterparty FROM transactions
          WHERE deleted_at IS NULL AND counterparty IS NOT NULL AND counterparty != ''
+           ${orgClause}
            AND counterparty LIKE ?
          ORDER BY counterparty COLLATE NOCASE ASC LIMIT 100`,
+        ...orgParams,
         `%${q}%`,
       )
     : await db.getAllAsync<{ counterparty: string }>(
         `SELECT DISTINCT counterparty FROM transactions
          WHERE deleted_at IS NULL AND counterparty IS NOT NULL AND counterparty != ''
+           ${orgClause}
          ORDER BY counterparty COLLATE NOCASE ASC LIMIT 100`,
+        ...orgParams,
       );
   return rows.map((r) => r.counterparty);
 }
 
-export async function fetchLocalVendors(search?: string): Promise<PartyRef[]> {
+export async function fetchLocalVendors(
+  search?: string,
+  organizationId?: string | null,
+): Promise<PartyRef[]> {
   const db = await getDb();
   const q = search?.trim()?.toLowerCase();
-  let rows = await partiesRepo.listParties(db, { organizationId: null });
+  let orgId = organizationId ?? null;
+  let rows = await partiesRepo.listParties(db, { organizationId: orgId });
+  if (orgId && rows.length === 0) {
+    rows = await partiesRepo.listParties(db, { organizationId: null });
+  }
   if (q) {
     rows = rows.filter((r) => r.name.toLowerCase().includes(q));
   }

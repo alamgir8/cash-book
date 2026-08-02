@@ -8,7 +8,11 @@ import {
   type Transaction,
   type TransactionFilters,
 } from "@/services/transactions";
-import { isLocalFirstEnabled } from "@/lib/local-first/flags";
+import {
+  ensureLocalFirstFlags,
+  isLocalFirstEnabled,
+} from "@/lib/local-first/flags";
+import { shouldUseLocalPersonalLedger } from "@/lib/local-first/ledger-scope";
 
 export async function dalFetchTransactions(
   filters: TransactionFilters = {},
@@ -16,7 +20,8 @@ export async function dalFetchTransactions(
   transactions: Transaction[];
   pagination?: { page: number; limit: number; total: number; pages: number };
 }> {
-  if (!isLocalFirstEnabled() || filters.organizationId) {
+  await ensureLocalFirstFlags();
+  if (!shouldUseLocalPersonalLedger(filters.organizationId)) {
     return fetchTransactions(filters);
   }
   const local = await import("./transactions.local");
@@ -39,7 +44,8 @@ type CreatePayload = {
 };
 
 export async function dalCreateTransaction(payload: CreatePayload) {
-  if (!isLocalFirstEnabled() || payload.organizationId) {
+  await ensureLocalFirstFlags();
+  if (!shouldUseLocalPersonalLedger(payload.organizationId)) {
     return apiCreateTransaction(payload);
   }
   const local = await import("./transactions.local");
@@ -60,6 +66,7 @@ export async function dalUpdateTransaction(payload: {
   payment_status?: "paid" | "due";
   due_date?: string;
 }) {
+  await ensureLocalFirstFlags();
   if (!isLocalFirstEnabled()) {
     return apiUpdateTransaction(payload);
   }
@@ -68,6 +75,7 @@ export async function dalUpdateTransaction(payload: {
 }
 
 export async function dalDeleteTransaction(transactionId: string) {
+  await ensureLocalFirstFlags();
   if (!isLocalFirstEnabled()) {
     return apiDeleteTransaction(transactionId);
   }
@@ -83,7 +91,8 @@ export async function dalCreateTransfer(payload: {
   description?: string;
   organizationId?: string | null;
 }) {
-  if (!isLocalFirstEnabled() || payload.organizationId) {
+  await ensureLocalFirstFlags();
+  if (!shouldUseLocalPersonalLedger(payload.organizationId)) {
     return apiCreateTransfer(payload);
   }
   const local = await import("./transactions.local");
@@ -99,14 +108,10 @@ export async function dalCreateDuePayment(payload: {
   description?: string;
   categoryId?: string;
 }) {
+  await ensureLocalFirstFlags();
   if (!isLocalFirstEnabled()) {
     return apiCreateDuePayment(payload);
   }
   const local = await import("./transactions.local");
   return local.createLocalDuePayment(payload);
-}
-
-export async function enrichLocalTransaction(...args: [any, any]) {
-  const local = await import("./transactions.local");
-  return local.enrichLocalTransaction(...args);
 }

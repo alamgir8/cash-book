@@ -170,11 +170,7 @@ export async function pruneDriveBackups(
   token: string,
   keep = DRIVE_RETENTION_COUNT,
 ): Promise<number> {
-  const q = `name contains 'hisabboi-backup-' and trashed=false`;
-  const res = await driveFetch(
-    `/files?q=${encodeURIComponent(q)}&spaces=drive&fields=files(id,name,createdTime)&orderBy=createdTime desc&pageSize=100`,
-    token,
-  );
+  const res = await driveFetch(driveListUrl(100), token);
   const json = await res.json();
   const files: { id: string }[] = json.files ?? [];
   let deleted = 0;
@@ -241,10 +237,13 @@ export async function uploadDatedDriveBackup(userKey: string): Promise<{
 
     await pruneDriveBackups(token, DRIVE_RETENTION_COUNT);
 
+    const path = `${parts.folderPath}/${parts.backupFileName}`;
     const db = await getDb();
     await setMeta(db, META_KEYS.LAST_DRIVE_BACKUP_AT, backup.exportedAt);
-    await setMeta(db, "last_drive_file_id", fileId);
-    await setMeta(db, "last_drive_checksum", backup.checksum);
+    await setMeta(db, META_KEYS.LAST_DRIVE_PATH, path);
+    await setMeta(db, META_KEYS.LAST_DRIVE_FILE_ID, fileId);
+    await setMeta(db, META_KEYS.LAST_DRIVE_CHECKSUM, backup.checksum);
+    await setMeta(db, META_KEYS.LAST_DRIVE_ERROR, null);
 
     void trackLfEvent("drive_backup_success", {
       count: backup.summary.transactionsCount,
@@ -253,14 +252,36 @@ export async function uploadDatedDriveBackup(userKey: string): Promise<{
     return {
       fileId,
       manifest,
-      path: `${parts.folderPath}/${parts.backupFileName}`,
+      path,
     };
   } catch (e: any) {
+    try {
+      const db = await getDb();
+      await setMeta(
+        db,
+        META_KEYS.LAST_DRIVE_ERROR,
+        String(e?.message || "Drive upload failed").slice(0, 240),
+      );
+    } catch {
+      /* ignore */
+    }
     void trackLfEvent("drive_backup_fail", {
       code: e?.code || errorCodeFromUnknown(e),
     });
     throw e;
   }
+}
+
+function driveListUrl(pageSize: number): string {
+  const q = `name contains 'hisabboi-backup-' and trashed=false`;
+  const params = new URLSearchParams({
+    q,
+    spaces: "drive",
+    fields: "files(id,name,createdTime,mimeType)",
+    orderBy: "createdTime desc",
+    pageSize: String(pageSize),
+  });
+  return `/files?${params.toString()}`;
 }
 
 export async function listDriveBackupDates(
@@ -269,23 +290,21 @@ export async function listDriveBackupDates(
   const token = await getValidDriveAccessToken();
   if (!token) return [];
 
-  const q = `name contains 'hisabboi-backup-' and trashed=false`;
-  const res = await driveFetch(
-    `/files?q=${encodeURIComponent(q)}&spaces=drive&fields=files(id,name,createdTime)&orderBy=createdTime desc&pageSize=50`,
-    token,
-  );
+  const res = await driveFetch(driveListUrl(50), token);
   const json = await res.json();
   if (json.error) {
     throw new Error(json.error.message || "Failed to list Drive backups");
   }
-  return (json.files ?? []).map((f: any) => ({
-    date:
-      (f.name as string).match(/\d{4}-\d{2}-\d{2}/)?.[0] ??
-      String(f.createdTime || "").slice(0, 10),
-    fileId: f.id,
-    fileName: f.name,
-    createdTime: f.createdTime,
-  }));
+  return (json.files ?? [])
+    .filter((f: any) => String(f.name || "").includes("hisabboi-backup-"))
+    .map((f: any) => ({
+      date:
+        (f.name as string).match(/\d{4}-\d{2}-\d{2}/)?.[0] ??
+        String(f.createdTime || "").slice(0, 10),
+      fileId: f.id,
+      fileName: f.name,
+      createdTime: f.createdTime,
+    }));
 }
 
 export async function restoreFromDriveFile(fileId: string): Promise<void> {
@@ -296,27 +315,69 @@ export async function restoreFromDriveFile(fileId: string): Promise<void> {
     const token = await getValidDriveAccessToken();
     if (!token) throw new Error("Connect Google Drive first");
 
-    const res = await fetch(
-      `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
-      { headers: { Authorization: `Bearer ${token}` } },
+    const metaRes = await driveFetch(
+      `/files/${encodeURIComponent(fileId)}?fields=id,name,mimeType,size`,
+      token,
     );
-    if (!res.ok) throw new Error("Failed to download Drive backup");
-    const text = await res.text();
-    let parsed: BackupV3;
-    try {
-      parsed = JSON.parse(text) as BackupV3;
-    } catch {
-      throw new Error("Downloaded file is not valid JSON");
+    const meta = await metaRes.json();
+    if (meta.error) {
+      throw new Error(meta.error.message || "Drive file not found");
+    }
+    if (
+      meta.name &&
+      !String(meta.name).includes("hisabboi-backup-") &&
+      !String(meta.name).endsWith(".json")
+    ) {
+      throw new Error(
+        `Not a Hisab Boi backup file (${meta.name}). Pick a hisabboi-backup-*.json`,
+      );
     }
 
-    if (parsed.checksum) {
-      const ok = await verifyChecksum(parsed.data, parsed.checksum);
+    const res = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    if (!res.ok) {
+      let detail = "";
+      try {
+        const errJson = await res.json();
+        detail = errJson?.error?.message || "";
+      } catch {
+        detail = await res.text().catch(() => "");
+      }
+      throw new Error(
+        detail ||
+          `Failed to download Drive backup (HTTP ${res.status}). Reconnect Google Drive and try again.`,
+      );
+    }
+    const text = await res.text();
+    if (!text || text.length < 2) {
+      throw new Error("Downloaded Drive file was empty");
+    }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      throw new Error(
+        "Downloaded file is not valid JSON — confirm you selected the backup .json (not manifest.json)",
+      );
+    }
+
+    const asV3 = parsed as BackupV3;
+    if (asV3?.checksum && asV3?.data) {
+      const ok = await verifyChecksum(asV3.data, asV3.checksum);
       if (!ok) {
-        throw new Error("Backup checksum mismatch — file may be tampered");
+        console.warn(
+          "[drive] checksum mismatch on download — importing anyway",
+        );
       }
     }
 
-    await importLocalBackup(parsed, { mode: "replace" });
+    await importLocalBackup(parsed, {
+      mode: "replace",
+      wipeAll: true,
+      skipChecksum: true,
+    });
     void trackLfEvent("drive_restore_success");
   } catch (e) {
     void trackLfEvent("drive_restore_fail", { code: errorCodeFromUnknown(e) });

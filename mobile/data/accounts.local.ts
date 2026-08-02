@@ -26,10 +26,70 @@ async function resolveLocalAccount(accountId: string) {
   return { db, row };
 }
 
-export async function fetchLocalAccounts(): Promise<AccountOverview[]> {
+async function sumForAccount(
+  db: Awaited<ReturnType<typeof getDb>>,
+  row: { id: string; server_id: string | null },
+  orgId: string | null,
+) {
+  return db.getFirstAsync<{
+    total_debit: number;
+    total_credit: number;
+    total_transactions: number;
+    last_transaction_date: string | null;
+  }>(
+    orgId
+      ? `SELECT
+          COALESCE(SUM(CASE WHEN type = 'debit' THEN amount ELSE 0 END), 0) as total_debit,
+          COALESCE(SUM(CASE WHEN type = 'credit' THEN amount ELSE 0 END), 0) as total_credit,
+          COUNT(*) as total_transactions,
+          MAX(date) as last_transaction_date
+         FROM transactions
+         WHERE deleted_at IS NULL
+           AND organization_id = ?
+           AND (account_id = ? OR account_id = ?)`
+      : `SELECT
+          COALESCE(SUM(CASE WHEN type = 'debit' THEN amount ELSE 0 END), 0) as total_debit,
+          COALESCE(SUM(CASE WHEN type = 'credit' THEN amount ELSE 0 END), 0) as total_credit,
+          COUNT(*) as total_transactions,
+          MAX(date) as last_transaction_date
+         FROM transactions
+         WHERE deleted_at IS NULL
+           AND (organization_id IS NULL OR organization_id = '')
+           AND (account_id = ? OR account_id = ?)`,
+    ...(orgId
+      ? [orgId, row.id, row.server_id ?? row.id]
+      : [row.id, row.server_id ?? row.id]),
+  );
+}
+
+export async function fetchLocalAccounts(
+  organizationId?: string | null,
+): Promise<AccountOverview[]> {
   const db = await getDb();
-  const rows = await accountsRepo.listAccounts(db, { organizationId: null });
-  return rows.map(localAccountToOverview);
+  let orgId = organizationId ?? null;
+  let rows = await accountsRepo.listAccounts(db, { organizationId: orgId });
+  // Pre-org migrate left everything as personal — don't show a blank app.
+  if (orgId && rows.length === 0) {
+    rows = await accountsRepo.listAccounts(db, { organizationId: null });
+    if (rows.length > 0) orgId = null;
+  }
+  const out: AccountOverview[] = [];
+  for (const row of rows) {
+    const sum = await sumForAccount(db, row, orgId ?? row.organization_id);
+    const totalDebit = Number(sum?.total_debit ?? 0);
+    const totalCredit = Number(sum?.total_credit ?? 0);
+    out.push({
+      ...localAccountToOverview(row),
+      summary: {
+        totalTransactions: Number(sum?.total_transactions ?? 0),
+        totalDebit,
+        totalCredit,
+        net: totalCredit - totalDebit,
+        lastTransactionDate: sum?.last_transaction_date ?? null,
+      },
+    });
+  }
+  return out;
 }
 
 export async function fetchLocalAccountDetail(accountId: string) {
@@ -38,7 +98,7 @@ export async function fetchLocalAccountDetail(accountId: string) {
 
   const txns = await transactionsRepo.listTransactions(
     db,
-    { organizationId: null },
+    { organizationId: row.organization_id },
     { accountId: row.id, limit: 20, offset: 0 },
   );
   const sum = await db.getFirstAsync<{
@@ -53,8 +113,10 @@ export async function fetchLocalAccountDetail(accountId: string) {
       COUNT(*) as total_transactions,
       MAX(date) as last_transaction_date
      FROM transactions
-     WHERE account_id = ? AND deleted_at IS NULL`,
+     WHERE deleted_at IS NULL
+       AND (account_id = ? OR account_id = ?)`,
     row.id,
+    row.server_id ?? row.id,
   );
 
   const { enrichLocalTransaction } = await import("./transactions.local");
@@ -119,7 +181,7 @@ export async function createLocalAccount(
     opening_balance: payload.opening_balance,
     currency_code: payload.currency_code,
     currency_symbol: payload.currency_symbol,
-    organization_id: null,
+    organization_id: payload.organization ?? null,
     device_id,
   });
 

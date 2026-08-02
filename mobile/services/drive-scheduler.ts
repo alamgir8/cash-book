@@ -47,11 +47,14 @@ export async function maybeUploadDriveBackup(
   reason: string,
 ): Promise<{ ok: boolean; error?: string; path?: string }> {
   if (running) return { ok: false, error: "already running" };
-  if (!(await shouldRun()) && reason !== "manual" && reason !== "post-migrate") {
+  const force =
+    reason === "manual" || reason === "post-migrate" || reason === "daily";
+  if (!(await shouldRun()) && !force) {
     return { ok: false, error: "skipped" };
   }
-  // manual / post-migrate still need flags + token + network
-  if (reason === "manual" || reason === "post-migrate") {
+  // Forced paths still need flags + token (+ network for non-manual is checked in shouldRun;
+  // daily/manual must re-check token).
+  if (force) {
     if (!isLocalFirstEnabled() || !isDriveBackupEnabled()) {
       return { ok: false, error: "Drive backup disabled" };
     }
@@ -73,9 +76,18 @@ export async function maybeUploadDriveBackup(
   }
 }
 
+let foregroundTimer: ReturnType<typeof setTimeout> | null = null;
+
 function onAppState(next: AppStateStatus) {
+  if (foregroundTimer) {
+    clearTimeout(foregroundTimer);
+    foregroundTimer = null;
+  }
   if (next === "active") {
-    void maybeUploadDriveBackup("foreground");
+    foregroundTimer = setTimeout(() => {
+      foregroundTimer = null;
+      void maybeUploadDriveBackup("foreground");
+    }, 4000);
   }
 }
 
@@ -106,6 +118,10 @@ export function startDriveBackupScheduler(): () => void {
 export function stopDriveBackupScheduler(): void {
   appStateSub?.remove();
   appStateSub = null;
+  if (foregroundTimer) {
+    clearTimeout(foregroundTimer);
+    foregroundTimer = null;
+  }
   if (timer) {
     clearInterval(timer);
     timer = null;

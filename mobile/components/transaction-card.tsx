@@ -267,18 +267,18 @@ const TransactionCardComponent = ({
         </Text>
       ) : null}
 
-      {/* Additional info / comment */}
-      {transaction.comment ? (
+      {/* Additional info / comment (API field is `keyword`) */}
+      {transaction.comment || transaction.keyword ? (
         <Text
           className="text-xs mt-1 italic"
           style={{ color: colors.text.tertiary }}
         >
-          {transaction.comment}
+          {transaction.comment || transaction.keyword}
         </Text>
       ) : null}
 
       <View className="flex-row flex-wrap mt-2 gap-x-2 gap-y-2">
-        {transaction.category ? (
+        {getCategoryRefName(transaction.category) ? (
           <TouchableOpacity
             activeOpacity={onCategoryPress ? 0.8 : 1}
             onPress={() => {
@@ -295,11 +295,14 @@ const TransactionCardComponent = ({
               style={{ color: colors.info }}
               className="text-xs font-semibold"
             >
-              {translateCategoryName(transaction.category.name, language)}
+              {translateCategoryName(
+                getCategoryRefName(transaction.category) || "",
+                language,
+              )}
             </Text>
           </TouchableOpacity>
         ) : null}
-        {transaction.party ? (
+        {getPartyRefName(transaction.party) ? (
           <TouchableOpacity
             activeOpacity={onPartyPress ? 0.8 : 1}
             onPress={() => {
@@ -318,9 +321,7 @@ const TransactionCardComponent = ({
             >
               {t("vendorLabel") ?? "Vendor"}
               {": "}
-              {typeof transaction.party === "object"
-                ? transaction.party?.name
-                : transaction.party}
+              {getPartyRefName(transaction.party)}
             </Text>
           </TouchableOpacity>
         ) : transaction.vendor ? (
@@ -367,7 +368,7 @@ const TransactionCardComponent = ({
             </Text>
           </TouchableOpacity>
         ) : null}
-        {transaction.for_party ? (
+        {getPartyRefName(transaction.for_party) ? (
           <TouchableOpacity
             activeOpacity={onForPartyPress ? 0.8 : 1}
             onPress={() => {
@@ -386,9 +387,7 @@ const TransactionCardComponent = ({
             >
               {t("forLabel") ?? "For"}
               {": "}
-              {typeof transaction.for_party === "object"
-                ? transaction.for_party?.name
-                : transaction.for_party}
+              {getPartyRefName(transaction.for_party)}
             </Text>
           </TouchableOpacity>
         ) : null}

@@ -94,8 +94,14 @@ export async function listTransactions(
   const allParams: (string | number | null)[] = [...params];
   if (!opts?.includeDeleted) clauses.push("deleted_at IS NULL");
   if (opts?.accountId) {
-    clauses.push("account_id = ?");
-    allParams.push(opts.accountId);
+    // Match local id or server_id stored on the account row.
+    const acc = await db.getFirstAsync<{ id: string; server_id: string | null }>(
+      `SELECT id, server_id FROM accounts WHERE id = ? OR server_id = ? LIMIT 1`,
+      opts.accountId,
+      opts.accountId,
+    );
+    clauses.push("(account_id = ? OR account_id = ?)");
+    allParams.push(acc?.id ?? opts.accountId, acc?.server_id ?? opts.accountId);
   }
   if (opts?.partyId) {
     clauses.push("(party_id = ? OR for_party_id = ?)");
@@ -122,8 +128,13 @@ export async function countTransactions(
   const allParams: (string | null)[] = [...params];
   if (!opts?.includeDeleted) clauses.push("deleted_at IS NULL");
   if (opts?.accountId) {
-    clauses.push("account_id = ?");
-    allParams.push(opts.accountId);
+    const acc = await db.getFirstAsync<{ id: string; server_id: string | null }>(
+      `SELECT id, server_id FROM accounts WHERE id = ? OR server_id = ? LIMIT 1`,
+      opts.accountId,
+      opts.accountId,
+    );
+    clauses.push("(account_id = ? OR account_id = ?)");
+    allParams.push(acc?.id ?? opts.accountId, acc?.server_id ?? opts.accountId);
   }
   const row = await db.getFirstAsync<{ c: number }>(
     `SELECT COUNT(*) as c FROM transactions WHERE ${clauses.join(" AND ")}`,

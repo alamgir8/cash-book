@@ -22,6 +22,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { ScreenHeader } from "@/components/screen-header";
 import { useOrganization } from "@/hooks/use-organization";
+import { useLocalFirstFlags } from "@/hooks/use-local-first-flags";
 import { useTheme } from "@/hooks/use-theme";
 import {
   type ListPartiesParams,
@@ -75,6 +76,7 @@ export default function PartiesScreen() {
   const { colors, isDark } = useTheme();
   const themeKey = isDark ? "dark" : "light";
   const { canManageParties, organizations } = useOrganization();
+  const { localFirstEnabled, ready: flagsReady } = useLocalFirstFlags();
   const { isDeleteModeActive } = useDeleteMode();
 
   const [orgFilter, setOrgFilter] = useState<OrgFilter>("all");
@@ -126,7 +128,14 @@ export default function PartiesScreen() {
     fetchNextPage,
     refetch,
   } = useInfiniteQuery({
-    queryKey: ["parties", orgFilter, activeTab, search, sort, PAGE_SIZE],
+    queryKey: [
+      "parties",
+      localFirstEnabled ? `local:${orgFilter}` : orgFilter,
+      activeTab,
+      search,
+      sort,
+      PAGE_SIZE,
+    ],
     queryFn: ({ pageParam, signal }) =>
       dalFetchParties(
         {
@@ -139,6 +148,7 @@ export default function PartiesScreen() {
         },
         signal,
       ),
+    enabled: flagsReady,
     initialPageParam: 1,
     getNextPageParam: (last) => {
       const p = last?.pagination;
@@ -197,7 +207,7 @@ export default function PartiesScreen() {
   } = useInfiniteQuery({
     queryKey: [
       "parties-merge-targets",
-      orgFilter,
+      localFirstEnabled ? `local:${orgFilter}` : orgFilter,
       mergeSource?._id,
       mergeSearch,
     ],
@@ -218,7 +228,7 @@ export default function PartiesScreen() {
       if (!p) return undefined;
       return p.page < p.pages ? p.page + 1 : undefined;
     },
-    enabled: mergePickerVisible && Boolean(mergeSource),
+    enabled: flagsReady && mergePickerVisible && Boolean(mergeSource),
     staleTime: 60_000,
     placeholderData: keepPreviousData,
     retry: 1,

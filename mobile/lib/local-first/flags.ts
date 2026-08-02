@@ -43,29 +43,48 @@ async function readBool(key: string, fallback: boolean): Promise<boolean> {
   }
 }
 
-export async function loadLocalFirstFlags(): Promise<LocalFirstFlags> {
-  const [
-    localFirstEnabled,
-    cloudSyncEnabled,
-    driveBackupEnabled,
-    dualWriteEnabled,
-    migrationCompletedAt,
-  ] = await Promise.all([
-    readBool(FLAG_KEYS.LOCAL_FIRST_ENABLED, DEFAULTS.localFirstEnabled),
-    readBool(FLAG_KEYS.CLOUD_SYNC_ENABLED, DEFAULTS.cloudSyncEnabled),
-    readBool(FLAG_KEYS.DRIVE_BACKUP_ENABLED, DEFAULTS.driveBackupEnabled),
-    readBool(FLAG_KEYS.DUAL_WRITE_ENABLED, DEFAULTS.dualWriteEnabled),
-    AsyncStorage.getItem(FLAG_KEYS.MIGRATION_COMPLETED_AT).catch(() => null),
-  ]);
+let loadPromise: Promise<LocalFirstFlags> | null = null;
 
-  cache = {
-    localFirstEnabled,
-    cloudSyncEnabled,
-    driveBackupEnabled,
-    dualWriteEnabled,
-    migrationCompletedAt,
-  };
-  return cache;
+export async function loadLocalFirstFlags(): Promise<LocalFirstFlags> {
+  if (cache) return cache;
+  if (loadPromise) return loadPromise;
+
+  loadPromise = (async () => {
+    const [
+      localFirstEnabled,
+      cloudSyncEnabled,
+      driveBackupEnabled,
+      dualWriteEnabled,
+      migrationCompletedAt,
+    ] = await Promise.all([
+      readBool(FLAG_KEYS.LOCAL_FIRST_ENABLED, DEFAULTS.localFirstEnabled),
+      readBool(FLAG_KEYS.CLOUD_SYNC_ENABLED, DEFAULTS.cloudSyncEnabled),
+      readBool(FLAG_KEYS.DRIVE_BACKUP_ENABLED, DEFAULTS.driveBackupEnabled),
+      readBool(FLAG_KEYS.DUAL_WRITE_ENABLED, DEFAULTS.dualWriteEnabled),
+      AsyncStorage.getItem(FLAG_KEYS.MIGRATION_COMPLETED_AT).catch(() => null),
+    ]);
+
+    cache = {
+      localFirstEnabled,
+      cloudSyncEnabled,
+      driveBackupEnabled,
+      dualWriteEnabled,
+      migrationCompletedAt,
+    };
+    // Wake subscribers that mounted before AsyncStorage finished (avoids Mongo empty reads).
+    listeners.forEach((l) => l(cache!));
+    return cache;
+  })().finally(() => {
+    loadPromise = null;
+  });
+
+  return loadPromise;
+}
+
+/** Await before any DAL read so Metro remounts don't race with defaults. */
+export async function ensureLocalFirstFlags(): Promise<LocalFirstFlags> {
+  if (cache) return cache;
+  return loadLocalFirstFlags();
 }
 
 export function getLocalFirstFlagsSync(): LocalFirstFlags {
@@ -74,6 +93,10 @@ export function getLocalFirstFlagsSync(): LocalFirstFlags {
 
 export function isLocalFirstEnabled(): boolean {
   return getLocalFirstFlagsSync().localFirstEnabled;
+}
+
+export function areLocalFirstFlagsReady(): boolean {
+  return cache !== null;
 }
 
 export function isCloudSyncEnabled(): boolean {

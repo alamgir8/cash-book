@@ -1,10 +1,12 @@
 import { getDb } from "@/db/client";
 import * as transactionsRepo from "@/db/repos/transactions";
 import * as transfersRepo from "@/db/repos/transfers";
-import * as accountsRepo from "@/db/repos/accounts";
-import * as categoriesRepo from "@/db/repos/categories";
-import * as partiesRepo from "@/db/repos/parties";
-import type { LocalTransaction } from "@/db/types";
+import type {
+  LocalAccount,
+  LocalCategory,
+  LocalParty,
+  LocalTransaction,
+} from "@/db/types";
 import {
   createTransaction as apiCreateTransaction,
   createTransfer as apiCreateTransfer,
@@ -32,26 +34,68 @@ async function resolveLocalTransaction(transactionId: string) {
   return { db, row };
 }
 
+async function resolveByIdOrServerId<T extends { id: string }>(
+  db: Awaited<ReturnType<typeof getDb>>,
+  table: "accounts" | "categories" | "parties",
+  id: string | null | undefined,
+): Promise<T | null> {
+  if (!id) return null;
+  return (
+    (await db.getFirstAsync<T>(
+      `SELECT * FROM ${table} WHERE id = ? OR server_id = ? LIMIT 1`,
+      id,
+      id,
+    )) ?? null
+  );
+}
+
+function parseAttachments(json: string | null): Transaction["attachments"] {
+  if (!json) return [];
+  try {
+    const parsed = JSON.parse(json);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
 function mapLocalTxn(
   row: LocalTransaction,
   extras?: {
     accountName?: string;
+    accountKind?: string;
+    accountLocalId?: string;
     categoryName?: string;
     categoryType?: string;
     categoryFlow?: "credit" | "debit";
+    categoryLocalId?: string;
     partyName?: string;
+    partyType?: string;
+    partyLocalId?: string;
+    forPartyName?: string;
+    forPartyType?: string;
+    forPartyLocalId?: string;
   },
 ): Transaction {
+  const notes = row.keyword?.trim() || undefined;
+  const description = row.description?.trim() || undefined;
+  const vendorText = row.vendor?.trim() || undefined;
+  const counterpartyText = row.counterparty?.trim() || undefined;
+  const partyName =
+    extras?.partyName?.trim() ||
+    vendorText ||
+    counterpartyText ||
+    "";
   return {
     _id: row.id,
     account: {
-      _id: row.account_id,
+      _id: extras?.accountLocalId ?? row.account_id,
       name: extras?.accountName ?? "",
-      kind: undefined,
+      kind: extras?.accountKind,
     },
     category: row.category_id
       ? {
-          _id: row.category_id,
+          _id: extras?.categoryLocalId ?? row.category_id,
           name: extras?.categoryName ?? "",
           type: extras?.categoryType ?? "",
           flow: extras?.categoryFlow,
@@ -61,17 +105,26 @@ function mapLocalTxn(
     amount: Number(row.amount),
     date: row.date,
     createdAt: row.created_at,
-    description: row.description ?? undefined,
-    keyword: row.keyword ?? undefined,
+    description,
+    keyword: notes,
+    // Cards / filters use `comment`; API uses `keyword` — expose both.
+    comment: notes,
+    counterparty: counterpartyText,
+    vendor: vendorText,
     party: row.party_id
       ? {
-          _id: row.party_id,
-          name: extras?.partyName ?? "",
-          type: "customer",
+          _id: extras?.partyLocalId ?? row.party_id,
+          name: partyName,
+          type: (extras?.partyType as "customer" | "supplier") || "customer",
         }
       : null,
     for_party: row.for_party_id
-      ? { _id: row.for_party_id, name: "", type: "customer" }
+      ? {
+          _id: extras?.forPartyLocalId ?? row.for_party_id,
+          name: extras?.forPartyName ?? "",
+          type:
+            (extras?.forPartyType as "customer" | "supplier") || "customer",
+        }
       : null,
     payment_status: row.payment_status,
     due_date: row.due_date ?? undefined,
@@ -81,28 +134,120 @@ function mapLocalTxn(
     due_settled_at: row.due_settled_at ?? undefined,
     balance_after_transaction: row.balance_after_transaction ?? undefined,
     is_deleted: Boolean(row.deleted_at),
+    attachments: parseAttachments(row.attachments_json),
   };
+}
+
+function lookupByIdOrServerId<T extends { id: string; server_id?: string | null }>(
+  byId: Map<string, T>,
+  byServerId: Map<string, T>,
+  id: string | null | undefined,
+): T | null {
+  if (!id) return null;
+  return byId.get(id) ?? byServerId.get(id) ?? null;
+}
+
+async function loadEnrichmentMaps(db: Awaited<ReturnType<typeof getDb>>) {
+  const [accounts, categories, parties] = await Promise.all([
+    db.getAllAsync<LocalAccount>(
+      `SELECT id, server_id, name, kind FROM accounts WHERE deleted_at IS NULL`,
+    ),
+    db.getAllAsync<LocalCategory>(
+      `SELECT id, server_id, name, type, flow FROM categories WHERE deleted_at IS NULL`,
+    ),
+    db.getAllAsync<LocalParty>(
+      `SELECT id, server_id, name, type FROM parties WHERE deleted_at IS NULL`,
+    ),
+  ]);
+
+  const accountsById = new Map(accounts.map((a) => [a.id, a]));
+  const accountsByServer = new Map(
+    accounts.filter((a) => a.server_id).map((a) => [a.server_id!, a]),
+  );
+  const categoriesById = new Map(categories.map((c) => [c.id, c]));
+  const categoriesByServer = new Map(
+    categories.filter((c) => c.server_id).map((c) => [c.server_id!, c]),
+  );
+  const partiesById = new Map(parties.map((p) => [p.id, p]));
+  const partiesByServer = new Map(
+    parties.filter((p) => p.server_id).map((p) => [p.server_id!, p]),
+  );
+
+  return {
+    accountsById,
+    accountsByServer,
+    categoriesById,
+    categoriesByServer,
+    partiesById,
+    partiesByServer,
+  };
+}
+
+function enrichFromMaps(
+  row: LocalTransaction,
+  maps: Awaited<ReturnType<typeof loadEnrichmentMaps>>,
+): Transaction {
+  const account = lookupByIdOrServerId(
+    maps.accountsById,
+    maps.accountsByServer,
+    row.account_id,
+  );
+  const category = lookupByIdOrServerId(
+    maps.categoriesById,
+    maps.categoriesByServer,
+    row.category_id,
+  );
+  const party = lookupByIdOrServerId(
+    maps.partiesById,
+    maps.partiesByServer,
+    row.party_id,
+  );
+  const forParty = lookupByIdOrServerId(
+    maps.partiesById,
+    maps.partiesByServer,
+    row.for_party_id,
+  );
+  return mapLocalTxn(row, {
+    accountName: account?.name,
+    accountKind: account?.kind,
+    accountLocalId: account?.id,
+    categoryName: category?.name,
+    categoryType: category?.type,
+    categoryFlow: category?.flow as "credit" | "debit" | undefined,
+    categoryLocalId: category?.id,
+    partyName: party?.name,
+    partyType: party?.type,
+    partyLocalId: party?.id,
+    forPartyName: forParty?.name,
+    forPartyType: forParty?.type,
+    forPartyLocalId: forParty?.id,
+  });
 }
 
 export async function enrichLocalTransaction(
   db: Awaited<ReturnType<typeof getDb>>,
   row: LocalTransaction,
 ) {
-  const [account, category, party] = await Promise.all([
-    accountsRepo.getAccountById(db, row.account_id),
-    row.category_id
-      ? categoriesRepo.getCategoryById(db, row.category_id)
-      : Promise.resolve(null),
-    row.party_id
-      ? partiesRepo.getPartyById(db, row.party_id)
-      : Promise.resolve(null),
+  const [account, category, party, forParty] = await Promise.all([
+    resolveByIdOrServerId<LocalAccount>(db, "accounts", row.account_id),
+    resolveByIdOrServerId<LocalCategory>(db, "categories", row.category_id),
+    resolveByIdOrServerId<LocalParty>(db, "parties", row.party_id),
+    resolveByIdOrServerId<LocalParty>(db, "parties", row.for_party_id),
   ]);
   return mapLocalTxn(row, {
     accountName: account?.name,
+    accountKind: account?.kind,
+    accountLocalId: account?.id,
     categoryName: category?.name,
     categoryType: category?.type,
     categoryFlow: category?.flow as "credit" | "debit" | undefined,
+    categoryLocalId: category?.id,
     partyName: party?.name,
+    partyType: party?.type,
+    partyLocalId: party?.id,
+    forPartyName: forParty?.name,
+    forPartyType: forParty?.type,
+    forPartyLocalId: forParty?.id,
   });
 }
 
@@ -116,25 +261,31 @@ export async function fetchLocalTransactions(
   const page = Number(filters.page ?? 1);
   const limit = Number(filters.limit ?? 20);
   const offset = (page - 1) * limit;
-  const rows = await transactionsRepo.listTransactions(
-    db,
-    { organizationId: null },
-    {
-      accountId: filters.accountId,
-      partyId: filters.party_id,
-      limit,
-      offset,
-    },
-  );
-  const total = await transactionsRepo.countTransactions(
-    db,
-    { organizationId: null },
-    { accountId: filters.accountId },
-  );
-  const transactions = [];
-  for (const row of rows) {
-    transactions.push(await enrichLocalTransaction(db, row));
+  let scope = { organizationId: filters.organizationId ?? null };
+  let total = await transactionsRepo.countTransactions(db, scope, {
+    accountId: filters.accountId,
+    partyId: filters.party_id,
+  });
+  // Org selected but SQLite still has only personal rows (legacy migrate).
+  if (scope.organizationId && total === 0) {
+    const personalTotal = await transactionsRepo.countTransactions(
+      db,
+      { organizationId: null },
+      { accountId: filters.accountId, partyId: filters.party_id },
+    );
+    if (personalTotal > 0) {
+      scope = { organizationId: null };
+      total = personalTotal;
+    }
   }
+  const rows = await transactionsRepo.listTransactions(db, scope, {
+    accountId: filters.accountId,
+    partyId: filters.party_id,
+    limit,
+    offset,
+  });
+  const maps = await loadEnrichmentMaps(db);
+  const transactions = rows.map((row) => enrichFromMaps(row, maps));
   return {
     transactions,
     pagination: {
@@ -181,7 +332,7 @@ export async function createLocalTransaction(payload: CreatePayload) {
       keyword: payload.comment ?? null,
       payment_status: payload.payment_status ?? "paid",
       due_date: payload.due_date ?? null,
-      organization_id: null,
+      organization_id: payload.organizationId ?? null,
       device_id,
       client_request_id,
     });
@@ -336,7 +487,7 @@ export async function createLocalTransfer(payload: {
     amount: payload.amount,
     date: payload.date ?? new Date().toISOString(),
     description: payload.description ?? null,
-    organization_id: null,
+    organization_id: payload.organizationId ?? null,
     device_id,
   });
 

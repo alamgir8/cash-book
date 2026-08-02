@@ -7,10 +7,7 @@ import {
   subscribeLocalFirstFlags,
 } from "@/lib/local-first/flags";
 
-/**
- * Shown when local-first is on and the device is offline.
- * Changes remain on-device until sync/connectivity returns.
- */
+/** Only when actually offline under local-first. */
 export function OfflineBanner() {
   const { colors } = useTheme();
   const [localFirst, setLocalFirst] = useState(isLocalFirstEnabled());

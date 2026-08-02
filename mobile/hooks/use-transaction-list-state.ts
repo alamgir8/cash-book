@@ -71,6 +71,10 @@ export function useTransactionListState(
     [allTransactions, filters],
   );
 
+  // Re-apply when fetch settles. Pull-to-refresh used to clear the list then
+  // skip this effect when React Query kept the same data reference (empty forever).
+  const fetchSettled = !query.isPending && !query.isFetching;
+
   useEffect(() => {
     if (!query.data || query.isPending) return;
     // Placeholder is previous query's rows — never commit those under a new scope
@@ -105,7 +109,9 @@ export function useTransactionListState(
   }, [
     query.data,
     query.isPending,
+    query.isFetching,
     query.isPlaceholderData,
+    fetchSettled,
     filters.page,
     filters.limit,
     filterSignature,
