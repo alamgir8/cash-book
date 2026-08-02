@@ -1,6 +1,15 @@
 import { useMutation, useQuery, useInfiniteQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import Toast from "react-native-toast-message";
-import { partiesApi } from "@/services/parties";
+import {
+  dalArchiveParty,
+  dalCreateParty,
+  dalDeleteParty,
+  dalFetchParties,
+  dalFetchParty,
+  dalFetchPartyLedger,
+  dalMergeParties,
+  dalUpdateParty,
+} from "@/data/parties";
 import { QUERY_KEYS } from "@/lib/queryKeys";
 import type {
   Party,
@@ -16,7 +25,7 @@ import type {
 export const useParties = (params?: ListPartiesParams) => {
   return useQuery({
     queryKey: params ? ["parties", params] : QUERY_KEYS.parties,
-    queryFn: () => partiesApi.list(params),
+    queryFn: () => dalFetchParties(params),
   });
 };
 
@@ -26,7 +35,7 @@ export const useParties = (params?: ListPartiesParams) => {
 export const useParty = (partyId: string) => {
   return useQuery({
     queryKey: ["party", partyId],
-    queryFn: () => partiesApi.get(partyId),
+    queryFn: () => dalFetchParty(partyId),
     enabled: Boolean(partyId),
   });
 };
@@ -51,7 +60,7 @@ export const usePartyLedger = (
       PAGE_SIZE,
     ],
     queryFn: ({ pageParam, signal }) =>
-      partiesApi.getLedger(
+      dalFetchPartyLedger(
         partyId,
         {
           ...params,
@@ -81,7 +90,7 @@ export const useCreateParty = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (payload: CreatePartyPayload) => partiesApi.create(payload),
+    mutationFn: (payload: CreatePartyPayload) => dalCreateParty(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.parties });
       Toast.show({
@@ -110,7 +119,7 @@ export const useUpdateParty = () => {
       partyId,
       ...payload
     }: { partyId: string } & UpdatePartyPayload) =>
-      partiesApi.update(partyId, payload),
+      dalUpdateParty(partyId, payload),
     onSuccess: (data: Party) => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.parties });
       queryClient.invalidateQueries({ queryKey: ["party", data._id] });
@@ -136,7 +145,7 @@ export const useDeleteParty = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (partyId: string) => partiesApi.delete(partyId),
+    mutationFn: (partyId: string) => dalDeleteParty(partyId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.parties });
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.vendors });
@@ -171,7 +180,7 @@ export const useMergeParty = () => {
     }: {
       sourcePartyId: string;
       targetPartyId: string;
-    }) => partiesApi.merge(sourcePartyId, targetPartyId),
+    }) => dalMergeParties(sourcePartyId, targetPartyId),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.parties });
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.vendors });
@@ -206,7 +215,7 @@ export const useArchiveParty = () => {
     }: {
       partyId: string;
       archived: boolean;
-    }) => partiesApi.archive(partyId, archived).then((r) => r.party),
+    }) => dalArchiveParty(partyId, archived).then((r) => r.party),
     onSuccess: (data: Party) => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.parties });
       queryClient.invalidateQueries({ queryKey: ["party", data._id] });

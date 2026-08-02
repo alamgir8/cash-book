@@ -15,21 +15,26 @@ import { ScreenHeader } from "@/components/screen-header";
 import { EmptyState } from "@/components/empty-state";
 import { CategoryFormModal } from "@/components/modals/category-form-modal";
 import {
-  fetchCategories,
-  deleteCategory,
-  type Category,
-} from "@/services/categories";
+  dalFetchCategories,
+  dalDeleteCategory,
+} from "@/data/categories";
+import type { Category } from "@/services/categories";
 import { queryKeys } from "@/lib/queryKeys";
 import { refreshAppData } from "@/lib/refresh-app-data";
 import { useOrganization, useActiveOrgId } from "@/hooks/use-organization";
+import { useLocalFirstFlags } from "@/hooks/use-local-first-flags";
 import { useTheme } from "@/hooks/use-theme";
 import { useTranslation } from "@/hooks/use-translation";
 
 export default function CategoriesScreen() {
   const queryClient = useQueryClient();
   const { canManageCategories } = useOrganization();
-  const organizationId = useActiveOrgId();
-  const orgKey = organizationId ?? "personal";
+  const activeOrgId = useActiveOrgId();
+  const { localFirstEnabled, ready: flagsReady } = useLocalFirstFlags();
+  const organizationId = activeOrgId;
+  const orgKey = localFirstEnabled
+    ? `local:${activeOrgId ?? "personal"}`
+    : activeOrgId ?? "personal";
   const { colors } = useTheme();
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<"credit" | "debit">("debit");
@@ -46,7 +51,8 @@ export default function CategoriesScreen() {
   } = useQuery({
     queryKey: [...queryKeys.categories.all, orgKey],
     queryFn: () =>
-      fetchCategories({ organizationId: organizationId || undefined }),
+      dalFetchCategories({ organizationId: organizationId || undefined }),
+    enabled: flagsReady,
   });
 
   const onRefresh = useCallback(() => {
@@ -54,7 +60,7 @@ export default function CategoriesScreen() {
   }, [queryClient]);
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => deleteCategory(id),
+    mutationFn: (id: string) => dalDeleteCategory(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.categories.all });
       Toast.show({

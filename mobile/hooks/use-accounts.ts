@@ -1,14 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Toast from "react-native-toast-message";
 import {
-  fetchAccounts,
-  fetchAccountsOverview,
-  fetchAccountDetail,
-  fetchAccountTransactions,
-  createAccount,
-  updateAccount,
-  deleteAccount,
-} from "@/services/accounts";
+  dalCreateAccount,
+  dalDeleteAccount,
+  dalFetchAccounts,
+  dalFetchAccountsOverview,
+  dalFetchAccountDetail,
+  dalFetchAccountTransactions,
+  dalUpdateAccount,
+} from "@/data/accounts";
 import { queryKeys } from "@/lib/queryKeys";
 import type { AccountPayload } from "@/types/account";
 import type { TransactionFilters } from "@/services/transactions";
@@ -19,7 +19,7 @@ import type { TransactionFilters } from "@/services/transactions";
 export const useAccounts = () => {
   return useQuery({
     queryKey: queryKeys.accounts,
-    queryFn: fetchAccounts,
+    queryFn: () => dalFetchAccounts(),
   });
 };
 
@@ -29,7 +29,7 @@ export const useAccounts = () => {
 export const useAccountsOverview = () => {
   return useQuery({
     queryKey: queryKeys.accountsOverview,
-    queryFn: fetchAccountsOverview,
+    queryFn: () => dalFetchAccountsOverview(),
   });
 };
 
@@ -39,7 +39,7 @@ export const useAccountsOverview = () => {
 export const useAccountDetail = (accountId: string) => {
   return useQuery({
     queryKey: queryKeys.accountDetail(accountId),
-    queryFn: () => fetchAccountDetail(accountId),
+    queryFn: () => dalFetchAccountDetail(accountId),
     enabled: Boolean(accountId),
   });
 };
@@ -53,7 +53,7 @@ export const useAccountTransactions = (
 ) => {
   return useQuery({
     queryKey: queryKeys.accountTransactions(accountId, filters),
-    queryFn: () => fetchAccountTransactions(accountId, filters),
+    queryFn: () => dalFetchAccountTransactions(accountId, filters),
     enabled: Boolean(accountId),
   });
 };
@@ -65,7 +65,7 @@ export const useCreateAccount = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (payload: AccountPayload) => createAccount(payload),
+    mutationFn: (payload: AccountPayload) => dalCreateAccount(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
       queryClient.invalidateQueries({ queryKey: queryKeys.accountsOverview });
@@ -94,8 +94,8 @@ export const useUpdateAccount = () => {
     mutationFn: ({
       accountId,
       ...payload
-    }: { accountId: string } & Partial<AccountPayload>) =>
-      updateAccount({ accountId, ...payload }),
+    }: { accountId: string; archived?: boolean } & Partial<AccountPayload>) =>
+      dalUpdateAccount({ accountId, ...payload }),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
       queryClient.invalidateQueries({ queryKey: queryKeys.accountsOverview });
@@ -124,7 +124,7 @@ export const useDeleteAccount = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (accountId: string) => deleteAccount(accountId),
+    mutationFn: (accountId: string) => dalDeleteAccount(accountId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
       queryClient.invalidateQueries({ queryKey: queryKeys.accountsOverview });

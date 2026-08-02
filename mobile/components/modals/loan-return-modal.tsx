@@ -22,8 +22,9 @@ import {
   amountInputProps,
   normalizeAmountInput,
 } from "@/lib/amount-input";
-import { createTransaction, type Transaction } from "@/services/transactions";
-import { fetchCategories } from "@/services/categories";
+import { type Transaction } from "@/services/transactions";
+import { dalFetchCategories } from "@/data/categories";
+import { dalCreateTransaction } from "@/data/transactions";
 import { refreshTransactionData } from "@/lib/refresh-app-data";
 import {
   getLoanRepaymentConfig,
@@ -82,7 +83,7 @@ export const LoanReturnModal = ({
         throw new Error("Unsupported loan transaction");
       }
 
-      const categories = await fetchCategories();
+      const categories = await dalFetchCategories();
       const category = categories.find(
         (c) => c.name === repaymentConfig.categoryName,
       );
@@ -92,7 +93,7 @@ export const LoanReturnModal = ({
 
       const partyPayload = getLoanPartyPayload(loanTxn);
 
-      return createTransaction({
+      return dalCreateTransaction({
         accountId,
         amount: parseFloat(amount),
         type: repaymentConfig.type,

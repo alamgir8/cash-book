@@ -1,4 +1,5 @@
 import { api } from "../lib/api";
+import { isLocalFirstEnabled } from "@/lib/local-first/flags";
 
 export type Attachment = {
   url: string;
@@ -17,7 +18,7 @@ export type UploadAttachmentsResponse = {
 
 /**
  * Upload one or more image/PDF files as attachments to a transaction.
- * `files` is an array of objects compatible with React Native's ImagePicker / DocumentPicker result.
+ * Local-first: saves on-device (no Cloudinary). Cloud-primary: API upload.
  */
 export const uploadAttachments = async (
   transactionId: string,
@@ -28,13 +29,18 @@ export const uploadAttachments = async (
     size?: number;
   }[],
 ): Promise<UploadAttachmentsResponse> => {
+  if (isLocalFirstEnabled()) {
+    const { saveLocalAttachments } = await import("./local-attachments");
+    const attachments = await saveLocalAttachments(transactionId, files);
+    return { message: "Saved on device", attachments };
+  }
+
   const formData = new FormData();
 
   for (const file of files) {
     const fileName = file.name ?? `attachment_${Date.now()}.jpg`;
     const mimeType = file.type ?? "image/jpeg";
 
-    // React Native FormData accepts this object shape
     formData.append("attachments", {
       uri: file.uri,
       name: fileName,
@@ -49,7 +55,6 @@ export const uploadAttachments = async (
       headers: {
         "Content-Type": "multipart/form-data",
       },
-      // Increase timeout for file uploads
       timeout: 60000,
     },
   );
@@ -64,7 +69,12 @@ export const deleteAttachment = async (
   transactionId: string,
   storageKey: string,
 ): Promise<{ message: string; attachments: Attachment[] }> => {
-  // Cloudinary public_ids contain "/" — encode the whole key so it doesn't break the route
+  if (isLocalFirstEnabled() || storageKey.startsWith("local:")) {
+    const { deleteLocalAttachment } = await import("./local-attachments");
+    const attachments = await deleteLocalAttachment(transactionId, storageKey);
+    return { message: "Removed", attachments };
+  }
+
   const encodedKey = storageKey.split("/").map(encodeURIComponent).join("/");
   const response = await api.delete(
     `/transactions/${transactionId}/attachments/${encodedKey}`,

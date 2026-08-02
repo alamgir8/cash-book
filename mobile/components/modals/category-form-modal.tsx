@@ -11,10 +11,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTheme } from "@/hooks/use-theme";
 import {
-  createCategory,
-  updateCategory,
-  type Category,
-} from "../../services/categories";
+  dalCreateCategory,
+  dalUpdateCategory,
+} from "@/data/categories";
+import type { Category } from "../../services/categories";
 import { queryKeys } from "../../lib/queryKeys";
 
 type CategoryFormModalProps = {
@@ -115,7 +115,7 @@ export const CategoryFormModal = ({
   const mutation = useMutation({
     mutationFn: async () => {
       if (isEditing && category) {
-        return updateCategory(category._id, {
+        return dalUpdateCategory(category._id, {
           name,
           description,
           flow,
@@ -123,7 +123,7 @@ export const CategoryFormModal = ({
           color,
         });
       } else {
-        return createCategory({
+        return dalCreateCategory({
           name,
           description,
           flow,

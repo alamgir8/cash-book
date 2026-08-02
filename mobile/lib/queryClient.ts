@@ -9,7 +9,9 @@ export const queryClient = new QueryClient({
       staleTime: 60 * 1000,
       gcTime: 15 * 60 * 1000,
       refetchOnWindowFocus: false,
-      refetchOnReconnect: true,
+      // App ↔ background often flaps NetInfo; reconnect refetch storms keep
+      // isFetching stuck and freeze open modals. Pull-to-refresh / mutations cover freshness.
+      refetchOnReconnect: false,
       // Cached data is enough on navigate; pull-to-refresh / mutations invalidate
       refetchOnMount: false,
     },

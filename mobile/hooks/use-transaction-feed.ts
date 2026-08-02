@@ -1,19 +1,21 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
-import { fetchAccountTransactions } from "@/services/accounts";
 import {
-  fetchTransactions,
-  fetchCounterparties,
-  fetchVendors,
   type TransactionFilters,
 } from "@/services/transactions";
-import { fetchCategories } from "@/services/categories";
-import { fetchAccounts } from "@/services/accounts";
+import {
+  dalFetchAccounts,
+  dalFetchAccountTransactions,
+} from "@/data/accounts";
+import { dalFetchTransactions } from "@/data/transactions";
+import { dalFetchCategories } from "@/data/categories";
+import { dalFetchCounterparties, dalFetchVendors } from "@/data/parties";
 import { queryKeys } from "@/lib/queryKeys";
 import { useTransactionListState } from "@/hooks/use-transaction-list-state";
 import { useTransactionFilterOptions } from "@/hooks/use-transaction-filter-options";
 import { usePreferences } from "@/hooks/use-preferences";
 import { useActiveOrgId } from "@/hooks/use-organization";
+import { useLocalFirstFlags } from "@/hooks/use-local-first-flags";
 
 /** Default page sizes — keep first paint light */
 export const FEED_PAGE_LIMIT = 30;
@@ -39,6 +41,7 @@ const buildDefaultFilters = (
   page: 1,
   limit: pageLimit,
   ...(accountId ? { accountId } : {}),
+  // Local-first never scopes personal ledger lists by org (SQLite personal only).
   ...(organizationId ? { organizationId } : {}),
   ...initial,
 });
@@ -92,12 +95,17 @@ export function useTransactionFeed({
   includeEmptyCategoryOption = false,
   enabled = true,
 }: TransactionFeedConfig) {
-  const organizationId = useActiveOrgId();
+  const activeOrgId = useActiveOrgId();
+  const { localFirstEnabled, ready: flagsReady } = useLocalFirstFlags();
+  // Local-first still respects org vs personal — both live in SQLite.
+  const organizationId = activeOrgId;
   const { formatAmount, preferences } = usePreferences();
   const language = preferences.language ?? "en";
   const resolvedLimit =
     pageLimit ?? (accountId ? ACCOUNT_FEED_PAGE_LIMIT : FEED_PAGE_LIMIT);
-  const orgKey = organizationId ?? "personal";
+  const orgKey = localFirstEnabled
+    ? `local:${activeOrgId ?? "personal"}`
+    : activeOrgId ?? "personal";
 
   const defaultFilters = useMemo(
     () =>
@@ -112,7 +120,7 @@ export function useTransactionFeed({
 
   const [filters, setFilters] = useState<TransactionFilters>(defaultFilters);
 
-  // Keep filters scoped when switching org / personal mode
+  // Keep filters scoped when switching org / personal / local-first mode
   useEffect(() => {
     setFilters(defaultFilters);
   }, [defaultFilters]);
@@ -120,27 +128,31 @@ export function useTransactionFeed({
   // Shared filter metadata — long staleTime so dual Home+Ledger mounts don't double-fetch
   const accountsQuery = useQuery({
     queryKey: [...queryKeys.accounts, orgKey],
-    queryFn: () => fetchAccounts(organizationId || undefined),
+    queryFn: () => dalFetchAccounts(organizationId || undefined),
     staleTime: 5 * 60_000,
+    enabled: flagsReady && enabled,
   });
 
   const categoriesQuery = useQuery({
     queryKey: [...queryKeys.categories.all, orgKey],
     queryFn: () =>
-      fetchCategories({ organizationId: organizationId || undefined }),
+      dalFetchCategories({ organizationId: organizationId || undefined }),
     staleTime: 5 * 60_000,
+    enabled: flagsReady && enabled,
   });
 
   const counterpartiesQuery = useQuery({
     queryKey: [...queryKeys.counterparties, orgKey],
-    queryFn: () => fetchCounterparties(undefined, organizationId || undefined),
+    queryFn: () => dalFetchCounterparties(undefined, organizationId || undefined),
     staleTime: 5 * 60_000,
+    enabled: flagsReady && enabled,
   });
 
   const vendorsQuery = useQuery({
     queryKey: [...queryKeys.vendors, orgKey],
-    queryFn: () => fetchVendors(undefined, organizationId || undefined),
+    queryFn: () => dalFetchVendors(undefined, organizationId || undefined),
     staleTime: 5 * 60_000,
+    enabled: flagsReady && enabled,
   });
 
   const transactionsQuery = useQuery({
@@ -149,9 +161,12 @@ export function useTransactionFeed({
       : queryKeys.transactions(filters),
     queryFn: () =>
       accountId
-        ? fetchAccountTransactions(accountId, filters)
-        : fetchTransactions(filters),
-    enabled: enabled && (accountId !== undefined ? Boolean(accountId) : true),
+        ? dalFetchAccountTransactions(accountId, filters)
+        : dalFetchTransactions(filters),
+    enabled:
+      flagsReady &&
+      enabled &&
+      (accountId !== undefined ? Boolean(accountId) : true),
     staleTime: 45_000,
     placeholderData: keepPreviousData,
   });

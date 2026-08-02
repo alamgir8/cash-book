@@ -1,5 +1,6 @@
 import { Account } from "../models/Account.js";
 import { Category } from "../models/Category.js";
+import { Party } from "../models/Party.js";
 import { Transaction } from "../models/Transaction.js";
 import { Transfer } from "../models/Transfer.js";
 import { BalanceSnapshot } from "../models/BalanceSnapshot.js";
@@ -24,10 +25,12 @@ export const exportBackup = async (req, res, next) => {
     }
 
     // Fetch all collections for this user with all fields
-    const [accounts, categories, transactions, transfers, balanceSnapshots] =
+    const [accounts, categories, parties, transactions, transfers, balanceSnapshots] =
       await Promise.all([
         Account.find({ admin: adminId }).lean(),
         Category.find({ admin: adminId }).lean(),
+        // Personal + organization parties for this admin
+        Party.find({ admin: adminId }).lean(),
         Transaction.find({ admin: adminId }).lean(),
         Transfer.find({ admin: adminId }).lean(),
         BalanceSnapshot.find({ admin: adminId }).lean(),
@@ -41,6 +44,8 @@ export const exportBackup = async (req, res, next) => {
         // Accounts - preserve all fields including balance
         accounts: accounts.map((a) => ({
           _originalId: a._id.toString(),
+          _id: a._id.toString(),
+          organization: a.organization?.toString() || null,
           name: a.name,
           kind: a.kind,
           current_balance: a.current_balance, // Use correct field name
@@ -52,9 +57,35 @@ export const exportBackup = async (req, res, next) => {
           createdAt: a.createdAt,
           updatedAt: a.updatedAt,
         })),
+        // Parties - personal scope
+        parties: parties.map((p) => ({
+          _originalId: p._id.toString(),
+          _id: p._id.toString(),
+          organization: p.organization?.toString() || null,
+          type: p.type,
+          name: p.name,
+          code: p.code,
+          phone: p.phone,
+          email: p.email,
+          address: p.address,
+          opening_balance: p.opening_balance,
+          current_balance: p.current_balance,
+          credit_limit: p.credit_limit,
+          payment_terms_days: p.payment_terms_days,
+          tax_id: p.tax_id,
+          notes: p.notes,
+          tags: p.tags,
+          meta_data: p.meta_data,
+          archived: p.archived,
+          archived_at: p.archived_at,
+          createdAt: p.createdAt,
+          updatedAt: p.updatedAt,
+        })),
         // Categories - preserve all fields
         categories: categories.map((c) => ({
           _originalId: c._id.toString(),
+          _id: c._id.toString(),
+          organization: c.organization?.toString() || null,
           name: c.name,
           type: c.type,
           flow: c.flow,
@@ -68,18 +99,39 @@ export const exportBackup = async (req, res, next) => {
         // Transactions - preserve all fields with relationships
         transactions: transactions.map((t) => ({
           _originalId: t._id.toString(),
+          _id: t._id.toString(),
+          organization: t.organization?.toString() || null,
+          _originalOrganizationId: t.organization?.toString() || null,
           _originalAccountId: t.account?.toString() || null, // Model uses 'account' not 'account_id'
           _originalCategoryId: t.category_id?.toString() || null,
+          _originalPartyId: t.party?.toString() || null,
+          _originalForPartyId: t.for_party?.toString() || null,
+          account: t.account?.toString() || null,
+          category_id: t.category_id?.toString() || null,
+          party: t.party?.toString() || null,
+          for_party: t.for_party?.toString() || null,
           amount: t.amount,
           type: t.type, // Model uses 'type' not 'flow'
           date: t.date,
           description: t.description,
           keyword: t.keyword,
           counterparty: t.counterparty,
+          vendor: t.vendor,
+          payment_status: t.payment_status ?? "paid",
+          due_date: t.due_date,
+          due_group_id: t.due_group_id?.toString() || null,
+          parent_due_id: t.parent_due_id?.toString() || null,
+          due_remaining: t.due_remaining,
+          due_settled_at: t.due_settled_at,
+          party_balance_after: t.party_balance_after,
           meta_data: t.meta_data,
           balance_after_transaction: t.balance_after_transaction,
           client_request_id: t.client_request_id,
           transfer_id: t.transfer_id?.toString() || null,
+          transfer_direction: t.transfer_direction || null,
+          attachments: t.attachments || [],
+          is_deleted: t.is_deleted || false,
+          deleted_at: t.deleted_at,
           createdAt: t.createdAt,
           updatedAt: t.updatedAt,
         })),
@@ -117,6 +169,7 @@ export const exportBackup = async (req, res, next) => {
       summary: {
         accountsCount: accounts.length,
         categoriesCount: categories.length,
+        partiesCount: parties.length,
         transactionsCount: transactions.length,
         transfersCount: transfers.length,
         balanceSnapshotsCount: balanceSnapshots.length,
@@ -169,6 +222,7 @@ export const importBackup = async (req, res, next) => {
     // Maps to track old ID -> new ID relationships
     const accountIdMap = new Map();
     const categoryIdMap = new Map();
+    const partyIdMap = new Map();
 
     // Import accounts with exact balances - handle both v1.0 and v2.0 formats
     const importedAccounts = [];
@@ -245,6 +299,66 @@ export const importBackup = async (req, res, next) => {
         await categoryDoc.save({ session, timestamps: false });
         categoryIdMap.set(originalId, categoryDoc._id);
         importedCategories.push(categoryDoc);
+      }
+    }
+
+    // Import parties (optional — backward compatible when absent)
+    const importedParties = [];
+    let skippedParties = 0;
+    if (Array.isArray(data.parties)) {
+      for (const party of data.parties) {
+        const originalId = party._originalId || party._id;
+        if (!originalId) {
+          skippedParties++;
+          continue;
+        }
+
+        const existing = await Party.findOne({
+          admin: adminId,
+          organization: null,
+          name: party.name,
+          type: party.type || "customer",
+        }).session(session);
+
+        if (existing) {
+          partyIdMap.set(originalId, existing._id);
+          importedParties.push({ ...existing.toObject(), skipped: true });
+          continue;
+        }
+
+        const partyDoc = new Party({
+          admin: adminId,
+          type: party.type || "customer",
+          name: party.name,
+          code: party.code,
+          phone: party.phone,
+          email: party.email,
+          address: party.address,
+          opening_balance: party.opening_balance ?? 0,
+          current_balance:
+            party.current_balance ?? party.opening_balance ?? 0,
+          credit_limit: party.credit_limit ?? 0,
+          payment_terms_days: party.payment_terms_days ?? 0,
+          tax_id: party.tax_id,
+          notes: party.notes,
+          tags: party.tags,
+          meta_data: party.meta_data,
+          archived: party.archived || false,
+          archived_at: party.archived_at
+            ? new Date(party.archived_at)
+            : undefined,
+        });
+
+        if (party.createdAt) {
+          partyDoc.createdAt = new Date(party.createdAt);
+        }
+        if (party.updatedAt) {
+          partyDoc.updatedAt = new Date(party.updatedAt);
+        }
+
+        await partyDoc.save({ session, timestamps: false });
+        partyIdMap.set(originalId, partyDoc._id);
+        importedParties.push(partyDoc);
       }
     }
 
@@ -461,6 +575,9 @@ export const importBackup = async (req, res, next) => {
       accountsImported: importedAccounts.length,
       categoriesImported: importedCategories.filter((c) => !c.skipped).length,
       categoriesSkipped: importedCategories.filter((c) => c.skipped).length,
+      partiesImported: importedParties.filter((p) => !p.skipped).length,
+      partiesSkipped:
+        importedParties.filter((p) => p.skipped).length + skippedParties,
       transactionsImported: importedTransactions.length,
       transactionsSkipped: skippedTransactions,
       transfersImported: importedTransfers.length,

@@ -9,12 +9,14 @@ import { Alert } from "react-native";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import Toast from "react-native-toast-message";
 import {
-  createTransaction,
-  createTransfer,
-  deleteTransaction,
-  updateTransaction,
   type Transaction,
 } from "@/services/transactions";
+import {
+  dalCreateTransaction,
+  dalCreateTransfer,
+  dalDeleteTransaction,
+  dalUpdateTransaction,
+} from "@/data/transactions";
 import { exportTransactionsPdf } from "@/services/reports";
 import {
   refreshTransactionData,
@@ -87,12 +89,14 @@ export function useDashboard() {
   } = feed;
 
   const invalidateAll = useCallback(async () => {
-    resetToPageOne();
+    if (filters.page !== 1) {
+      resetToPageOne();
+    }
     await refreshTransactionData(queryClient);
-  }, [queryClient, resetToPageOne]);
+  }, [queryClient, resetToPageOne, filters.page]);
 
   const createMutation = useMutation({
-    mutationFn: createTransaction,
+    mutationFn: dalCreateTransaction,
     onSuccess: () => {
       void invalidateAll();
       Toast.show({ type: "success", text1: "Transaction added" });
@@ -106,7 +110,7 @@ export function useDashboard() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: updateTransaction,
+    mutationFn: dalUpdateTransaction,
     onSuccess: () => {
       setModalVisible(false);
       setEditingTransaction(null);
@@ -122,7 +126,7 @@ export function useDashboard() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: deleteTransaction,
+    mutationFn: dalDeleteTransaction,
     onSuccess: () => {
       void invalidateAll();
       Toast.show({ type: "success", text1: "Transaction deleted" });
@@ -136,7 +140,7 @@ export function useDashboard() {
   });
 
   const createTransferMutation = useMutation({
-    mutationFn: createTransfer,
+    mutationFn: dalCreateTransfer,
     onSuccess: () => {
       void invalidateAll();
       Toast.show({ type: "success", text1: "Transfer completed" });
@@ -209,9 +213,12 @@ export function useDashboard() {
   }, [feedResetFilters, queryClient]);
 
   const handleRefresh = useCallback(() => {
-    resetToPageOne();
+    // Stay on page 1 without wiping the list first (wipe + same RQ data = empty UI).
+    if (filters.page !== 1) {
+      resetToPageOne();
+    }
     void refreshTransactionData(queryClient);
-  }, [queryClient, resetToPageOne]);
+  }, [queryClient, resetToPageOne, filters.page]);
 
   const openTransferModal = useCallback(() => {
     if (accountsQuery.isLoading) {
@@ -268,7 +275,7 @@ export function useDashboard() {
       const createdIds: string[] = [];
       try {
         for (const entry of bulkEntries) {
-          const created = await createTransaction({
+          const created = await dalCreateTransaction({
             ...basePayload,
             party: entry.party || undefined,
             for_party: entry.for_party || undefined,

@@ -19,6 +19,8 @@ import { useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/use-theme";
 import { importBackupFromFile } from "@/services/backup";
+import { importBackupFromPicker } from "@/services/local-backup";
+import { isLocalFirstEnabled } from "@/lib/local-first/flags";
 import Toast from "react-native-toast-message";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
@@ -52,22 +54,33 @@ export function RestoreFromBackupModal({
   const handleImport = async () => {
     try {
       setImporting(true);
-      const result = await importBackupFromFile();
-      if (!result?.summary) throw new Error("Invalid backup response");
-
-      // Refresh all data
-      queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
-      queryClient.invalidateQueries({ queryKey: queryKeys.categories.all });
-      queryClient.invalidateQueries({ queryKey: ["transactions"] });
-
-      const { summary } = result;
       const parts: string[] = [];
-      if (summary.accountsImported)
-        parts.push(`${summary.accountsImported} accounts`);
-      if (summary.transactionsImported)
-        parts.push(`${summary.transactionsImported} transactions`);
-      if (summary.categoriesImported)
-        parts.push(`${summary.categoriesImported} categories`);
+
+      if (isLocalFirstEnabled()) {
+        const summary = await importBackupFromPicker();
+        queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
+        queryClient.invalidateQueries({ queryKey: queryKeys.categories.all });
+        queryClient.invalidateQueries({ queryKey: ["transactions"] });
+        if (summary.accountsCount)
+          parts.push(`${summary.accountsCount} accounts`);
+        if (summary.transactionsCount)
+          parts.push(`${summary.transactionsCount} transactions`);
+        if (summary.categoriesCount)
+          parts.push(`${summary.categoriesCount} categories`);
+      } else {
+        const result = await importBackupFromFile();
+        if (!result?.summary) throw new Error("Invalid backup response");
+        queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
+        queryClient.invalidateQueries({ queryKey: queryKeys.categories.all });
+        queryClient.invalidateQueries({ queryKey: ["transactions"] });
+        const { summary } = result;
+        if (summary.accountsImported)
+          parts.push(`${summary.accountsImported} accounts`);
+        if (summary.transactionsImported)
+          parts.push(`${summary.transactionsImported} transactions`);
+        if (summary.categoriesImported)
+          parts.push(`${summary.categoriesImported} categories`);
+      }
 
       Toast.show({
         type: "success",

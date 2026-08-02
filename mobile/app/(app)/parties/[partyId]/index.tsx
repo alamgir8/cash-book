@@ -21,7 +21,6 @@ import { useParty, useDeleteParty } from "@/hooks/use-parties";
 import { formatPartyBalance } from "@/lib/party-utils";
 import { useTheme } from "@/hooks/use-theme";
 import { useDeleteMode } from "@/hooks/use-delete-mode";
-import { partiesApi } from "@/services/parties";
 import { toast } from "@/lib/toast";
 import { safeGoBack } from "@/lib/navigation";
 
@@ -50,8 +49,7 @@ export default function PartyDetailScreen() {
           onPress: () => {
             void (async () => {
               try {
-                await partiesApi.delete(partyId!);
-                toast.success("Party deleted successfully");
+                await deleteMutation.mutateAsync(partyId!);
                 goBack();
               } catch (error: any) {
                 const data = error?.response?.data;

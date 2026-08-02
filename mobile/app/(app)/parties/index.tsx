@@ -22,13 +22,18 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { ScreenHeader } from "@/components/screen-header";
 import { useOrganization } from "@/hooks/use-organization";
+import { useLocalFirstFlags } from "@/hooks/use-local-first-flags";
 import { useTheme } from "@/hooks/use-theme";
 import {
-  partiesApi,
   type ListPartiesParams,
   type Party,
   type PartyType,
 } from "@/services/parties";
+import {
+  dalDeleteParty,
+  dalFetchParties,
+  dalMergeParties,
+} from "@/data/parties";
 import { getApiErrorMessage } from "@/lib/api";
 import { useDeleteMode } from "@/hooks/use-delete-mode";
 import { PartyListCard } from "@/components/parties/party-list-card";
@@ -71,6 +76,7 @@ export default function PartiesScreen() {
   const { colors, isDark } = useTheme();
   const themeKey = isDark ? "dark" : "light";
   const { canManageParties, organizations } = useOrganization();
+  const { localFirstEnabled, ready: flagsReady } = useLocalFirstFlags();
   const { isDeleteModeActive } = useDeleteMode();
 
   const [orgFilter, setOrgFilter] = useState<OrgFilter>("all");
@@ -122,9 +128,16 @@ export default function PartiesScreen() {
     fetchNextPage,
     refetch,
   } = useInfiniteQuery({
-    queryKey: ["parties", orgFilter, activeTab, search, sort, PAGE_SIZE],
+    queryKey: [
+      "parties",
+      localFirstEnabled ? `local:${orgFilter}` : orgFilter,
+      activeTab,
+      search,
+      sort,
+      PAGE_SIZE,
+    ],
     queryFn: ({ pageParam, signal }) =>
-      partiesApi.list(
+      dalFetchParties(
         {
           ...orgScopeParams,
           type: activeTab === "all" ? undefined : activeTab,
@@ -135,6 +148,7 @@ export default function PartiesScreen() {
         },
         signal,
       ),
+    enabled: flagsReady,
     initialPageParam: 1,
     getNextPageParam: (last) => {
       const p = last?.pagination;
@@ -162,7 +176,7 @@ export default function PartiesScreen() {
     }: {
       sourceId: string;
       targetId: string;
-    }) => partiesApi.merge(sourceId, targetId),
+    }) => dalMergeParties(sourceId, targetId),
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["parties"] });
       queryClient.invalidateQueries({ queryKey: ["parties-merge-targets"] });
@@ -193,12 +207,12 @@ export default function PartiesScreen() {
   } = useInfiniteQuery({
     queryKey: [
       "parties-merge-targets",
-      orgFilter,
+      localFirstEnabled ? `local:${orgFilter}` : orgFilter,
       mergeSource?._id,
       mergeSearch,
     ],
     queryFn: ({ pageParam, signal }) =>
-      partiesApi.list(
+      dalFetchParties(
         {
           ...orgScopeParams,
           search: mergeSearch || undefined,
@@ -214,7 +228,7 @@ export default function PartiesScreen() {
       if (!p) return undefined;
       return p.page < p.pages ? p.page + 1 : undefined;
     },
-    enabled: mergePickerVisible && Boolean(mergeSource),
+    enabled: flagsReady && mergePickerVisible && Boolean(mergeSource),
     staleTime: 60_000,
     placeholderData: keepPreviousData,
     retry: 1,
@@ -281,7 +295,7 @@ export default function PartiesScreen() {
             onPress: () => {
               void (async () => {
                 try {
-                  await partiesApi.delete(party._id);
+                  await dalDeleteParty(party._id);
                   queryClient.invalidateQueries({ queryKey: ["parties"] });
                   toast.success("Party deleted", `"${party.name}" was removed`);
                 } catch (error: any) {

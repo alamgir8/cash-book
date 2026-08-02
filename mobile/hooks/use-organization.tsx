@@ -64,16 +64,51 @@ export function OrganizationProvider({
   useEffect(() => {
     const loadActiveOrg = async () => {
       try {
+        const { isLocalFirstEnabled, loadLocalFirstFlags } = await import(
+          "@/lib/local-first/flags"
+        );
+        await loadLocalFirstFlags();
+        const lfOn = isLocalFirstEnabled();
+
+        const localOrgHasRows = async (orgId: string) => {
+          try {
+            const { getDb } = await import("@/db/client");
+            const db = await getDb();
+            const hit = await db.getFirstAsync<{ c: number }>(
+              `SELECT COUNT(*) as c FROM accounts
+               WHERE deleted_at IS NULL AND organization_id = ?`,
+              orgId,
+            );
+            return Number(hit?.c ?? 0) > 0;
+          } catch {
+            return false;
+          }
+        };
+
         const savedOrgId = await AsyncStorage.getItem(ACTIVE_ORG_KEY);
         if (savedOrgId && organizations.length > 0) {
           const org = organizations.find((o) => o.id === savedOrgId);
           if (org) {
-            setActiveOrganization(org);
+            // Avoid blank screens: org selected but SQLite only has personal rows.
+            if (lfOn && !(await localOrgHasRows(org.id))) {
+              setActiveOrganization(null);
+            } else {
+              setActiveOrganization(org);
+            }
           }
         } else if (organizations.length === 1 && !savedOrgId) {
-          // Auto-select if user only has one organization
-          setActiveOrganization(organizations[0]);
-          await AsyncStorage.setItem(ACTIVE_ORG_KEY, organizations[0].id);
+          const orgId = organizations[0].id;
+          if (lfOn) {
+            if (await localOrgHasRows(orgId)) {
+              setActiveOrganization(organizations[0]);
+              await AsyncStorage.setItem(ACTIVE_ORG_KEY, orgId);
+            } else {
+              setActiveOrganization(null);
+            }
+          } else {
+            setActiveOrganization(organizations[0]);
+            await AsyncStorage.setItem(ACTIVE_ORG_KEY, orgId);
+          }
         }
       } catch (error) {
         console.warn("Failed to load active organization:", error);
