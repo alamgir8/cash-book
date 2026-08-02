@@ -53,11 +53,18 @@ const accountSchema = new mongoose.Schema(
     archived_at: {
       type: Date,
     },
+    /** Sync client UUID + opaque fields (local-first) */
+    meta_data: {
+      type: mongoose.Schema.Types.Mixed,
+    },
   },
   {
     timestamps: true,
   }
 );
+
+accountSchema.index({ admin: 1, "meta_data.client_id": 1 });
+accountSchema.index({ admin: 1, updatedAt: -1 });
 
 // Updated index to support both personal and organization accounts
 accountSchema.index(

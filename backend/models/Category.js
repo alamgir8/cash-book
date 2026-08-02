@@ -69,9 +69,16 @@ const categorySchema = new Schema(
     archived_at: {
       type: Date,
     },
+    /** Sync client UUID + opaque fields (local-first) */
+    meta_data: {
+      type: Schema.Types.Mixed,
+    },
   },
   { timestamps: true }
 );
+
+categorySchema.index({ admin: 1, "meta_data.client_id": 1 });
+categorySchema.index({ admin: 1, updatedAt: -1 });
 
 // Personal categories (no organization)
 categorySchema.index(

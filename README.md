@@ -32,6 +32,45 @@ Hisab Boi is a multi-tenant cash book / POS-style mobile app built with React Na
 
 ---
 
+## 📦 Local-first mode (on-device SQLite)
+
+Personal cash book can run **local-first**: SQLite is the source of truth, optional incremental cloud sync, and dated Google Drive snapshots for disaster recovery. Org/invoice paths stay cloud-primary in v1.
+
+| Doc | Purpose |
+|-----|---------|
+| [`docs/LOCAL_FIRST_PRODUCTION_PLAN.md`](docs/LOCAL_FIRST_PRODUCTION_PLAN.md) | Phased implementation plan |
+| [`docs/ENTITY_INVENTORY.md`](docs/ENTITY_INVENTORY.md) | What is local vs cloud |
+| [`docs/LOCAL_FIRST_SUPPORT.md`](docs/LOCAL_FIRST_SUPPORT.md) | Support playbook (restore, reset, disable sync) |
+
+**Mobile env (`mobile/.env.local`)** — in addition to `EXPO_PUBLIC_BASE_URL`:
+
+```env
+# Google Drive OAuth (one client ID per platform; users sign into their own Google account)
+EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID=....apps.googleusercontent.com
+# EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID=
+# EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=
+# EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID=
+```
+
+iOS OAuth client bundle ID must match the app (`com.alamgir.hisabboi`). Prefer a **development build** for Google Sign-In; Expo Go often fails redirect/bundle checks.
+
+**Dogfood checklist**
+
+1. Settings → On-device storage → Local-first **ON**, Dual-write **OFF**.
+2. Migrate once from cloud (or restore from Drive / JSON).
+3. Optional: Cloud sync ON only after `/api/sync` is deployed.
+4. Connect Drive → Upload dated backup → Restore pick-date smoke test.
+
+Flags default **OFF** so production stays cloud-primary until cutover.
+
+**Attachments policy (v1):** with local-first ON, receipts save under the app documents folder (compressed via ImagePicker quality) — no Cloudinary. Paths live in SQLite `attachments_json`. Drive JSON backups do **not** embed binary media yet (zip later). Cloud-primary mode still uses the server/Cloudinary upload API.
+
+**Cloud sync OFF:** personal Home / Ledger / Accounts read SQLite only (works offline long-term). Organization books still need cloud — if an org is selected while sync is off, the app shows **personal on-device data** plus a yellow banner (not an empty API failure). Keep Dual-write OFF for real offline. Drive backups remain independent of Mongo sync.
+
+**Encryption:** Expo Go uses unencrypted `expo-sqlite` (`USE_SQLCIPHER = false`). Production cutover should add at-rest encryption (or rely on OS data protection + biometric gates for restore/Drive). See Phase 8 in the plan.
+
+---
+
 ## 🧪 Setup Instructions
 
 Before running locally, set up the required `.env` / `.env.local` files for the backend and mobile app.
@@ -329,11 +368,13 @@ Install the Release app on the connected iPhone (unlock iPhone first):
 
 ```shell
 xcrun devicectl device install app \
-  --device 43B8F391-1D7E-51F4-B8C3-7B0552CE18DE \
+  --device 00008140-0004384608A2201C \
   /Users/alamgirhossain/Library/Developer/Xcode/DerivedData/HisabBoiRelease/Build/Products/Release-iphoneos/HisabBoi.app
 ```
 
 Now unlock the iPhone and open **Hisab Boi** from the home screen.
+
+> Device ID above is the current USB iPhone. If install fails with “device not found”, run `xcrun xctrace list devices` and replace the `--device` value.
 
 > This Release install does not need `npx expo start`, Metro, or any terminal open while using the app.
 
@@ -393,11 +434,13 @@ xcodebuild -workspace HisabBoi.xcworkspace \
 
 ```shell
 xcrun devicectl device install app \
-  --device 43B8F391-1D7E-51F4-B8C3-7B0552CE18DE \
+  --device 00008140-0004384608A2201C \
   /Users/alamgirhossain/Library/Developer/Xcode/DerivedData/HisabBoiRelease/Build/Products/Release-iphoneos/HisabBoi.app
 ```
 
 Then open **Hisab Boi** on the iPhone.
+
+> If the device ID changed, run `xcrun xctrace list devices` and update `--device`.
 
 **If it still won’t open after install:**
 

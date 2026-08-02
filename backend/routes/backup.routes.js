@@ -40,6 +40,11 @@ const importSchema = z.object({
             .max(100000)
             .optional()
             .default([]),
+          parties: z
+            .array(z.record(z.any()))
+            .max(100000)
+            .optional()
+            .default([]),
         })
         .passthrough(),
     })
