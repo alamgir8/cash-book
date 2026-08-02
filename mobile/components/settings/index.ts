@@ -6,3 +6,5 @@ export { BusinessManagementSection } from "./business-management-section";
 export { AppInfoSection } from "./app-info-section";
 export { ThemeSection } from "./theme-section";
 export { AutoBackupSection } from "./auto-backup-section";
+// LocalFirstSection is NOT re-exported here — import it lazily from settings
+// so sync/sqlite code is not pulled into the cold-start graph.

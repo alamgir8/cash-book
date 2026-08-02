@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { RefreshControl, ScrollView, View, Alert, Text } from "react-native";
 import Toast from "react-native-toast-message";
 import { router } from "expo-router";
@@ -39,6 +39,12 @@ import {
   ThemeSection,
 } from "@/components/settings";
 import { useTranslation } from "@/hooks/use-translation";
+
+const LocalFirstSection = lazy(() =>
+  import("@/components/settings/local-first-section").then((m) => ({
+    default: m.LocalFirstSection,
+  })),
+);
 
 type ExportType = "all" | "category" | "counterparty" | "account" | null;
 
@@ -375,6 +381,13 @@ export default function SettingsScreen() {
           onBackupNow={handleAutoBackupNow}
           onShare={handleAutoShare}
         />
+
+        {/* Local-first / sync / Drive (feature-flagged; off by default) */}
+        {(isPersonalMode || isOwner) && (
+          <Suspense fallback={null}>
+            <LocalFirstSection />
+          </Suspense>
+        )}
 
         {/* Balance Integrity Section — always visible to account owners */}
         {(isPersonalMode || isOwner) && (

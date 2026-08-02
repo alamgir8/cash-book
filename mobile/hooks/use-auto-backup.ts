@@ -9,6 +9,7 @@ import { useEffect, useRef, useCallback, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { File, Paths } from "expo-file-system";
 import { fetchBackupData } from "@/services/backup";
+import { isLocalFirstEnabled } from "@/lib/local-first/flags";
 
 const AUTO_BACKUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const MAX_LOCAL_BACKUPS = 5;
@@ -48,42 +49,74 @@ export async function writeBackupFile(
   userId: string,
   onProgress?: (step: string, pct: number) => void,
 ): Promise<BackupStats> {
-  onProgress?.("Connecting to server…", 5);
-  await new Promise((r) => setTimeout(r, 30)); // let render flush
-
-  onProgress?.("Fetching your account data…", 15);
-  await new Promise((r) => setTimeout(r, 30));
-
-  const backupData = await fetchBackupData();
-
-  const stats: BackupStats = {
-    accounts: backupData.data.accounts?.length ?? 0,
-    categories: backupData.data.categories?.length ?? 0,
-    transactions: backupData.data.transactions?.length ?? 0,
-    transfers: backupData.data.transfers?.length ?? 0,
-  };
-
-  const txCount = stats.transactions;
   onProgress?.(
-    `Processing ${txCount} transaction${txCount !== 1 ? "s" : ""}…`,
-    60,
+    isLocalFirstEnabled()
+      ? "Reading on-device database…"
+      : "Connecting to server…",
+    5,
   );
   await new Promise((r) => setTimeout(r, 30));
 
-  onProgress?.("Saving backup to device…", 78);
+  onProgress?.(
+    isLocalFirstEnabled()
+      ? "Exporting local ledger…"
+      : "Fetching your account data…",
+    15,
+  );
   await new Promise((r) => setTimeout(r, 30));
 
-  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const filename = `auto-backup-${timestamp}.json`;
-  const file = new File(Paths.document, filename);
-  file.write(JSON.stringify(backupData)); // synchronous write
+  let stats: BackupStats;
+
+  if (isLocalFirstEnabled()) {
+    const {
+      exportLocalBackup,
+      writeBackupToDocumentDir,
+    } = await import("@/services/local-backup");
+    const backup = await exportLocalBackup();
+    stats = {
+      accounts: backup.summary.accountsCount,
+      categories: backup.summary.categoriesCount,
+      transactions: backup.summary.transactionsCount,
+      transfers: backup.summary.transfersCount,
+    };
+    onProgress?.(
+      `Processing ${stats.transactions} transaction${stats.transactions !== 1 ? "s" : ""}…`,
+      60,
+    );
+    await new Promise((r) => setTimeout(r, 30));
+    onProgress?.("Saving backup to device…", 78);
+    await writeBackupToDocumentDir(backup);
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const filename = `auto-backup-${timestamp}.json`;
+    const autoFile = new File(Paths.document, filename);
+    await autoFile.write(JSON.stringify(backup));
+  } else {
+    const backupData = await fetchBackupData();
+    stats = {
+      accounts: backupData.data.accounts?.length ?? 0,
+      categories: backupData.data.categories?.length ?? 0,
+      transactions: backupData.data.transactions?.length ?? 0,
+      transfers: backupData.data.transfers?.length ?? 0,
+    };
+    const txCount = stats.transactions;
+    onProgress?.(
+      `Processing ${txCount} transaction${txCount !== 1 ? "s" : ""}…`,
+      60,
+    );
+    await new Promise((r) => setTimeout(r, 30));
+    onProgress?.("Saving backup to device…", 78);
+    await new Promise((r) => setTimeout(r, 30));
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const filename = `auto-backup-${timestamp}.json`;
+    const file = new File(Paths.document, filename);
+    file.write(JSON.stringify(backupData));
+  }
 
   onProgress?.("Finishing up…", 92);
   await new Promise((r) => setTimeout(r, 30));
 
   await AsyncStorage.setItem(tsKey(userId), String(Date.now()));
 
-  // Prune old backups
   try {
     const dir = Paths.document;
     const entries = dir.list() as { name: string }[];

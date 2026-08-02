@@ -49,7 +49,7 @@ import {
 } from "./types";
 import type { Transaction } from "@/services/transactions";
 import { fetchVendors } from "@/services/transactions";
-import { fetchCategories } from "@/services/categories";
+import { dalFetchCategories } from "@/data/categories";
 import { partiesApi } from "@/services/parties";
 import { useActiveOrgId } from "@/hooks/use-organization";
 import { useQueryClient } from "@tanstack/react-query";
@@ -451,7 +451,7 @@ export const TransactionModal = ({
       const cats = await queryClient.fetchQuery({
         queryKey: [...QUERY_KEYS.categories.all, organizationId ?? "personal"],
         queryFn: () =>
-          fetchCategories({ organizationId: organizationId || undefined }),
+          dalFetchCategories({ organizationId: organizationId || undefined }),
       });
       const targetFlow = selectedType === "credit" ? "credit" : "debit";
       const normalized = q.trim().toLowerCase();

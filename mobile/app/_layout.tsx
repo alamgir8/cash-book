@@ -20,6 +20,7 @@ import { AuthLoading } from "../components/auth-loading";
 import { queryClient } from "../lib/queryClient";
 import { organizationsApi } from "../services/organizations";
 import type { OrganizationSummary } from "../services/organizations";
+import { bootstrapLocalFirst } from "../lib/local-first/bootstrap";
 import "../global.css";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -79,7 +80,7 @@ const RootContent = () => {
 
   useEffect(() => {
     // Mark as ready immediately — add Font.loadAsync here if custom fonts are needed later
-    setReady(true);
+    void bootstrapLocalFirst().finally(() => setReady(true));
   }, []);
 
   useEffect(() => {

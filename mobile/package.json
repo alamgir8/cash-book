@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "postinstall": "patch-package"
+    "postinstall": "patch-package",
+    "test:local-first": "node --experimental-strip-types --test lib/local-first/__tests__/pure.test.ts"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.1.1",
@@ -30,6 +31,7 @@
     "expo-build-properties": "~57.0.7",
     "expo-camera": "~57.0.3",
     "expo-constants": "~57.0.7",
+    "expo-crypto": "57.0.1",
     "expo-device": "~57.0.1",
     "expo-document-picker": "~57.0.1",
     "expo-file-system": "~57.0.1",
@@ -44,6 +46,7 @@
     "expo-secure-store": "~57.0.1",
     "expo-sharing": "~57.0.7",
     "expo-splash-screen": "~57.0.5",
+    "expo-sqlite": "57.0.1",
     "expo-status-bar": "~57.0.1",
     "expo-symbols": "~57.0.1",
     "expo-system-ui": "~57.0.1",

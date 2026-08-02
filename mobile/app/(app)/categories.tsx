@@ -15,10 +15,10 @@ import { ScreenHeader } from "@/components/screen-header";
 import { EmptyState } from "@/components/empty-state";
 import { CategoryFormModal } from "@/components/modals/category-form-modal";
 import {
-  fetchCategories,
-  deleteCategory,
-  type Category,
-} from "@/services/categories";
+  dalFetchCategories,
+  dalDeleteCategory,
+} from "@/data/categories";
+import type { Category } from "@/services/categories";
 import { queryKeys } from "@/lib/queryKeys";
 import { refreshAppData } from "@/lib/refresh-app-data";
 import { useOrganization, useActiveOrgId } from "@/hooks/use-organization";
@@ -46,7 +46,7 @@ export default function CategoriesScreen() {
   } = useQuery({
     queryKey: [...queryKeys.categories.all, orgKey],
     queryFn: () =>
-      fetchCategories({ organizationId: organizationId || undefined }),
+      dalFetchCategories({ organizationId: organizationId || undefined }),
   });
 
   const onRefresh = useCallback(() => {
@@ -54,7 +54,7 @@ export default function CategoriesScreen() {
   }, [queryClient]);
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => deleteCategory(id),
+    mutationFn: (id: string) => dalDeleteCategory(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.categories.all });
       Toast.show({

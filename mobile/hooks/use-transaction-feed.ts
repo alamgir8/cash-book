@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
-import { fetchAccountTransactions } from "@/services/accounts";
 import {
-  fetchTransactions,
   fetchCounterparties,
   fetchVendors,
   type TransactionFilters,
 } from "@/services/transactions";
-import { fetchCategories } from "@/services/categories";
-import { fetchAccounts } from "@/services/accounts";
+import {
+  dalFetchAccounts,
+  dalFetchAccountTransactions,
+} from "@/data/accounts";
+import { dalFetchTransactions } from "@/data/transactions";
+import { dalFetchCategories } from "@/data/categories";
 import { queryKeys } from "@/lib/queryKeys";
 import { useTransactionListState } from "@/hooks/use-transaction-list-state";
 import { useTransactionFilterOptions } from "@/hooks/use-transaction-filter-options";
@@ -120,14 +122,14 @@ export function useTransactionFeed({
   // Shared filter metadata — long staleTime so dual Home+Ledger mounts don't double-fetch
   const accountsQuery = useQuery({
     queryKey: [...queryKeys.accounts, orgKey],
-    queryFn: () => fetchAccounts(organizationId || undefined),
+    queryFn: () => dalFetchAccounts(organizationId || undefined),
     staleTime: 5 * 60_000,
   });
 
   const categoriesQuery = useQuery({
     queryKey: [...queryKeys.categories.all, orgKey],
     queryFn: () =>
-      fetchCategories({ organizationId: organizationId || undefined }),
+      dalFetchCategories({ organizationId: organizationId || undefined }),
     staleTime: 5 * 60_000,
   });
 
@@ -149,8 +151,8 @@ export function useTransactionFeed({
       : queryKeys.transactions(filters),
     queryFn: () =>
       accountId
-        ? fetchAccountTransactions(accountId, filters)
-        : fetchTransactions(filters),
+        ? dalFetchAccountTransactions(accountId, filters)
+        : dalFetchTransactions(filters),
     enabled: enabled && (accountId !== undefined ? Boolean(accountId) : true),
     staleTime: 45_000,
     placeholderData: keepPreviousData,

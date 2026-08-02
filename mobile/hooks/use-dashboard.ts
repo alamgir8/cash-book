@@ -9,12 +9,14 @@ import { Alert } from "react-native";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import Toast from "react-native-toast-message";
 import {
-  createTransaction,
-  createTransfer,
-  deleteTransaction,
   updateTransaction,
   type Transaction,
 } from "@/services/transactions";
+import {
+  dalCreateTransaction,
+  dalCreateTransfer,
+  dalDeleteTransaction,
+} from "@/data/transactions";
 import { exportTransactionsPdf } from "@/services/reports";
 import {
   refreshTransactionData,
@@ -92,7 +94,7 @@ export function useDashboard() {
   }, [queryClient, resetToPageOne]);
 
   const createMutation = useMutation({
-    mutationFn: createTransaction,
+    mutationFn: dalCreateTransaction,
     onSuccess: () => {
       void invalidateAll();
       Toast.show({ type: "success", text1: "Transaction added" });
@@ -122,7 +124,7 @@ export function useDashboard() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: deleteTransaction,
+    mutationFn: dalDeleteTransaction,
     onSuccess: () => {
       void invalidateAll();
       Toast.show({ type: "success", text1: "Transaction deleted" });
@@ -136,7 +138,7 @@ export function useDashboard() {
   });
 
   const createTransferMutation = useMutation({
-    mutationFn: createTransfer,
+    mutationFn: dalCreateTransfer,
     onSuccess: () => {
       void invalidateAll();
       Toast.show({ type: "success", text1: "Transfer completed" });
@@ -268,7 +270,7 @@ export function useDashboard() {
       const createdIds: string[] = [];
       try {
         for (const entry of bulkEntries) {
-          const created = await createTransaction({
+          const created = await dalCreateTransaction({
             ...basePayload,
             party: entry.party || undefined,
             for_party: entry.for_party || undefined,
