@@ -54,7 +54,7 @@ const Chip = ({
   </TouchableOpacity>
 );
 
-/** Label + value line used for the secondary detail block. */
+/** Label + value kept on one horizontal line (Balance after, due date). */
 const DetailRow = ({
   label,
   value,
@@ -66,11 +66,19 @@ const DetailRow = ({
   labelColor: string;
   valueColor: string;
 }) => (
-  <View className="flex-row items-start gap-1.5">
-    <Text style={{ color: labelColor }} className="text-xs font-semibold">
+  <View className="flex-row items-center gap-1.5" style={{ flexWrap: "nowrap" }}>
+    <Text
+      style={{ color: labelColor }}
+      className="text-xs font-semibold"
+      numberOfLines={1}
+    >
       {label}
     </Text>
-    <Text style={{ color: valueColor }} className="text-xs flex-1 leading-4">
+    <Text
+      style={{ color: valueColor, flexShrink: 1 }}
+      className="text-xs font-medium"
+      numberOfLines={1}
+    >
       {value}
     </Text>
   </View>
@@ -151,12 +159,11 @@ const TransactionCardComponent = ({
   const rawVendor = transaction.vendor?.trim() || undefined;
   const vendorText = sameText(rawVendor, partyName) ? undefined : rawVendor;
 
-  // Transfers store the literal "Transfer" here, which is already conveyed by
-  // the transfer chip.
+  // Transfers often store the literal "Transfer" as counterparty — hide that
+  // duplicate, but keep a real counterparty / other-account name when present.
   const rawCounterparty = transaction.counterparty?.trim() || undefined;
   const counterpartyText =
     !rawCounterparty ||
-    isTransfer ||
     rawCounterparty.toLowerCase() === "transfer" ||
     sameText(rawCounterparty, partyName) ||
     sameText(rawCounterparty, vendorText)
@@ -347,30 +354,31 @@ const TransactionCardComponent = ({
         </View>
       </View>
 
-      {transaction.description ? (
-        <Text
-          style={{ color: colors.text.secondary }}
-          className="mt-3 text-sm leading-5"
-        >
-          {transaction.description}
-        </Text>
-      ) : null}
-
-      {/* Notes. `comment` and `keyword` are separate fields; show both when
-          they differ instead of letting one hide the other. */}
-      {notes.length ? (
-        <View className="mt-1.5 gap-0.5">
-          {notes.map((note) => (
+      {(transaction.description || notes.length > 0) && (
+        <View className="mt-3 gap-0.5">
+          {transaction.description ? (
             <DetailRow
-              key={note}
-              label={t("noteLabel")}
-              value={note}
-              labelColor={colors.text.tertiary}
-              valueColor={colors.text.tertiary}
+              label={t("descriptionLabel")}
+              value={transaction.description}
+              labelColor={colors.text.secondary}
+              valueColor={colors.text.secondary}
             />
-          ))}
+          ) : null}
+          {/* Notes. `comment` and `keyword` are separate fields; show both when
+              they differ instead of letting one hide the other. */}
+          {notes
+            .filter((note) => !sameText(note, transaction.description))
+            .map((note) => (
+              <DetailRow
+                key={note}
+                label={t("noteLabel")}
+                value={note}
+                labelColor={colors.text.tertiary}
+                valueColor={colors.text.tertiary}
+              />
+            ))}
         </View>
-      ) : null}
+      )}
 
       <View className="flex-row flex-wrap mt-2 gap-x-2 gap-y-2">
         {categoryName ? (
@@ -596,7 +604,9 @@ const TransactionCardComponent = ({
 
           {/* Vendor / Counterparty History */}
           {onViewHistory &&
-          (transaction.party || transaction.counterparty) &&
+          (transaction.party ||
+            transaction.for_party ||
+            transaction.counterparty) &&
           !hasChain ? (
             <View className="flex-row gap-2 mb-2">
               <TouchableOpacity

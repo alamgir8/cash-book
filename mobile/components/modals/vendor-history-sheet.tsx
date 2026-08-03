@@ -29,6 +29,7 @@ import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import { useTheme } from "@/hooks/use-theme";
 import { usePreferences } from "@/hooks/use-preferences";
+import { useActiveOrgId } from "@/hooks/use-organization";
 import {
   fetchVendorLedger,
   type Transaction,
@@ -49,24 +50,39 @@ export const VendorHistorySheet = ({
   const { colors } = useTheme();
   const { formatAmount } = usePreferences();
   const insets = useSafeAreaInsets();
+  const organizationId = useActiveOrgId();
   const [exportingPdf, setExportingPdf] = React.useState(false);
 
-  const partyId =
-    transaction.party && typeof transaction.party === "object"
-      ? transaction.party._id
-      : typeof transaction.party === "string"
-        ? transaction.party
-        : undefined;
+  const partyRefId = (ref: Transaction["party"] | Transaction["for_party"]) => {
+    if (!ref) return undefined;
+    if (typeof ref === "object") return ref._id || undefined;
+    if (typeof ref === "string") return ref;
+    return undefined;
+  };
+  const partyRefName = (ref: Transaction["party"] | Transaction["for_party"]) => {
+    if (ref && typeof ref === "object" && ref.name?.trim()) return ref.name.trim();
+    return undefined;
+  };
+
+  // Prefer a populated named party so title and query stay in sync.
+  // If `party` is only a bare id (common after local hydrate) but `for_party`
+  // is populated (e.g. For: আলমগীর), look up that person — otherwise Full Ledger
+  // shows their name with someone else's empty result set.
+  const namedParty =
+    (partyRefName(transaction.party)
+      ? transaction.party
+      : undefined) ??
+    (partyRefName(transaction.for_party)
+      ? transaction.for_party
+      : undefined) ??
+    transaction.party ??
+    transaction.for_party;
+
+  const partyId = partyRefId(namedParty);
   const counterparty = transaction.counterparty ?? undefined;
 
-  // Display name: prefer party name, then for_party name, then counterparty string
   const vendorName =
-    (typeof transaction.party === "object"
-      ? transaction.party?.name
-      : undefined) ??
-    (typeof transaction.for_party === "object"
-      ? transaction.for_party?.name
-      : undefined) ??
+    partyRefName(namedParty) ??
     transaction.counterparty ??
     "";
 
@@ -77,8 +93,14 @@ export const VendorHistorySheet = ({
     transaction.payment_status === "due";
 
   const ledgerQuery = useQuery({
-    queryKey: ["vendor-ledger", partyId, counterparty],
-    queryFn: () => fetchVendorLedger({ partyId, counterparty }),
+    queryKey: [
+      "vendor-ledger",
+      partyId,
+      counterparty,
+      organizationId ?? "personal",
+    ],
+    queryFn: () =>
+      fetchVendorLedger({ partyId, counterparty, organizationId }),
     enabled: visible && !!(partyId || counterparty),
   });
 
@@ -600,11 +622,19 @@ const VendorLedgerRow = ({
             {`${sign}${formatAmount(amount)}`}
           </Text>
         </View>
-        <View className="flex-row justify-between mt-1.5">
-          <Text className="text-xs" style={{ color: colors.text.tertiary }}>
+        <View className="flex-row justify-between items-center mt-1.5 gap-2">
+          <Text
+            className="text-xs flex-shrink"
+            style={{ color: colors.text.tertiary, flex: 1 }}
+            numberOfLines={1}
+          >
             {`${dayjs(date).format("MMM DD, YYYY")}${accountName ? ` · ${accountName}` : ""}`}
           </Text>
-          <Text className="text-xs font-medium" style={{ color: balColor }}>
+          <Text
+            className="text-xs font-medium"
+            style={{ color: balColor }}
+            numberOfLines={1}
+          >
             {`Balance: ${balLabel}`}
           </Text>
         </View>

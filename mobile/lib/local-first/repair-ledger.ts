@@ -3,7 +3,7 @@ import { recalculateBalances } from "@/db/balances";
 import { getMeta, META_KEYS, setMeta } from "@/db/meta";
 
 /** Bump when repair SQL/rules change so existing devices re-apply. */
-export const LEDGER_REPAIR_VERSION = "7";
+export const LEDGER_REPAIR_VERSION = "8";
 
 /**
  * Rewrite FK columns that still hold Mongo server_ids to the local UUID.
@@ -213,6 +213,22 @@ export async function repairLocalLedgerSemantics(db: Db): Promise<{
   for (const sql of catFixes) {
     const r = await db.runAsync(sql);
     categoriesFixed += Number(r.changes ?? 0);
+  }
+
+  // Pull party/keyword/payment_status from cloud onto existing local rows so
+  // cards / filters / balances match the cloud UI (best-effort when online).
+  try {
+    const { reconcileLocalTxnDetailsFromCloud } = await import(
+      "./reconcile-from-cloud"
+    );
+    const { updated } = await reconcileLocalTxnDetailsFromCloud(db);
+    if (updated > 0) {
+      // Re-normalize FKs / org after cloud overlay wrote Mongo ids.
+      await normalizeForeignKeys(db);
+      await stampOrganizationFromAccount(db);
+    }
+  } catch (e) {
+    console.warn("[repair] cloud reconcile skipped", e);
   }
 
   const duesFixed = Number(dueFix.changes ?? 0);

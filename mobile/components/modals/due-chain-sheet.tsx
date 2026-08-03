@@ -26,6 +26,7 @@ import * as Sharing from "expo-sharing";
 import { useTheme } from "@/hooks/use-theme";
 import { usePreferences } from "@/hooks/use-preferences";
 import { useTranslation } from "@/hooks/use-translation";
+import { useActiveOrgId } from "@/hooks/use-organization";
 import {
   fetchDueChain,
   fetchCounterpartyLedger,
@@ -43,6 +44,7 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
   const { formatAmount } = usePreferences();
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
+  const organizationId = useActiveOrgId();
 
   // Use counterparty ledger ONLY for loan-category transactions.
   // The backend's counterparty-ledger endpoint only queries loan_in/loan_out
@@ -70,7 +72,7 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
       : transaction.for_party
     : undefined;
   const useCounterpartyMode =
-    !!(partyId || transaction.counterparty) && isLoanCategory;
+    !!(partyId || forPartyId || transaction.counterparty) && isLoanCategory;
   const counterparty = transaction.counterparty ?? "";
 
   // Display name for the sheet header = the "other" party (not self).
@@ -480,9 +482,20 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
   };
 
   const ledgerQuery = useQuery({
-    queryKey: ["counterparty-ledger", partyId, forPartyId, counterparty],
+    queryKey: [
+      "counterparty-ledger",
+      partyId,
+      forPartyId,
+      counterparty,
+      organizationId ?? "personal",
+    ],
     queryFn: () =>
-      fetchCounterpartyLedger({ partyId, forPartyId, counterparty }),
+      fetchCounterpartyLedger({
+        partyId,
+        forPartyId,
+        counterparty,
+        organizationId,
+      }),
     enabled: visible && useCounterpartyMode,
   });
 

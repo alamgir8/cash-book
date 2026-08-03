@@ -3,7 +3,10 @@ import { Account } from "../models/Account.js";
 import { Admin } from "../models/Admin.js";
 import { Transaction } from "../models/Transaction.js";
 import { Organization } from "../models/Organization.js";
-import { buildTransactionFilters } from "../utils/filters.js";
+import {
+  buildTransactionFilters,
+  personalOrganizationClause,
+} from "../utils/filters.js";
 import { enrichTransactionFilter } from "../utils/enrichTransactionFilter.js";
 import {
   resolveFinancialCategoryScope,
@@ -42,16 +45,25 @@ const computeAccountSummary = async ({
   accountId,
   organizationId,
 }) => {
+  const accountObjectId = new mongoose.Types.ObjectId(accountId);
+  // Include legacy null-org rows on this account (same as transaction list).
   const matchFilter = organizationId
     ? {
-        organization: new mongoose.Types.ObjectId(organizationId),
-        account: new mongoose.Types.ObjectId(accountId),
+        account: accountObjectId,
         is_deleted: { $ne: true },
+        $or: [
+          { organization: new mongoose.Types.ObjectId(organizationId) },
+          {
+            admin: new mongoose.Types.ObjectId(adminId),
+            ...personalOrganizationClause(),
+          },
+        ],
       }
     : {
         admin: new mongoose.Types.ObjectId(adminId),
-        account: new mongoose.Types.ObjectId(accountId),
+        account: accountObjectId,
         is_deleted: { $ne: true },
+        ...personalOrganizationClause(),
       };
 
   const [aggregates] = await Transaction.aggregate([
@@ -101,14 +113,21 @@ const decorateWithSummary = async ({ adminId, accounts, organizationId }) => {
 
   const matchFilter = organizationId
     ? {
-        organization: new mongoose.Types.ObjectId(organizationId),
         account: { $in: accountIds },
         is_deleted: { $ne: true },
+        $or: [
+          { organization: new mongoose.Types.ObjectId(organizationId) },
+          {
+            admin: new mongoose.Types.ObjectId(adminId),
+            ...personalOrganizationClause(),
+          },
+        ],
       }
     : {
         admin: new mongoose.Types.ObjectId(adminId),
         account: { $in: accountIds },
         is_deleted: { $ne: true },
+        ...personalOrganizationClause(),
       };
 
   const aggregates = await Transaction.aggregate([

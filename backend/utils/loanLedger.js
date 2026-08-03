@@ -1,13 +1,12 @@
 import mongoose from "mongoose";
 import { Category } from "../models/Category.js";
 import { Transaction } from "../models/Transaction.js";
+import { buildOrganizationScope } from "./filters.js";
 
 const LOAN_CATEGORY_TYPES = ["loan_in", "loan_out"];
 
 const buildScopeFilter = ({ adminId, organizationId }) =>
-  organizationId
-    ? { organization: organizationId }
-    : { admin: adminId, organization: { $exists: false } };
+  buildOrganizationScope({ adminId, organizationId });
 
 const getCategoryId = (transaction) =>
   transaction.category_id?._id?.toString?.() ??
@@ -122,6 +121,9 @@ export const calculateLoanLedger = ({ transactions, categoryById }) => {
   };
 };
 
+const emptyLoanSummary = () =>
+  calculateLoanLedger({ transactions: [], categoryById: new Map() }).summary;
+
 export const decorateLoanSummaries = async ({
   transactions,
   adminId,
@@ -177,10 +179,12 @@ export const decorateLoanSummaries = async ({
   }
 
   const ledgerTransactions = await Transaction.find({
-    ...buildScopeFilter({ adminId, organizationId }),
-    $or: orClauses,
-    category_id: { $in: categoryIds },
-    is_deleted: { $ne: true },
+    $and: [
+      buildScopeFilter({ adminId, organizationId }),
+      { $or: orClauses },
+      { category_id: { $in: categoryIds } },
+      { is_deleted: { $ne: true } },
+    ],
   })
     .populate("account", "name kind")
     .populate("category_id", "name type")
@@ -285,15 +289,28 @@ export const getCounterpartyLoanLedger = async ({
   //  - Legacy string fallback.
   let partyFilter;
   if (partyId && forPartyId) {
+    if (
+      !mongoose.isValidObjectId(partyId) ||
+      !mongoose.isValidObjectId(forPartyId)
+    ) {
+      return { timeline: [], summary: emptyLoanSummary() };
+    }
     const oidA = new mongoose.Types.ObjectId(partyId);
     const oidB = new mongoose.Types.ObjectId(forPartyId);
+    // Pair either direction, plus any loan involving for_party (the person
+    // shown in Full Ledger for loan_out). Covers repayments that only tag one side.
     partyFilter = {
       $or: [
         { party: oidA, for_party: oidB },
         { party: oidB, for_party: oidA },
+        { party: oidB },
+        { for_party: oidB },
       ],
     };
   } else if (partyId) {
+    if (!mongoose.isValidObjectId(partyId)) {
+      return { timeline: [], summary: emptyLoanSummary() };
+    }
     partyFilter = {
       $or: [
         { party: new mongoose.Types.ObjectId(partyId) },
@@ -305,10 +322,12 @@ export const getCounterpartyLoanLedger = async ({
   }
 
   const transactions = await Transaction.find({
-    ...buildScopeFilter({ adminId, organizationId }),
-    ...partyFilter,
-    category_id: { $in: categoryIds },
-    is_deleted: { $ne: true },
+    $and: [
+      buildScopeFilter({ adminId, organizationId }),
+      partyFilter,
+      { category_id: { $in: categoryIds } },
+      { is_deleted: { $ne: true } },
+    ],
   })
     .populate("account", "name kind")
     .populate("category_id", "name type")

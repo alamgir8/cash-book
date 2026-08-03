@@ -90,52 +90,25 @@ export async function fetchLocalAccounts(
     console.warn("[local-accounts] repair skipped", e);
   }
   let orgId = organizationId ?? null;
-  let allOrgs = false;
-  let includePersonal = false;
   let rows = await accountsRepo.listAccounts(db, { organizationId: orgId });
   // Pre-org migrate left everything as personal — don't show a blank app.
   if (orgId && rows.length === 0) {
     rows = await accountsRepo.listAccounts(db, { organizationId: null });
     if (rows.length > 0) orgId = null;
   }
-  // Personal mode but books live under organization_id — show every account.
-  if (!orgId && !organizationId) {
-    const allRows = await accountsRepo.listAccounts(db, {
-      allOrganizations: true,
-    });
-    if (allRows.length > rows.length) {
-      rows = allRows;
-      allOrgs = true;
-    }
-  }
-  // After repair v7 stamps org onto orphan txs, includePersonal is usually
-  // unnecessary. Keep a soft fallback for pre-repair sessions only — and never
-  // merge personal *accounts* into the org list (that skewed balances).
-  if (orgId && rows.length) {
-    const idPlaceholders = rows.map(() => "?").join(",");
-    const ids = rows.map((r) => r.id);
-    const personalTxn = await db.getFirstAsync<{ c: number }>(
-      `SELECT COUNT(*) as c FROM transactions
-       WHERE deleted_at IS NULL
-         AND (organization_id IS NULL OR organization_id = '')
-         AND (
-           account_id IN (${idPlaceholders})
-           OR account_id IN (
-             SELECT server_id FROM accounts
-             WHERE id IN (${idPlaceholders}) AND server_id IS NOT NULL
-           )
-         )`,
-      ...ids,
-      ...ids,
-    );
-    if (Number(personalTxn?.c ?? 0) > 0) includePersonal = true;
+  // Always surface every on-device account (matches Backup Now / full book).
+  const allRows = await accountsRepo.listAccounts(db, {
+    allOrganizations: true,
+  });
+  if (allRows.length > rows.length) {
+    rows = allRows;
   }
   const out: AccountOverview[] = [];
   for (const row of rows) {
+    // Mongo cash balance is per-account across all txs on that account — do
+    // not org-filter the txn sum or paid orphans get dropped / double-counted.
     const sum = await sumForAccount(db, row, {
-      organizationId: allOrgs ? null : orgId ?? row.organization_id,
-      allOrganizations: allOrgs,
-      includePersonal,
+      allOrganizations: true,
     });
     const paidDebit = Number(sum?.paid_debit ?? 0);
     const paidCredit = Number(sum?.paid_credit ?? 0);
@@ -153,11 +126,14 @@ export async function fetchLocalAccounts(
     out.push({
       ...localAccountToOverview({ ...row, current_balance: balance }),
       summary: {
-        // Show paid flows so Balance == opening + credit − debit on the card.
+        // Match cloud account cards: count/sum every txn on the account.
+        // Cash `balance` above stays paid-only (opening + paid credit − paid debit).
         totalTransactions: Number(sum?.total_transactions ?? 0),
-        totalDebit: paidDebit,
-        totalCredit: paidCredit,
-        net: paidCredit - paidDebit,
+        totalDebit: Number(sum?.total_debit ?? paidDebit),
+        totalCredit: Number(sum?.total_credit ?? paidCredit),
+        net:
+          Number(sum?.total_credit ?? paidCredit) -
+          Number(sum?.total_debit ?? paidDebit),
         lastTransactionDate: sum?.last_transaction_date ?? null,
       },
     });
@@ -176,9 +152,10 @@ export async function fetchLocalAccountDetail(accountId: string) {
       : { allOrganizations: true },
     { accountId: row.id, limit: 20, offset: 0 },
   );
+  // Per-account cash math must include every txn on the account (including
+  // legacy null-org rows), matching Mongo account.current_balance.
   const sum = await sumForAccount(db, row, {
-    organizationId: row.organization_id,
-    allOrganizations: !row.organization_id,
+    allOrganizations: true,
   });
 
   const { enrichLocalTransaction } = await import("./transactions.local");
@@ -189,6 +166,9 @@ export async function fetchLocalAccountDetail(accountId: string) {
 
   const paidDebit = Number(sum?.paid_debit ?? 0);
   const paidCredit = Number(sum?.paid_credit ?? 0);
+  // Account summary cards show ALL txs (paid + due), not paid-only cash flow.
+  const totalDebit = Number(sum?.total_debit ?? paidDebit);
+  const totalCredit = Number(sum?.total_credit ?? paidCredit);
   const balance = Number(row.opening_balance) + paidCredit - paidDebit;
   if (Math.abs(balance - Number(row.current_balance)) > 0.0001) {
     await db.runAsync(
@@ -202,9 +182,9 @@ export async function fetchLocalAccountDetail(accountId: string) {
     account: localAccountToApiLocalId({ ...row, current_balance: balance }),
     summary: {
       totalTransactions: Number(sum?.total_transactions ?? 0),
-      totalDebit: paidDebit,
-      totalCredit: paidCredit,
-      net: paidCredit - paidDebit,
+      totalDebit,
+      totalCredit,
+      net: totalCredit - totalDebit,
       lastTransactionDate: sum?.last_transaction_date ?? null,
     },
     recentTransactions,

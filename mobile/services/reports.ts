@@ -317,7 +317,8 @@ const collectTransactions = async (
   let currentPage = 1;
   let totalPages = 1;
   let grandTotal = 0;
-  const pageSize = 200; // backend caps at 200 per request
+  // Backend caps list limit at 100 — requesting more breaks page math / export.
+  const pageSize = 100;
 
   const accountSnapshots = new Map<
     string,

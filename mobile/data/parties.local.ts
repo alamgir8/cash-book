@@ -524,3 +524,163 @@ export async function fetchLocalVendors(
     code: r.code ?? undefined,
   }));
 }
+
+/**
+ * Full vendor/party ledger (any category) for History sheet + PDF.
+ * Matches cloud `/transactions/vendor-ledger` shape.
+ */
+export async function fetchLocalVendorLedger(params: {
+  partyId?: string;
+  counterparty?: string;
+  limit?: number;
+}): Promise<{
+  party_id: string | null;
+  party_name: string;
+  counterparty: string | null;
+  timeline: Array<{
+    _id: string;
+    date: string;
+    type: "debit" | "credit";
+    amount: number;
+    description?: string;
+    entry_type: "credit" | "debit";
+    running_balance: number;
+    account?: { _id: string; name: string };
+    category?: { _id: string; name: string; type: string } | null;
+    payment_status?: string;
+  }>;
+  summary: {
+    total_credit: number;
+    total_debit: number;
+    net_balance: number;
+    transaction_count: number;
+  };
+}> {
+  const db = await getDb();
+  const limit = Math.min(Math.max(Number(params.limit ?? 200), 1), 500);
+
+  let clauses: string[] = ["deleted_at IS NULL"];
+  const bind: (string | number)[] = [];
+  let partyName = "";
+  let resolvedPartyId: string | null = params.partyId ?? null;
+
+  if (params.partyId) {
+    const { row } = await resolveLocalParty(params.partyId);
+    if (!row || row.deleted_at) {
+      return {
+        party_id: params.partyId,
+        party_name: "",
+        counterparty: null,
+        timeline: [],
+        summary: {
+          total_credit: 0,
+          total_debit: 0,
+          net_balance: 0,
+          transaction_count: 0,
+        },
+      };
+    }
+    partyName = row.name;
+    resolvedPartyId = row.server_id || row.id;
+    clauses.push(partyMatchClause());
+    bind.push(...partyMatchParams(row));
+  } else if (params.counterparty?.trim()) {
+    clauses.push("counterparty = ?");
+    bind.push(params.counterparty.trim());
+    partyName = params.counterparty.trim();
+  } else {
+    throw new Error("partyId or counterparty required");
+  }
+
+  const where = clauses.join(" AND ");
+
+  const sums = await db.getFirstAsync<{
+    credit: number;
+    debit: number;
+    c: number;
+  }>(
+    `SELECT
+      COALESCE(SUM(CASE WHEN type = 'credit' THEN amount ELSE 0 END), 0) as credit,
+      COALESCE(SUM(CASE WHEN type = 'debit' THEN amount ELSE 0 END), 0) as debit,
+      COUNT(*) as c
+     FROM transactions WHERE ${where}`,
+    ...bind,
+  );
+
+  const totalCredit = Number(sums?.credit ?? 0);
+  const totalDebit = Number(sums?.debit ?? 0);
+  const transactionCount = Number(sums?.c ?? 0);
+
+  // Oldest-first for running balance, then reverse for newest-first UI
+  const rows = await db.getAllAsync<{
+    id: string;
+    date: string;
+    type: string;
+    amount: number;
+    description: string | null;
+    payment_status: string | null;
+    account_id: string;
+    category_id: string | null;
+  }>(
+    `SELECT id, date, type, amount, description, payment_status, account_id, category_id
+     FROM transactions WHERE ${where}
+     ORDER BY date ASC, created_at ASC, id ASC
+     LIMIT ?`,
+    ...bind,
+    limit,
+  );
+
+  let running = 0;
+  const timelineAsc = [];
+  for (const t of rows) {
+    const amt = Number(t.amount ?? 0);
+    if (t.type === "credit") running += amt;
+    else running -= amt;
+    running = Math.round(running * 100) / 100;
+
+    const account = await db.getFirstAsync<{ id: string; name: string }>(
+      `SELECT id, name FROM accounts WHERE id = ? OR server_id = ? LIMIT 1`,
+      t.account_id,
+      t.account_id,
+    );
+    const category = t.category_id
+      ? await db.getFirstAsync<{ id: string; name: string; type: string }>(
+          `SELECT id, name, type FROM categories WHERE id = ? OR server_id = ? LIMIT 1`,
+          t.category_id,
+          t.category_id,
+        )
+      : null;
+
+    timelineAsc.push({
+      _id: t.id,
+      date: t.date,
+      type: (t.type === "credit" ? "credit" : "debit") as "debit" | "credit",
+      amount: amt,
+      description: t.description ?? undefined,
+      entry_type: (t.type === "credit" ? "credit" : "debit") as
+        | "credit"
+        | "debit",
+      running_balance: running,
+      account: account
+        ? { _id: account.id, name: account.name }
+        : { _id: t.account_id, name: "" },
+      category: category
+        ? { _id: category.id, name: category.name, type: category.type }
+        : null,
+      payment_status: t.payment_status ?? undefined,
+    });
+  }
+
+  return {
+    party_id: resolvedPartyId,
+    party_name: partyName,
+    counterparty: params.counterparty ?? null,
+    timeline: timelineAsc.reverse(),
+    summary: {
+      total_credit: Math.round(totalCredit * 100) / 100,
+      total_debit: Math.round(totalDebit * 100) / 100,
+      net_balance: Math.round((totalCredit - totalDebit) * 100) / 100,
+      transaction_count: transactionCount,
+    },
+  };
+}

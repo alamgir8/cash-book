@@ -133,7 +133,7 @@ function mapLocalTxn(
     vendor: vendorText,
     party,
     for_party: forParty,
-    payment_status: row.payment_status,
+    payment_status: row.payment_status === "due" ? "due" : "paid",
     due_date: row.due_date ?? undefined,
     due_remaining: row.due_remaining ?? undefined,
     due_group_id: row.due_group_id ?? undefined,
@@ -226,10 +226,10 @@ function enrichFromMaps(
     categoryLocalId: category?.id,
     partyName: party?.name,
     partyType: party?.type,
-    partyLocalId: party?.id,
+    partyLocalId: party?.server_id || party?.id,
     forPartyName: forParty?.name,
     forPartyType: forParty?.type,
-    forPartyLocalId: forParty?.id,
+    forPartyLocalId: forParty?.server_id || forParty?.id,
   });
 }
 
@@ -313,55 +313,24 @@ export async function enrichLocalTransaction(
     categoryLocalId: category?.id,
     partyName: party?.name,
     partyType: party?.type,
-    partyLocalId: party?.id,
+    partyLocalId: party?.server_id || party?.id,
     forPartyName: forParty?.name,
     forPartyType: forParty?.type,
-    forPartyLocalId: forParty?.id,
+    forPartyLocalId: forParty?.server_id || forParty?.id,
   });
 }
 
 async function resolveLocalReadScope(
-  db: Awaited<ReturnType<typeof getDb>>,
-  filters: TransactionFilters,
+  _db: Awaited<ReturnType<typeof getDb>>,
+  _filters: TransactionFilters,
 ): Promise<{
   organizationId: string | null;
   allOrganizations?: boolean;
   includePersonal?: boolean;
 }> {
-  const requested = filters.organizationId ?? null;
-
-  if (requested) {
-    const orgTotal = await transactionsRepo.countTransactions(db, {
-      organizationId: requested,
-    });
-    const personalTotal = await transactionsRepo.countTransactions(db, {
-      organizationId: null,
-    });
-    if (orgTotal > 0) {
-      // Legacy migrate left some rows without organization_id — include them
-      // so dashboard counts match the full shop book (~1205 not ~1175).
-      if (personalTotal > 0) {
-        return { organizationId: requested, includePersonal: true };
-      }
-      return { organizationId: requested };
-    }
-    // Org selected but SQLite still has only personal rows (legacy migrate).
-    if (personalTotal > 0) return { organizationId: null };
-    return { organizationId: requested };
-  }
-
-  // Personal mode: if books live under organization_id (Mongo org ledgers),
-  // personal-only scope looks empty/incomplete — read the whole device DB.
-  const personalTotal = await transactionsRepo.countTransactions(db, {
-    organizationId: null,
-  });
-  const allTotal = await transactionsRepo.countTransactions(db, {
-    allOrganizations: true,
-  });
-  if (allTotal > personalTotal) {
-    return { organizationId: null, allOrganizations: true };
-  }
-  return { organizationId: null };
+  // Local-first device book is the source of truth — same universe as
+  // "Backup Now" (1204), not the narrower org-only cloud slice (~1175).
+  return { organizationId: null, allOrganizations: true };
 }
 
 async function ensureRepaired(db: Awaited<ReturnType<typeof getDb>>) {
@@ -736,6 +705,126 @@ export async function createLocalTransfer(payload: {
   }
 
   return transfer;
+}
+
+/**
+ * Payment History for a due / payment transaction (local-first).
+ */
+export async function fetchLocalDueChain(transactionId: string): Promise<{
+  root: Transaction;
+  payments: Array<Transaction & { remaining_after: number }>;
+  summary: {
+    original_amount: number;
+    total_paid: number;
+    remaining: number;
+    is_settled: boolean;
+    settled_at: string | null;
+    payment_count: number;
+  };
+}> {
+  const db = await getDb();
+  const maps = await loadEnrichmentMaps(db);
+
+  const seed = await db.getFirstAsync<LocalTransaction>(
+    `SELECT * FROM transactions
+     WHERE deleted_at IS NULL AND (id = ? OR server_id = ?)
+     LIMIT 1`,
+    transactionId,
+    transactionId,
+  );
+  if (!seed) throw new Error("Transaction not found");
+
+  const rootId = seed.parent_due_id || seed.id;
+  const rootIdAlt = seed.parent_due_id
+    ? (
+        await db.getFirstAsync<{ id: string; server_id: string | null }>(
+          `SELECT id, server_id FROM transactions WHERE id = ? OR server_id = ? LIMIT 1`,
+          seed.parent_due_id,
+          seed.parent_due_id,
+        )
+      )
+    : { id: seed.id, server_id: seed.server_id };
+
+  const ids = [
+    rootId,
+    rootIdAlt?.id,
+    rootIdAlt?.server_id,
+    seed.id,
+    seed.server_id,
+  ].filter(Boolean) as string[];
+  const uniqueIds = [...new Set(ids)];
+  const ph = uniqueIds.map(() => "?").join(",");
+
+  const chainRaw = await db.getAllAsync<LocalTransaction>(
+    `SELECT * FROM transactions
+     WHERE deleted_at IS NULL
+       AND (
+         id IN (${ph}) OR server_id IN (${ph})
+         OR parent_due_id IN (${ph})
+         OR due_group_id IN (${ph})
+       )
+     ORDER BY date ASC, created_at ASC`,
+    ...uniqueIds,
+    ...uniqueIds,
+    ...uniqueIds,
+    ...uniqueIds,
+  );
+
+  const mapped = await Promise.all(
+    chainRaw.map(async (row) => enrichFromMaps(row, maps)),
+  );
+  const hydrated = await hydrateParentDues(db, mapped, maps);
+
+  const rootIdStr = String(rootIdAlt?.id || rootId);
+  const rootServer = rootIdAlt?.server_id;
+  const root =
+    hydrated.find(
+      (t) =>
+        (t._id === rootIdStr || t._id === rootServer) &&
+        t.payment_status === "due",
+    ) ??
+    hydrated.find((t) => t._id === rootIdStr || t._id === rootServer) ??
+    hydrated[0];
+
+  if (!root) throw new Error("Due root not found");
+
+  const paymentsBase = hydrated.filter((t) => {
+    const parent =
+      typeof t.parent_due_id === "string"
+        ? t.parent_due_id
+        : t.parent_due_id && typeof t.parent_due_id === "object"
+          ? t.parent_due_id._id
+          : null;
+    return (
+      parent != null &&
+      (parent === rootIdStr ||
+        parent === rootServer ||
+        parent === root._id)
+    );
+  });
+
+  const originalAmount = Number(root.amount ?? 0);
+  let running = originalAmount;
+  const payments = paymentsBase.map((p) => {
+    running = Math.max(0, running - Number(p.amount ?? 0));
+    return { ...p, remaining_after: running };
+  });
+
+  const totalPaid = payments.reduce((s, p) => s + Number(p.amount ?? 0), 0);
+  const remaining = Math.max(0, originalAmount - totalPaid);
+
+  return {
+    root,
+    payments,
+    summary: {
+      original_amount: originalAmount,
+      total_paid: totalPaid,
+      remaining,
+      is_settled: remaining === 0,
+      settled_at: root.due_settled_at ?? null,
+      payment_count: payments.length,
+    },
+  };
 }
 
 // silence unused if tree-shaken oddly
