@@ -135,7 +135,10 @@ const TransactionCardComponent = ({
     loanReturnRemaining > 0 &&
     Boolean(onReturnLoan);
   const isPayment = !isLoanLedger && !!transaction.parent_due_id; // payment linked to a due
-  const hasChain = isDue || isPayment || isLoanLedger;
+  // Separate history modes: due/payment → Payment History; loan → Loan Ledger
+  const showDueHistory = (isDue || isPayment) && !!onViewChain;
+  const showLoanHistory = isLoanLedger && !!onViewChain;
+  const hasChain = showDueHistory || showLoanHistory;
   const remaining = transaction.due_remaining ?? transaction.amount;
   const isSettled = isDue && remaining === 0;
 
@@ -169,6 +172,12 @@ const TransactionCardComponent = ({
     sameText(rawCounterparty, vendorText)
       ? undefined
       : rawCounterparty;
+
+  // Vendor History only when a real vendor/party is linked — never for
+  // transfers or the literal "Transfer" counterparty (that dumped every transfer).
+  const hasRealVendor = !!(partyName || vendorText);
+  const showVendorHistory =
+    !!onViewHistory && hasRealVendor && !hasChain && !isTransfer;
 
   const notes = [transaction.comment?.trim(), transaction.keyword?.trim()]
     .filter((note): note is string => Boolean(note))
@@ -580,9 +589,9 @@ const TransactionCardComponent = ({
                   </Text>
                 </TouchableOpacity>
               )}
-              {hasChain && onViewChain && (
+              {showDueHistory && (
                 <TouchableOpacity
-                  onPress={() => onViewChain(transaction)}
+                  onPress={() => onViewChain!(transaction)}
                   style={{ backgroundColor: colors.bg.tertiary }}
                   className="flex-1 flex-row justify-center items-center gap-1.5 px-3 py-2 rounded-lg"
                 >
@@ -599,18 +608,33 @@ const TransactionCardComponent = ({
                   </Text>
                 </TouchableOpacity>
               )}
+              {showLoanHistory && (
+                <TouchableOpacity
+                  onPress={() => onViewChain!(transaction)}
+                  style={{ backgroundColor: colors.bg.tertiary }}
+                  className="flex-1 flex-row justify-center items-center gap-1.5 px-3 py-2 rounded-lg"
+                >
+                  <Ionicons
+                    name="time-outline"
+                    size={16}
+                    color={colors.text.secondary}
+                  />
+                  <Text
+                    style={{ color: colors.text.secondary }}
+                    className="text-xs font-semibold"
+                  >
+                    Loan History
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
           ) : null}
 
-          {/* Vendor / Counterparty History */}
-          {onViewHistory &&
-          (transaction.party ||
-            transaction.for_party ||
-            transaction.counterparty) &&
-          !hasChain ? (
+          {/* Vendor History — only when a real vendor/party is linked */}
+          {showVendorHistory ? (
             <View className="flex-row gap-2 mb-2">
               <TouchableOpacity
-                onPress={() => onViewHistory(transaction)}
+                onPress={() => onViewHistory!(transaction)}
                 style={{ backgroundColor: colors.bg.tertiary }}
                 className="flex-1 flex-row justify-center items-center gap-1.5 px-3 py-2 rounded-lg"
               >

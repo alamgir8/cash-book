@@ -1711,11 +1711,26 @@ export const getVendorLedger = async (req, res, next) => {
     let partyFilter;
     if (party_id) {
       const oid = new mongoose.Types.ObjectId(party_id);
-      partyFilter = {
-        $or: [{ party: oid }, { for_party: oid }],
-      };
+      // Vendor ledger = txs where this party is the vendor (`party`), not for_party
+      partyFilter = { party: oid };
     } else {
-      partyFilter = { counterparty: String(counterparty).trim() };
+      const cp = String(counterparty ?? "").trim();
+      if (!cp || cp.toLowerCase() === "transfer") {
+        return res.json({
+          party_id: null,
+          party_name: "",
+          counterparty: null,
+          timeline: [],
+          truncated: false,
+          summary: {
+            total_credit: 0,
+            total_debit: 0,
+            net_balance: 0,
+            transaction_count: 0,
+          },
+        });
+      }
+      partyFilter = { counterparty: cp };
     }
 
     // $and required: both scope and party filters may contain top-level $or

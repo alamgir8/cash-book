@@ -297,14 +297,12 @@ export const getCounterpartyLoanLedger = async ({
     }
     const oidA = new mongoose.Types.ObjectId(partyId);
     const oidB = new mongoose.Types.ObjectId(forPartyId);
-    // Pair either direction, plus any loan involving for_party (the person
-    // shown in Full Ledger for loan_out). Covers repayments that only tag one side.
+    // Strict pair only — never expand to "any loan involving B" (that mixed
+    // every loan tagged with the shop owner into unrelated ledgers).
     partyFilter = {
       $or: [
         { party: oidA, for_party: oidB },
         { party: oidB, for_party: oidA },
-        { party: oidB },
-        { for_party: oidB },
       ],
     };
   } else if (partyId) {
@@ -317,8 +315,22 @@ export const getCounterpartyLoanLedger = async ({
         { for_party: new mongoose.Types.ObjectId(partyId) },
       ],
     };
+  } else if (forPartyId) {
+    if (!mongoose.isValidObjectId(forPartyId)) {
+      return { timeline: [], summary: emptyLoanSummary() };
+    }
+    partyFilter = {
+      $or: [
+        { party: new mongoose.Types.ObjectId(forPartyId) },
+        { for_party: new mongoose.Types.ObjectId(forPartyId) },
+      ],
+    };
   } else {
-    partyFilter = { counterparty: normalizeCounterparty(counterparty) };
+    const cp = normalizeCounterparty(counterparty);
+    if (!cp || cp.toLowerCase() === "transfer") {
+      return { timeline: [], summary: emptyLoanSummary() };
+    }
+    partyFilter = { counterparty: cp };
   }
 
   const transactions = await Transaction.find({

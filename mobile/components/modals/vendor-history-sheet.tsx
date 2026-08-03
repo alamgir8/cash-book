@@ -64,26 +64,19 @@ export const VendorHistorySheet = ({
     return undefined;
   };
 
-  // Prefer a populated named party so title and query stay in sync.
-  // If `party` is only a bare id (common after local hydrate) but `for_party`
-  // is populated (e.g. For: আলমগীর), look up that person — otherwise Full Ledger
-  // shows their name with someone else's empty result set.
-  const namedParty =
-    (partyRefName(transaction.party)
-      ? transaction.party
-      : undefined) ??
-    (partyRefName(transaction.for_party)
-      ? transaction.for_party
-      : undefined) ??
-    transaction.party ??
-    transaction.for_party;
-
-  const partyId = partyRefId(namedParty);
-  const counterparty = transaction.counterparty ?? undefined;
+  // Vendor ledger is for the Vendor party only — never for_party, and never
+  // the literal "Transfer" counterparty (that listed every account transfer).
+  const partyId = partyRefId(transaction.party);
+  const rawCp = transaction.counterparty?.trim() || "";
+  const counterparty =
+    !partyId && rawCp && rawCp.toLowerCase() !== "transfer"
+      ? rawCp
+      : undefined;
 
   const vendorName =
-    partyRefName(namedParty) ??
-    transaction.counterparty ??
+    partyRefName(transaction.party) ||
+    transaction.vendor?.trim() ||
+    counterparty ||
     "";
 
   // Only loan_in / loan_out / due transactions show directional "they owe / you owe" language

@@ -367,6 +367,9 @@ export async function fetchLocalCounterpartyLedger(params: {
   const pid = canon(params.partyId);
   const fpid = canon(params.forPartyId);
   const cp = params.counterparty?.trim() || "";
+  if (cp.toLowerCase() === "transfer") {
+    return { counterparty: "", timeline: [], summary: emptySummary() };
+  }
 
   const orParts: string[] = [];
   const bind: (string | number)[] = [...catIdList];
@@ -380,8 +383,7 @@ export async function fetchLocalCounterpartyLedger(params: {
   };
 
   if (pid && fpid) {
-    // Pair either direction (same as cloud), plus either party alone so
-    // repayments that only tag one side still appear.
+    // Strict pair only (either direction)
     orParts.push(
       `(party_id IN (?, ?) AND for_party_id IN (?, ?))`,
       `(party_id IN (?, ?) AND for_party_id IN (?, ?))`,
@@ -389,8 +391,6 @@ export async function fetchLocalCounterpartyLedger(params: {
     const pServer = parties.find((p) => p.id === pid)?.server_id || pid;
     const fServer = parties.find((p) => p.id === fpid)?.server_id || fpid;
     bind.push(pid, pServer, fpid, fServer, fpid, fServer, pid, pServer);
-    pushPartyMatch(fpid);
-    pushPartyMatch(pid);
   } else if (pid) {
     pushPartyMatch(pid);
   } else if (fpid) {
@@ -429,19 +429,7 @@ export async function fetchLocalCounterpartyLedger(params: {
     ...bind,
   );
 
-  // When both parties provided, keep pair + txs involving the "other"
-  // party (for_party preferred) — mirrors useful Full Ledger for borrower.
-  let filtered = rows;
-  if (pid && fpid) {
-    filtered = rows.filter((r) => {
-      const lp = canon(r.party_id);
-      const lfp = canon(r.for_party_id);
-      const isPair =
-        (lp === pid && lfp === fpid) || (lp === fpid && lfp === pid);
-      const involvesOther = lp === fpid || lfp === fpid;
-      return isPair || involvesOther;
-    });
-  }
+  const filtered = rows;
 
   const catById = new Map(loanCats.map((c) => [c.id, c]));
   for (const c of loanCats) {

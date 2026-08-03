@@ -582,12 +582,28 @@ export async function fetchLocalVendorLedger(params: {
     }
     partyName = row.name;
     resolvedPartyId = row.server_id || row.id;
-    clauses.push(partyMatchClause());
-    bind.push(...partyMatchParams(row));
+    // Vendor ledger: party_id only (not for_party)
+    clauses.push(`(party_id = ? OR party_id = ?)`);
+    bind.push(row.id, row.server_id || row.id);
   } else if (params.counterparty?.trim()) {
+    const cp = params.counterparty.trim();
+    if (cp.toLowerCase() === "transfer") {
+      return {
+        party_id: null,
+        party_name: "",
+        counterparty: null,
+        timeline: [],
+        summary: {
+          total_credit: 0,
+          total_debit: 0,
+          net_balance: 0,
+          transaction_count: 0,
+        },
+      };
+    }
     clauses.push("counterparty = ?");
-    bind.push(params.counterparty.trim());
-    partyName = params.counterparty.trim();
+    bind.push(cp);
+    partyName = cp;
   } else {
     throw new Error("partyId or counterparty required");
   }
