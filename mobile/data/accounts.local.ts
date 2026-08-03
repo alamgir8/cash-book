@@ -32,16 +32,24 @@ const PAID_SQL = `(payment_status = 'paid' OR payment_status IS NULL OR payment_
 async function sumForAccount(
   db: Awaited<ReturnType<typeof getDb>>,
   row: { id: string; server_id: string | null; opening_balance?: number },
-  opts?: { organizationId?: string | null; allOrganizations?: boolean },
+  opts?: {
+    organizationId?: string | null;
+    allOrganizations?: boolean;
+    includePersonal?: boolean;
+  },
 ) {
   const orgId = opts?.organizationId ?? null;
   const allOrgs = Boolean(opts?.allOrganizations);
+  const includePersonal = Boolean(opts?.includePersonal);
   const serverId = row.server_id || row.id;
+  // Match transaction list scope: active org + legacy personal orphans.
   const orgClause = allOrgs
     ? "1=1"
-    : orgId
-      ? "organization_id = ?"
-      : "(organization_id IS NULL OR organization_id = '')";
+    : orgId && includePersonal
+      ? "(organization_id = ? OR organization_id IS NULL OR organization_id = '')"
+      : orgId
+        ? "organization_id = ?"
+        : "(organization_id IS NULL OR organization_id = '')";
   const orgParams = allOrgs ? [] : orgId ? [orgId] : [];
 
   return db.getFirstAsync<{
@@ -83,6 +91,7 @@ export async function fetchLocalAccounts(
   }
   let orgId = organizationId ?? null;
   let allOrgs = false;
+  let includePersonal = false;
   let rows = await accountsRepo.listAccounts(db, { organizationId: orgId });
   // Pre-org migrate left everything as personal — don't show a blank app.
   if (orgId && rows.length === 0) {
@@ -99,11 +108,34 @@ export async function fetchLocalAccounts(
       allOrgs = true;
     }
   }
+  // After repair v7 stamps org onto orphan txs, includePersonal is usually
+  // unnecessary. Keep a soft fallback for pre-repair sessions only — and never
+  // merge personal *accounts* into the org list (that skewed balances).
+  if (orgId && rows.length) {
+    const idPlaceholders = rows.map(() => "?").join(",");
+    const ids = rows.map((r) => r.id);
+    const personalTxn = await db.getFirstAsync<{ c: number }>(
+      `SELECT COUNT(*) as c FROM transactions
+       WHERE deleted_at IS NULL
+         AND (organization_id IS NULL OR organization_id = '')
+         AND (
+           account_id IN (${idPlaceholders})
+           OR account_id IN (
+             SELECT server_id FROM accounts
+             WHERE id IN (${idPlaceholders}) AND server_id IS NOT NULL
+           )
+         )`,
+      ...ids,
+      ...ids,
+    );
+    if (Number(personalTxn?.c ?? 0) > 0) includePersonal = true;
+  }
   const out: AccountOverview[] = [];
   for (const row of rows) {
     const sum = await sumForAccount(db, row, {
       organizationId: allOrgs ? null : orgId ?? row.organization_id,
       allOrganizations: allOrgs,
+      includePersonal,
     });
     const paidDebit = Number(sum?.paid_debit ?? 0);
     const paidCredit = Number(sum?.paid_credit ?? 0);

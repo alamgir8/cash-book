@@ -442,24 +442,27 @@ function refId(...candidates: unknown[]): string | null {
 }
 
 function resolvePaymentStatus(row: any): "paid" | "due" {
-  // Trust explicit status from source (API / backup export).
-  if (row.payment_status === "due") {
-    // But if settled, override to paid (source might be stale).
-    if (row.due_settled_at) return "paid";
-    return "due";
-  }
-  if (row.payment_status === "paid") return "paid";
-
   // Payments linked to a parent due are always paid.
   const parent = refId(row.parent_due_id, row._originalParentDueId);
   if (parent) return "paid";
 
-  // Infer from chain fields ONLY when payment_status was missing/empty.
   const remaining = row.due_remaining;
+  const remainingNum =
+    remaining != null && remaining !== "" ? Number(remaining) : null;
+
+  // Trust explicit status from source (API / backup export).
+  if (row.payment_status === "due") {
+    // Settled / zero-remaining dues are cash-paid even if status lagged.
+    if (row.due_settled_at) return "paid";
+    if (remainingNum != null && remainingNum <= 0) return "paid";
+    return "due";
+  }
+  if (row.payment_status === "paid") return "paid";
+
+  // Infer from chain fields ONLY when payment_status was missing/empty.
   if (
-    remaining != null &&
-    remaining !== "" &&
-    Number(remaining) > 0 &&
+    remainingNum != null &&
+    remainingNum > 0 &&
     !row.due_settled_at
   ) {
     return "due";

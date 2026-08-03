@@ -26,12 +26,25 @@ async function resolveLocalParty(partyId: string) {
   return { db, row };
 }
 
+/** Match party FKs stored as local id OR Mongo server_id. */
+function partyMatchClause(alias = "") {
+  const p = alias ? `${alias}.` : "";
+  return `(
+    ${p}party_id = ? OR ${p}party_id = ? OR
+    ${p}for_party_id = ? OR ${p}for_party_id = ?
+  )`;
+}
+
+function partyMatchParams(row: LocalParty): string[] {
+  const serverId = row.server_id || row.id;
+  return [row.id, serverId, row.id, serverId];
+}
+
 async function withTxnCount(db: Awaited<ReturnType<typeof getDb>>, row: LocalParty) {
   const count = await db.getFirstAsync<{ c: number }>(
     `SELECT COUNT(*) as c FROM transactions
-     WHERE deleted_at IS NULL AND (party_id = ? OR for_party_id = ?)`,
-    row.id,
-    row.id,
+     WHERE deleted_at IS NULL AND ${partyMatchClause()}`,
+    ...partyMatchParams(row),
   );
   return localPartyToApi(row, Number(count?.c ?? 0));
 }
@@ -219,9 +232,8 @@ export async function deleteLocalParty(partyId: string): Promise<{ message: stri
 
   const count = await db.getFirstAsync<{ c: number }>(
     `SELECT COUNT(*) as c FROM transactions
-     WHERE deleted_at IS NULL AND (party_id = ? OR for_party_id = ?)`,
-    row.id,
-    row.id,
+     WHERE deleted_at IS NULL AND ${partyMatchClause()}`,
+    ...partyMatchParams(row),
   );
   const transactionCount = Number(count?.c ?? 0);
   if (transactionCount > 0) {
@@ -326,11 +338,8 @@ export async function fetchLocalPartyLedger(
   const limit = Number(params?.limit ?? 30);
   const offset = (page - 1) * limit;
 
-  const clauses = [
-    "deleted_at IS NULL",
-    "(party_id = ? OR for_party_id = ?)",
-  ];
-  const bind: (string | number)[] = [row.id, row.id];
+  const clauses = ["deleted_at IS NULL", partyMatchClause()];
+  const bind: (string | number)[] = [...partyMatchParams(row)];
 
   if (params?.type === "debit" || params?.type === "credit") {
     clauses.push("type = ?");
@@ -383,9 +392,8 @@ export async function fetchLocalPartyLedger(
     `SELECT
       COALESCE(SUM(CASE WHEN type = 'debit' THEN amount ELSE 0 END), 0) as debit,
       COALESCE(SUM(CASE WHEN type = 'credit' THEN amount ELSE 0 END), 0) as credit
-     FROM transactions WHERE deleted_at IS NULL AND (party_id = ? OR for_party_id = ?)`,
-    row.id,
-    row.id,
+     FROM transactions WHERE deleted_at IS NULL AND ${partyMatchClause()}`,
+    ...partyMatchParams(row),
   );
 
   const opening = Number(row.opening_balance ?? 0);
@@ -414,7 +422,8 @@ export async function fetchLocalPartyLedger(
   const entries = [];
   for (const t of txns) {
     const account = await db.getFirstAsync<{ name: string }>(
-      `SELECT name FROM accounts WHERE id = ?`,
+      `SELECT name FROM accounts WHERE id = ? OR server_id = ? LIMIT 1`,
+      t.account_id,
       t.account_id,
     );
     const category = t.category_id

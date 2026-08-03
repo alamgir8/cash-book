@@ -13,6 +13,13 @@ export function scopeWhere(
   }
   const orgId = scope?.organizationId ?? null;
   if (orgId) {
+    // Active org + orphan personal rows from pre-org migrate/restore.
+    if (scope?.includePersonal) {
+      return {
+        sql: `(${col} = ? OR ${col} IS NULL OR ${col} = '')`,
+        params: [orgId],
+      };
+    }
     return { sql: `${col} = ?`, params: [orgId] };
   }
   // Personal scope: NULL or legacy empty string (never drop rows on refresh).

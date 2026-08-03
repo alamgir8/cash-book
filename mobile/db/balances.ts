@@ -2,7 +2,10 @@ import type { Db } from "./client";
 import { scopeWhere } from "./meta";
 import type { ScopeFilter } from "./types";
 
-const PAID_CLAUSE = `(payment_status = 'paid' OR payment_status IS NULL OR payment_status = '')`;
+const paidClause = (alias = "") => {
+  const col = alias ? `${alias}.payment_status` : "payment_status";
+  return `(${col} = 'paid' OR ${col} IS NULL OR ${col} = '')`;
+};
 
 /**
  * Recompute account + party balances from opening + paid transactions.
@@ -25,12 +28,17 @@ export async function recalculateBalances(
 
   for (const account of accounts) {
     const serverId = account.server_id || account.id;
+    // Keep cash math on the same org scope as the account list (plus legacy
+    // NULL-org orphans when includePersonal is set).
+    const txnScope = scopeWhere("t", scope);
     const sum = await db.getFirstAsync<{ net: number | null }>(
-      `SELECT COALESCE(SUM(CASE WHEN type = 'credit' THEN amount ELSE -amount END), 0) as net
-       FROM transactions
-       WHERE deleted_at IS NULL
-         AND ${PAID_CLAUSE}
-         AND (account_id = ? OR account_id = ?)`,
+      `SELECT COALESCE(SUM(CASE WHEN t.type = 'credit' THEN t.amount ELSE -t.amount END), 0) as net
+       FROM transactions t
+       WHERE t.deleted_at IS NULL
+         AND ${paidClause("t")}
+         AND ${txnScope.sql}
+         AND (t.account_id = ? OR t.account_id = ?)`,
+      ...txnScope.params,
       account.id,
       serverId,
     );
@@ -58,7 +66,7 @@ export async function recalculateBalances(
       `SELECT COALESCE(SUM(CASE WHEN type = 'credit' THEN amount ELSE -amount END), 0) as net
        FROM transactions
        WHERE deleted_at IS NULL
-         AND ${PAID_CLAUSE}
+         AND ${paidClause()}
          AND (party_id = ? OR party_id = ?)`,
       party.id,
       serverId,

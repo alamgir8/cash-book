@@ -148,9 +148,24 @@ export async function decorateLocalLoanSummaries(
   const catIdList = [...catIds];
   const placeholders = catIdList.map(() => "?").join(",");
 
+  // Map any party id (local UUID or Mongo server_id) → canonical local id.
+  const parties = await db.getAllAsync<{
+    id: string;
+    server_id: string | null;
+  }>(`SELECT id, server_id FROM parties WHERE deleted_at IS NULL`);
+  const canonicalPartyId = new Map<string, string>();
+  for (const p of parties) {
+    canonicalPartyId.set(p.id, p.id);
+    if (p.server_id) canonicalPartyId.set(p.server_id, p.id);
+  }
+  const canon = (id: string | null | undefined) =>
+    id ? (canonicalPartyId.get(id) ?? id) : null;
+
   const partyIds = [
     ...new Set(
-      loanOnPage.flatMap((t) => [partyId(t), forPartyId(t)].filter(Boolean)),
+      loanOnPage
+        .flatMap((t) => [canon(partyId(t)), canon(forPartyId(t))])
+        .filter(Boolean),
     ),
   ] as string[];
   const legacyCps = [
@@ -172,11 +187,24 @@ export async function decorateLocalLoanSummaries(
     orParts.push(
       `party_id IN (SELECT id FROM parties WHERE server_id IN (${pp}))`,
     );
+    orParts.push(
+      `party_id IN (SELECT server_id FROM parties WHERE id IN (${pp}) AND server_id IS NOT NULL)`,
+    );
     orParts.push(`for_party_id IN (${pp})`);
     orParts.push(
       `for_party_id IN (SELECT id FROM parties WHERE server_id IN (${pp}))`,
     );
-    params.push(...partyIds, ...partyIds, ...partyIds, ...partyIds);
+    orParts.push(
+      `for_party_id IN (SELECT server_id FROM parties WHERE id IN (${pp}) AND server_id IS NOT NULL)`,
+    );
+    params.push(
+      ...partyIds,
+      ...partyIds,
+      ...partyIds,
+      ...partyIds,
+      ...partyIds,
+      ...partyIds,
+    );
   }
   if (legacyCps.length) {
     const cp = legacyCps.map(() => "?").join(",");
@@ -211,6 +239,8 @@ export async function decorateLocalLoanSummaries(
 
   const asTxn = (r: (typeof rows)[0]): Transaction => {
     const cat = r.category_id ? catById.get(r.category_id) : null;
+    const pid = canon(r.party_id);
+    const fpid = canon(r.for_party_id);
     return {
       _id: r.id,
       account: { _id: "", name: "" },
@@ -222,10 +252,8 @@ export async function decorateLocalLoanSummaries(
       category: cat
         ? { _id: cat.id, name: cat.name, type: cat.type }
         : null,
-      party: r.party_id ? { _id: r.party_id, name: "", type: "customer" } : null,
-      for_party: r.for_party_id
-        ? { _id: r.for_party_id, name: "", type: "customer" }
-        : null,
+      party: pid ? { _id: pid, name: "", type: "customer" } : null,
+      for_party: fpid ? { _id: fpid, name: "", type: "customer" } : null,
     };
   };
 
@@ -238,20 +266,15 @@ export async function decorateLocalLoanSummaries(
   };
 
   for (const t of loanOnPage) {
-    const pid = partyId(t);
-    const fpid = forPartyId(t);
+    const pid = canon(partyId(t));
+    const fpid = canon(forPartyId(t));
     if (pid && fpid) {
       const key = pairKey(pid, fpid);
-      ensure(
-        key,
-        (lt) => {
-          const lp = partyId(lt);
-          const lfp = forPartyId(lt);
-          return (
-            (lp === pid && lfp === fpid) || (lp === fpid && lfp === pid)
-          );
-        },
-      );
+      ensure(key, (lt) => {
+        const lp = partyId(lt);
+        const lfp = forPartyId(lt);
+        return (lp === pid && lfp === fpid) || (lp === fpid && lfp === pid);
+      });
     } else if (pid) {
       ensure(pid, (lt) => partyId(lt) === pid && !forPartyId(lt));
     } else {
@@ -267,13 +290,15 @@ export async function decorateLocalLoanSummaries(
 
   return transactions.map((t) => {
     if (!isLoanTxn(t)) return t;
-    const pid = partyId(t);
-    const fpid = forPartyId(t);
+    const pid = canon(partyId(t));
+    const fpid = canon(forPartyId(t));
     let key: string | null = null;
     if (pid && fpid) key = pairKey(pid, fpid);
     else if (pid) key = pid;
     else key = t.counterparty?.trim() || null;
     const summary = key ? summaries.get(key) : undefined;
-    return summary ? { ...t, loan_summary: summary } : { ...t, loan_summary: emptySummary() };
+    return summary
+      ? { ...t, loan_summary: summary }
+      : { ...t, loan_summary: emptySummary() };
   });
 }

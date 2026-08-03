@@ -555,6 +555,8 @@ export const getAccountTransactions = async (req, res, next) => {
         accountId,
       },
       categoryScope,
+      // Include pre-org orphan rows that still point at this account.
+      orphanAccountIds: account.organization ? [account._id] : [],
     });
     await enrichTransactionFilter(filter, req.query, {
       adminId: req.user.id,

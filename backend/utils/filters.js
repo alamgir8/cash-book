@@ -37,23 +37,63 @@ const asObjectIdArray = (ids = []) =>
       : new mongoose.Types.ObjectId(id),
   );
 
+/** Personal / pre-org rows: field missing OR explicitly null. */
+export const personalOrganizationClause = () => ({
+  $or: [{ organization: { $exists: false } }, { organization: null }],
+});
+
+/**
+ * Build the org/personal base scope.
+ *
+ * When `orphanAccountIds` is provided with an organization, also include the
+ * admin's unscoped (null/missing org) transactions that sit on those accounts.
+ * That recovers ~29 legacy rows that live in backup/export but were invisible
+ * to org-scoped `/transactions` (1175 vs ~1204).
+ */
+export const buildOrganizationScope = ({
+  adminId,
+  organizationId,
+  orphanAccountIds = [],
+}) => {
+  if (!organizationId) {
+    return {
+      admin: new mongoose.Types.ObjectId(adminId),
+      ...personalOrganizationClause(),
+    };
+  }
+
+  const orgObjectId = new mongoose.Types.ObjectId(organizationId);
+  if (!orphanAccountIds.length) {
+    return { organization: orgObjectId };
+  }
+
+  return {
+    $or: [
+      { organization: orgObjectId },
+      {
+        admin: new mongoose.Types.ObjectId(adminId),
+        account: { $in: asObjectIdArray(orphanAccountIds) },
+        ...personalOrganizationClause(),
+      },
+    ],
+  };
+};
+
 export const buildTransactionFilters = ({
   adminId,
   organizationId,
   query,
   categoryScope,
+  orphanAccountIds = [],
 }) => {
-  // Build base filter based on organization or personal context
-  const filter = organizationId
-    ? {
-        organization: new mongoose.Types.ObjectId(organizationId),
-        is_deleted: false,
-      }
-    : {
-        admin: new mongoose.Types.ObjectId(adminId),
-        organization: { $exists: false },
-        is_deleted: false,
-      };
+  const filter = {
+    is_deleted: false,
+    ...buildOrganizationScope({
+      adminId,
+      organizationId,
+      orphanAccountIds,
+    }),
+  };
 
   if (query.accountId || query.account_id) {
     const accountId = query.accountId ?? query.account_id;
@@ -114,13 +154,16 @@ export const buildTransactionFilters = ({
     if (status === "due") {
       filter.payment_status = "due";
     } else if (status === "paid") {
-      // Treat missing/null field as "paid" (legacy transactions have no payment_status)
-      filter.$or = filter.$or ?? [];
-      filter.$or.push(
-        { payment_status: "paid" },
-        { payment_status: { $exists: false } },
-        { payment_status: null },
-      );
+      // Treat missing/null field as "paid" (legacy transactions have no payment_status).
+      // Use $and so we don't clobber the org-scope $or used for orphan inclusion.
+      filter.$and = filter.$and ?? [];
+      filter.$and.push({
+        $or: [
+          { payment_status: "paid" },
+          { payment_status: { $exists: false } },
+          { payment_status: null },
+        ],
+      });
     }
   }
 

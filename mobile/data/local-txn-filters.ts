@@ -184,8 +184,16 @@ export async function buildLocalTransactionFilterSql(
   }
 
   if (filters.categoryId) {
+    const cat = await db.getFirstAsync<{ id: string; server_id: string | null }>(
+      `SELECT id, server_id FROM categories WHERE id = ? OR server_id = ? LIMIT 1`,
+      filters.categoryId,
+      filters.categoryId,
+    );
     clauses.push("(category_id = ? OR category_id = ?)");
-    allParams.push(filters.categoryId, filters.categoryId);
+    allParams.push(
+      cat?.id ?? filters.categoryId,
+      cat?.server_id ?? filters.categoryId,
+    );
   } else if (filters.category_name?.trim()) {
     const name = filters.category_name.trim();
     clauses.push(
@@ -200,8 +208,15 @@ export async function buildLocalTransactionFilterSql(
   }
 
   if (filters.party_id) {
-    clauses.push("(party_id = ? OR party_id IN (SELECT id FROM parties WHERE server_id = ?))");
-    allParams.push(filters.party_id, filters.party_id);
+    const party = await db.getFirstAsync<{ id: string; server_id: string | null }>(
+      `SELECT id, server_id FROM parties WHERE id = ? OR server_id = ? LIMIT 1`,
+      filters.party_id,
+      filters.party_id,
+    );
+    const localId = party?.id ?? filters.party_id;
+    const serverId = party?.server_id ?? filters.party_id;
+    clauses.push("(party_id = ? OR party_id = ?)");
+    allParams.push(localId, serverId);
   } else if (filters.party_name?.trim()) {
     const name = filters.party_name.trim();
     clauses.push(
@@ -219,10 +234,18 @@ export async function buildLocalTransactionFilterSql(
   }
 
   if (filters.for_party_id) {
-    clauses.push(
-      "(for_party_id = ? OR for_party_id IN (SELECT id FROM parties WHERE server_id = ?))",
+    const forParty = await db.getFirstAsync<{
+      id: string;
+      server_id: string | null;
+    }>(
+      `SELECT id, server_id FROM parties WHERE id = ? OR server_id = ? LIMIT 1`,
+      filters.for_party_id,
+      filters.for_party_id,
     );
-    allParams.push(filters.for_party_id, filters.for_party_id);
+    const localId = forParty?.id ?? filters.for_party_id;
+    const serverId = forParty?.server_id ?? filters.for_party_id;
+    clauses.push("(for_party_id = ? OR for_party_id = ?)");
+    allParams.push(localId, serverId);
   } else if (filters.for_party_name?.trim()) {
     const name = filters.for_party_name.trim();
     clauses.push(

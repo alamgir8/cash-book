@@ -36,11 +36,23 @@ const buildScopedFilter = async ({ req, extraQuery = {} }) => {
     });
   }
 
+  let orphanAccountIds = [];
+  if (organizationFilterId) {
+    const orgAccounts = await Account.find({
+      organization: organizationFilterId,
+      is_deleted: { $ne: true },
+    })
+      .select("_id")
+      .lean();
+    orphanAccountIds = orgAccounts.map((a) => a._id);
+  }
+
   const filter = buildTransactionFilters({
     adminId: req.user.id,
     organizationId: organizationFilterId,
     query: { ...req.query, ...extraQuery },
     categoryScope,
+    orphanAccountIds,
   });
   await enrichTransactionFilter(filter, { ...req.query, ...extraQuery }, {
     adminId: req.user.id,

@@ -233,6 +233,66 @@ function enrichFromMaps(
   });
 }
 
+/**
+ * Local rows store parent_due_id as a string id. Cards expect a hydrated
+ * object (like the cloud API) so payment badges can show remaining due.
+ */
+async function hydrateParentDues(
+  db: Awaited<ReturnType<typeof getDb>>,
+  transactions: Transaction[],
+  maps: Awaited<ReturnType<typeof loadEnrichmentMaps>>,
+): Promise<Transaction[]> {
+  const parentIds = [
+    ...new Set(
+      transactions
+        .map((t) =>
+          typeof t.parent_due_id === "string" && t.parent_due_id
+            ? t.parent_due_id
+            : null,
+        )
+        .filter(Boolean),
+    ),
+  ] as string[];
+  if (!parentIds.length) return transactions;
+
+  const placeholders = parentIds.map(() => "?").join(",");
+  const parents = await db.getAllAsync<LocalTransaction>(
+    `SELECT * FROM transactions
+     WHERE deleted_at IS NULL
+       AND (id IN (${placeholders}) OR server_id IN (${placeholders}))`,
+    ...parentIds,
+    ...parentIds,
+  );
+  const byId = new Map<string, Transaction>();
+  for (const row of parents) {
+    const mapped = enrichFromMaps(row, maps);
+    byId.set(row.id, mapped);
+    if (row.server_id) byId.set(row.server_id, mapped);
+  }
+
+  return transactions.map((t) => {
+    if (typeof t.parent_due_id !== "string" || !t.parent_due_id) return t;
+    const parent = byId.get(t.parent_due_id);
+    if (!parent) return t;
+    return {
+      ...t,
+      parent_due_id: {
+        _id: parent._id,
+        amount: parent.amount,
+        due_remaining: parent.due_remaining,
+        due_settled_at: parent.due_settled_at,
+        date: String(parent.date),
+        description: parent.description,
+        vendor: parent.vendor,
+        counterparty: parent.counterparty,
+        party: parent.party ?? null,
+        for_party: parent.for_party ?? null,
+        payment_status: parent.payment_status,
+      },
+    };
+  });
+}
+
 export async function enrichLocalTransaction(
   db: Awaited<ReturnType<typeof getDb>>,
   row: LocalTransaction,
@@ -263,18 +323,29 @@ export async function enrichLocalTransaction(
 async function resolveLocalReadScope(
   db: Awaited<ReturnType<typeof getDb>>,
   filters: TransactionFilters,
-): Promise<{ organizationId: string | null; allOrganizations?: boolean }> {
+): Promise<{
+  organizationId: string | null;
+  allOrganizations?: boolean;
+  includePersonal?: boolean;
+}> {
   const requested = filters.organizationId ?? null;
 
   if (requested) {
     const orgTotal = await transactionsRepo.countTransactions(db, {
       organizationId: requested,
     });
-    if (orgTotal > 0) return { organizationId: requested };
-    // Org selected but SQLite still has only personal rows (legacy migrate).
     const personalTotal = await transactionsRepo.countTransactions(db, {
       organizationId: null,
     });
+    if (orgTotal > 0) {
+      // Legacy migrate left some rows without organization_id — include them
+      // so dashboard counts match the full shop book (~1205 not ~1175).
+      if (personalTotal > 0) {
+        return { organizationId: requested, includePersonal: true };
+      }
+      return { organizationId: requested };
+    }
+    // Org selected but SQLite still has only personal rows (legacy migrate).
     if (personalTotal > 0) return { organizationId: null };
     return { organizationId: requested };
   }
@@ -293,15 +364,7 @@ async function resolveLocalReadScope(
   return { organizationId: null };
 }
 
-export async function fetchLocalTransactions(
-  filters: TransactionFilters = {},
-): Promise<{
-  transactions: Transaction[];
-  pagination?: { page: number; limit: number; total: number; pages: number };
-}> {
-  const db = await getDb();
-
-  // Repair mangled dues/loan categories before any read (once per version).
+async function ensureRepaired(db: Awaited<ReturnType<typeof getDb>>) {
   try {
     const { ensureLocalLedgerRepaired } = await import(
       "@/lib/local-first/repair-ledger"
@@ -310,6 +373,16 @@ export async function fetchLocalTransactions(
   } catch (e) {
     console.warn("[local-txn] repair skipped", e);
   }
+}
+
+export async function fetchLocalTransactions(
+  filters: TransactionFilters = {},
+): Promise<{
+  transactions: Transaction[];
+  pagination?: { page: number; limit: number; total: number; pages: number };
+}> {
+  const db = await getDb();
+  await ensureRepaired(db);
 
   const page = Number(filters.page ?? 1);
   const limit = Number(filters.limit ?? 20);
@@ -337,6 +410,7 @@ export async function fetchLocalTransactions(
       ...params,
     );
     let wideTx = wide.map((row) => enrichFromMaps(row, maps));
+    wideTx = await hydrateParentDues(db, wideTx, maps);
     wideTx = await decorateLocalLoanSummaries(db, wideTx);
     if (filters.loan_filter === "loan_given") {
       wideTx = wideTx.filter(
@@ -383,6 +457,7 @@ export async function fetchLocalTransactions(
   );
 
   let transactions = rows.map((row) => enrichFromMaps(row, maps));
+  transactions = await hydrateParentDues(db, transactions, maps);
   transactions = await decorateLocalLoanSummaries(db, transactions);
 
   return {
@@ -401,6 +476,34 @@ export async function fetchLocalTransactionTotals(
   filters: TransactionFilters = {},
 ): Promise<{ debit: number; credit: number; count: number }> {
   const db = await getDb();
+  await ensureRepaired(db);
+
+  // Loan chips need the same unsettled post-filter as the list, or the
+  // StatsCards count drifts from the visible rows.
+  if (
+    filters.loan_filter === "loan_given" ||
+    filters.loan_filter === "loan_received"
+  ) {
+    const listed = await fetchLocalTransactions({
+      ...filters,
+      page: 1,
+      limit: 2000,
+    });
+    const txns = listed.transactions;
+    let debit = 0;
+    let credit = 0;
+    for (const t of txns) {
+      const amount = Number(t.amount) || 0;
+      if (t.type === "debit") debit += amount;
+      else if (t.type === "credit") credit += amount;
+    }
+    return {
+      debit,
+      credit,
+      count: listed.pagination?.total ?? txns.length,
+    };
+  }
+
   const scope = await resolveLocalReadScope(db, filters);
   // Totals ignore pagination; strip page/limit from filter copy.
   const { page: _p, limit: _l, ...rest } = filters;

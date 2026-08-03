@@ -96,4 +96,9 @@ export type ScopeFilter = {
   organizationId?: string | null;
   /** When true, ignore organization_id and read the whole local ledger. */
   allOrganizations?: boolean;
+  /**
+   * When true with organizationId, also include personal rows
+   * (NULL/empty organization_id) left behind by legacy migrate.
+   */
+  includePersonal?: boolean;
 };
