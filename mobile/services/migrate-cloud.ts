@@ -140,11 +140,12 @@ function mergeTxnRows(base: any, richer: any): any {
   }
   if (richer.description) out.description = richer.description;
   if (richer.vendor) out.vendor = richer.vendor;
-  // Force due when remaining balance says so (backup export sometimes defaults paid).
+  // Force due when remaining balance says so AND not settled.
   if (
     out.due_remaining != null &&
     Number(out.due_remaining) > 0 &&
-    !out.parent_due_id
+    !out.parent_due_id &&
+    !out.due_settled_at
   ) {
     out.payment_status = "due";
   }

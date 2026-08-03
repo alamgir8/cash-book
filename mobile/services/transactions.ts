@@ -49,7 +49,10 @@ export type Transaction = {
         due_settled_at?: string;
         date: string;
         description?: string;
+        vendor?: string;
+        counterparty?: string;
         party?: PartyRef | null;
+        for_party?: PartyRef | null;
         payment_status?: "paid" | "due";
       };
   due_settled_at?: string;

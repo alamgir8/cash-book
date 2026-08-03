@@ -42,7 +42,23 @@ function emptySummary(): LoanSummary {
   };
 }
 
-/** Port of backend calculateLoanLedger summary (pair/solo/legacy). */
+/** Sub-cent residue from float math must not read as an open loan. */
+const SETTLED_EPSILON = 0.005;
+
+const round2 = (value: number) => Math.round(value * 100) / 100;
+
+/**
+ * Port of backend calculateLoanLedger summary (pair/solo/legacy).
+ *
+ * Classification is driven by category type + cash direction, which is the
+ * canonical pairing enforced by the repair rules:
+ *   loan_out + debit  → lent out          (they owe me)
+ *   loan_out + credit → repayment in      (they owe me less)
+ *   loan_in  + credit → borrowed          (I owe them)
+ *   loan_in  + debit  → repayment out     (I owe them less)
+ * Matching on English category names would misread renamed or translated
+ * categories, so names are never consulted here.
+ */
 function summarizeLedger(txns: Transaction[]): LoanSummary {
   let owedByMe = 0;
   let owedByThem = 0;
@@ -59,32 +75,22 @@ function summarizeLedger(txns: Transaction[]): LoanSummary {
   });
 
   for (const transaction of sorted) {
-    const categoryName = transaction.category?.name ?? "";
     const categoryType = transaction.category?.type ?? "";
     const amount = Number(transaction.amount ?? 0);
+    if (!Number.isFinite(amount) || amount <= 0) continue;
 
-    if (categoryName === "Loan Received") {
-      owedByMe += amount;
-      totalBorrowed += amount;
-    } else if (categoryName === "Loan Repayment Paid") {
-      totalRepaid += amount;
-      owedByMe = Math.max(0, owedByMe - amount);
-    } else if (categoryName === "Loan Given") {
-      owedByThem += amount;
-      totalGiven += amount;
-    } else if (categoryName === "Loan Repayment Received") {
-      totalReceivedBack += amount;
-      owedByThem = Math.max(0, owedByThem - amount);
-    } else if (categoryType === "loan_in") {
-      if (transaction.type === "debit") {
-        totalRepaid += amount;
-        owedByMe = Math.max(0, owedByMe - amount);
-      } else {
+    const isIncoming = transaction.type === "credit";
+
+    if (categoryType === "loan_in") {
+      if (isIncoming) {
         owedByMe += amount;
         totalBorrowed += amount;
+      } else {
+        totalRepaid += amount;
+        owedByMe = Math.max(0, owedByMe - amount);
       }
     } else {
-      if (transaction.type === "credit") {
+      if (isIncoming) {
         totalReceivedBack += amount;
         owedByThem = Math.max(0, owedByThem - amount);
       } else {
@@ -94,17 +100,20 @@ function summarizeLedger(txns: Transaction[]): LoanSummary {
     }
   }
 
+  owedByMe = round2(owedByMe);
+  owedByThem = round2(owedByThem);
+
   return {
-    total_borrowed: totalBorrowed,
-    total_repaid: totalRepaid,
-    total_given: totalGiven,
-    total_received_back: totalReceivedBack,
-    outstanding: owedByMe + owedByThem,
-    net_owed_by_me: owedByMe - owedByThem,
+    total_borrowed: round2(totalBorrowed),
+    total_repaid: round2(totalRepaid),
+    total_given: round2(totalGiven),
+    total_received_back: round2(totalReceivedBack),
+    outstanding: round2(owedByMe + owedByThem),
+    net_owed_by_me: round2(owedByMe - owedByThem),
     owed_by_me: owedByMe,
     owed_by_them: owedByThem,
     transaction_count: sorted.length,
-    is_settled: owedByMe === 0 && owedByThem === 0,
+    is_settled: owedByMe < SETTLED_EPSILON && owedByThem < SETTLED_EPSILON,
   };
 }
 

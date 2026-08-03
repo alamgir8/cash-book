@@ -8,7 +8,6 @@ import * as categoriesRepo from "@/db/repos/categories";
 import * as partiesRepo from "@/db/repos/parties";
 import * as transactionsRepo from "@/db/repos/transactions";
 import * as transfersRepo from "@/db/repos/transfers";
-import { recalculateBalances } from "@/db/balances";
 import { META_KEYS, setMeta } from "@/db/meta";
 import { checksumForData, verifyChecksum } from "@/lib/local-first/checksum";
 import { upsertAccountFromSync } from "@/db/repos/accounts";
@@ -279,7 +278,6 @@ export async function importLocalBackup(
 
   // Fix dues/loans that arrived with wrong payment_status or category type,
   // then recompute cash balances (paid only — dues excluded, like Mongo).
-  const { META_KEYS, setMeta } = await import("@/db/meta");
   await setMeta(db, META_KEYS.LEDGER_REPAIR_VERSION, null);
   const {
     repairLocalLedgerSemantics,
@@ -287,9 +285,6 @@ export async function importLocalBackup(
   } = await import("@/lib/local-first/repair-ledger");
   await repairLocalLedgerSemantics(db);
   await setMeta(db, META_KEYS.LEDGER_REPAIR_VERSION, LEDGER_REPAIR_VERSION);
-  if (!wipeAll) {
-    await recalculateBalances(db, { organizationId });
-  }
 
   const liveAccounts = wipeAll
     ? await db.getAllAsync<{ current_balance: number }>(
@@ -447,20 +442,29 @@ function refId(...candidates: unknown[]): string | null {
 }
 
 function resolvePaymentStatus(row: any): "paid" | "due" {
+  // Trust explicit status from source (API / backup export).
+  if (row.payment_status === "due") {
+    // But if settled, override to paid (source might be stale).
+    if (row.due_settled_at) return "paid";
+    return "due";
+  }
+  if (row.payment_status === "paid") return "paid";
+
+  // Payments linked to a parent due are always paid.
   const parent = refId(row.parent_due_id, row._originalParentDueId);
-  // Payments against a due are always paid.
   if (parent) return "paid";
 
+  // Infer from chain fields ONLY when payment_status was missing/empty.
   const remaining = row.due_remaining;
-  if (remaining != null && remaining !== "" && Number(remaining) > 0) {
+  if (
+    remaining != null &&
+    remaining !== "" &&
+    Number(remaining) > 0 &&
+    !row.due_settled_at
+  ) {
     return "due";
   }
-  if (row.payment_status === "due" || row.payment_status === "paid") {
-    return row.payment_status;
-  }
-  if (row.due_group_id != null && row.due_group_id !== "") {
-    return "due";
-  }
+
   return "paid";
 }
 

@@ -391,6 +391,25 @@ export async function fetchLocalPartyLedger(
   const opening = Number(row.opening_balance ?? 0);
   const totalDebit = Number(sums?.debit ?? 0);
   const totalCredit = Number(sums?.credit ?? 0);
+  const closing = opening + totalCredit - totalDebit;
+
+  // The page is newest-first, so the first row's balance is the closing balance
+  // minus everything newer than this page. Walking back from there gives a true
+  // party running balance; `balance_after_transaction` is the *account* balance
+  // and would be wrong here.
+  const newerRow = offset
+    ? await db.getFirstAsync<{ net: number }>(
+        `SELECT COALESCE(SUM(CASE WHEN type = 'credit' THEN amount ELSE -amount END), 0) as net
+         FROM (
+           SELECT type, amount FROM transactions WHERE ${where}
+           ORDER BY date DESC, created_at DESC
+           LIMIT ?
+         )`,
+        ...bind,
+        offset,
+      )
+    : null;
+  let runningBalance = closing - Number(newerRow?.net ?? 0);
 
   const entries = [];
   for (const t of txns) {
@@ -404,20 +423,24 @@ export async function fetchLocalPartyLedger(
           t.category_id,
         )
       : null;
+    const debit = t.type === "debit" ? Number(t.amount) : 0;
+    const credit = t.type === "credit" ? Number(t.amount) : 0;
     entries.push({
       _id: t.id,
       date: t.date,
       type: t.type,
       description: t.description ?? category?.name ?? t.type,
       comment: t.keyword ?? undefined,
-      debit: t.type === "debit" ? Number(t.amount) : 0,
-      credit: t.type === "credit" ? Number(t.amount) : 0,
-      running_balance: Number(t.balance_after_transaction ?? 0),
+      debit,
+      credit,
+      running_balance: runningBalance,
       transaction_id: t.id,
       category_name: category?.name,
       account_name: account?.name,
       payment_status: t.payment_status,
     });
+    // Next row is one step older, so undo this row's effect.
+    runningBalance -= credit - debit;
   }
 
   return {
@@ -427,7 +450,7 @@ export async function fetchLocalPartyLedger(
       opening_balance: opening,
       total_debit: totalDebit,
       total_credit: totalCredit,
-      closing_balance: opening + totalCredit - totalDebit,
+      closing_balance: closing,
     },
     pagination: {
       page,

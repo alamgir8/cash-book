@@ -13,7 +13,6 @@ import { ActionButton } from "./action-button";
 import { useTheme } from "../hooks/use-theme";
 import { useTranslation } from "../hooks/use-translation";
 import type { TransactionFilters } from "../services/transactions";
-import { mergeTransactionFilters } from "../lib/transaction-filters";
 import { SearchableSelect, type SelectOption } from "./searchable-select";
 import {
   amountInputProps,
@@ -797,7 +796,11 @@ export const FilterBar = ({
                   search: _ignoredSearch,
                   ...other
                 } = rest;
-                const updatedFilters = mergeTransactionFilters(filters, {
+                // Emit a patch, not a pre-merged filter set. The receiver merges
+                // again, and keys that a merge here had *deleted* would be absent
+                // from that second merge and silently revert to their old values,
+                // so cleared fields would never actually clear.
+                const patch = {
                   ...other,
                   categoryId,
                   counterparty,
@@ -807,13 +810,13 @@ export const FilterBar = ({
                   loan_filter,
                   accountId: selectedAccountId,
                   searchInput,
-                });
+                };
                 // Mark custom filter applied
-                if (updatedFilters.startDate || updatedFilters.endDate) {
+                if (patch.startDate || patch.endDate) {
                   setActiveQuickFilter("custom");
                 }
                 isUserInteracting.current = false;
-                onChange(updatedFilters);
+                onChange(patch);
                 onApplyFilters?.();
                 setExpanded(false);
               }}

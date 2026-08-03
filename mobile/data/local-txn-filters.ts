@@ -9,6 +9,37 @@ export type LocalTxnFilterSql = {
   params: (string | number | null)[];
 };
 
+/** Guard against pathological queries building huge WHERE trees. */
+const MAX_SEARCH_TERMS = 6;
+
+/** Treat user input as literal text — `%`/`_` must not act as wildcards. */
+function escapeLikePattern(value: string): string {
+  return value.replace(/[\\%_]/g, (char) => `\\${char}`);
+}
+
+/** Digits-only terms should also match the transaction amount. */
+function parseSearchAmount(term: string): number | null {
+  if (!/^[\d.,]+$/.test(term)) return null;
+  const parsed = Number(term.replace(/,/g, ""));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+/**
+ * Match a foreign-key column against a related row's name. Local rows and
+ * synced rows can be referenced by either `id` or `server_id`, so both are
+ * resolved. Consumes two `?` params (the same LIKE pattern twice).
+ */
+function nameLookupClause(column: string, table: string): string {
+  return `${column} IN (
+    SELECT id FROM ${table}
+    WHERE deleted_at IS NULL AND name LIKE ? ESCAPE '\\' COLLATE NOCASE
+    UNION
+    SELECT server_id FROM ${table}
+    WHERE server_id IS NOT NULL AND deleted_at IS NULL
+      AND name LIKE ? ESCAPE '\\' COLLATE NOCASE
+  )`;
+}
+
 /** Resolve inclusive day bounds from range / start-end filters. */
 export function resolveLocalDateBounds(filters: TransactionFilters): {
   fromIso?: string;
@@ -95,8 +126,10 @@ export async function buildLocalTransactionFilterSql(
     // Match cloud Due chip: open root dues only (not loan categories).
     clauses.push("payment_status = 'due'");
     clauses.push("(parent_due_id IS NULL OR parent_due_id = '')");
-    // Match Mongo: only open dues with remaining > 0.
-    clauses.push("due_remaining > 0");
+    // Only open dues. Legacy rows never got due_remaining backfilled, so a bare
+    // `due_remaining > 0` silently hides them (NULL > 0 is NULL, not true).
+    clauses.push("COALESCE(due_remaining, amount) > 0");
+    clauses.push("(due_settled_at IS NULL OR due_settled_at = '')");
     if (!filters.loan_filter) {
       clauses.push(
         `(category_id IS NULL OR category_id NOT IN (
@@ -113,33 +146,28 @@ export async function buildLocalTransactionFilterSql(
     );
   }
 
-  // Loan chips: category type only — unsettled filter applied after loan_summary.
+  // Loan chips: match loan roots by category type + cash direction, mirroring
+  // isLoanGivenRoot / isLoanReceivedRoot. Without the direction guard the
+  // repayment legs (same category type, opposite direction) are fetched too and
+  // only dropped client-side, which wastes the page budget.
   if (filters.loan_filter === "loan_given") {
+    clauses.push("type = 'debit'");
     clauses.push(
       `category_id IN (
-         SELECT id FROM categories
-         WHERE type = 'loan_out'
-            OR name = 'Loan Given'
-            OR name LIKE '%Loan Given%'
+         SELECT id FROM categories WHERE type = 'loan_out'
          UNION
          SELECT server_id FROM categories
-         WHERE server_id IS NOT NULL AND (
-           type = 'loan_out' OR name = 'Loan Given' OR name LIKE '%Loan Given%'
-         )
+         WHERE server_id IS NOT NULL AND type = 'loan_out'
        )`,
     );
   } else if (filters.loan_filter === "loan_received") {
+    clauses.push("type = 'credit'");
     clauses.push(
       `category_id IN (
-         SELECT id FROM categories
-         WHERE type = 'loan_in'
-            OR name = 'Loan Received'
-            OR name LIKE '%Loan Received%'
+         SELECT id FROM categories WHERE type = 'loan_in'
          UNION
          SELECT server_id FROM categories
-         WHERE server_id IS NOT NULL AND (
-           type = 'loan_in' OR name = 'Loan Received' OR name LIKE '%Loan Received%'
-         )
+         WHERE server_id IS NOT NULL AND type = 'loan_in'
        )`,
     );
   }
@@ -214,11 +242,33 @@ export async function buildLocalTransactionFilterSql(
 
   const q = (filters.search ?? filters.q)?.trim();
   if (q) {
-    clauses.push(
-      `(description LIKE ? OR keyword LIKE ? OR vendor LIKE ? OR counterparty LIKE ?)`,
-    );
-    const like = `%${q}%`;
-    allParams.push(like, like, like, like);
+    // Every whitespace-separated term must match somewhere, so extra words
+    // narrow the result set instead of widening it.
+    const terms = q.split(/\s+/).filter(Boolean).slice(0, MAX_SEARCH_TERMS);
+    for (const term of terms) {
+      const like = `%${escapeLikePattern(term)}%`;
+      const amount = parseSearchAmount(term);
+      const amountClause = amount != null ? " OR amount = ?" : "";
+
+      clauses.push(
+        `(
+          description LIKE ? ESCAPE '\\'
+          OR keyword LIKE ? ESCAPE '\\'
+          OR vendor LIKE ? ESCAPE '\\'
+          OR counterparty LIKE ? ESCAPE '\\'
+          OR ${nameLookupClause("party_id", "parties")}
+          OR ${nameLookupClause("for_party_id", "parties")}
+          OR ${nameLookupClause("category_id", "categories")}
+          OR ${nameLookupClause("account_id", "accounts")}
+          ${amountClause}
+        )`,
+      );
+
+      // 4 direct columns + 2 params per name lookup × 4 lookups.
+      allParams.push(like, like, like, like);
+      allParams.push(like, like, like, like, like, like, like, like);
+      if (amount != null) allParams.push(amount);
+    }
   }
 
   if (filters.minAmount != null && !Number.isNaN(Number(filters.minAmount))) {
