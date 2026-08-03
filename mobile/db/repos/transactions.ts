@@ -49,12 +49,15 @@ async function applyAccountDelta(
   delta: number,
 ): Promise<number> {
   await db.runAsync(
-    `UPDATE accounts SET current_balance = current_balance + ? WHERE id = ?`,
+    `UPDATE accounts SET current_balance = current_balance + ?
+     WHERE id = ? OR server_id = ?`,
     delta,
+    accountId,
     accountId,
   );
   const row = await db.getFirstAsync<{ current_balance: number }>(
-    `SELECT current_balance FROM accounts WHERE id = ?`,
+    `SELECT current_balance FROM accounts WHERE id = ? OR server_id = ? LIMIT 1`,
+    accountId,
     accountId,
   );
   return Number(row?.current_balance ?? 0);
@@ -67,12 +70,15 @@ async function applyPartyDelta(
 ): Promise<number | null> {
   if (!partyId) return null;
   await db.runAsync(
-    `UPDATE parties SET current_balance = current_balance + ? WHERE id = ?`,
+    `UPDATE parties SET current_balance = current_balance + ?
+     WHERE id = ? OR server_id = ?`,
     delta,
+    partyId,
     partyId,
   );
   const row = await db.getFirstAsync<{ current_balance: number }>(
-    `SELECT current_balance FROM parties WHERE id = ?`,
+    `SELECT current_balance FROM parties WHERE id = ? OR server_id = ? LIMIT 1`,
+    partyId,
     partyId,
   );
   return Number(row?.current_balance ?? 0);

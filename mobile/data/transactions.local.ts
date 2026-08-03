@@ -1,6 +1,7 @@
 import { getDb } from "@/db/client";
 import * as transactionsRepo from "@/db/repos/transactions";
 import * as transfersRepo from "@/db/repos/transfers";
+import { buildLocalTransactionFilterSql } from "@/data/local-txn-filters";
 import type {
   LocalAccount,
   LocalCategory,
@@ -86,6 +87,25 @@ function mapLocalTxn(
     vendorText ||
     counterpartyText ||
     "";
+  const forPartyName = extras?.forPartyName?.trim() || "";
+  // If party_id missing but vendor text exists, still surface a vendor chip.
+  const party =
+    row.party_id || partyName
+      ? {
+          _id: extras?.partyLocalId ?? row.party_id ?? "",
+          name: partyName,
+          type: (extras?.partyType as "customer" | "supplier") || "customer",
+        }
+      : null;
+  const forParty =
+    row.for_party_id || forPartyName
+      ? {
+          _id: extras?.forPartyLocalId ?? row.for_party_id ?? "",
+          name: forPartyName,
+          type:
+            (extras?.forPartyType as "customer" | "supplier") || "customer",
+        }
+      : null;
   return {
     _id: row.id,
     account: {
@@ -111,21 +131,8 @@ function mapLocalTxn(
     comment: notes,
     counterparty: counterpartyText,
     vendor: vendorText,
-    party: row.party_id
-      ? {
-          _id: extras?.partyLocalId ?? row.party_id,
-          name: partyName,
-          type: (extras?.partyType as "customer" | "supplier") || "customer",
-        }
-      : null,
-    for_party: row.for_party_id
-      ? {
-          _id: extras?.forPartyLocalId ?? row.for_party_id,
-          name: extras?.forPartyName ?? "",
-          type:
-            (extras?.forPartyType as "customer" | "supplier") || "customer",
-        }
-      : null,
+    party,
+    for_party: forParty,
     payment_status: row.payment_status,
     due_date: row.due_date ?? undefined,
     due_remaining: row.due_remaining ?? undefined,
@@ -133,6 +140,8 @@ function mapLocalTxn(
     parent_due_id: row.parent_due_id ?? undefined,
     due_settled_at: row.due_settled_at ?? undefined,
     balance_after_transaction: row.balance_after_transaction ?? undefined,
+    transfer_id: row.transfer_id ?? undefined,
+    transfer_direction: row.transfer_direction ?? undefined,
     is_deleted: Boolean(row.deleted_at),
     attachments: parseAttachments(row.attachments_json),
   };
@@ -224,6 +233,66 @@ function enrichFromMaps(
   });
 }
 
+/**
+ * Local rows store parent_due_id as a string id. Cards expect a hydrated
+ * object (like the cloud API) so payment badges can show remaining due.
+ */
+async function hydrateParentDues(
+  db: Awaited<ReturnType<typeof getDb>>,
+  transactions: Transaction[],
+  maps: Awaited<ReturnType<typeof loadEnrichmentMaps>>,
+): Promise<Transaction[]> {
+  const parentIds = [
+    ...new Set(
+      transactions
+        .map((t) =>
+          typeof t.parent_due_id === "string" && t.parent_due_id
+            ? t.parent_due_id
+            : null,
+        )
+        .filter(Boolean),
+    ),
+  ] as string[];
+  if (!parentIds.length) return transactions;
+
+  const placeholders = parentIds.map(() => "?").join(",");
+  const parents = await db.getAllAsync<LocalTransaction>(
+    `SELECT * FROM transactions
+     WHERE deleted_at IS NULL
+       AND (id IN (${placeholders}) OR server_id IN (${placeholders}))`,
+    ...parentIds,
+    ...parentIds,
+  );
+  const byId = new Map<string, Transaction>();
+  for (const row of parents) {
+    const mapped = enrichFromMaps(row, maps);
+    byId.set(row.id, mapped);
+    if (row.server_id) byId.set(row.server_id, mapped);
+  }
+
+  return transactions.map((t) => {
+    if (typeof t.parent_due_id !== "string" || !t.parent_due_id) return t;
+    const parent = byId.get(t.parent_due_id);
+    if (!parent) return t;
+    return {
+      ...t,
+      parent_due_id: {
+        _id: parent._id,
+        amount: parent.amount,
+        due_remaining: parent.due_remaining,
+        due_settled_at: parent.due_settled_at,
+        date: String(parent.date),
+        description: parent.description,
+        vendor: parent.vendor,
+        counterparty: parent.counterparty,
+        party: parent.party ?? null,
+        for_party: parent.for_party ?? null,
+        payment_status: parent.payment_status,
+      },
+    };
+  });
+}
+
 export async function enrichLocalTransaction(
   db: Awaited<ReturnType<typeof getDb>>,
   row: LocalTransaction,
@@ -251,6 +320,61 @@ export async function enrichLocalTransaction(
   });
 }
 
+async function resolveLocalReadScope(
+  db: Awaited<ReturnType<typeof getDb>>,
+  filters: TransactionFilters,
+): Promise<{
+  organizationId: string | null;
+  allOrganizations?: boolean;
+  includePersonal?: boolean;
+}> {
+  const requested = filters.organizationId ?? null;
+
+  if (requested) {
+    const orgTotal = await transactionsRepo.countTransactions(db, {
+      organizationId: requested,
+    });
+    const personalTotal = await transactionsRepo.countTransactions(db, {
+      organizationId: null,
+    });
+    if (orgTotal > 0) {
+      // Legacy migrate left some rows without organization_id — include them
+      // so dashboard counts match the full shop book (~1205 not ~1175).
+      if (personalTotal > 0) {
+        return { organizationId: requested, includePersonal: true };
+      }
+      return { organizationId: requested };
+    }
+    // Org selected but SQLite still has only personal rows (legacy migrate).
+    if (personalTotal > 0) return { organizationId: null };
+    return { organizationId: requested };
+  }
+
+  // Personal mode: if books live under organization_id (Mongo org ledgers),
+  // personal-only scope looks empty/incomplete — read the whole device DB.
+  const personalTotal = await transactionsRepo.countTransactions(db, {
+    organizationId: null,
+  });
+  const allTotal = await transactionsRepo.countTransactions(db, {
+    allOrganizations: true,
+  });
+  if (allTotal > personalTotal) {
+    return { organizationId: null, allOrganizations: true };
+  }
+  return { organizationId: null };
+}
+
+async function ensureRepaired(db: Awaited<ReturnType<typeof getDb>>) {
+  try {
+    const { ensureLocalLedgerRepaired } = await import(
+      "@/lib/local-first/repair-ledger"
+    );
+    await ensureLocalLedgerRepaired(db);
+  } catch (e) {
+    console.warn("[local-txn] repair skipped", e);
+  }
+}
+
 export async function fetchLocalTransactions(
   filters: TransactionFilters = {},
 ): Promise<{
@@ -258,34 +382,84 @@ export async function fetchLocalTransactions(
   pagination?: { page: number; limit: number; total: number; pages: number };
 }> {
   const db = await getDb();
+  await ensureRepaired(db);
+
   const page = Number(filters.page ?? 1);
   const limit = Number(filters.limit ?? 20);
   const offset = (page - 1) * limit;
-  let scope = { organizationId: filters.organizationId ?? null };
-  let total = await transactionsRepo.countTransactions(db, scope, {
-    accountId: filters.accountId,
-    partyId: filters.party_id,
-  });
-  // Org selected but SQLite still has only personal rows (legacy migrate).
-  if (scope.organizationId && total === 0) {
-    const personalTotal = await transactionsRepo.countTransactions(
-      db,
-      { organizationId: null },
-      { accountId: filters.accountId, partyId: filters.party_id },
+  const scope = await resolveLocalReadScope(db, filters);
+  const { clauses, params } = await buildLocalTransactionFilterSql(
+    db,
+    scope,
+    filters,
+  );
+  const where = clauses.join(" AND ");
+  const maps = await loadEnrichmentMaps(db);
+  const { decorateLocalLoanSummaries } = await import(
+    "@/lib/local-first/loan-summary"
+  );
+  const { isLoanGivenRoot, isLoanReceivedRoot } = await import(
+    "@/lib/loan-utils"
+  );
+
+  // Loan chips need loan_summary before unsettled filtering — load a wider set.
+  if (filters.loan_filter === "loan_given" || filters.loan_filter === "loan_received") {
+    const wide = await db.getAllAsync<LocalTransaction>(
+      `SELECT * FROM transactions WHERE ${where}
+       ORDER BY date DESC, created_at DESC LIMIT 2000`,
+      ...params,
     );
-    if (personalTotal > 0) {
-      scope = { organizationId: null };
-      total = personalTotal;
+    let wideTx = wide.map((row) => enrichFromMaps(row, maps));
+    wideTx = await hydrateParentDues(db, wideTx, maps);
+    wideTx = await decorateLocalLoanSummaries(db, wideTx);
+    if (filters.loan_filter === "loan_given") {
+      wideTx = wideTx.filter(
+        (t) =>
+          isLoanGivenRoot(t) &&
+          !!t.loan_summary &&
+          !t.loan_summary.is_settled &&
+          (t.loan_summary.owed_by_them ?? 0) > 0,
+      );
+    } else {
+      wideTx = wideTx.filter(
+        (t) =>
+          isLoanReceivedRoot(t) &&
+          !!t.loan_summary &&
+          !t.loan_summary.is_settled &&
+          (t.loan_summary.owed_by_me ?? 0) > 0,
+      );
     }
+    const finalTotal = wideTx.length;
+    return {
+      transactions: wideTx.slice(offset, offset + limit),
+      pagination: {
+        page,
+        limit,
+        total: finalTotal,
+        pages: Math.max(1, Math.ceil(finalTotal / limit)),
+      },
+    };
   }
-  const rows = await transactionsRepo.listTransactions(db, scope, {
-    accountId: filters.accountId,
-    partyId: filters.party_id,
+
+  const totalRow = await db.getFirstAsync<{ c: number }>(
+    `SELECT COUNT(*) as c FROM transactions WHERE ${where}`,
+    ...params,
+  );
+  const total = Number(totalRow?.c ?? 0);
+
+  const rows = await db.getAllAsync<LocalTransaction>(
+    `SELECT * FROM transactions WHERE ${where}
+     ORDER BY date DESC, created_at DESC
+     LIMIT ? OFFSET ?`,
+    ...params,
     limit,
     offset,
-  });
-  const maps = await loadEnrichmentMaps(db);
-  const transactions = rows.map((row) => enrichFromMaps(row, maps));
+  );
+
+  let transactions = rows.map((row) => enrichFromMaps(row, maps));
+  transactions = await hydrateParentDues(db, transactions, maps);
+  transactions = await decorateLocalLoanSummaries(db, transactions);
+
   return {
     transactions,
     pagination: {
@@ -294,6 +468,67 @@ export async function fetchLocalTransactions(
       total,
       pages: Math.max(1, Math.ceil(total / limit)),
     },
+  };
+}
+
+/** Debit/credit/count for dashboard — respects the same filters as the list. */
+export async function fetchLocalTransactionTotals(
+  filters: TransactionFilters = {},
+): Promise<{ debit: number; credit: number; count: number }> {
+  const db = await getDb();
+  await ensureRepaired(db);
+
+  // Loan chips need the same unsettled post-filter as the list, or the
+  // StatsCards count drifts from the visible rows.
+  if (
+    filters.loan_filter === "loan_given" ||
+    filters.loan_filter === "loan_received"
+  ) {
+    const listed = await fetchLocalTransactions({
+      ...filters,
+      page: 1,
+      limit: 2000,
+    });
+    const txns = listed.transactions;
+    let debit = 0;
+    let credit = 0;
+    for (const t of txns) {
+      const amount = Number(t.amount) || 0;
+      if (t.type === "debit") debit += amount;
+      else if (t.type === "credit") credit += amount;
+    }
+    return {
+      debit,
+      credit,
+      count: listed.pagination?.total ?? txns.length,
+    };
+  }
+
+  const scope = await resolveLocalReadScope(db, filters);
+  // Totals ignore pagination; strip page/limit from filter copy.
+  const { page: _p, limit: _l, ...rest } = filters;
+  const { clauses, params } = await buildLocalTransactionFilterSql(
+    db,
+    scope,
+    rest,
+  );
+  const row = await db.getFirstAsync<{
+    debit: number;
+    credit: number;
+    count: number;
+  }>(
+    `SELECT
+      COALESCE(SUM(CASE WHEN lower(trim(type)) = 'debit' THEN CAST(amount AS REAL) ELSE 0 END), 0) as debit,
+      COALESCE(SUM(CASE WHEN lower(trim(type)) = 'credit' THEN CAST(amount AS REAL) ELSE 0 END), 0) as credit,
+      COUNT(*) as count
+     FROM transactions
+     WHERE ${clauses.join(" AND ")}`,
+    ...params,
+  );
+  return {
+    debit: Number(row?.debit ?? 0),
+    credit: Number(row?.credit ?? 0),
+    count: Number(row?.count ?? 0),
   };
 }
 

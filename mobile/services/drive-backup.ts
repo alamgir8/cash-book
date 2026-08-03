@@ -295,16 +295,54 @@ export async function listDriveBackupDates(
   if (json.error) {
     throw new Error(json.error.message || "Failed to list Drive backups");
   }
-  return (json.files ?? [])
+  const entries: DriveBackupEntry[] = (json.files ?? [])
     .filter((f: any) => String(f.name || "").includes("hisabboi-backup-"))
-    .map((f: any) => ({
-      date:
-        (f.name as string).match(/\d{4}-\d{2}-\d{2}/)?.[0] ??
-        String(f.createdTime || "").slice(0, 10),
-      fileId: f.id,
-      fileName: f.name,
-      createdTime: f.createdTime,
-    }));
+    .map((f: any) => {
+      const name = String(f.name || "");
+      // Prefer ISO stamp from filename: hisabboi-backup-2026-08-02T22-05-06-123Z.json
+      const stamp =
+        name.match(
+          /(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}(?:-\d+)?Z?)/,
+        )?.[1] ?? "";
+      const isoFromName = stamp
+        ? stamp
+            .replace(
+              /T(\d{2})-(\d{2})-(\d{2})(?:-(\d+))?Z?$/,
+              (_m, h, mi, s, ms) =>
+                `T${h}:${mi}:${s}.${(ms || "000").padEnd(3, "0")}Z`,
+            )
+            .replace(
+              /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3})$/,
+              "$1Z",
+            )
+        : "";
+      const createdTime = f.createdTime || isoFromName || undefined;
+      const date =
+        (createdTime && String(createdTime).slice(0, 10)) ||
+        name.match(/\d{4}-\d{2}-\d{2}/)?.[0] ||
+        "";
+      return {
+        date,
+        fileId: f.id,
+        fileName: name,
+        createdTime,
+      };
+    });
+
+  // Newest first by wall-clock time (filename stamp or Drive createdTime).
+  entries.sort((a, b) => {
+    const ta = Date.parse(a.createdTime || a.date || "") || 0;
+    const tb = Date.parse(b.createdTime || b.date || "") || 0;
+    return tb - ta;
+  });
+
+  // Dedupe identical fileIds (Drive list can repeat).
+  const seen = new Set<string>();
+  return entries.filter((e) => {
+    if (seen.has(e.fileId)) return false;
+    seen.add(e.fileId);
+    return true;
+  });
 }
 
 export async function restoreFromDriveFile(fileId: string): Promise<void> {

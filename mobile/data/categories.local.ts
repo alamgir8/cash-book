@@ -55,6 +55,13 @@ export async function fetchLocalCategories(options: {
       { organizationId: null },
       { includeArchived: options.includeArchived },
     );
+  } else if (!orgId) {
+    const all = await categoriesRepo.listCategories(
+      db,
+      { allOrganizations: true },
+      { includeArchived: options.includeArchived },
+    );
+    if (all.length > rows.length) rows = all;
   }
   return rows.map(toApi);
 }

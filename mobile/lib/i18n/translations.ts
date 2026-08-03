@@ -221,8 +221,6 @@ export type AppTranslations = {
   paymentRecorded: string;
   paymentFailed: string;
   amountRequired: string;
-  amountLabel: string;
-  noPaymentsYet: string;
   removeFromScheme: string;
   removeFromSchemeConfirm: string;
   memberRemoved: string;
@@ -330,6 +328,12 @@ export type AppTranslations = {
   youOwe: string;
   forLabel: string;
   vendorLabel: string;
+  noteLabel: string;
+  schemeLabel: string;
+  balanceAfterLabel: string;
+  dueDateLabel: string;
+  transferIn: string;
+  transferOut: string;
   pay: string;
   returnLoan: string;
   returnAmount: string;
@@ -750,8 +754,6 @@ const en: AppTranslations = {
   paymentRecorded: "Payment recorded",
   paymentFailed: "Could not record payment",
   amountRequired: "Enter a valid amount",
-  amountLabel: "Amount",
-  noPaymentsYet: "No payments yet for this family",
   removeFromScheme: "Remove from scheme",
   removeFromSchemeConfirm:
     'Remove "{name}" from this scheme? This cannot be undone.',
@@ -859,6 +861,12 @@ const en: AppTranslations = {
   youOwe: "you owe",
   forLabel: "For:",
   vendorLabel: "Vendor:",
+  noteLabel: "Note",
+  schemeLabel: "Scheme",
+  balanceAfterLabel: "Balance after",
+  dueDateLabel: "Due date",
+  transferIn: "Transfer in",
+  transferOut: "Transfer out",
   pay: "Pay",
   returnLoan: "Return",
   returnAmount: "Return Amount",
@@ -1287,8 +1295,6 @@ const bn: AppTranslations = {
   paymentRecorded: "জমা রেকর্ড হয়েছে",
   paymentFailed: "জমা রেকর্ড করা যায়নি",
   amountRequired: "সঠিক পরিমাণ লিখুন",
-  amountLabel: "পরিমাণ",
-  noPaymentsYet: "এই পরিবারের কোনো জমা নেই",
   removeFromScheme: "স্কিম থেকে সরান",
   removeFromSchemeConfirm:
     '"{name}" এই স্কিম থেকে সরাবেন? এটি পূর্বাবস্থায় ফেরানো যাবে না।',
@@ -1396,6 +1402,12 @@ const bn: AppTranslations = {
   youOwe: "আপনি বকেয়া",
   forLabel: "জন্য:",
   vendorLabel: "বিক্রেতা:",
+  noteLabel: "নোট",
+  schemeLabel: "স্কিম",
+  balanceAfterLabel: "পরবর্তী ব্যালেন্স",
+  dueDateLabel: "বকেয়ার তারিখ",
+  transferIn: "স্থানান্তর গ্রহণ",
+  transferOut: "স্থানান্তর প্রদান",
   pay: "পরিশোধ করুন",
   returnLoan: "ফেরত দিন",
   returnAmount: "ফেরতের পরিমাণ",

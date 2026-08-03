@@ -30,6 +30,7 @@ const APP_REFRESH_KEYS = [
 /** After create/update/delete on Home / Ledger / Account — keep it light. */
 const TRANSACTION_REFRESH_KEYS = [
   ["transactions"],
+  ["transaction-totals"],
   ["accounts"],
   queryKeys.accountsOverview,
   ["account"],

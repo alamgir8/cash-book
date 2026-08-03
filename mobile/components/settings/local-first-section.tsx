@@ -179,8 +179,8 @@ export function LocalFirstSection() {
     Alert.alert(
       already ? "Re-download from cloud?" : "Switch to on-device storage",
       already
-        ? "This replaces local personal data with a fresh cloud export."
-        : "Download your cloud data into this phone. After this, lists load from local storage — not Mongo.",
+        ? "This replaces ALL local ledger data (personal + organizations) with a fresh cloud export — including parties, categories, descriptions, and notes. Prefer this over an old Drive backup."
+        : "Download your full cloud ledger into this phone (accounts, parties, categories, transactions). After this, lists load from local storage — not Mongo.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -279,7 +279,7 @@ export function LocalFirstSection() {
   const confirmRestoreEntry = (entry: DriveBackupEntry) => {
     Alert.alert(
       "Restore from Drive?",
-      `${entry.fileName}\n\nThis replaces local personal data on this phone.`,
+      `${entry.fileName}\n\nThis replaces ALL local ledger data on this phone (personal + organizations).`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -305,7 +305,32 @@ export function LocalFirstSection() {
             try {
               await restoreFromDriveFile(entry.fileId);
               await refreshLocalQueries();
-              Toast.show({ type: "success", text1: "Drive restore done" });
+              // Thin backups (old personal-only exports) look "restored" but miss most rows.
+              try {
+                const { getDb } = await import("@/db/client");
+                const db = await getDb();
+                const row = await db.getFirstAsync<{ c: number }>(
+                  `SELECT COUNT(*) as c FROM transactions WHERE deleted_at IS NULL`,
+                );
+                const n = Number(row?.c ?? 0);
+                if (n > 0 && n < 50) {
+                  Toast.show({
+                    type: "info",
+                    text1: `Restored only ${n} transactions`,
+                    text2:
+                      "This Drive file looks incomplete. Use Re-download from cloud for the full book.",
+                    visibilityTime: 7000,
+                  });
+                } else {
+                  Toast.show({
+                    type: "success",
+                    text1: "Drive restore done",
+                    text2: `${n} transactions on device`,
+                  });
+                }
+              } catch {
+                Toast.show({ type: "success", text1: "Drive restore done" });
+              }
             } catch (e: any) {
               Toast.show({
                 type: "error",
@@ -592,33 +617,62 @@ export function LocalFirstSection() {
               className="text-xs mb-3"
               style={{ color: colors.text.secondary }}
             >
-              Pick a dated backup. Checksum is verified before import.
+              Newest first. Pick by date & time — latest is usually best.
             </Text>
             <FlatList
               data={driveEntries}
               keyExtractor={(item) => item.fileId}
               style={{ maxHeight: 320 }}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  className="rounded-2xl p-3 mb-2"
-                  style={{ backgroundColor: colors.bg.primary }}
-                  onPress={() => confirmRestoreEntry(item)}
-                >
-                  <Text
-                    className="font-semibold"
-                    style={{ color: colors.text.primary }}
+              renderItem={({ item, index }) => {
+                const when = item.createdTime
+                  ? new Date(item.createdTime)
+                  : null;
+                const valid = when && !Number.isNaN(when.getTime());
+                const title = valid
+                  ? when.toLocaleString(undefined, {
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      second: "2-digit",
+                    })
+                  : item.date || item.fileName;
+                return (
+                  <TouchableOpacity
+                    className="rounded-2xl p-3 mb-2"
+                    style={{ backgroundColor: colors.bg.primary }}
+                    onPress={() => confirmRestoreEntry(item)}
                   >
-                    {item.date}
-                  </Text>
-                  <Text
-                    className="text-xs mt-0.5"
-                    style={{ color: colors.text.secondary }}
-                    numberOfLines={1}
-                  >
-                    {item.fileName}
-                  </Text>
-                </TouchableOpacity>
-              )}
+                    <View className="flex-row items-center justify-between">
+                      <Text
+                        className="font-semibold flex-1"
+                        style={{ color: colors.text.primary }}
+                      >
+                        {title}
+                      </Text>
+                      {index === 0 ? (
+                        <Text
+                          className="text-[10px] font-bold ml-2 px-2 py-0.5 rounded-full"
+                          style={{
+                            color: colors.success,
+                            backgroundColor: colors.success + "22",
+                          }}
+                        >
+                          LATEST
+                        </Text>
+                      ) : null}
+                    </View>
+                    <Text
+                      className="text-xs mt-0.5"
+                      style={{ color: colors.text.secondary }}
+                      numberOfLines={1}
+                    >
+                      {item.fileName}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              }}
             />
             <TouchableOpacity
               className="rounded-2xl py-3 items-center mt-2"

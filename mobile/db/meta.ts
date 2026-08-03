@@ -6,8 +6,20 @@ export function scopeWhere(
   scope?: ScopeFilter,
 ): { sql: string; params: (string | null)[] } {
   const col = alias ? `${alias}.organization_id` : "organization_id";
+  // Entire device ledger (personal + every org) — used when org list isn't
+  // available but SQLite already has org-scoped rows from migrate/restore.
+  if (scope?.allOrganizations) {
+    return { sql: "1=1", params: [] };
+  }
   const orgId = scope?.organizationId ?? null;
   if (orgId) {
+    // Active org + orphan personal rows from pre-org migrate/restore.
+    if (scope?.includePersonal) {
+      return {
+        sql: `(${col} = ? OR ${col} IS NULL OR ${col} = '')`,
+        params: [orgId],
+      };
+    }
     return { sql: `${col} = ?`, params: [orgId] };
   }
   // Personal scope: NULL or legacy empty string (never drop rows on refresh).
@@ -45,6 +57,8 @@ export const META_KEYS = {
   SYNC_RUN_ID: "sync_run_id",
   SYNC_STAGE: "sync_stage",
   MIGRATION_COMPLETED_AT: "migration_completed_at",
+  /** Bump when repairLocalLedgerSemantics logic changes so devices re-run it. */
+  LEDGER_REPAIR_VERSION: "ledger_repair_version",
   LAST_LOCAL_BACKUP_AT: "last_local_backup_at",
   LAST_DRIVE_BACKUP_AT: "last_drive_backup_at",
   LAST_DRIVE_PATH: "last_drive_path",

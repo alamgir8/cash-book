@@ -58,9 +58,50 @@ const OrganizationLoader = ({ children }: { children: React.ReactNode }) => {
             settings: o.settings,
           }));
           setOrganizations(summaries);
-        } catch (error) {
-          console.warn("Failed to load organizations on startup:", error);
-          // Reset flag so it can be retried
+        } catch (error: any) {
+          const status = error?.response?.status;
+          // 401 often means token refresh race / expired session — retry later quietly.
+          if (status !== 401 && __DEV__) {
+            console.warn("Failed to load organizations on startup:", error);
+          }
+          // Local-first: seed org switcher from SQLite so org-scoped books stay reachable.
+          try {
+            const { isLocalFirstEnabled } = await import(
+              "@/lib/local-first/flags"
+            );
+            if (isLocalFirstEnabled()) {
+              const { getDb } = await import("@/db/client");
+              const db = await getDb();
+              const rows = await db.getAllAsync<{
+                organization_id: string;
+                c: number;
+              }>(
+                `SELECT organization_id, COUNT(*) as c FROM transactions
+                 WHERE deleted_at IS NULL
+                   AND organization_id IS NOT NULL AND organization_id != ''
+                 GROUP BY organization_id
+                 ORDER BY c DESC`,
+              );
+              if (rows.length) {
+                setOrganizations(
+                  rows.map((r, i) => ({
+                    id: r.organization_id,
+                    name:
+                      rows.length === 1
+                        ? "Organization"
+                        : `Organization ${i + 1}`,
+                    business_type: "other",
+                    role: "owner",
+                    permissions: {},
+                    settings: {},
+                  })),
+                );
+              }
+            }
+          } catch {
+            /* ignore */
+          }
+          // Reset flag so it can be retried when online
           hasLoadedOrgs.current = false;
         }
       }

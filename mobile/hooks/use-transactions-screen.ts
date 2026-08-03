@@ -100,6 +100,7 @@ export function useTransactionsScreen() {
     partyOptions,
     hasActiveFilters,
     totalTransactionCount,
+    ledgerTotals,
   } = feed;
 
   const updateMutation = useMutation({
@@ -134,18 +135,26 @@ export function useTransactionsScreen() {
       }),
   });
 
-  const summaryTotals = useMemo(
-    () =>
-      rawTransactions.reduce(
-        (acc, t) => {
-          if (t.type === "credit") acc.credit += t.amount;
-          else acc.debit += t.amount;
-          return acc;
-        },
-        { debit: 0, credit: 0 },
-      ),
-    [rawTransactions],
-  );
+  const summaryTotals = useMemo(() => {
+    const fromPage = rawTransactions.reduce(
+      (acc, t) => {
+        if (t.type === "credit") acc.credit += Number(t.amount) || 0;
+        else if (t.type === "debit") acc.debit += Number(t.amount) || 0;
+        return acc;
+      },
+      { debit: 0, credit: 0 },
+    );
+    if (
+      ledgerTotals &&
+      (ledgerTotals.debit > 0 ||
+        ledgerTotals.credit > 0 ||
+        rawTransactions.length === 0)
+    ) {
+      return ledgerTotals;
+    }
+    if (fromPage.debit > 0 || fromPage.credit > 0) return fromPage;
+    return ledgerTotals ?? fromPage;
+  }, [ledgerTotals, rawTransactions]);
 
   const handleEditTransaction = useCallback((transaction: Transaction) => {
     setEditingTransaction(transaction);

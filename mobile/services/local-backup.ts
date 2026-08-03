@@ -8,7 +8,6 @@ import * as categoriesRepo from "@/db/repos/categories";
 import * as partiesRepo from "@/db/repos/parties";
 import * as transactionsRepo from "@/db/repos/transactions";
 import * as transfersRepo from "@/db/repos/transfers";
-import { recalculateBalances } from "@/db/balances";
 import { META_KEYS, setMeta } from "@/db/meta";
 import { checksumForData, verifyChecksum } from "@/lib/local-first/checksum";
 import { upsertAccountFromSync } from "@/db/repos/accounts";
@@ -32,7 +31,7 @@ export type BackupV3 = {
   version: string;
   schemaVersion: number;
   exportedAt: string;
-  scope: { type: "personal" | "organization"; id: string | null };
+  scope: { type: "personal" | "organization" | "all"; id: string | null };
   checksum: string;
   data: {
     accounts: LocalAccount[];
@@ -63,24 +62,48 @@ export type BackupManifest = {
 };
 
 export async function exportLocalBackup(opts?: {
+  /** When set, export only that org (or personal if null). Default: entire device DB. */
   organizationId?: string | null;
+  /** @deprecated Use omit organizationId for full export. */
+  allScopes?: boolean;
 }): Promise<BackupV3> {
   const db = await getDb();
-  const scope = { organizationId: opts?.organizationId ?? null };
   const include = { includeArchived: true, includeDeleted: true };
+  // Drive / share backups must include every org + personal. Scoped export
+  // only when the caller passes organizationId explicitly (including null).
+  const scoped = opts != null && "organizationId" in opts;
+  const scope = scoped
+    ? { organizationId: opts!.organizationId ?? null }
+    : null;
 
-  const accounts = await accountsRepo.listAccounts(db, scope, include);
-  const categories = await categoriesRepo.listCategories(db, scope, include);
-  const parties = await partiesRepo.listParties(db, scope, include);
-  const transactions = await db.getAllAsync<LocalTransaction>(
-    scope.organizationId
-      ? `SELECT * FROM transactions WHERE organization_id = ?`
-      : `SELECT * FROM transactions WHERE organization_id IS NULL OR organization_id = ''`,
-    ...(scope.organizationId ? [scope.organizationId] : []),
-  );
-  const transfers = await transfersRepo.listTransfers(db, scope, {
-    includeDeleted: true,
-  });
+  let accounts: LocalAccount[];
+  let categories: LocalCategory[];
+  let parties: LocalParty[];
+  let transactions: LocalTransaction[];
+  let transfers: LocalTransfer[];
+
+  if (scope) {
+    accounts = await accountsRepo.listAccounts(db, scope, include);
+    categories = await categoriesRepo.listCategories(db, scope, include);
+    parties = await partiesRepo.listParties(db, scope, include);
+    transactions = await db.getAllAsync<LocalTransaction>(
+      scope.organizationId
+        ? `SELECT * FROM transactions WHERE organization_id = ?`
+        : `SELECT * FROM transactions WHERE organization_id IS NULL OR organization_id = ''`,
+      ...(scope.organizationId ? [scope.organizationId] : []),
+    );
+    transfers = await transfersRepo.listTransfers(db, scope, {
+      includeDeleted: true,
+    });
+  } else {
+    accounts = await db.getAllAsync<LocalAccount>(`SELECT * FROM accounts`);
+    categories = await db.getAllAsync<LocalCategory>(`SELECT * FROM categories`);
+    parties = await db.getAllAsync<LocalParty>(`SELECT * FROM parties`);
+    transactions = await db.getAllAsync<LocalTransaction>(
+      `SELECT * FROM transactions`,
+    );
+    transfers = await db.getAllAsync<LocalTransfer>(`SELECT * FROM transfers`);
+  }
 
   const data = { accounts, categories, parties, transactions, transfers };
   // Round-trip so checksum matches JSON downloaded later from Drive/disk.
@@ -96,8 +119,12 @@ export async function exportLocalBackup(opts?: {
     schemaVersion: LOCAL_SCHEMA_VERSION,
     exportedAt: new Date().toISOString(),
     scope: {
-      type: scope.organizationId ? "organization" : "personal",
-      id: scope.organizationId,
+      type: scope
+        ? scope.organizationId
+          ? "organization"
+          : "personal"
+        : "all",
+      id: scope?.organizationId ?? null,
     },
     checksum,
     data,
@@ -247,22 +274,17 @@ export async function importLocalBackup(
       await upsertTransferFromSync(db, normalizeTransferRow(t, organizationId));
     }
 
-    if (wipeAll) {
-      // Recalc every distinct organization_id present (plus personal).
-      const orgRows = await db.getAllAsync<{ organization_id: string | null }>(
-        `SELECT DISTINCT organization_id FROM accounts`,
-      );
-      const scopes = new Set<string | null>([null]);
-      for (const r of orgRows) {
-        scopes.add(r.organization_id || null);
-      }
-      for (const scope of scopes) {
-        await recalculateBalances(db, { organizationId: scope });
-      }
-    } else {
-      await recalculateBalances(db, { organizationId });
-    }
   });
+
+  // Fix dues/loans that arrived with wrong payment_status or category type,
+  // then recompute cash balances (paid only — dues excluded, like Mongo).
+  await setMeta(db, META_KEYS.LEDGER_REPAIR_VERSION, null);
+  const {
+    repairLocalLedgerSemantics,
+    LEDGER_REPAIR_VERSION,
+  } = await import("@/lib/local-first/repair-ledger");
+  await repairLocalLedgerSemantics(db);
+  await setMeta(db, META_KEYS.LEDGER_REPAIR_VERSION, LEDGER_REPAIR_VERSION);
 
   const liveAccounts = wipeAll
     ? await db.getAllAsync<{ current_balance: number }>(
@@ -347,11 +369,22 @@ function mapV2Account(row: any): Partial<LocalAccount> {
 }
 
 function mapV2Category(row: any): Partial<LocalCategory> {
+  const type = inferCategoryType(row);
+  const flow =
+    row.flow ||
+    (type === "loan_in" ||
+    type === "income" ||
+    type === "sell" ||
+    type === "donation_in" ||
+    type === "other_income" ||
+    type === "adjustment_in"
+      ? "credit"
+      : "debit");
   return {
     id: idOf(row),
     server_id: serverIdOf(row),
-    type: row.type,
-    flow: row.flow,
+    type,
+    flow,
     name: row.name,
     description: row.description ?? null,
     color: row.color ?? null,
@@ -395,42 +428,85 @@ function mapV2Party(row: any): Partial<LocalParty> {
   };
 }
 
+function refId(...candidates: unknown[]): string | null {
+  for (const c of candidates) {
+    if (c === undefined || c === null || c === "") continue;
+    if (typeof c === "object" && c && "_id" in (c as object)) {
+      const id = (c as { _id?: unknown })._id;
+      if (id != null && id !== "") return String(id);
+      continue;
+    }
+    return String(c);
+  }
+  return null;
+}
+
+function resolvePaymentStatus(row: any): "paid" | "due" {
+  // Payments linked to a parent due are always paid.
+  const parent = refId(row.parent_due_id, row._originalParentDueId);
+  if (parent) return "paid";
+
+  const remaining = row.due_remaining;
+  const remainingNum =
+    remaining != null && remaining !== "" ? Number(remaining) : null;
+
+  // Trust explicit status from source (API / backup export).
+  if (row.payment_status === "due") {
+    // Settled / zero-remaining dues are cash-paid even if status lagged.
+    if (row.due_settled_at) return "paid";
+    if (remainingNum != null && remainingNum <= 0) return "paid";
+    return "due";
+  }
+  if (row.payment_status === "paid") return "paid";
+
+  // Infer from chain fields ONLY when payment_status was missing/empty.
+  if (
+    remainingNum != null &&
+    remainingNum > 0 &&
+    !row.due_settled_at
+  ) {
+    return "due";
+  }
+
+  return "paid";
+}
+
+function inferCategoryType(row: any): string {
+  if (row.type && String(row.type).trim()) return String(row.type);
+  const name = String(row.name || "").toLowerCase();
+  if (name.includes("loan repayment paid")) return "loan_in";
+  if (name.includes("loan repayment received")) return "loan_out";
+  if (name.includes("loan given")) return "loan_out";
+  if (name.includes("loan received")) return "loan_in";
+  return row.flow === "credit" ? "income" : "expense";
+}
+
 function mapV2Transaction(row: any): Partial<LocalTransaction> {
-  const accountId = String(
-    row.account_id ||
-      row.account?._id ||
-      row.account ||
+  const accountId =
+    refId(
+      row.account_id,
+      row.account,
       row._originalAccountId,
+    ) || "";
+  const categoryId = refId(
+    row.category_id,
+    row.category,
+    row._originalCategoryId,
   );
-  const categoryId =
-    row.category_id?._id ||
-    row.category_id ||
-    row.category?._id ||
-    row.category ||
-    row._originalCategoryId ||
-    null;
-  const partyId =
-    row.party_id?._id ||
-    row.party_id ||
-    row.party?._id ||
-    row.party ||
-    row._originalPartyId ||
-    null;
-  const forPartyId =
-    row.for_party_id?._id ||
-    row.for_party_id ||
-    row.for_party?._id ||
-    row.for_party ||
-    row._originalForPartyId ||
-    null;
+  const partyId = refId(row.party_id, row.party, row._originalPartyId);
+  const forPartyId = refId(
+    row.for_party_id,
+    row.for_party,
+    row._originalForPartyId,
+  );
   return {
     id: idOf(row),
     server_id: serverIdOf(row),
     organization_id: orgIdOf(row),
     account_id: accountId,
-    category_id: categoryId ? String(categoryId) : null,
-    party_id: partyId ? String(partyId) : null,
-    for_party_id: forPartyId ? String(forPartyId) : null,
+    category_id: categoryId,
+    party_id: partyId,
+    for_party_id: forPartyId,
     type: row.type,
     amount: Number(row.amount),
     date: new Date(row.date).toISOString(),
@@ -438,11 +514,14 @@ function mapV2Transaction(row: any): Partial<LocalTransaction> {
     keyword: row.keyword ?? row.comment ?? null,
     counterparty: row.counterparty ?? null,
     vendor: row.vendor ?? null,
-    payment_status: row.payment_status ?? "paid",
+    payment_status: resolvePaymentStatus(row),
     due_date: row.due_date ? new Date(row.due_date).toISOString() : null,
-    due_group_id: row.due_group_id ? String(row.due_group_id) : null,
-    parent_due_id: row.parent_due_id ? String(row.parent_due_id) : null,
-    due_remaining: row.due_remaining ?? null,
+    due_group_id: refId(row.due_group_id, row._originalDueGroupId),
+    parent_due_id: refId(row.parent_due_id, row._originalParentDueId),
+    due_remaining:
+      row.due_remaining != null && row.due_remaining !== ""
+        ? Number(row.due_remaining)
+        : null,
     due_settled_at: row.due_settled_at
       ? new Date(row.due_settled_at).toISOString()
       : null,
@@ -577,11 +656,17 @@ function normalizeTransactionRow(
     ...base,
     organization_id: base.organization_id ?? organizationId ?? null,
     id: idOf(row),
-    payment_status: (base.payment_status as "paid" | "due") || "paid",
+    payment_status: resolvePaymentStatus({ ...row, ...base }),
     description: base.description ?? null,
     keyword: base.keyword ?? null,
     vendor: base.vendor ?? null,
     counterparty: base.counterparty ?? null,
+    due_remaining:
+      base.due_remaining !== undefined && base.due_remaining !== null
+        ? Number(base.due_remaining)
+        : row.due_remaining != null
+          ? Number(row.due_remaining)
+          : null,
   };
 }
 

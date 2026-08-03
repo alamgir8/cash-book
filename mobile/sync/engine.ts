@@ -379,14 +379,16 @@ export async function runSync(): Promise<SyncResult> {
   } catch (e: any) {
     const status = e?.response?.status;
     const raw = e?.response?.data?.message || e?.message || "Sync failed";
-    const message =
-      status === 404 || /resource not found/i.test(String(raw))
-        ? "Cloud sync API not on this server yet (deploy backend /sync routes)"
-        : String(raw);
+    const notDeployed =
+      status === 404 || /resource not found/i.test(String(raw));
+    const message = notDeployed
+      ? "Cloud sync API not on this server yet (deploy backend /sync routes)"
+      : String(raw);
     await setMeta(db, META_KEYS.LAST_SYNC_ERROR, message);
-    void trackLfEvent("sync_fail", { code: errorCodeFromUnknown(e) });
-    if (__DEV__) {
-      console.warn("[sync]", message);
+    // 404 is expected until production deploys /sync — don't spam telemetry/console.
+    if (!notDeployed) {
+      void trackLfEvent("sync_fail", { code: errorCodeFromUnknown(e) });
+      if (__DEV__) console.warn("[sync]", message);
     }
     return { ok: false, pushed: 0, pulled: 0, error: message };
   } finally {

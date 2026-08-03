@@ -49,7 +49,10 @@ export type Transaction = {
         due_settled_at?: string;
         date: string;
         description?: string;
+        vendor?: string;
+        counterparty?: string;
         party?: PartyRef | null;
+        for_party?: PartyRef | null;
         payment_status?: "paid" | "due";
       };
   due_settled_at?: string;
@@ -66,6 +69,8 @@ export type Transaction = {
     is_settled: boolean;
   };
   balance_after_transaction?: number;
+  transfer_id?: string | null;
+  transfer_direction?: "outgoing" | "incoming" | null;
   is_deleted?: boolean;
   attachments?: {
     url: string;

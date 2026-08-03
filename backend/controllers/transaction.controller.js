@@ -5,7 +5,10 @@ import { Category } from "../models/Category.js";
 import { Party } from "../models/Party.js";
 import { Transaction } from "../models/Transaction.js";
 import { Transfer } from "../models/Transfer.js";
-import { buildTransactionFilters } from "../utils/filters.js";
+import {
+  buildTransactionFilters,
+  personalOrganizationClause,
+} from "../utils/filters.js";
 import { enrichTransactionFilter } from "../utils/enrichTransactionFilter.js";
 import {
   resolveFinancialCategoryScope,
@@ -268,11 +271,25 @@ export const listTransactions = async (req, res, next) => {
       });
     }
 
+    // Include pre-org orphan txs that sit on this org's accounts so the live
+    // API total matches backup/export (~1204) instead of stopping at ~1175.
+    let orphanAccountIds = [];
+    if (organizationFilterId) {
+      const orgAccounts = await Account.find({
+        organization: organizationFilterId,
+        is_deleted: { $ne: true },
+      })
+        .select("_id")
+        .lean();
+      orphanAccountIds = orgAccounts.map((a) => a._id);
+    }
+
     const filter = buildTransactionFilters({
       adminId: req.user.id,
       organizationId: organizationFilterId,
       query: req.query,
       categoryScope,
+      orphanAccountIds,
     });
     await enrichTransactionFilter(filter, req.query, {
       adminId: req.user.id,
@@ -318,10 +335,19 @@ export const listTransactions = async (req, res, next) => {
       const rootIds = transactions.map((txn) => txn._id);
       const latestPayments = await Transaction.find({
         ...(organizationId
-          ? { organization: new mongoose.Types.ObjectId(organizationId) }
+          ? {
+              $or: [
+                { organization: new mongoose.Types.ObjectId(organizationId) },
+                {
+                  admin: new mongoose.Types.ObjectId(req.user.id),
+                  account: { $in: orphanAccountIds },
+                  ...personalOrganizationClause(),
+                },
+              ],
+            }
           : {
               admin: new mongoose.Types.ObjectId(req.user.id),
-              organization: { $exists: false },
+              ...personalOrganizationClause(),
             }),
         parent_due_id: { $in: rootIds },
         is_deleted: false,

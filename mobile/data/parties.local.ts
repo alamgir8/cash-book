@@ -26,12 +26,25 @@ async function resolveLocalParty(partyId: string) {
   return { db, row };
 }
 
+/** Match party FKs stored as local id OR Mongo server_id. */
+function partyMatchClause(alias = "") {
+  const p = alias ? `${alias}.` : "";
+  return `(
+    ${p}party_id = ? OR ${p}party_id = ? OR
+    ${p}for_party_id = ? OR ${p}for_party_id = ?
+  )`;
+}
+
+function partyMatchParams(row: LocalParty): string[] {
+  const serverId = row.server_id || row.id;
+  return [row.id, serverId, row.id, serverId];
+}
+
 async function withTxnCount(db: Awaited<ReturnType<typeof getDb>>, row: LocalParty) {
   const count = await db.getFirstAsync<{ c: number }>(
     `SELECT COUNT(*) as c FROM transactions
-     WHERE deleted_at IS NULL AND (party_id = ? OR for_party_id = ?)`,
-    row.id,
-    row.id,
+     WHERE deleted_at IS NULL AND ${partyMatchClause()}`,
+    ...partyMatchParams(row),
   );
   return localPartyToApi(row, Number(count?.c ?? 0));
 }
@@ -44,23 +57,28 @@ export async function fetchLocalParties(
   // Local-first: organization id, or personal (null). scope=all without org → personal.
   let scopeOrg = params?.organization ? String(params.organization) : null;
 
+  const listOpts = {
+    includeArchived: params?.archived === "all" ? true : includeArchived,
+    includeDeleted: false,
+  };
   let rows = await partiesRepo.listParties(
     db,
     { organizationId: scopeOrg },
-    {
-      includeArchived: params?.archived === "all" ? true : includeArchived,
-      includeDeleted: false,
-    },
+    listOpts,
   );
   if (scopeOrg && rows.length === 0) {
     rows = await partiesRepo.listParties(
       db,
       { organizationId: null },
-      {
-        includeArchived: params?.archived === "all" ? true : includeArchived,
-        includeDeleted: false,
-      },
+      listOpts,
     );
+  } else if (!scopeOrg) {
+    const all = await partiesRepo.listParties(
+      db,
+      { allOrganizations: true },
+      listOpts,
+    );
+    if (all.length > rows.length) rows = all;
   }
 
   if (params?.archived === true) {
@@ -214,9 +232,8 @@ export async function deleteLocalParty(partyId: string): Promise<{ message: stri
 
   const count = await db.getFirstAsync<{ c: number }>(
     `SELECT COUNT(*) as c FROM transactions
-     WHERE deleted_at IS NULL AND (party_id = ? OR for_party_id = ?)`,
-    row.id,
-    row.id,
+     WHERE deleted_at IS NULL AND ${partyMatchClause()}`,
+    ...partyMatchParams(row),
   );
   const transactionCount = Number(count?.c ?? 0);
   if (transactionCount > 0) {
@@ -321,11 +338,8 @@ export async function fetchLocalPartyLedger(
   const limit = Number(params?.limit ?? 30);
   const offset = (page - 1) * limit;
 
-  const clauses = [
-    "deleted_at IS NULL",
-    "(party_id = ? OR for_party_id = ?)",
-  ];
-  const bind: (string | number)[] = [row.id, row.id];
+  const clauses = ["deleted_at IS NULL", partyMatchClause()];
+  const bind: (string | number)[] = [...partyMatchParams(row)];
 
   if (params?.type === "debit" || params?.type === "credit") {
     clauses.push("type = ?");
@@ -378,19 +392,38 @@ export async function fetchLocalPartyLedger(
     `SELECT
       COALESCE(SUM(CASE WHEN type = 'debit' THEN amount ELSE 0 END), 0) as debit,
       COALESCE(SUM(CASE WHEN type = 'credit' THEN amount ELSE 0 END), 0) as credit
-     FROM transactions WHERE deleted_at IS NULL AND (party_id = ? OR for_party_id = ?)`,
-    row.id,
-    row.id,
+     FROM transactions WHERE deleted_at IS NULL AND ${partyMatchClause()}`,
+    ...partyMatchParams(row),
   );
 
   const opening = Number(row.opening_balance ?? 0);
   const totalDebit = Number(sums?.debit ?? 0);
   const totalCredit = Number(sums?.credit ?? 0);
+  const closing = opening + totalCredit - totalDebit;
+
+  // The page is newest-first, so the first row's balance is the closing balance
+  // minus everything newer than this page. Walking back from there gives a true
+  // party running balance; `balance_after_transaction` is the *account* balance
+  // and would be wrong here.
+  const newerRow = offset
+    ? await db.getFirstAsync<{ net: number }>(
+        `SELECT COALESCE(SUM(CASE WHEN type = 'credit' THEN amount ELSE -amount END), 0) as net
+         FROM (
+           SELECT type, amount FROM transactions WHERE ${where}
+           ORDER BY date DESC, created_at DESC
+           LIMIT ?
+         )`,
+        ...bind,
+        offset,
+      )
+    : null;
+  let runningBalance = closing - Number(newerRow?.net ?? 0);
 
   const entries = [];
   for (const t of txns) {
     const account = await db.getFirstAsync<{ name: string }>(
-      `SELECT name FROM accounts WHERE id = ?`,
+      `SELECT name FROM accounts WHERE id = ? OR server_id = ? LIMIT 1`,
+      t.account_id,
       t.account_id,
     );
     const category = t.category_id
@@ -399,20 +432,24 @@ export async function fetchLocalPartyLedger(
           t.category_id,
         )
       : null;
+    const debit = t.type === "debit" ? Number(t.amount) : 0;
+    const credit = t.type === "credit" ? Number(t.amount) : 0;
     entries.push({
       _id: t.id,
       date: t.date,
       type: t.type,
       description: t.description ?? category?.name ?? t.type,
       comment: t.keyword ?? undefined,
-      debit: t.type === "debit" ? Number(t.amount) : 0,
-      credit: t.type === "credit" ? Number(t.amount) : 0,
-      running_balance: Number(t.balance_after_transaction ?? 0),
+      debit,
+      credit,
+      running_balance: runningBalance,
       transaction_id: t.id,
       category_name: category?.name,
       account_name: account?.name,
       payment_status: t.payment_status,
     });
+    // Next row is one step older, so undo this row's effect.
+    runningBalance -= credit - debit;
   }
 
   return {
@@ -422,7 +459,7 @@ export async function fetchLocalPartyLedger(
       opening_balance: opening,
       total_debit: totalDebit,
       total_credit: totalCredit,
-      closing_balance: opening + totalCredit - totalDebit,
+      closing_balance: closing,
     },
     pagination: {
       page,
@@ -473,6 +510,9 @@ export async function fetchLocalVendors(
   let rows = await partiesRepo.listParties(db, { organizationId: orgId });
   if (orgId && rows.length === 0) {
     rows = await partiesRepo.listParties(db, { organizationId: null });
+  } else if (!orgId) {
+    const all = await partiesRepo.listParties(db, { allOrganizations: true });
+    if (all.length > rows.length) rows = all;
   }
   if (q) {
     rows = rows.filter((r) => r.name.toLowerCase().includes(q));

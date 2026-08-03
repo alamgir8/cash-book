@@ -13,6 +13,7 @@ import { LoanReturnModal } from "@/components/modals/loan-return-modal";
 import { DueChainSheet } from "@/components/modals/due-chain-sheet";
 import { VendorHistorySheet } from "@/components/modals/vendor-history-sheet";
 import { FilteredTransactionList } from "@/components/transactions/filtered-transaction-list";
+import { IncompleteLedgerBanner } from "@/components/incomplete-ledger-banner";
 import {
   StatsCardsSkeleton,
   QuickFeaturesSkeleton,
@@ -88,6 +89,9 @@ export default function DashboardScreen() {
   const headerContent = useMemo(
     () => (
       <>
+        <IncompleteLedgerBanner
+          localTransactionCount={totalTransactionCount}
+        />
         {accountsQuery.isLoading || transactionsQuery.isLoading ? (
           <StatsCardsSkeleton />
         ) : (

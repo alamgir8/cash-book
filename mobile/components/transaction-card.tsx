@@ -27,6 +27,59 @@ type Props = {
   onViewHistory?: (transaction: Transaction) => void;
 };
 
+/** Chips repeat a lot on this card; keep their shape defined in one place. */
+const Chip = ({
+  label,
+  value,
+  color,
+  onPress,
+}: {
+  label?: string;
+  value: string;
+  color: string;
+  onPress?: () => void;
+}) => (
+  <TouchableOpacity
+    activeOpacity={onPress ? 0.8 : 1}
+    onPress={onPress}
+    disabled={!onPress}
+    style={{ backgroundColor: color + "25", borderColor: color + "40" }}
+    className="px-3 py-1 rounded-full border"
+  >
+    <Text style={{ color }} className="text-xs font-semibold">
+      {/* Some label strings already end in ':' — don't double it up. */}
+      {label ? `${label.replace(/:\s*$/, "")}: ` : ""}
+      {value}
+    </Text>
+  </TouchableOpacity>
+);
+
+/** Label + value line used for the secondary detail block. */
+const DetailRow = ({
+  label,
+  value,
+  labelColor,
+  valueColor,
+}: {
+  label: string;
+  value: string;
+  labelColor: string;
+  valueColor: string;
+}) => (
+  <View className="flex-row items-start gap-1.5">
+    <Text style={{ color: labelColor }} className="text-xs font-semibold">
+      {label}
+    </Text>
+    <Text style={{ color: valueColor }} className="text-xs flex-1 leading-4">
+      {value}
+    </Text>
+  </View>
+);
+
+/** Same text under two different fields shouldn't render as two chips. */
+const sameText = (a?: string | null, b?: string | null) =>
+  !!a && !!b && a.trim().toLowerCase() === b.trim().toLowerCase();
+
 const TransactionCardComponent = ({
   transaction,
   onCategoryPress,
@@ -77,6 +130,42 @@ const TransactionCardComponent = ({
   const hasChain = isDue || isPayment || isLoanLedger;
   const remaining = transaction.due_remaining ?? transaction.amount;
   const isSettled = isDue && remaining === 0;
+
+  const categoryName = getCategoryRefName(transaction.category);
+  const partyName = getPartyRefName(transaction.party);
+  const forPartyName = getPartyRefName(transaction.for_party);
+  const schemeName = transaction.scheme?.name?.trim() || undefined;
+
+  const isTransfer = Boolean(
+    transaction.transfer_id || transaction.transfer_direction,
+  );
+  const transferLabel = isTransfer
+    ? transaction.transfer_direction === "incoming"
+      ? t("transferIn")
+      : transaction.transfer_direction === "outgoing"
+        ? t("transferOut")
+        : t("transfer")
+    : undefined;
+
+  // Legacy free-text vendor duplicates the linked party once a party is set.
+  const rawVendor = transaction.vendor?.trim() || undefined;
+  const vendorText = sameText(rawVendor, partyName) ? undefined : rawVendor;
+
+  // Transfers store the literal "Transfer" here, which is already conveyed by
+  // the transfer chip.
+  const rawCounterparty = transaction.counterparty?.trim() || undefined;
+  const counterpartyText =
+    !rawCounterparty ||
+    isTransfer ||
+    rawCounterparty.toLowerCase() === "transfer" ||
+    sameText(rawCounterparty, partyName) ||
+    sameText(rawCounterparty, vendorText)
+      ? undefined
+      : rawCounterparty;
+
+  const notes = [transaction.comment?.trim(), transaction.keyword?.trim()]
+    .filter((note): note is string => Boolean(note))
+    .filter((note, index, all) => all.indexOf(note) === index);
 
   // For payment cards: check if the parent due still has balance outstanding
   const parentDue =
@@ -267,129 +356,79 @@ const TransactionCardComponent = ({
         </Text>
       ) : null}
 
-      {/* Additional info / comment (API field is `keyword`) */}
-      {transaction.comment || transaction.keyword ? (
-        <Text
-          className="text-xs mt-1 italic"
-          style={{ color: colors.text.tertiary }}
-        >
-          {transaction.comment || transaction.keyword}
-        </Text>
+      {/* Notes. `comment` and `keyword` are separate fields; show both when
+          they differ instead of letting one hide the other. */}
+      {notes.length ? (
+        <View className="mt-1.5 gap-0.5">
+          {notes.map((note) => (
+            <DetailRow
+              key={note}
+              label={t("noteLabel")}
+              value={note}
+              labelColor={colors.text.tertiary}
+              valueColor={colors.text.tertiary}
+            />
+          ))}
+        </View>
       ) : null}
 
       <View className="flex-row flex-wrap mt-2 gap-x-2 gap-y-2">
-        {getCategoryRefName(transaction.category) ? (
-          <TouchableOpacity
-            activeOpacity={onCategoryPress ? 0.8 : 1}
-            onPress={() => {
-              const name = getCategoryRefName(transaction.category);
-              if (name && onCategoryPress) onCategoryPress(name);
-            }}
-            style={{
-              backgroundColor: colors.info + "25",
-              borderColor: colors.info + "40",
-            }}
-            className="px-3 py-1 rounded-full border"
-          >
-            <Text
-              style={{ color: colors.info }}
-              className="text-xs font-semibold"
-            >
-              {translateCategoryName(
-                getCategoryRefName(transaction.category) || "",
-                language,
-              )}
-            </Text>
-          </TouchableOpacity>
+        {categoryName ? (
+          <Chip
+            value={translateCategoryName(categoryName, language)}
+            color={colors.info}
+            onPress={
+              onCategoryPress ? () => onCategoryPress(categoryName) : undefined
+            }
+          />
         ) : null}
-        {getPartyRefName(transaction.party) ? (
-          <TouchableOpacity
-            activeOpacity={onPartyPress ? 0.8 : 1}
-            onPress={() => {
-              const name = getPartyRefName(transaction.party);
-              if (name && onPartyPress) onPartyPress(name);
-            }}
-            style={{
-              backgroundColor: colors.info + "25",
-              borderColor: colors.info + "40",
-            }}
-            className="px-3 py-1 rounded-full border"
-          >
-            <Text
-              style={{ color: colors.info }}
-              className="text-xs font-semibold"
-            >
-              {t("vendorLabel") ?? "Vendor"}
-              {": "}
-              {getPartyRefName(transaction.party)}
-            </Text>
-          </TouchableOpacity>
-        ) : transaction.vendor ? (
-          <TouchableOpacity
-            activeOpacity={onPartyPress ? 0.8 : 1}
-            onPress={() => {
-              const name = transaction.vendor?.trim();
-              if (name && onPartyPress) onPartyPress(name);
-            }}
-            style={{
-              backgroundColor: colors.info + "25",
-              borderColor: colors.info + "40",
-            }}
-            className="px-3 py-1 rounded-full border"
-          >
-            <Text
-              style={{ color: colors.info }}
-              className="text-xs font-semibold"
-            >
-              {t("vendorLabel") ?? "Vendor"}
-              {": "}
-              {transaction.vendor}
-            </Text>
-          </TouchableOpacity>
-        ) : transaction.counterparty ? (
-          <TouchableOpacity
-            activeOpacity={onCounterpartyPress ? 0.8 : 1}
-            onPress={() => {
-              if (transaction.counterparty && onCounterpartyPress) {
-                onCounterpartyPress(transaction.counterparty);
-              }
-            }}
-            style={{
-              backgroundColor: colors.info + "25",
-              borderColor: colors.info + "40",
-            }}
-            className="px-3 py-1 rounded-full border"
-          >
-            <Text
-              style={{ color: colors.info }}
-              className="text-xs font-semibold"
-            >
-              {transaction.counterparty}
-            </Text>
-          </TouchableOpacity>
+        {partyName ? (
+          <Chip
+            label={t("vendorLabel")}
+            value={partyName}
+            color={colors.info}
+            onPress={onPartyPress ? () => onPartyPress(partyName) : undefined}
+          />
         ) : null}
-        {getPartyRefName(transaction.for_party) ? (
-          <TouchableOpacity
-            activeOpacity={onForPartyPress ? 0.8 : 1}
-            onPress={() => {
-              const name = getPartyRefName(transaction.for_party);
-              if (name && onForPartyPress) onForPartyPress(name);
-            }}
-            style={{
-              backgroundColor: "#7c3aed" + "25",
-              borderColor: "#7c3aed" + "40",
-            }}
-            className="px-3 py-1 rounded-full border"
-          >
-            <Text
-              style={{ color: "#7c3aed" }}
-              className="text-xs font-semibold"
-            >
-              {t("forLabel") ?? "For"}
-              {": "}
-              {getPartyRefName(transaction.for_party)}
-            </Text>
-          </TouchableOpacity>
+        {vendorText ? (
+          <Chip
+            label={t("vendorLabel")}
+            value={vendorText}
+            color={colors.info}
+            onPress={onPartyPress ? () => onPartyPress(vendorText) : undefined}
+          />
+        ) : null}
+        {counterpartyText ? (
+          <Chip
+            label={t("counterpartyLabel")}
+            value={counterpartyText}
+            color={colors.info}
+            onPress={
+              onCounterpartyPress
+                ? () => onCounterpartyPress(counterpartyText)
+                : undefined
+            }
+          />
+        ) : null}
+        {forPartyName ? (
+          <Chip
+            label={t("forLabel")}
+            value={forPartyName}
+            color="#7c3aed"
+            onPress={
+              onForPartyPress ? () => onForPartyPress(forPartyName) : undefined
+            }
+          />
+        ) : null}
+        {schemeName ? (
+          <Chip
+            label={t("schemeLabel")}
+            value={schemeName}
+            color="#0891b2"
+          />
+        ) : null}
+        {transferLabel ? (
+          <Chip value={transferLabel} color={colors.text.tertiary} />
         ) : null}
         {isLoanLedger ? (
           <View
@@ -450,6 +489,27 @@ const TransactionCardComponent = ({
           </TouchableOpacity>
         ) : null}
       </View>
+
+      {(transaction.due_date || transaction.balance_after_transaction != null) && (
+        <View className="mt-2 gap-0.5">
+          {transaction.due_date ? (
+            <DetailRow
+              label={t("dueDateLabel")}
+              value={dayjs(transaction.due_date).format("MMM D, YYYY")}
+              labelColor={colors.text.tertiary}
+              valueColor={colors.text.secondary}
+            />
+          ) : null}
+          {transaction.balance_after_transaction != null ? (
+            <DetailRow
+              label={t("balanceAfterLabel")}
+              value={formatAmount(transaction.balance_after_transaction)}
+              labelColor={colors.text.tertiary}
+              valueColor={colors.text.secondary}
+            />
+          ) : null}
+        </View>
+      )}
 
       {/* Action row */}
       {!transaction.is_deleted ? (
@@ -624,7 +684,17 @@ export const TransactionCard = memo(
     prevProps.transaction.amount === nextProps.transaction.amount &&
     prevProps.transaction.type === nextProps.transaction.type &&
     prevProps.transaction.description === nextProps.transaction.description &&
+    prevProps.transaction.comment === nextProps.transaction.comment &&
+    prevProps.transaction.keyword === nextProps.transaction.keyword &&
+    prevProps.transaction.vendor === nextProps.transaction.vendor &&
     prevProps.transaction.date === nextProps.transaction.date &&
+    prevProps.transaction.due_date === nextProps.transaction.due_date &&
+    prevProps.transaction.scheme?.name === nextProps.transaction.scheme?.name &&
+    prevProps.transaction.transfer_id === nextProps.transaction.transfer_id &&
+    prevProps.transaction.transfer_direction ===
+      nextProps.transaction.transfer_direction &&
+    prevProps.transaction.balance_after_transaction ===
+      nextProps.transaction.balance_after_transaction &&
     prevProps.transaction.due_remaining ===
       nextProps.transaction.due_remaining &&
     prevProps.transaction.payment_status ===
@@ -643,13 +713,17 @@ export const TransactionCard = memo(
       nextProps.transaction.category?.name &&
     prevProps.transaction.counterparty === nextProps.transaction.counterparty &&
     (typeof prevProps.transaction.party === "object"
-      ? prevProps.transaction.party?._id
+      ? `${prevProps.transaction.party?._id}:${prevProps.transaction.party?.name ?? ""}`
       : prevProps.transaction.party) ===
       (typeof nextProps.transaction.party === "object"
-        ? nextProps.transaction.party?._id
+        ? `${nextProps.transaction.party?._id}:${nextProps.transaction.party?.name ?? ""}`
         : nextProps.transaction.party) &&
-    prevProps.transaction.payment_status ===
-      nextProps.transaction.payment_status &&
+    (typeof prevProps.transaction.for_party === "object"
+      ? `${prevProps.transaction.for_party?._id}:${prevProps.transaction.for_party?.name ?? ""}`
+      : prevProps.transaction.for_party) ===
+      (typeof nextProps.transaction.for_party === "object"
+        ? `${nextProps.transaction.for_party?._id}:${nextProps.transaction.for_party?.name ?? ""}`
+        : nextProps.transaction.for_party) &&
     (prevProps.transaction.attachments?.length ?? 0) ===
       (nextProps.transaction.attachments?.length ?? 0) &&
     prevProps.onCategoryPress === nextProps.onCategoryPress &&
@@ -658,6 +732,7 @@ export const TransactionCard = memo(
     prevProps.onForPartyPress === nextProps.onForPartyPress &&
     prevProps.onVendorPress === nextProps.onVendorPress &&
     prevProps.onPaymentStatusPress === nextProps.onPaymentStatusPress &&
+    prevProps.onEdit === nextProps.onEdit &&
     prevProps.onDelete === nextProps.onDelete &&
     prevProps.onPayDue === nextProps.onPayDue &&
     prevProps.onReturnLoan === nextProps.onReturnLoan &&

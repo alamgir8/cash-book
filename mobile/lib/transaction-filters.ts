@@ -160,24 +160,55 @@ export function mergeTransactionFilters(
     else delete next.search;
   }
 
-  for (const key of CHIP_DIMENSION_KEYS) {
+  // Explicit undefined/null/"" in patch clears keys (spread alone keeps old values).
+  const clearable: (keyof TransactionFilters)[] = [
+    ...CHIP_DIMENSION_KEYS,
+    "payment_status",
+    "loan_filter",
+    "range",
+    "startDate",
+    "endDate",
+    "from",
+    "to",
+    "type",
+    "search",
+    "q",
+    "accountId",
+    "accountName",
+    "minAmount",
+    "maxAmount",
+  ];
+  for (const key of clearable) {
+    if (!(key in patch)) continue;
     const val = patch[key];
     if (val === undefined || val === null || val === "") {
-      if (key in patch) delete next[key];
+      delete next[key];
     }
   }
 
-  if ("payment_status" in patch && !patch.payment_status) {
-    delete next.payment_status;
-  }
-  if ("loan_filter" in patch && !patch.loan_filter) {
-    delete next.loan_filter;
-  }
   if (patch.payment_status) {
     delete next.loan_filter;
   }
   if (patch.loan_filter) {
     delete next.payment_status;
+  }
+  // Range vs calendar dates are mutually exclusive.
+  if (patch.range) {
+    delete next.startDate;
+    delete next.endDate;
+    delete next.from;
+    delete next.to;
+  }
+  if (
+    patch.startDate ||
+    patch.endDate ||
+    patch.from ||
+    patch.to ||
+    ("startDate" in patch && !patch.startDate && !patch.range)
+  ) {
+    if (patch.startDate || patch.endDate || patch.from || patch.to) {
+      delete next.range;
+    }
   }
 
   return next;
@@ -189,6 +220,25 @@ export const filterTransactionsByActiveFilters = (
   filters: TransactionFilters,
 ): Transaction[] => {
   let result = transactions;
+
+  const from = filters.from ?? filters.startDate;
+  const to = filters.to ?? filters.endDate;
+  if (from || to || filters.range) {
+    // Soft client guard — SQL already applies bounds for local-first.
+    const start = from ? new Date(from).getTime() : null;
+    const end = to ? new Date(to).getTime() : null;
+    if (start != null && !Number.isNaN(start)) {
+      result = result.filter((txn) => new Date(txn.date).getTime() >= start);
+    }
+    if (end != null && !Number.isNaN(end)) {
+      const endOfDay = end + 24 * 60 * 60 * 1000 - 1;
+      result = result.filter((txn) => new Date(txn.date).getTime() <= endOfDay);
+    }
+  }
+
+  if (filters.type === "debit" || filters.type === "credit") {
+    result = result.filter((txn) => txn.type === filters.type);
+  }
 
   if (filters.category_name) {
     const target = looseCategoryNameKey(filters.category_name);
@@ -236,8 +286,14 @@ export const filterTransactionsByActiveFilters = (
     result = result.filter((txn) => {
       const status = txn.payment_status ?? "paid";
       if (status !== filters.payment_status) return false;
-      if (filters.payment_status === "due" && !filters.loan_filter) {
-        return !isLoanCategoryType(txn.category?.type);
+      if (filters.payment_status === "due") {
+        // Match local SQL / cloud Due chip: open roots only.
+        if (txn.parent_due_id) return false;
+        const remaining = txn.due_remaining ?? txn.amount ?? 0;
+        if (!(Number(remaining) > 0)) return false;
+        if (!filters.loan_filter && isLoanCategoryType(txn.category?.type)) {
+          return false;
+        }
       }
       return true;
     });

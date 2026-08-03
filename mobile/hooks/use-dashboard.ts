@@ -86,6 +86,7 @@ export function useDashboard() {
     partyOptions,
     hasActiveFilters,
     totalTransactionCount,
+    ledgerTotals,
   } = feed;
 
   const invalidateAll = useCallback(async () => {
@@ -153,17 +154,28 @@ export function useDashboard() {
       }),
   });
 
-  const totals = useMemo(
-    () =>
-      rawTransactions.reduce(
-        (acc, txn) => {
-          acc[txn.type] += txn.amount;
-          return acc;
-        },
-        { debit: 0, credit: 0 },
-      ),
-    [rawTransactions],
-  );
+  // Prefer full-ledger SQLite totals; fall back to loaded pages when SQL sums
+  // are empty (type/amount quirks) but rows are visible.
+  const totals = useMemo(() => {
+    const fromPage = rawTransactions.reduce(
+      (acc, txn) => {
+        if (txn.type === "credit") acc.credit += Number(txn.amount) || 0;
+        else if (txn.type === "debit") acc.debit += Number(txn.amount) || 0;
+        return acc;
+      },
+      { debit: 0, credit: 0 },
+    );
+    if (
+      ledgerTotals &&
+      (ledgerTotals.debit > 0 ||
+        ledgerTotals.credit > 0 ||
+        rawTransactions.length === 0)
+    ) {
+      return ledgerTotals;
+    }
+    if (fromPage.debit > 0 || fromPage.credit > 0) return fromPage;
+    return ledgerTotals ?? fromPage;
+  }, [ledgerTotals, rawTransactions]);
 
   const handleEditTransaction = useCallback(
     (transaction: Transaction) => {
