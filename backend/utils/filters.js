@@ -45,10 +45,12 @@ export const personalOrganizationClause = () => ({
 /**
  * Build the org/personal base scope.
  *
- * When `orphanAccountIds` is provided with an organization, also include the
- * admin's unscoped (null/missing org) transactions that sit on those accounts.
- * That recovers ~29 legacy rows that live in backup/export but were invisible
- * to org-scoped `/transactions` (1175 vs ~1204).
+ * Org views always include the admin's unscoped (null/missing organization)
+ * legacy rows. Those ~29 orphans exist in backup/export and on-device SQLite
+ * but were missing from org-scoped `/transactions` (1175 vs ~1204).
+ *
+ * When `orphanAccountIds` is provided, personal orphans are further limited to
+ * those accounts; otherwise every personal orphan for the admin is included.
  */
 export const buildOrganizationScope = ({
   adminId,
@@ -63,19 +65,16 @@ export const buildOrganizationScope = ({
   }
 
   const orgObjectId = new mongoose.Types.ObjectId(organizationId);
-  if (!orphanAccountIds.length) {
-    return { organization: orgObjectId };
-  }
+  const personalOrphan = {
+    admin: new mongoose.Types.ObjectId(adminId),
+    ...personalOrganizationClause(),
+    ...(orphanAccountIds.length
+      ? { account: { $in: asObjectIdArray(orphanAccountIds) } }
+      : {}),
+  };
 
   return {
-    $or: [
-      { organization: orgObjectId },
-      {
-        admin: new mongoose.Types.ObjectId(adminId),
-        account: { $in: asObjectIdArray(orphanAccountIds) },
-        ...personalOrganizationClause(),
-      },
-    ],
+    $or: [{ organization: orgObjectId }, personalOrphan],
   };
 };
 

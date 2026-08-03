@@ -194,7 +194,6 @@ export function useTransactionFeed({
     enabled:
       flagsReady &&
       enabled &&
-      localFirstEnabled &&
       (accountId !== undefined ? Boolean(accountId) : true),
     staleTime: 45_000,
   });

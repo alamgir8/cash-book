@@ -1,13 +1,12 @@
 import mongoose from "mongoose";
 import { Category } from "../models/Category.js";
 import { Transaction } from "../models/Transaction.js";
+import { buildOrganizationScope } from "./filters.js";
 
 const LOAN_CATEGORY_TYPES = ["loan_in", "loan_out"];
 
 const buildScopeFilter = ({ adminId, organizationId }) =>
-  organizationId
-    ? { organization: organizationId }
-    : { admin: adminId, organization: { $exists: false } };
+  buildOrganizationScope({ adminId, organizationId });
 
 const getCategoryId = (transaction) =>
   transaction.category_id?._id?.toString?.() ??
@@ -122,6 +121,9 @@ export const calculateLoanLedger = ({ transactions, categoryById }) => {
   };
 };
 
+const emptyLoanSummary = () =>
+  calculateLoanLedger({ transactions: [], categoryById: new Map() }).summary;
+
 export const decorateLoanSummaries = async ({
   transactions,
   adminId,
@@ -177,10 +179,12 @@ export const decorateLoanSummaries = async ({
   }
 
   const ledgerTransactions = await Transaction.find({
-    ...buildScopeFilter({ adminId, organizationId }),
-    $or: orClauses,
-    category_id: { $in: categoryIds },
-    is_deleted: { $ne: true },
+    $and: [
+      buildScopeFilter({ adminId, organizationId }),
+      { $or: orClauses },
+      { category_id: { $in: categoryIds } },
+      { is_deleted: { $ne: true } },
+    ],
   })
     .populate("account", "name kind")
     .populate("category_id", "name type")
@@ -285,8 +289,16 @@ export const getCounterpartyLoanLedger = async ({
   //  - Legacy string fallback.
   let partyFilter;
   if (partyId && forPartyId) {
+    if (
+      !mongoose.isValidObjectId(partyId) ||
+      !mongoose.isValidObjectId(forPartyId)
+    ) {
+      return { timeline: [], summary: emptyLoanSummary() };
+    }
     const oidA = new mongoose.Types.ObjectId(partyId);
     const oidB = new mongoose.Types.ObjectId(forPartyId);
+    // Strict pair only — never expand to "any loan involving B" (that mixed
+    // every loan tagged with the shop owner into unrelated ledgers).
     partyFilter = {
       $or: [
         { party: oidA, for_party: oidB },
@@ -294,21 +306,40 @@ export const getCounterpartyLoanLedger = async ({
       ],
     };
   } else if (partyId) {
+    if (!mongoose.isValidObjectId(partyId)) {
+      return { timeline: [], summary: emptyLoanSummary() };
+    }
     partyFilter = {
       $or: [
         { party: new mongoose.Types.ObjectId(partyId) },
         { for_party: new mongoose.Types.ObjectId(partyId) },
       ],
     };
+  } else if (forPartyId) {
+    if (!mongoose.isValidObjectId(forPartyId)) {
+      return { timeline: [], summary: emptyLoanSummary() };
+    }
+    partyFilter = {
+      $or: [
+        { party: new mongoose.Types.ObjectId(forPartyId) },
+        { for_party: new mongoose.Types.ObjectId(forPartyId) },
+      ],
+    };
   } else {
-    partyFilter = { counterparty: normalizeCounterparty(counterparty) };
+    const cp = normalizeCounterparty(counterparty);
+    if (!cp || cp.toLowerCase() === "transfer") {
+      return { timeline: [], summary: emptyLoanSummary() };
+    }
+    partyFilter = { counterparty: cp };
   }
 
   const transactions = await Transaction.find({
-    ...buildScopeFilter({ adminId, organizationId }),
-    ...partyFilter,
-    category_id: { $in: categoryIds },
-    is_deleted: { $ne: true },
+    $and: [
+      buildScopeFilter({ adminId, organizationId }),
+      partyFilter,
+      { category_id: { $in: categoryIds } },
+      { is_deleted: { $ne: true } },
+    ],
   })
     .populate("account", "name kind")
     .populate("category_id", "name type")

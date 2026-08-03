@@ -33,10 +33,11 @@ export async function dalFetchTransactionTotals(
 ): Promise<{ debit: number; credit: number; count: number }> {
   await ensureLocalFirstFlags();
   if (!shouldUseLocalPersonalLedger(filters.organizationId)) {
-    // Cloud path: approximate from first page is wrong — fetch a summary page.
+    // Cloud path: page-1 fetch runs orphan merge and returns corrected total.
+    // Debit/credit stay 0 here so the dashboard falls back to loaded pages /
+    // local SQL sums instead of walking the entire ledger over the network.
     const page = await fetchTransactions({ ...filters, page: 1, limit: 1 });
-    const total = page.pagination?.total ?? page.transactions.length;
-    // Without a dedicated summary endpoint, leave debit/credit to the caller.
+    const total = Number(page.pagination?.total ?? page.transactions.length);
     return { debit: 0, credit: 0, count: total };
   }
   const local = await import("./transactions.local");

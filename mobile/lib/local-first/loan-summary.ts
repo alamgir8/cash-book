@@ -302,3 +302,213 @@ export async function decorateLocalLoanSummaries(
       : { ...t, loan_summary: emptySummary() };
   });
 }
+
+/**
+ * Full loan ledger for History sheet (local-first). Mirrors cloud
+ * `/transactions/counterparty-ledger`.
+ */
+export async function fetchLocalCounterpartyLedger(params: {
+  partyId?: string;
+  forPartyId?: string;
+  counterparty?: string;
+}): Promise<{
+  counterparty: string;
+  timeline: Array<
+    Transaction & {
+      entry_type: "borrow" | "repayment" | "loan_given" | "loan_received_back";
+      running_balance: number;
+    }
+  >;
+  summary: LoanSummary;
+}> {
+  const { getDb } = await import("@/db/client");
+  const db = await getDb();
+
+  const loanCats = await db.getAllAsync<{
+    id: string;
+    server_id: string | null;
+    name: string;
+    type: string;
+  }>(
+    `SELECT id, server_id, name, type FROM categories
+     WHERE deleted_at IS NULL AND type IN ('loan_in','loan_out')`,
+  );
+  if (!loanCats.length) {
+    return {
+      counterparty: params.forPartyId ?? params.partyId ?? params.counterparty ?? "",
+      timeline: [],
+      summary: emptySummary(),
+    };
+  }
+
+  const catIds = new Set<string>();
+  for (const c of loanCats) {
+    catIds.add(c.id);
+    if (c.server_id) catIds.add(c.server_id);
+  }
+  const catIdList = [...catIds];
+  const placeholders = catIdList.map(() => "?").join(",");
+
+  const parties = await db.getAllAsync<{
+    id: string;
+    server_id: string | null;
+    name: string;
+  }>(`SELECT id, server_id, name FROM parties WHERE deleted_at IS NULL`);
+  const canonicalPartyId = new Map<string, string>();
+  const partyNameByCanon = new Map<string, string>();
+  for (const p of parties) {
+    canonicalPartyId.set(p.id, p.id);
+    if (p.server_id) canonicalPartyId.set(p.server_id, p.id);
+    partyNameByCanon.set(p.id, p.name);
+  }
+  const canon = (id: string | null | undefined) =>
+    id ? (canonicalPartyId.get(id) ?? id) : null;
+
+  const pid = canon(params.partyId);
+  const fpid = canon(params.forPartyId);
+  const cp = params.counterparty?.trim() || "";
+  if (cp.toLowerCase() === "transfer") {
+    return { counterparty: "", timeline: [], summary: emptySummary() };
+  }
+
+  const orParts: string[] = [];
+  const bind: (string | number)[] = [...catIdList];
+
+  const pushPartyMatch = (id: string) => {
+    orParts.push(`party_id = ? OR party_id = ?`);
+    orParts.push(`for_party_id = ? OR for_party_id = ?`);
+    const server =
+      parties.find((p) => p.id === id)?.server_id || id;
+    bind.push(id, server, id, server);
+  };
+
+  if (pid && fpid) {
+    // Strict pair only (either direction)
+    orParts.push(
+      `(party_id IN (?, ?) AND for_party_id IN (?, ?))`,
+      `(party_id IN (?, ?) AND for_party_id IN (?, ?))`,
+    );
+    const pServer = parties.find((p) => p.id === pid)?.server_id || pid;
+    const fServer = parties.find((p) => p.id === fpid)?.server_id || fpid;
+    bind.push(pid, pServer, fpid, fServer, fpid, fServer, pid, pServer);
+  } else if (pid) {
+    pushPartyMatch(pid);
+  } else if (fpid) {
+    pushPartyMatch(fpid);
+  } else if (cp) {
+    orParts.push(`(party_id IS NULL AND counterparty = ?)`);
+    bind.push(cp);
+  } else {
+    return {
+      counterparty: "",
+      timeline: [],
+      summary: emptySummary(),
+    };
+  }
+
+  const rows = await db.getAllAsync<{
+    id: string;
+    type: string;
+    amount: number;
+    date: string;
+    created_at: string;
+    description: string | null;
+    category_id: string | null;
+    party_id: string | null;
+    for_party_id: string | null;
+    counterparty: string | null;
+    account_id: string;
+  }>(
+    `SELECT id, type, amount, date, created_at, description, category_id,
+            party_id, for_party_id, counterparty, account_id
+     FROM transactions
+     WHERE deleted_at IS NULL
+       AND category_id IN (${placeholders})
+       AND (${orParts.join(" OR ")})
+     ORDER BY date ASC, created_at ASC, id ASC`,
+    ...bind,
+  );
+
+  const filtered = rows;
+
+  const catById = new Map(loanCats.map((c) => [c.id, c]));
+  for (const c of loanCats) {
+    if (c.server_id) catById.set(c.server_id, c);
+  }
+
+  const asTxn = (r: (typeof rows)[0]): Transaction => {
+    const cat = r.category_id ? catById.get(r.category_id) : null;
+    const lp = canon(r.party_id);
+    const lfp = canon(r.for_party_id);
+    return {
+      _id: r.id,
+      account: { _id: r.account_id, name: "" },
+      type: r.type as "debit" | "credit",
+      amount: Number(r.amount),
+      date: r.date,
+      createdAt: r.created_at,
+      description: r.description ?? undefined,
+      counterparty: r.counterparty ?? undefined,
+      category: cat
+        ? { _id: cat.id, name: cat.name, type: cat.type }
+        : null,
+      party: lp
+        ? {
+            _id: lp,
+            name: partyNameByCanon.get(lp) ?? "",
+            type: "customer",
+          }
+        : null,
+      for_party: lfp
+        ? {
+            _id: lfp,
+            name: partyNameByCanon.get(lfp) ?? "",
+            type: "customer",
+          }
+        : null,
+    };
+  };
+
+  const ledgerTxns = filtered.map(asTxn);
+  const summary = summarizeLedger(ledgerTxns);
+
+  // Build timeline with entry_type + running balance (owed_by_them - owed_by_me)
+  let owedByMe = 0;
+  let owedByThem = 0;
+  const timelineAsc = ledgerTxns.map((transaction) => {
+    const categoryType = transaction.category?.type ?? "";
+    const amount = Number(transaction.amount ?? 0);
+    const isIncoming = transaction.type === "credit";
+    let entry_type: "borrow" | "repayment" | "loan_given" | "loan_received_back";
+
+    if (categoryType === "loan_in") {
+      if (isIncoming) {
+        owedByMe += amount;
+        entry_type = "borrow";
+      } else {
+        owedByMe = Math.max(0, owedByMe - amount);
+        entry_type = "repayment";
+      }
+    } else if (isIncoming) {
+      owedByThem = Math.max(0, owedByThem - amount);
+      entry_type = "loan_received_back";
+    } else {
+      owedByThem += amount;
+      entry_type = "loan_given";
+    }
+
+    return {
+      ...transaction,
+      entry_type,
+      running_balance: round2(owedByThem - owedByMe),
+    };
+  });
+
+  const displayId = fpid || pid || cp;
+  return {
+    counterparty:
+      (displayId && partyNameByCanon.get(displayId)) || cp || displayId || "",
+    timeline: [...timelineAsc].reverse(),
+    summary,
+  };
+}

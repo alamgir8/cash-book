@@ -26,6 +26,7 @@ import * as Sharing from "expo-sharing";
 import { useTheme } from "@/hooks/use-theme";
 import { usePreferences } from "@/hooks/use-preferences";
 import { useTranslation } from "@/hooks/use-translation";
+import { useActiveOrgId } from "@/hooks/use-organization";
 import {
   fetchDueChain,
   fetchCounterpartyLedger,
@@ -43,6 +44,7 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
   const { formatAmount } = usePreferences();
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
+  const organizationId = useActiveOrgId();
 
   // Use counterparty ledger ONLY for loan-category transactions.
   // The backend's counterparty-ledger endpoint only queries loan_in/loan_out
@@ -69,22 +71,40 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
       ? transaction.for_party._id
       : transaction.for_party
     : undefined;
-  const useCounterpartyMode =
-    !!(partyId || transaction.counterparty) && isLoanCategory;
-  const counterparty = transaction.counterparty ?? "";
 
-  // Display name for the sheet header = the "other" party (not self).
-  // loan_out: party=self, for_party=borrower → show for_party
-  // loan_in:  party=lender, for_party=self   → show party
+  // The "other" person in the loan — never query "self" alone or every loan
+  // involving the shop owner gets mixed into e.g. মসজিদ / রিপন ledgers.
+  // loan_out (given): borrower = for_party (fallback party)
+  // loan_in (received): lender = party (fallback for_party)
+  const otherPartyId =
+    transaction.category?.type === "loan_out"
+      ? forPartyId || partyId
+      : partyId || forPartyId;
+
+  const useCounterpartyMode =
+    !!(otherPartyId || transaction.counterparty) && isLoanCategory;
+  const rawCp = transaction.counterparty?.trim() || "";
+  const counterparty =
+    !otherPartyId && rawCp && rawCp.toLowerCase() !== "transfer" ? rawCp : "";
+
+  // Display name for the sheet header = the other party
   const partyDisplayName =
-    transaction.category?.type === "loan_out" && transaction.for_party
+    transaction.category?.type === "loan_out"
       ? ((typeof transaction.for_party === "object"
           ? transaction.for_party?.name
-          : undefined) ?? "")
+          : undefined) ??
+        (typeof transaction.party === "object"
+          ? transaction.party?.name
+          : undefined) ??
+        counterparty ??
+        "")
       : ((typeof transaction.party === "object"
           ? transaction.party?.name
           : undefined) ??
-        transaction.counterparty ??
+        (typeof transaction.for_party === "object"
+          ? transaction.for_party?.name
+          : undefined) ??
+        counterparty ??
         "");
 
   // PDF export state
@@ -480,9 +500,22 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
   };
 
   const ledgerQuery = useQuery({
-    queryKey: ["counterparty-ledger", partyId, forPartyId, counterparty],
+    queryKey: [
+      "counterparty-ledger",
+      otherPartyId,
+      counterparty,
+      organizationId ?? "personal",
+      transaction.category?.type ?? "",
+    ],
     queryFn: () =>
-      fetchCounterpartyLedger({ partyId, forPartyId, counterparty }),
+      fetchCounterpartyLedger({
+        // Single-party lookup for the other person only — pair+self was
+        // pulling unrelated loans (e.g. Ripon into মসজিদ ledger).
+        partyId: otherPartyId,
+        forPartyId: undefined,
+        counterparty: counterparty || undefined,
+        organizationId,
+      }),
     enabled: visible && useCounterpartyMode,
   });
 

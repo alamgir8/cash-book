@@ -129,11 +129,12 @@ export async function exportLocalBackup(opts?: {
     checksum,
     data,
     summary: {
-      accountsCount: accounts.length,
-      categoriesCount: categories.length,
-      partiesCount: parties.length,
-      transactionsCount: transactions.length,
-      transfersCount: transfers.length,
+      accountsCount: accounts.filter((a) => !a.deleted_at).length,
+      categoriesCount: categories.filter((c) => !c.deleted_at).length,
+      partiesCount: parties.filter((p) => !p.deleted_at).length,
+      // Match live ledger counts (exclude soft-deleted rows).
+      transactionsCount: transactions.filter((t) => !t.deleted_at).length,
+      transfersCount: transfers.filter((t) => !t.deleted_at).length,
       totalBalance,
     },
   };

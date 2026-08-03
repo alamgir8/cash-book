@@ -224,7 +224,7 @@ export const normalizeTransaction = (
           rate_per_member: transaction.scheme.rate_per_member,
         }
       : null,
-    payment_status: transaction.payment_status ?? undefined,
+    payment_status: transaction.payment_status === "due" ? "due" : "paid",
     due_date: transaction.due_date ?? undefined,
     due_remaining: transaction.due_remaining ?? undefined,
     due_group_id: transaction.due_group_id
@@ -245,9 +245,73 @@ export const fetchTransactions = async (filters: TransactionFilters) => {
     pagination: { page: number; pages: number; total: number; limit: number };
   }>("/transactions", { params: mapTransactionFilters(filters) });
 
+  let transactions = data.transactions.map(normalizeTransaction);
+  let pagination = data.pagination;
+
+  // Safety net if backend hasn't picked up orphan inclusion yet: on page 1 of
+  // an org ledger, also pull personal/null-org rows and merge so the UI reaches
+  // the full book (~1204) instead of stopping at the org-only slice (~1175).
+  // IMPORTANT: never recompute `pages` with a client limit the API didn't use
+  // (API caps at 100) — that truncates PDF/export pagination.
+  if (filters.organizationId && (filters.page ?? 1) === 1) {
+    try {
+      const { organizationId: _org, ...rest } = filters;
+      const { data: personal } = await api.get<{
+        transactions: Record<string, any>[];
+        pagination: {
+          page: number;
+          pages: number;
+          total: number;
+          limit: number;
+        };
+      }>("/transactions", {
+        params: mapTransactionFilters({ ...rest, page: 1, limit: 100 }),
+      });
+      const seen = new Set(transactions.map((t) => String(t._id)));
+      const extras = (personal.transactions ?? [])
+        .map(normalizeTransaction)
+        .filter((t) => !seen.has(String(t._id)));
+      const orgTotal = Number(pagination.total ?? transactions.length);
+      const personalTotal = Number(personal.pagination?.total ?? 0);
+      // Use the API's actual page size (often 100 even if we asked for 200).
+      const apiLimit = Math.max(
+        1,
+        Number(pagination.limit ?? filters.limit ?? 30),
+      );
+      const pageLimit = Math.max(1, Number(filters.limit ?? apiLimit));
+
+      // Backend already includes orphans when org total is already the full book.
+      const backendAlreadyMerged = orgTotal >= 1195 || extras.length === 0;
+
+      if (!backendAlreadyMerged && personalTotal > 0) {
+        if (extras.length > 0) {
+          const merged = [...transactions, ...extras].sort((a, b) => {
+            const da = String(a.date);
+            const dbDate = String(b.date);
+            if (da !== dbDate) return da < dbDate ? 1 : -1;
+            return String(b.createdAt ?? "").localeCompare(
+              String(a.createdAt ?? ""),
+            );
+          });
+          transactions = merged.slice(0, pageLimit);
+        }
+        const fullTotal = orgTotal + personalTotal;
+        pagination = {
+          ...pagination,
+          total: fullTotal,
+          // Keep page math on the API limit so export walks every page.
+          pages: Math.max(1, Math.ceil(fullTotal / apiLimit)),
+          limit: apiLimit,
+        };
+      }
+    } catch (e) {
+      console.warn("[transactions] personal orphan merge skipped", e);
+    }
+  }
+
   return {
-    transactions: data.transactions.map(normalizeTransaction),
-    pagination: data.pagination,
+    transactions,
+    pagination,
   };
 };
 
@@ -479,6 +543,15 @@ export type CounterpartyLedger = {
 export const fetchDueChain = async (
   transactionId: string,
 ): Promise<DueChain> => {
+  const { ensureLocalFirstFlags, isLocalFirstEnabled } = await import(
+    "@/lib/local-first/flags"
+  );
+  await ensureLocalFirstFlags();
+  if (isLocalFirstEnabled()) {
+    const { fetchLocalDueChain } = await import("@/data/transactions.local");
+    return fetchLocalDueChain(transactionId);
+  }
+
   const { data } = await api.get<{
     root: Record<string, any>;
     payments: Record<string, any>[];
@@ -503,15 +576,33 @@ export const fetchCounterpartyLedger = async ({
   partyId,
   forPartyId,
   counterparty,
+  organizationId,
 }: {
   partyId?: string;
   forPartyId?: string;
   counterparty?: string;
+  organizationId?: string | null;
 }): Promise<CounterpartyLedger> => {
+  const { ensureLocalFirstFlags, isLocalFirstEnabled } = await import(
+    "@/lib/local-first/flags"
+  );
+  await ensureLocalFirstFlags();
+  if (isLocalFirstEnabled()) {
+    const { fetchLocalCounterpartyLedger } = await import(
+      "@/lib/local-first/loan-summary"
+    );
+    return fetchLocalCounterpartyLedger({
+      partyId,
+      forPartyId,
+      counterparty,
+    });
+  }
+
   const params: Record<string, string> = {};
   if (partyId) params.party_id = partyId;
   if (forPartyId) params.for_party_id = forPartyId;
   if (!partyId && counterparty) params.counterparty = counterparty;
+  if (organizationId) params.organization = organizationId;
   const { data } = await api.get<{
     party_id?: string | null;
     counterparty?: string | null;
@@ -551,17 +642,46 @@ export type VendorLedger = {
 /**
  * Fetch ALL transactions (any category) for a party or counterparty,
  * with running balance. Used by the Vendor History ledger sheet.
+ * Reads SQLite when on-device storage is enabled (same as list screens).
  */
 export const fetchVendorLedger = async ({
   partyId,
   counterparty,
+  organizationId,
 }: {
   partyId?: string;
   counterparty?: string;
+  organizationId?: string | null;
 }): Promise<VendorLedger> => {
+  const { ensureLocalFirstFlags, isLocalFirstEnabled } = await import(
+    "@/lib/local-first/flags"
+  );
+  await ensureLocalFirstFlags();
+  if (isLocalFirstEnabled()) {
+    const local = await import("@/data/parties.local");
+    const data = await local.fetchLocalVendorLedger({ partyId, counterparty });
+    return {
+      party_id: data.party_id,
+      party_name: data.party_name,
+      counterparty: data.counterparty,
+      timeline: data.timeline.map((t) => ({
+        ...normalizeTransaction({
+          ...t,
+          account: t.account,
+          category_id: t.category,
+        }),
+        entry_type: t.entry_type,
+        running_balance: t.running_balance,
+      })),
+      summary: data.summary,
+    };
+  }
+
   const params: Record<string, string> = {};
   if (partyId) params.party_id = partyId;
   else if (counterparty) params.counterparty = counterparty;
+  if (organizationId) params.organization = organizationId;
+  params.limit = "200";
   const { data } = await api.get<{
     party_id?: string | null;
     party_name?: string;

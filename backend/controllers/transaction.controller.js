@@ -6,6 +6,7 @@ import { Party } from "../models/Party.js";
 import { Transaction } from "../models/Transaction.js";
 import { Transfer } from "../models/Transfer.js";
 import {
+  buildOrganizationScope,
   buildTransactionFilters,
   personalOrganizationClause,
 } from "../utils/filters.js";
@@ -1684,24 +1685,57 @@ export const getVendorLedger = async (req, res, next) => {
         .json({ message: "party_id or counterparty query param required" });
     }
 
-    const scopeFilter = organizationId
-      ? { organization: organizationId }
-      : { admin: adminId, organization: { $exists: false } };
+    if (party_id && !mongoose.isValidObjectId(party_id)) {
+      return res.status(400).json({ message: "Invalid party_id" });
+    }
+
+    // Same org + personal-orphan scope as /transactions list so Full Ledger
+    // matches cards/filters when legacy rows have null organization.
+    let orphanAccountIds = [];
+    if (organizationId) {
+      const orgAccounts = await Account.find({
+        organization: organizationId,
+        is_deleted: { $ne: true },
+      })
+        .select("_id")
+        .lean();
+      orphanAccountIds = orgAccounts.map((a) => a._id);
+    }
+
+    const scopeFilter = buildOrganizationScope({
+      adminId,
+      organizationId,
+      orphanAccountIds,
+    });
 
     let partyFilter;
     if (party_id) {
       const oid = new mongoose.Types.ObjectId(party_id);
-      partyFilter = {
-        $or: [{ party: oid }, { for_party: oid }],
-      };
+      // Vendor ledger = txs where this party is the vendor (`party`), not for_party
+      partyFilter = { party: oid };
     } else {
-      partyFilter = { counterparty: counterparty.trim() };
+      const cp = String(counterparty ?? "").trim();
+      if (!cp || cp.toLowerCase() === "transfer") {
+        return res.json({
+          party_id: null,
+          party_name: "",
+          counterparty: null,
+          timeline: [],
+          truncated: false,
+          summary: {
+            total_credit: 0,
+            total_debit: 0,
+            net_balance: 0,
+            transaction_count: 0,
+          },
+        });
+      }
+      partyFilter = { counterparty: cp };
     }
 
+    // $and required: both scope and party filters may contain top-level $or
     const match = {
-      ...scopeFilter,
-      ...partyFilter,
-      is_deleted: { $ne: true },
+      $and: [scopeFilter, partyFilter, { is_deleted: { $ne: true } }],
     };
 
     // Summary over full history (cheap) + capped timeline for UI
