@@ -34,6 +34,8 @@ type SearchableMultiSelectProps = {
   onMaxReached?: () => void;
   /** Called when the options sheet is opened */
   onOpen?: () => void;
+  /** Called when the options sheet is closed */
+  onClose?: () => void;
 };
 
 type RenderItem =
@@ -53,6 +55,7 @@ export function SearchableMultiSelect({
   addNewLabel,
   onMaxReached,
   onOpen,
+  onClose,
 }: SearchableMultiSelectProps) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -61,7 +64,21 @@ export function SearchableMultiSelect({
   const [asyncOptions, setAsyncOptions] = useState<SelectOption[]>([]);
   const [isFetching, setIsFetching] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const closeNotifyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const [labelCache, setLabelCache] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    return () => {
+      if (closeNotifyTimerRef.current) {
+        clearTimeout(closeNotifyTimerRef.current);
+        closeNotifyTimerRef.current = null;
+        onClose?.();
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [localExtras, setLocalExtras] = useState<SelectOption[]>([]);
   const [isAdding, setIsAdding] = useState(false);
   const valuesRef = useRef(values);
@@ -233,8 +250,17 @@ export function SearchableMultiSelect({
   }, [mergedOptions, search, values]);
 
   const closeModal = () => {
+    Keyboard.dismiss();
     setVisible(false);
     setSearch("");
+    // Defer parent notify until after keyboard hide animation (iOS half-sheet flash).
+    if (closeNotifyTimerRef.current) {
+      clearTimeout(closeNotifyTimerRef.current);
+    }
+    closeNotifyTimerRef.current = setTimeout(() => {
+      closeNotifyTimerRef.current = null;
+      onClose?.();
+    }, 320);
   };
 
   const searchMatchesExisting = useMemo(() => {

@@ -40,6 +40,8 @@ type SearchableSelectProps = {
   addNewLabel?: string;
   /** Called when the options sheet is opened */
   onOpen?: () => void;
+  /** Called when the options sheet is closed (select, backdrop, or X) */
+  onClose?: () => void;
 };
 
 type RenderItem =
@@ -59,6 +61,7 @@ export const SearchableSelect = ({
   onAddNew,
   addNewLabel,
   onOpen,
+  onClose,
 }: SearchableSelectProps) => {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -67,8 +70,22 @@ export const SearchableSelect = ({
   const [asyncOptions, setAsyncOptions] = useState<SelectOption[]>([]);
   const [isFetching, setIsFetching] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const closeNotifyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   // Cache selected labels by value so display doesn't go blank after asyncOptions are cleared
   const [labelCache, setLabelCache] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    return () => {
+      if (closeNotifyTimerRef.current) {
+        clearTimeout(closeNotifyTimerRef.current);
+        closeNotifyTimerRef.current = null;
+        onClose?.();
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Debounced async search whenever search text changes
   useEffect(() => {
@@ -194,8 +211,19 @@ export const SearchableSelect = ({
   };
 
   const closeModal = () => {
+    // Blur + dismiss first so keyboardWillHide starts while parent still
+    // treats this picker as open (avoids half-sheet flash on iOS).
+    Keyboard.dismiss();
     setVisible(false);
     setSearch("");
+    // Defer parent notify until after the keyboard hide animation (~250–300ms).
+    if (closeNotifyTimerRef.current) {
+      clearTimeout(closeNotifyTimerRef.current);
+    }
+    closeNotifyTimerRef.current = setTimeout(() => {
+      closeNotifyTimerRef.current = null;
+      onClose?.();
+    }, 320);
   };
 
   // Resolve display label: matched option → cached label → customDisplayValue fallback

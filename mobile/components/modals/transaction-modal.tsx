@@ -930,6 +930,33 @@ export const TransactionModal = ({
     () => Dimensions.get("window").height * 0.88,
   );
 
+  // Nested SearchableSelect/MultiSelect open their own Modal + keyboard.
+  // Ignore keyboard-driven sheet resize while open AND until the keyboard has
+  // fully dismissed afterward — otherwise iOS flashes a half-height sheet for
+  // a split second (stale useKeyboardState / willHide race).
+  const [nestedPickerCount, setNestedPickerCount] = useState(0);
+  const [suppressSheetKeyboardLift, setSuppressSheetKeyboardLift] =
+    useState(false);
+  const nestedPickerCountRef = useRef(0);
+  const suppressSheetKeyboardLiftRef = useRef(false);
+  nestedPickerCountRef.current = nestedPickerCount;
+  suppressSheetKeyboardLiftRef.current = suppressSheetKeyboardLift;
+  const nestedPickerOpen = nestedPickerCount > 0;
+
+  const handleNestedPickerOpen = useCallback(() => {
+    dismissAmountPad();
+    setKbEventHeight(0);
+    setSuppressSheetKeyboardLift(true);
+    setNestedPickerCount((c) => c + 1);
+  }, [dismissAmountPad]);
+
+  const handleNestedPickerClose = useCallback(() => {
+    setNestedPickerCount((c) => Math.max(0, c - 1));
+    setKbEventHeight(0);
+    setSuppressSheetKeyboardLift(true);
+    Keyboard.dismiss();
+  }, []);
+
   // Remount sheet after resume — iOS Modal + keyboard-controller can leave
   // a frozen touch layer / stale keyboard height when returning from background.
   const [resumeKey, setResumeKey] = useState(0);
@@ -938,6 +965,8 @@ export const TransactionModal = ({
     Keyboard.dismiss();
     dismissAmountPad();
     setKbEventHeight(0);
+    setNestedPickerCount(0);
+    setSuppressSheetKeyboardLift(false);
     setShowDatePicker(false);
     setLockedSheetHeight(Dimensions.get("window").height * 0.88);
   }, [dismissAmountPad]);
@@ -946,6 +975,8 @@ export const TransactionModal = ({
     if (visible) {
       setLockedSheetHeight(Dimensions.get("window").height * 0.88);
       setKbEventHeight(0);
+      setNestedPickerCount(0);
+      setSuppressSheetKeyboardLift(false);
     }
   }, [visible]);
 
@@ -986,6 +1017,13 @@ export const TransactionModal = ({
     const hideEvent =
       Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
     const showSub = Keyboard.addListener(showEvent, (e) => {
+      // Nested picker keyboard must not resize the transaction sheet.
+      if (
+        nestedPickerCountRef.current > 0 ||
+        suppressSheetKeyboardLiftRef.current
+      ) {
+        return;
+      }
       setKbEventHeight(e.endCoordinates?.height ?? 0);
     });
     const hideSub = Keyboard.addListener(hideEvent, () => {
@@ -997,14 +1035,52 @@ export const TransactionModal = ({
     };
   }, []);
 
+  // Keep sheet full-size until nested picker is closed AND keyboard height is 0.
+  useEffect(() => {
+    if (nestedPickerCount > 0) {
+      setSuppressSheetKeyboardLift(true);
+      return;
+    }
+    if (!suppressSheetKeyboardLift) return;
+
+    const keyboardStillUp = kbStateHeight > 0 || kbEventHeight > 0;
+    if (keyboardStillUp) return;
+
+    const t = setTimeout(() => {
+      setKbEventHeight(0);
+      setSuppressSheetKeyboardLift(false);
+    }, 120);
+    return () => clearTimeout(t);
+  }, [
+    nestedPickerCount,
+    suppressSheetKeyboardLift,
+    kbStateHeight,
+    kbEventHeight,
+  ]);
+
+  // Hard cap so suppress can never stick forever if keyboard events are missed.
+  useEffect(() => {
+    if (!suppressSheetKeyboardLift || nestedPickerCount > 0) return;
+    const t = setTimeout(() => {
+      setKbEventHeight(0);
+      setSuppressSheetKeyboardLift(false);
+    }, 700);
+    return () => clearTimeout(t);
+  }, [suppressSheetKeyboardLift, nestedPickerCount]);
+
   const rawKeyboardHeight = Math.max(kbStateHeight, kbEventHeight);
   // Stale keyboard heights after background can equal nearly the full screen
   // and collapse the sheet to 0 — clamp so the modal stays interactive.
-  const keyboardHeight =
+  const measuredKeyboardHeight =
     rawKeyboardHeight > 0 && rawKeyboardHeight < screenHeight * 0.55
       ? rawKeyboardHeight
       : 0;
-  const keyboardOpen = keyboardHeight > 0 || showAmountKeypad;
+  // Nested pickers own their keyboard — keep the transaction sheet full-size.
+  const ignoreSheetKeyboardLift =
+    nestedPickerOpen || suppressSheetKeyboardLift;
+  const keyboardHeight = ignoreSheetKeyboardLift ? 0 : measuredKeyboardHeight;
+  const keyboardOpen =
+    !ignoreSheetKeyboardLift && (keyboardHeight > 0 || showAmountKeypad);
   // Keep open height; only shrink if lift would overlap the status bar
   const maxHeightAboveKeyboard =
     keyboardHeight > 0
@@ -1139,7 +1215,8 @@ export const TransactionModal = ({
                   render={({ field: { value, onChange }, fieldState }) => (
                     <View className="gap-2">
                       <SearchableSelect
-                        onOpen={dismissAmountPad}
+                        onOpen={handleNestedPickerOpen}
+                        onClose={handleNestedPickerClose}
                         label={t("accountFilter")}
                         placeholder={
                           isAccountsLoading
@@ -1174,7 +1251,8 @@ export const TransactionModal = ({
                   render={({ field: { value, onChange } }) => (
                     <View className="gap-2">
                       <SearchableSelect
-                        onOpen={dismissAmountPad}
+                        onOpen={handleNestedPickerOpen}
+                        onClose={handleNestedPickerClose}
                         label={t("categoryFilter")}
                         placeholder={
                           isCategoriesLoading
@@ -1212,7 +1290,8 @@ export const TransactionModal = ({
                     render={({ field: { value, onChange } }) => (
                       <View className="gap-2">
                         <SearchableSelect
-                          onOpen={dismissAmountPad}
+                          onOpen={handleNestedPickerOpen}
+                          onClose={handleNestedPickerClose}
                           label={t("collectionScheme") ?? "Collection scheme"}
                           placeholder={
                             t("selectSchemeOptional") ??
@@ -1484,7 +1563,8 @@ export const TransactionModal = ({
 
                   {bulkMode && !editingTransaction ? (
                     <SearchableMultiSelect
-                      onOpen={dismissAmountPad}
+                      onOpen={handleNestedPickerOpen}
+                      onClose={handleNestedPickerClose}
                       values={bulkParties}
                       placeholder={
                         t("selectOrAddVendors") ?? "Select or add vendors"
@@ -1542,7 +1622,8 @@ export const TransactionModal = ({
                           );
                         return (
                           <SearchableSelect
-                            onOpen={dismissAmountPad}
+                            onOpen={handleNestedPickerOpen}
+                            onClose={handleNestedPickerClose}
                             value={value || ""}
                             placeholder={
                               t("selectOrAddVendor") ?? "Select vendor"
@@ -1591,7 +1672,8 @@ export const TransactionModal = ({
                   </Text>
                   {bulkMode && !editingTransaction ? (
                     <SearchableMultiSelect
-                      onOpen={dismissAmountPad}
+                      onOpen={handleNestedPickerOpen}
+                      onClose={handleNestedPickerClose}
                       values={bulkForParties}
                       placeholder={
                         t("selectOrAddCounterparties") ??
@@ -1650,7 +1732,8 @@ export const TransactionModal = ({
                           );
                         return (
                           <SearchableSelect
-                            onOpen={dismissAmountPad}
+                            onOpen={handleNestedPickerOpen}
+                            onClose={handleNestedPickerClose}
                             value={value || ""}
                             placeholder={
                               t("selectOrAddCounterparty") ??
