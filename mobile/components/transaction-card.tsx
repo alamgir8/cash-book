@@ -179,9 +179,16 @@ const TransactionCardComponent = ({
   const showVendorHistory =
     !!onViewHistory && hasRealVendor && !hasChain && !isTransfer;
 
-  const notes = [transaction.comment?.trim(), transaction.keyword?.trim()]
-    .filter((note): note is string => Boolean(note))
-    .filter((note, index, all) => all.indexOf(note) === index);
+  // Flatten comment/keyword into unique note lines (multiline notes → list items).
+  const noteLines = [transaction.comment, transaction.keyword]
+    .flatMap((raw) =>
+      (raw ?? "")
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean),
+    )
+    .filter((line, index, all) => all.indexOf(line) === index)
+    .filter((line) => !sameText(line, transaction.description));
 
   // For payment cards: check if the parent due still has balance outstanding
   const parentDue =
@@ -363,29 +370,38 @@ const TransactionCardComponent = ({
         </View>
       </View>
 
-      {(transaction.description || notes.length > 0) && (
-        <View className="mt-3 gap-0.5">
+      {(transaction.description || noteLines.length > 0) && (
+        <View className="mt-3 gap-1">
+          {/* Description: flat body text, no label, full content */}
           {transaction.description ? (
-            <DetailRow
-              label={t("descriptionLabel")}
-              value={transaction.description}
-              labelColor={colors.text.secondary}
-              valueColor={colors.text.secondary}
-            />
+            <Text
+              style={{ color: colors.text.secondary }}
+              className="text-sm font-medium"
+            >
+              {transaction.description}
+            </Text>
           ) : null}
-          {/* Notes. `comment` and `keyword` are separate fields; show both when
-              they differ instead of letting one hide the other. */}
-          {notes
-            .filter((note) => !sameText(note, transaction.description))
-            .map((note) => (
-              <DetailRow
-                key={note}
-                label={t("noteLabel")}
-                value={note}
-                labelColor={colors.text.tertiary}
-                valueColor={colors.text.tertiary}
-              />
-            ))}
+          {/* Notes: list view of every unique line, no "Note" label */}
+          {noteLines.length > 0 ? (
+            <View className="gap-0.5">
+              {noteLines.map((line) => (
+                <View key={line} className="flex-row items-start gap-1.5">
+                  <Text
+                    style={{ color: colors.text.tertiary, lineHeight: 18 }}
+                    className="text-xs"
+                  >
+                    •
+                  </Text>
+                  <Text
+                    style={{ color: colors.text.tertiary, flex: 1 }}
+                    className="text-xs font-medium"
+                  >
+                    {line}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
         </View>
       )}
 

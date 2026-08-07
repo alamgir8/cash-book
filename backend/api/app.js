@@ -60,19 +60,16 @@ export const createApp = () => {
   app.use(compression());
 
   // ── Logging ───────────────────────────────────────────────
-  app.use(morgan(isProduction ? "combined" : "dev"));
+  // Skip noisy health probes in logs (common from simulators / load balancers)
+  const skipHealthLog = (req) =>
+    req.method === "GET" && (req.path === "/" || req.path === "/health");
+  app.use(
+    morgan(isProduction ? "combined" : "dev", {
+      skip: skipHealthLog,
+    }),
+  );
 
-  // ── Global rate limiter ───────────────────────────────────
-  const globalLimiter = rateLimit({
-    windowMs: 1 * 60 * 1000, // 1 minute
-    max: isProduction ? 200 : 1000, // requests per window per IP
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { message: "Too many requests, please try again later." },
-  });
-  app.use(globalLimiter);
-
-  // ── Health check (no auth, no rate-limit) ─────────────────
+  // ── Health check (no auth) — registered before rate limiter ─
   app.get("/health", (_req, res) => {
     res.json({
       status: "ok",
@@ -84,6 +81,16 @@ export const createApp = () => {
   app.get("/", (_req, res) => {
     res.json({ status: "ok", version: "2.0" });
   });
+
+  // ── Global rate limiter ───────────────────────────────────
+  const globalLimiter = rateLimit({
+    windowMs: 1 * 60 * 1000, // 1 minute
+    max: isProduction ? 200 : 1000, // requests per window per IP
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { message: "Too many requests, please try again later." },
+  });
+  app.use(globalLimiter);
 
   // ── API routes ────────────────────────────────────────────
   app.use("/api", routes);
