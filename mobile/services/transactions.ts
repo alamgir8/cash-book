@@ -252,7 +252,7 @@ export const fetchTransactions = async (filters: TransactionFilters) => {
   // an org ledger, also pull personal/null-org rows and merge so the UI reaches
   // the full book (~1204) instead of stopping at the org-only slice (~1175).
   // IMPORTANT: never recompute `pages` with a client limit the API didn't use
-  // (API caps at 100) — that truncates PDF/export pagination.
+  // — mismatched page math truncates PDF/export pagination.
   if (filters.organizationId && (filters.page ?? 1) === 1) {
     try {
       const { organizationId: _org, ...rest } = filters;

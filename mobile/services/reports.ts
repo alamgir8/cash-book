@@ -3,11 +3,16 @@ import * as Sharing from "expo-sharing";
 import { Paths, File } from "expo-file-system";
 import dayjs from "dayjs";
 import {
-  fetchTransactions,
   type Transaction,
   type TransactionFilters,
 } from "./transactions";
+import { dalFetchTransactions } from "@/data/transactions";
 import { fetchAccountDetail } from "./accounts";
+
+/** Page size for PDF/export walks. Backend list allows up to 5000. */
+const EXPORT_PAGE_SIZE = 500;
+/** Hard ceiling so a bad pagination total cannot loop forever. */
+const EXPORT_MAX_RECORDS = 50_000;
 
 type RawFilters = Record<string, unknown>;
 
@@ -89,6 +94,14 @@ const parseBoolean = (value: unknown): boolean | undefined => {
 const parseFilters = (raw: RawFilters): ParsedFilters => {
   const filters: TransactionFilters = {};
   const display: DisplayFilters = {};
+
+  const organizationId =
+    toStringValue(raw.organizationId) ??
+    toStringValue(raw.organization_id) ??
+    toStringValue(raw.organization);
+  if (organizationId) {
+    filters.organizationId = organizationId;
+  }
 
   const from =
     toStringValue(raw.from) ??
@@ -315,24 +328,27 @@ const collectTransactions = async (
 ): Promise<{ transactions: Transaction[]; total: number }> => {
   const transactions: Transaction[] = [];
   let currentPage = 1;
-  let totalPages = 1;
   let grandTotal = 0;
-  // Backend caps list limit at 100 — requesting more breaks page math / export.
-  const pageSize = 100;
+  const pageSize = EXPORT_PAGE_SIZE;
 
   const accountSnapshots = new Map<
     string,
     { after: number; amount: number; type: "credit" | "debit" }
   >();
 
-  do {
-    const response = await fetchTransactions({
+  // Walk every page until empty / reported total / hard ceiling.
+  // Uses DAL so local-first SQLite and cloud API both export the full book.
+  while (transactions.length < EXPORT_MAX_RECORDS) {
+    const response = await dalFetchTransactions({
       ...baseFilters,
       page: currentPage,
       limit: pageSize,
     });
 
-    response.transactions.forEach((txn) => {
+    const batch = response.transactions ?? [];
+    if (batch.length === 0) break;
+
+    batch.forEach((txn) => {
       const accountId =
         typeof txn.account === "object" ? txn.account?._id : txn.account;
       if (!accountId) return;
@@ -343,11 +359,41 @@ const collectTransactions = async (
       });
     });
 
-    transactions.push(...response.transactions);
-    totalPages = response.pagination.pages ?? 1;
-    grandTotal = response.pagination.total ?? transactions.length;
+    transactions.push(...batch);
+
+    const reportedTotal = Number(response.pagination?.total);
+    const reportedPages = Number(response.pagination?.pages);
+    const reportedLimit = Math.max(
+      1,
+      Number(response.pagination?.limit ?? pageSize),
+    );
+    if (Number.isFinite(reportedTotal) && reportedTotal > 0) {
+      grandTotal = reportedTotal;
+    } else {
+      grandTotal = Math.max(grandTotal, transactions.length);
+    }
+
+    // Stop when we've collected everything the API/SQLite reported.
+    if (grandTotal > 0 && transactions.length >= grandTotal) break;
+    // Last (partial) page.
+    if (batch.length < reportedLimit) break;
+    // Respect pages when present; keep going if we still got a full page
+    // but haven't reached total (guards against under-reported page counts).
+    if (
+      Number.isFinite(reportedPages) &&
+      reportedPages > 0 &&
+      currentPage >= reportedPages &&
+      !(grandTotal > transactions.length && batch.length >= reportedLimit)
+    ) {
+      break;
+    }
+
     currentPage += 1;
-  } while (currentPage <= totalPages);
+  }
+
+  if (grandTotal < transactions.length) {
+    grandTotal = transactions.length;
+  }
 
   const startingBalances = new Map<string, number>();
   accountSnapshots.forEach((snapshot, accountId) => {
@@ -1500,10 +1546,10 @@ export const exportPartyLedgerPdf = async (
   try {
     const { partiesApi } = await import("./parties");
 
-    // Fetch all ledger entries (no pagination for PDF)
+    // Fetch ledger entries for PDF (backend allows up to 5000)
     const ledgerData = await partiesApi.getLedger(partyId, {
       page: 1,
-      limit: 1000,
+      limit: 5000,
     });
 
     const entries = ledgerData.entries || [];

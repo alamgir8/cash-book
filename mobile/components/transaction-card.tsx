@@ -7,7 +7,10 @@ import { usePreferences } from "../hooks/use-preferences";
 import { useTheme } from "../hooks/use-theme";
 import { useTranslation } from "../hooks/use-translation";
 import { translateCategoryName } from "../lib/i18n/category-translations";
-import { getPartyRefName, getCategoryRefName } from "../lib/transaction-filters";
+import {
+  getPartyRefName,
+  getCategoryRefName,
+} from "../lib/transaction-filters";
 import { getLoanReturnRemaining } from "../lib/loan-utils";
 
 type Props = {
@@ -66,7 +69,10 @@ const DetailRow = ({
   labelColor: string;
   valueColor: string;
 }) => (
-  <View className="flex-row items-center gap-1.5" style={{ flexWrap: "nowrap" }}>
+  <View
+    className="flex-row items-center gap-1.5"
+    style={{ flexWrap: "nowrap" }}
+  >
     <Text
       style={{ color: labelColor }}
       className="text-xs font-semibold"
@@ -76,7 +82,7 @@ const DetailRow = ({
     </Text>
     <Text
       style={{ color: valueColor, flexShrink: 1 }}
-      className="text-xs font-medium"
+      className="text-xs font-medium mt-1"
       numberOfLines={1}
     >
       {value}
@@ -454,11 +460,7 @@ const TransactionCardComponent = ({
           />
         ) : null}
         {schemeName ? (
-          <Chip
-            label={t("schemeLabel")}
-            value={schemeName}
-            color="#0891b2"
-          />
+          <Chip label={t("schemeLabel")} value={schemeName} color="#0891b2" />
         ) : null}
         {transferLabel ? (
           <Chip value={transferLabel} color={colors.text.tertiary} />
@@ -523,7 +525,8 @@ const TransactionCardComponent = ({
         ) : null}
       </View>
 
-      {(transaction.due_date || transaction.balance_after_transaction != null) && (
+      {(transaction.due_date ||
+        transaction.balance_after_transaction != null) && (
         <View className="mt-2 gap-0.5">
           {transaction.due_date ? (
             <DetailRow

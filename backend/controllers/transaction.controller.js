@@ -310,7 +310,8 @@ export const listTransactions = async (req, res, next) => {
     }
 
     const page = Math.max(Number(req.query.page) || 1, 1);
-    const limit = Math.min(Number(req.query.limit) || 30, 100);
+    // UI uses ~30; PDF/export may request larger pages (cap 5000).
+    const limit = Math.min(Math.max(Number(req.query.limit) || 30, 1), 5000);
     const skip = (page - 1) * limit;
 
     // ── SINGLE query with populate — eliminates the double-query pattern ──
