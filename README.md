@@ -146,7 +146,7 @@ cd mobile
 npx expo start --clear
 ```
 
-Rebuild / reopen the **development build** on the phone (Expo Go is not required if you already installed a dev client).
+Rebuild / reopen the **development build** on the phone. **Do not use Expo Go** — see [Local mode on physical iPhone (no Expo Go)](#-local-mode-on-physical-iphone-no-expo-go).
 
 ### 3. Backend must listen on the LAN
 
@@ -501,10 +501,141 @@ The new install replaces the old app. App data normally stays unless you delete 
 
 | Build Type | Needs Terminal/Metro? | Best For |
 | --- | --- | --- |
-| Debug | Yes, run `npx expo start --dev-client --host lan` | Development and live debugging |
+| Debug (dev client) | Yes — `npm run dev` / `npx expo start --dev-client` | Day-to-day coding, live reload, local API |
 | Release | No | Normal iPhone use, like an Android APK |
 
 Use Debug only when actively developing. Use Release for normal daily use.
+
+**Do not use Expo Go** for this project. The app depends on `expo-dev-client` and a newer Expo SDK than stock Expo Go may support. Always open the installed **Hisab Boi** app (Xcode / `expo run:ios` build).
+
+---
+
+## 💻 Local mode on physical iPhone (no Expo Go)
+
+Use this when the phone is USB-connected (or on the same Wi‑Fi), the backend runs on your Mac, and you want the installed **Hisab Boi** app — **not** Expo Go.
+
+There are two options:
+
+| Option | App on phone | Metro needed? | When to use |
+| --- | --- | --- | --- |
+| **A. Dev client + Metro** | Debug / development build | Yes | Coding, hot reload, frequent JS changes |
+| **B. Release + local API** | Release build (already installed) | No | Dogfood local Mongo/API like production |
+
+---
+
+### Option A — Dev client + Metro (recommended for coding)
+
+Release builds **do not** load JS from Metro. If you only have the Release install, install a **Debug** build once (USB connected, iPhone unlocked):
+
+**Install Debug once (pick one):**
+
+From Xcode:
+
+1. Select your iPhone in the device selector.
+2. **Product → Scheme → Edit Scheme → Run → Build Configuration** = `Debug`.
+3. Press **Cmd + R**.
+
+Or from Terminal:
+
+```shell
+cd /Users/alamgirhossain/Themeforest/cash-book/mobile
+npx expo run:ios --device
+```
+
+> `expo run:ios` builds a native Debug app with the dev client and installs it over USB. After that you usually only need Metro, not a full native rebuild, until you change native modules / plugins.
+
+**Every day — run local API + Metro:**
+
+1. Point the app at your Mac (same Wi‑Fi, or USB + Mac sharing network). In `mobile/.env.local`:
+
+```env
+EXPO_PUBLIC_BASE_URL=http://YOUR_MAC_LAN_IP:5050/api
+```
+
+```shell
+ipconfig getifaddr en0
+```
+
+2. Start the backend:
+
+```shell
+cd /Users/alamgirhossain/Themeforest/cash-book/backend
+npm run dev
+```
+
+3. Start Metro with the **dev client** (not Expo Go):
+
+```shell
+cd /Users/alamgirhossain/Themeforest/cash-book/mobile
+npm run dev
+```
+
+Equivalent:
+
+```shell
+npx expo start --dev-client --host lan
+```
+
+4. On first launch, iOS may ask **“Hisab Boi would like to find and connect to devices on your local network”** — tap **OK**. If you previously denied it (or see “Local Network Disabled”):
+
+   - iPhone → **Settings → Privacy & Security → Local Network → Hisab Boi → ON**
+   - If **Hisab Boi** is missing from that list, the build lacked Local Network keys — rebuild with the current `app.json` / `Info.plist`, or delete the app and reinstall Debug so the prompt appears again.
+
+5. Open **Hisab Boi** on the iPhone (home screen icon). It should connect to Metro automatically. If discovery fails, enter the Metro URL manually (`http://YOUR_MAC_LAN_IP:8081`), or shake the device → **Configure Bundler**.
+
+6. After changing `.env.local`, restart Metro with a clean cache:
+
+```shell
+cd /Users/alamgirhossain/Themeforest/cash-book/mobile
+npx expo start --dev-client --host lan --clear
+```
+
+**USB tips**
+
+- Keep the cable connected, iPhone unlocked, and **Trust This Computer** accepted.
+- Phone and Mac should reach each other on the LAN for both API (`:5050`) and Metro (`:8081`). Guest Wi‑Fi that isolates clients will break this.
+- If discovery fails, open Hisab Boi → enter the Metro URL manually (`http://YOUR_MAC_LAN_IP:8081`).
+
+---
+
+### Option B — Release build + local API (no Metro)
+
+You already use this for the free Xcode Release install. The JS bundle and `EXPO_PUBLIC_*` values are **baked in at build time**, so:
+
+1. Set local API in `mobile/.env.local`:
+
+```env
+EXPO_PUBLIC_BASE_URL=http://YOUR_MAC_LAN_IP:5050/api
+```
+
+2. Rebuild and reinstall **Release** (env change requires a new install — see **Install on iPhone for Free** / **Install an Updated Version Later**).
+
+3. Start only the backend:
+
+```shell
+cd /Users/alamgirhossain/Themeforest/cash-book/backend
+npm run dev
+```
+
+4. Open **Hisab Boi** on the phone. No Expo / Metro terminal needed.
+
+To switch back to the deployed API, set:
+
+```env
+EXPO_PUBLIC_BASE_URL=https://cash-book-seven.vercel.app/api
+```
+
+…then rebuild + reinstall Release again.
+
+---
+
+### Quick checklist
+
+| Goal | Build on phone | `.env.local` | Commands |
+| --- | --- | --- | --- |
+| Code with live reload, local API | Debug / dev client | Mac LAN IP → `:5050/api` | `backend: npm run dev` + `mobile: npm run dev` |
+| Use Release like production, local API | Release | Mac LAN IP → `:5050/api` | Rebuild Release, then `backend: npm run dev` only |
+| Use Release + production API | Release | Vercel URL | Rebuild Release if URL changed; no local servers |
 
 ---
 
@@ -512,7 +643,9 @@ Use Debug only when actively developing. Use Release for normal daily use.
 
 | Problem | Fix |
 | --- | --- |
-| App stays on splash forever | You probably installed Debug. Install Release using the commands above. |
+| App stays on splash forever | Debug build waiting for Metro — run `npm run dev` in `mobile/`, or install Release if you want offline use. |
+| Expo Go won’t open / wrong SDK | Expected. Use the installed **Hisab Boi** app (dev client or Release), not Expo Go. See **Local mode on physical iPhone**. |
+| Local Network Disabled / can’t find Metro | Allow Local Network for Hisab Boi (Settings → Privacy & Security → Local Network). Rebuild Debug after adding `NSLocalNetworkUsageDescription` + `NSBonjourServices` (`_expo._tcp`). Or enter Metro URL manually: `http://YOUR_MAC_LAN_IP:8081`. |
 | Developer Mode disabled | iPhone → Settings → Privacy & Security → Developer Mode → ON. |
 | Untrusted Developer | iPhone → Settings → General → VPN & Device Management → Trust your Apple Development profile. |
 | Keychain popup appears | Enter the Mac login password, not the Apple ID password, then click **Always Allow**. |
