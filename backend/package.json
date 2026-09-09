@@ -28,7 +28,7 @@
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.7.0",
     "morgan": "^1.10.0",
-    "multer": "^2.0.2",
+    "multer": "^2.3.0",
     "pdf-parse": "^2.4.5",
     "pdfkit": "^0.15.1",
     "sharp": "^0.35.3",
