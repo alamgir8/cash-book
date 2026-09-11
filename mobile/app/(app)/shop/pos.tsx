@@ -31,6 +31,10 @@ import { normalizeAmountInput, parseAmountInput, amountInputProps } from "@/lib/
 import { toast } from "@/lib/toast";
 import { useKeyboardFooterLift } from "@/hooks/use-keyboard-footer-lift";
 import { useTranslation } from "@/hooks/use-translation";
+import {
+  SmartAddBar,
+  type SmartAddItem,
+} from "@/components/shop/smart-add-bar";
 import type { Product } from "@/types/product";
 
 type CartLine = {
@@ -179,6 +183,61 @@ export default function PosScreen() {
       prev.map((l) => (l.key === key ? { ...l, qty: Math.max(1, qty) } : l)),
     );
   }, []);
+
+  /**
+   * Add natural-language items to the cart. A phrase that matches an existing
+   * product reuses it (stock/price from the catalog); an unknown one becomes a
+   * free-text line that still records the spoken price.
+   */
+  const addParsedItems = useCallback(
+    (items: SmartAddItem[]) => {
+      setLastSale(null);
+      setCart((prev) => {
+        const next = [...prev];
+        for (const item of items) {
+          const qty = item.quantity && item.quantity > 0 ? item.quantity : 1;
+          const product = item.matched;
+          const key = product
+            ? lineKey(product)
+            : `free:${item.name.toLowerCase()}`;
+          const price =
+            item.price ?? (product ? Number(product.sale_price) : 0);
+
+          const existingIndex = next.findIndex((l) => l.key === key);
+          if (existingIndex >= 0) {
+            next[existingIndex] = {
+              ...next[existingIndex],
+              qty: next[existingIndex].qty + qty,
+            };
+            continue;
+          }
+          next.push({
+            key,
+            local_product_id: product?._id,
+            product: product
+              ? isMongoObjectId(product.server_id)
+                ? product.server_id
+                : isMongoObjectId(product._id)
+                  ? product._id
+                  : undefined
+              : undefined,
+            name: product?.name ?? item.name,
+            unit: item.unit ?? product?.unit ?? "pcs",
+            barcode: product?.barcode,
+            qty,
+            unit_price: price,
+            tax_rate: Number(product?.tax_rate ?? 0),
+            stock:
+              product?.track_inventory
+                ? Number(product.current_stock)
+                : undefined,
+          });
+        }
+        return next;
+      });
+    },
+    [],
+  );
 
   const setPrice = useCallback((key: string, text: string) => {
     const price = parseAmountInput(text);
@@ -372,6 +431,16 @@ export default function PosScreen() {
             {t("find")}
           </Text>
         </TouchableOpacity>
+      </View>
+
+      {/* Say or type an item — fastest path for a busy counter. */}
+      <View style={{ paddingHorizontal: 12 }}>
+        <SmartAddBar
+          mode="sale"
+          organizationId={organizationId}
+          onSubmit={addParsedItems}
+          onPickExisting={(product) => addProduct(product, 1)}
+        />
       </View>
 
       <ScrollView

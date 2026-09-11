@@ -134,6 +134,11 @@ const productSchema = new Schema(
     meta_data: {
       type: Schema.Types.Mixed,
     },
+    /** Sync idempotency key (local-first) — unique per admin when set. */
+    client_request_id: {
+      type: String,
+      trim: true,
+    },
     // Flags
     is_active: {
       type: Boolean,

@@ -811,6 +811,98 @@ so switching language re-resolves with the new messages without remounting.
   `components/modals/loan-return-modal.tsx` (`date`) still render raw key text.
   These pre-date this work and are unrelated to the shop/ledger work.
 
+---
+
+## 21. Voice / natural-language entry, Bangla-first (2026-09-12)
+
+### 21.1 The honest starting point
+
+The existing `VoiceInputButton` **only worked on web**. It returned `null` on
+iOS/Android, so on a real phone there was **no voice input at all**. Its single
+usage was the account form. That is why "talk to add products" did not work:
+the feature never existed on device.
+
+### 21.2 What was built
+
+**1. `lib/voice/bangla-nlp.ts` — deterministic Bangla parser (no AI, offline).**
+
+Turns one spoken/typed phrase into a structured item:
+
+| Input | Result |
+|---|---|
+| `Lux সাবান/সাবান ২টা ৪৫টাকা করে` | name "Lux সাবান/সাবান", qty 2, pcs, price 45 |
+| `২ কেজি চাল ৮০ টাকা` | name "চাল", qty 2, kg, price 80 |
+| `চাল ২ কেজি ৮০ টাকা` | same (order-independent) |
+| `৫০০ গ্রাম চিনি ৬০ টাকা` | qty 500, g |
+| `এক ডজন ডিম ১২০ টাকা` | spoken number + dozen |
+| `দুইটা কলম ১০ টাকা করে` | glued number+unit token → qty 2 |
+| `সাড়ে তিন কেজি চাল ৮০ টাকা` | "সাড়ে" → 3.5 kg |
+| `Lux 2kg 45 taka` | Latin units |
+| `সাবান ২টা ৩৫ টাকা করে ৪৫ টাকা বিক্রয়` | cost 35, sale 45 |
+| `চাল ৮০ ৯৫ টাকা` | two prices → cost 80, sale 95 (flagged ambiguous) |
+| `২টা সাবান ৪৫ করে আর ১ কেজি চাল ৮০ টাকা` | **two items** from one phrase |
+
+Supported: Bangla digits (০-৯), spoken number words (এক…একশ, দেড়, আড়াই, সাড়ে),
+23 unit aliases (টা/পিস/কেজি/গ্রাম/লিটার/মিলি/ডজন/বোতল/প্যাকেট/কার্টন/মিটার/ইঞ্চি…),
+price markers (টাকা/টাকায়/৳/tk/taka/দরে/রেট/করে), and cost/sale hint words
+(ক্রয়, কিনলাম, বিক্রয়, বেচলাম).
+
+**2. `lib/voice/speech.ts` — STT abstraction.** Web works today via the
+browser's `webkitSpeechRecognition`. For native it lazily imports the optional
+free `expo-speech-recognition` module (OS recognizer, `bn-BD`, no API key) and
+degrades to a clear message when absent. Because the import is non-literal, the
+app builds and runs normally either way. **Typing always works**, because the
+parser is text-based — voice is just another text source.
+
+**3. `components/shop/smart-add-bar.tsx` — one-line entry bar.** Text field +
+mic + add, with a live preview showing the parsed name, qty+unit, price, profit
+(sales), and whether it matched an existing product or will create a new one.
+Below it, suggestions from the on-device catalog so a returning product can be
+tapped instead of re-spoken.
+
+Matching (`normalizeForMatch`, `scoreNameMatch`, `rankByName`) is Bangla-aware:
+digit normalization, punctuation stripping, then exact → prefix → word-prefix →
+substring → token-overlap scoring.
+
+### 21.3 Wired into
+
+- **POS** (`shop/pos.tsx`) — items land in the cart; a phrase matching a catalog
+  product reuses it (stock + price), an unknown one becomes a free-text line that
+  still keeps the spoken price. Repeating a phrase merges the quantity.
+- **Add product** (`shop/products/create.tsx`) — fills name, unit, opening stock
+  (= quantity) and prices, so the whole product can be entered by voice.
+- **Purchase / sale invoices** — `mode="purchase"` / `"sale"` are supported by the
+  component and its price resolution; wiring into the invoice form's field array
+  is the remaining step (documented below).
+
+### 21.4 Pricing rules (visible in the UI, never silent)
+
+- One price spoken → treated as the **selling** price for a product, or the
+  context price on a sale/purchase screen (purchase → cost).
+- Two prices → **first = cost, second = selling**, unless ক্রয়/বিক্রয় hints say
+  otherwise; `pricingAmbiguous` is surfaced in the preview.
+- Sale lines show **profit** when the cost is known (from the catalog's stored
+  `cost_price` or an explicit spoken cost).
+
+### 21.5 Verified
+
+- `npm run test:local-first` → **50/50 pass** (6 new parser tests, including the
+  user's exact phrase, unit table, cost/sale separation, ambiguity flagging,
+  multi-item splitting, and a guard that a quantity is never read as a price).
+- `npx tsc --noEmit` → **26 errors, unchanged**.
+- Bangla keys: **734 / 734**, no missing or empty.
+
+### 21.6 Remaining (honest gaps)
+
+1. **Mic on the phone needs one rebuild** with the free
+   `expo-speech-recognition` module (plus `NSMicrophoneUsageDescription`, which
+   already exists). Typing works today. I did not install it because adding a
+   native module I cannot build or test here could break the next build.
+2. **Invoice-form wiring** for the smart bar (the POS path is done).
+3. **Number-word coverage** is common words + digits; long compounds like
+   "পঁয়তাল্লিশ" are not enumerated (speech usually yields digits).
+
+
 
 
 

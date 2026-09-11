@@ -21,7 +21,18 @@ const syncLimiter = rateLimit({
 });
 
 const changeSchema = z.object({
-  entity: z.enum(["account", "category", "party", "transaction", "transfer"]),
+  entity: z.enum([
+    "account",
+    "category",
+    "party",
+    "transaction",
+    "transfer",
+    // Shop entities (Phase 13). Products and stock movements are pushed
+    // separately from invoices; invoice push is side-effect free.
+    "product",
+    "invoice",
+    "stock_movement",
+  ]),
   id: z.string().trim().min(1),
   server_id: z.string().trim().nullable().optional(),
   op: z.enum(["upsert", "delete"]),

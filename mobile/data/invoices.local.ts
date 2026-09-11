@@ -17,6 +17,7 @@ import {
 } from "@/services/invoices";
 import { isDualWriteEnabled } from "@/lib/local-first/flags";
 import { getOrCreateDeviceId } from "@/services/device";
+import { requestSyncSoon } from "@/sync/scheduler";
 
 export type CreateInvoiceDALParams = CreateInvoiceParams & {
   payment_mode?: "cash" | "due" | "partial";
@@ -26,6 +27,15 @@ export type CreateInvoiceDALParams = CreateInvoiceParams & {
   initial_payment_reference?: string;
   initial_payment_notes?: string;
 };
+
+/** Shop rows are syncable now — nudge the scheduler after every write. */
+function notifyShopMutation() {
+  try {
+    requestSyncSoon("mutation");
+  } catch {
+    /* scheduler unavailable */
+  }
+}
 
 async function resolveLocalInvoice(invoiceId: string) {
   const db = await getDb();
@@ -295,6 +305,7 @@ export async function createLocalInvoice(
     }
   }
 
+  notifyShopMutation();
   const row = await invoicesRepo.getInvoiceById(db, createdId);
   if (!row) throw new Error("Invoice not found");
   return mapInvoice(db, row);
@@ -374,6 +385,7 @@ export async function recordLocalInvoicePayment(
     });
   });
 
+  notifyShopMutation();
   return mapInvoice(db, updated);
 }
 
@@ -395,6 +407,7 @@ export async function updateLocalInvoiceStatus(
     device_id,
   };
   const updated = await invoicesRepo.updateInvoice(db, row.id, patch);
+  notifyShopMutation();
   return mapInvoice(db, updated);
 }
 
@@ -406,6 +419,7 @@ export async function deleteLocalInvoice(invoiceId: string): Promise<void> {
     throw new Error("Cannot delete an invoice with payments. Cancel it instead.");
   }
   await invoicesRepo.softDeleteInvoice(db, row.id, device_id);
+  notifyShopMutation();
 }
 
 /**
@@ -447,6 +461,7 @@ export async function cancelLocalInvoice(invoiceId: string): Promise<Invoice> {
     });
   });
 
+  notifyShopMutation();
   return mapInvoice(db, updated);
 }
 

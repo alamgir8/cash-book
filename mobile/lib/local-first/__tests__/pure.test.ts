@@ -31,6 +31,8 @@ import {
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+/** Repo root, for asserting backend files. */
+
 test("LWW prefers newer updated_at", () => {
   const decision = resolveLastWriteWins(
     {
@@ -745,6 +747,135 @@ test("every validation message key resolves in both locales", async () => {
   }
 });
 
+// ── Bangla natural-language items ──────────────────────────────────────────
+
+test("parses the user's spoken product phrase", async () => {
+  const { parseBanglaItem } = await import("../../voice/bangla-nlp.ts");
+  const p = parseBanglaItem("Lux সাবান/সাবান ২টা ৪৫টাকা করে");
+  assert.equal(p.name, "Lux সাবান/সাবান");
+  assert.equal(p.quantity, 2);
+  assert.equal(p.unit, "pcs");
+  assert.equal(p.unit_price, 45);
+  assert.equal(p.confidence, "high");
+});
+
+test("parses quantities, units and per-unit prices", async () => {
+  const { parseBanglaItem } = await import("../../voice/bangla-nlp.ts");
+
+  const cases: Array<[string, string, number, string, number]> = [
+    ["২ কেজি চাল ৮০ টাকা", "চাল", 2, "kg", 80],
+    ["চাল ২ কেজি ৮০ টাকা", "চাল", 2, "kg", 80],
+    ["৩ লিটার তেল ১৬০ টাকা", "তেল", 3, "liter", 160],
+    ["৫০০ গ্রাম চিনি ৬০ টাকা", "চিনি", 500, "g", 60],
+    ["এক ডজন ডিম ১২০ টাকা", "ডিম", 1, "dozen", 120],
+    ["১ বোতল পানি ২০ টাকা", "পানি", 1, "bottle", 20],
+    // spoken number + glued unit, and সরাই/glued forms
+    ["দুইটা কলম ১০ টাকা করে", "কলম", 2, "pcs", 10],
+    ["তিনটা সাবান ১২ টাকা", "সাবান", 3, "pcs", 12],
+    // "সাড়ে" = half over
+    ["সাড়ে তিন কেজি চাল ৮০ টাকা", "চাল", 3.5, "kg", 80],
+    // decimal quantity and a trailing unit echo
+    ["২.৫ কেজি আলু ৩০ টাকা কেজি", "আলু", 2.5, "kg", 30],
+    // Latin units / English-ish phrasing
+    ["Lux 2kg 45 taka", "Lux", 2, "kg", 45],
+    // multi-word brand name must survive
+    [
+      "মিল্ক ভিটা গুঁড়া দুধ ৫০০ গ্রাম ৭৮০ টাকা",
+      "মিল্ক ভিটা গুঁড়া দুধ",
+      500,
+      "g",
+      780,
+    ],
+  ];
+
+  for (const [input, name, qty, unit, price] of cases) {
+    const p = parseBanglaItem(input);
+    assert.equal(p.name, name, `name for "${input}"`);
+    assert.equal(p.quantity, qty, `quantity for "${input}"`);
+    assert.equal(p.unit, unit, `unit for "${input}"`);
+    assert.equal(p.unit_price, price, `price for "${input}"`);
+  }
+});
+
+test("separates cost from selling price using keywords", async () => {
+  const { parseBanglaItem } = await import("../../voice/bangla-nlp.ts");
+
+  // A hint word attaches to the price nearest it, regardless of order.
+  const a = parseBanglaItem("সাবান ২টা ৩৫ টাকা করে ৪৫ টাকা বিক্রয়");
+  assert.equal(a.purchase_price, 35);
+  assert.equal(a.sale_price, 45);
+  assert.equal(a.pricingAmbiguous, false);
+
+  const b = parseBanglaItem("চাল ক্রয় ৮০ টাকা বিক্রয় ৯৫ টাকা ২ কেজি");
+  assert.equal(b.purchase_price, 80);
+  assert.equal(b.sale_price, 95);
+  assert.equal(b.quantity, 2);
+  assert.equal(b.unit, "kg");
+});
+
+test("two unspecified prices default to cost then sale, and flag ambiguity", async () => {
+  const { parseBanglaItem } = await import("../../voice/bangla-nlp.ts");
+
+  // Two marked prices, no hint words → cost first, sale second, flagged.
+  const marked = parseBanglaItem("চাল ৮০ টাকা ৯৫ টাকা");
+  assert.equal(marked.name, "চাল");
+  assert.equal(marked.purchase_price, 80);
+  assert.equal(marked.sale_price, 95);
+  assert.equal(marked.pricingAmbiguous, true);
+
+  // Speech often drops the second টাকা: "চাল ৮০ ৯৫ টাকা".
+  const dropped = parseBanglaItem("চাল ৮০ ৯৫ টাকা");
+  assert.equal(dropped.name, "চাল");
+  assert.equal(dropped.purchase_price, 80);
+  assert.equal(dropped.sale_price, 95);
+  assert.equal(dropped.pricingAmbiguous, true);
+
+  // A quantity must NOT be mistaken for a second price.
+  const qty = parseBanglaItem("২টা সাবান ৪৫ টাকা");
+  assert.equal(qty.quantity, 2);
+  assert.equal(qty.unit_price, 45);
+  assert.equal(qty.purchase_price, null);
+  assert.equal(qty.sale_price, null);
+});
+
+test("splits several items from one phrase", async () => {
+  const { parseBanglaItems } = await import("../../voice/bangla-nlp.ts");
+  const items = parseBanglaItems(
+    "২টা সাবান ৪৫ করে আর ১ কেজি চাল ৮০ টাকা, ৩ লিটার তেল ১৬০ টাকা",
+  );
+  assert.equal(items.length, 3);
+  assert.deepEqual(
+    items.map((i) => [i.name, i.quantity, i.unit, i.unit_price]),
+    [
+      ["সাবান", 2, "pcs", 45],
+      ["চাল", 1, "kg", 80],
+      ["তেল", 3, "liter", 160],
+    ],
+  );
+});
+
+test("normalizes Bangla digits and never invents a name", async () => {
+  const { normalizeDigits, detectUnit, parseBanglaItem } = await import(
+    "../../voice/bangla-nlp.ts"
+  );
+  assert.equal(normalizeDigits("০১২৩৪৫৬৭৮৯"), "0123456789");
+  assert.equal(normalizeDigits("৪৫ টাকা"), "45 টাকা");
+
+  // Unit aliases resolve to canonical units used by the product schema.
+  assert.equal(detectUnit("কেজি"), "kg");
+  assert.equal(detectUnit("গ্রাম"), "g");
+  assert.equal(detectUnit("লিটার"), "liter");
+  assert.equal(detectUnit("পিস"), "pcs");
+  assert.equal(detectUnit("ডজন"), "dozen");
+  assert.equal(detectUnit("চাল"), null);
+
+  // Only numbers, no name → low confidence, empty name (caller must ask).
+  const p = parseBanglaItem("২টা ৪৫ টাকা");
+  assert.equal(p.name, "");
+  assert.equal(p.quantity, 2);
+  assert.equal(p.confidence, "low");
+});
+
 // ── Offline settings (settings-sync) ───────────────────────────────────────
 
 test("mergeSettings deep-merges objects but replaces scalars/arrays", async () => {
@@ -887,6 +1018,130 @@ test("settings writes never persist a PIN to SQLite", () => {
     src.indexOf("export async function saveLocalPreferences"),
   );
   assert.doesNotMatch(saveFn, /login_pin/);
+});
+
+// ── Shop sync contract (Phase 13) ──────────────────────────────────────────
+
+const repoRoot = join(__dirname, "../../../..");
+
+test("sync entity enum includes shop entities on both client and server", () => {
+  const engine = readFileSync(join(__dirname, "../../../sync/engine.ts"), "utf8");
+  for (const entity of ["product", "invoice", "stock_movement"]) {
+    assert.match(engine, new RegExp(`"${entity}"`), `engine missing ${entity}`);
+  }
+  // Marketing the shop tables as syncable means they must be in the dirty map.
+  assert.match(engine, /product: "products"/);
+  assert.match(engine, /invoice: "invoices"/);
+  assert.match(engine, /stock_movement: "inventory_movements"/);
+
+  const routes = readFileSync(
+    join(repoRoot, "backend/routes/sync.routes.js"),
+    "utf8",
+  );
+  for (const entity of ["product", "invoice", "stock_movement"]) {
+    assert.match(routes, new RegExp(`"${entity}"`), `routes missing ${entity}`);
+  }
+});
+
+test("shop sync pushes parents before children", () => {
+  const engine = readFileSync(join(__dirname, "../../../sync/engine.ts"), "utf8");
+  const collect = engine.slice(
+    engine.indexOf("async function collectDirtyChanges"),
+    engine.indexOf("async function markClean"),
+  );
+  // Products must be collected before invoices/movements so the server can
+  // resolve references within a single batch.
+  const productAt = collect.indexOf('entity: "product"');
+  const invoiceAt = collect.indexOf('entity: "invoice"');
+  const movementAt = collect.indexOf('entity: "stock_movement"');
+  assert.ok(productAt > 0 && invoiceAt > 0 && movementAt > 0);
+  assert.ok(productAt < invoiceAt, "products must precede invoices");
+  assert.ok(productAt < movementAt, "products must precede movements");
+});
+
+test("invoice push carries embedded items and payments", () => {
+  const engine = readFileSync(join(__dirname, "../../../sync/engine.ts"), "utf8");
+  assert.match(engine, /SELECT \* FROM invoice_items WHERE invoice_id/);
+  assert.match(engine, /SELECT \* FROM invoice_payments WHERE invoice_id/);
+  assert.match(engine, /product_server_id/);
+});
+
+test("backend invoice push is side-effect free (no double counting)", () => {
+  const controller = readFileSync(
+    join(repoRoot, "backend/controllers/sync.controller.js"),
+    "utf8",
+  );
+  const mapper = controller.slice(
+    controller.indexOf("const toEmbeddedItems"),
+    controller.indexOf("const mapStockMovementPayload"),
+  );
+  // An invoice push must NOT touch inventory or balances — the client pushes
+  // stock movements and ledger transactions separately.
+  assert.doesNotMatch(mapper, /applyAccountInc/);
+  assert.doesNotMatch(mapper, /applyPartyInc/);
+  assert.doesNotMatch(mapper, /StockMovement\.create/);
+  assert.doesNotMatch(mapper, /current_stock/);
+  // It must still store the captured cost basis.
+  assert.match(mapper, /unit_cost_at_sale/);
+});
+
+test("stock movement push is idempotent by client_request_id", () => {
+  const controller = readFileSync(
+    join(repoRoot, "backend/controllers/sync.controller.js"),
+    "utf8",
+  );
+  const mapper = controller.slice(
+    controller.indexOf("const mapStockMovementPayload"),
+    controller.indexOf("const applyPushChange"),
+  );
+  assert.match(mapper, /client_request_id: clientRequestId/);
+  // Existing movement short-circuits before creating a duplicate.
+  assert.match(mapper, /findOne\(\{[\s\S]*client_request_id/);
+  assert.match(mapper, /if \(existing\)/);
+
+  const model = readFileSync(
+    join(repoRoot, "backend/models/StockMovement.js"),
+    "utf8",
+  );
+  assert.match(model, /client_request_id/);
+  assert.match(model, /unique: true/);
+});
+
+test("local wipe clears shop data so logout cannot leak it", () => {
+  const client = readFileSync(join(__dirname, "../../../db/client.ts"), "utf8");
+  const wipeAll = client.slice(
+    client.indexOf("export async function wipeAllLedgerData"),
+  );
+  for (const table of [
+    "products",
+    "invoices",
+    "invoice_items",
+    "invoice_payments",
+    "inventory_movements",
+    "settings_cache",
+    "pending_ops",
+    "organizations",
+  ]) {
+    assert.match(
+      wipeAll,
+      new RegExp(`DELETE FROM ${table}`),
+      `wipeAllLedgerData must clear ${table}`,
+    );
+  }
+});
+
+test("sync badge counts shop rows as pending", () => {
+  const pending = readFileSync(join(__dirname, "../../../sync/pending.ts"), "utf8");
+  for (const table of ["products", "invoices", "inventory_movements"]) {
+    assert.match(pending, new RegExp(`"${table}"`));
+  }
+});
+
+test("shop writes trigger a sync nudge", () => {
+  for (const file of ["products.local.ts", "invoices.local.ts"]) {
+    const src = readFileSync(join(__dirname, "../../../data", file), "utf8");
+    assert.match(src, /requestSyncSoon/, `${file} must nudge sync`);
+  }
 });
 
 

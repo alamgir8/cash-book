@@ -29,6 +29,11 @@ import {
   parseAmountInput,
 } from "@/lib/amount-input";
 import { useKeyboardFooterLift } from "@/hooks/use-keyboard-footer-lift";
+import { toast } from "@/lib/toast";
+import {
+  SmartAddBar,
+  type SmartAddItem,
+} from "@/components/shop/smart-add-bar";
 import { useTranslation } from "@/hooks/use-translation";
 
 export default function CreateProductScreen() {
@@ -81,6 +86,36 @@ export default function CreateProductScreen() {
     [setValue],
   );
 
+  /** Fill the form from a spoken/typed phrase, e.g. "সাবান ২টা ৪৫ টাকা". */
+  const applySmartItem = useCallback(
+    (items: SmartAddItem[]) => {
+      const item = items[0];
+      if (!item) return;
+      setValue("name", item.name);
+      if (item.unit && (PRODUCT_UNIT_VALUES as readonly string[]).includes(item.unit)) {
+        setValue("unit", item.unit as (typeof PRODUCT_UNIT_VALUES)[number]);
+      }
+      if (item.quantity !== null) {
+        setValue("opening_stock", String(item.quantity));
+      }
+      // A single spoken price is treated as the SELLING price, since that is
+      // what a price usually means for a catalog entry. Saying two prices
+      // ("ক্রয় ৪০ বিক্রয় ৪৫") fills both explicitly.
+      if (item.sale_price !== null) {
+        setValue("sale_price", String(item.sale_price));
+      } else if (item.unit_price !== null && item.purchase_price === null) {
+        setValue("sale_price", String(item.unit_price));
+      }
+      if (item.purchase_price !== null) {
+        setValue("purchase_price", String(item.purchase_price));
+      }
+      if (item.pricingAmbiguous) {
+        toast.info(t("pricingOrderAssumed"));
+      }
+    },
+    [setValue, t],
+  );
+
   const onSubmit = useCallback(
     (data: ProductFormData) => {
       mutation.mutate({
@@ -111,6 +146,13 @@ export default function CreateProductScreen() {
         {...scrollProps}
         contentContainerStyle={{ padding: 16, paddingBottom: 24 }}
       >
+        {/* Speak or type the whole product in one line. */}
+        <SmartAddBar
+          mode="product"
+          organizationId={organizationId}
+          onSubmit={applySmartItem}
+        />
+
         {/* Basic Info */}
         <SectionTitle title="Basic Information" colors={colors} />
 

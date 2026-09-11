@@ -770,6 +770,19 @@ export type AppTranslations = {
   vSelectCustomerForCredit: string;
   vPaymentExceedsOutstanding: string;
   vInvoiceTotalNegative: string;
+  // ── Voice / natural-language entry ───────────────────────────────────────
+  smartAddPlaceholder: string;
+  speakOrType: string;
+  listeningTapToStop: string;
+  voiceUnavailableTypingWorks: string;
+  profit: string;
+  loss: string;
+  matchedExisting: string;
+  willCreateNew: string;
+  pricingOrderAssumed: string;
+  pickExisting: string;
+  addToCart: string;
+  addToInvoice: string;
 };
 
 // ── English ───────────────────────────────────────────────────────────────────
@@ -1554,6 +1567,20 @@ const en: AppTranslations = {
   vSelectCustomerForCredit: "Select a customer for a credit sale",
   vPaymentExceedsOutstanding: "Amount cannot exceed the outstanding {n}",
   vInvoiceTotalNegative: "Invoice total cannot be negative",
+  // ── Voice / natural-language entry ───────────────────────────────────────
+  smartAddPlaceholder: 'Say or type it: "সাবান ২টা ৪৫ টাকা"',
+  speakOrType: "Speak or type",
+  listeningTapToStop: "Listening… tap the mic to stop",
+  voiceUnavailableTypingWorks:
+    "Voice needs one rebuild on the phone — typing works now.",
+  profit: "profit",
+  loss: "loss",
+  matchedExisting: "existing",
+  willCreateNew: "new",
+  pricingOrderAssumed: "First price read as cost, second as selling price",
+  pickExisting: "Or pick an existing product",
+  addToCart: "Add to cart",
+  addToInvoice: "Add to invoice",
 };
 
 // ── Bengali (বাংলা) ────────────────────────────────────────────────────────────
@@ -2338,6 +2365,20 @@ const bn: AppTranslations = {
   vSelectCustomerForCredit: "বাকি বিক্রয়ের জন্য একজন ক্রেতা নির্বাচন করুন",
   vPaymentExceedsOutstanding: "পরিমাণ বাকি {n} এর বেশি হতে পারে না",
   vInvoiceTotalNegative: "ইনভয়েসের মোট ঋণাত্মক হতে পারে না",
+  // ── Voice / natural-language entry ───────────────────────────────────────
+  smartAddPlaceholder: 'বলুন বা লিখুন: "সাবান ২টা ৪৫ টাকা"',
+  speakOrType: "বলুন বা লিখুন",
+  listeningTapToStop: "শোনা হচ্ছে… থামাতে মাইকে চাপুন",
+  voiceUnavailableTypingWorks:
+    "ফোনে ভয়েস চালু করতে একবার রিবিল্ড লাগবে — এখন টাইপ করে কাজ করুন।",
+  profit: "লাভ",
+  loss: "ক্ষতি",
+  matchedExisting: "আগের পণ্য",
+  willCreateNew: "নতুন",
+  pricingOrderAssumed: "প্রথম দাম ক্রয়, দ্বিতীয়টি বিক্রয় ধরা হয়েছে",
+  pickExisting: "অথবা আগের পণ্য থেকে বেছে নিন",
+  addToCart: "কার্টে যোগ করুন",
+  addToInvoice: "ইনভয়েসে যোগ করুন",
 };
 
 export const translations: Record<string, AppTranslations> = { en, bn };

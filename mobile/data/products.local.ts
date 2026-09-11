@@ -23,6 +23,7 @@ import type {
   UpdateProductParams,
 } from "@/types/product";
 import { isDualWriteEnabled } from "@/lib/local-first/flags";
+import { requestSyncSoon } from "@/sync/scheduler";
 import { getOrCreateDeviceId } from "@/services/device";
 
 const PRODUCT_UNITS: ProductUnit[] = [
@@ -58,6 +59,15 @@ async function resolveLocalProduct(productId: string) {
     row = await productsRepo.getProductByServerId(db, productId);
   }
   return { db, row };
+}
+
+/** Shop rows are syncable now, so nudge the scheduler after every write. */
+function notifyShopMutation() {
+  try {
+    requestSyncSoon("mutation");
+  } catch {
+    /* scheduler unavailable */
+  }
 }
 
 async function movementTotals(
@@ -220,6 +230,7 @@ export async function createLocalProduct(
     }
   }
 
+  notifyShopMutation();
   const fresh = await productsRepo.getProductById(db, row.id);
   return localProductToApi(fresh ?? row);
 }
@@ -263,6 +274,7 @@ export async function updateLocalProduct(
     }
   }
 
+  notifyShopMutation();
   const fresh = await productsRepo.getProductById(db, existing.id);
   if (!fresh) throw new Error("Product not found");
   const totals = await movementTotals(db, fresh.id);
@@ -275,6 +287,7 @@ export async function deleteLocalProduct(productId: string): Promise<void> {
   const device_id = await getOrCreateDeviceId();
 
   await productsRepo.softDeleteProduct(db, row.id, device_id);
+  notifyShopMutation();
 
   if (isDualWriteEnabled() && row.server_id) {
     try {
@@ -315,6 +328,7 @@ export async function adjustLocalStock(
     device_id,
   });
 
+  notifyShopMutation();
   return localProductToApi(updated);
 }
 
