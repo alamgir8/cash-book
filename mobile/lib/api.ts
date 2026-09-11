@@ -242,7 +242,14 @@ export const getApiErrorMessage = (
       typeof responseData === "object" &&
       "message" in responseData
     ) {
-      const { message } = responseData as Record<string, unknown>;
+      const { message, errors } = responseData as Record<string, unknown>;
+      // Prefer the first field error — "Validation failed" alone is useless on device.
+      if (Array.isArray(errors) && errors.length > 0) {
+        const first = errors[0] as { message?: unknown };
+        if (typeof first?.message === "string" && first.message.trim()) {
+          return first.message.trim();
+        }
+      }
       if (typeof message === "string" && message.trim().length > 0) {
         return message;
       }

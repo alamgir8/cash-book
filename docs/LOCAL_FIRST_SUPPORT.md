@@ -50,7 +50,7 @@ Then **Migrate** again from cloud, or restore from Drive.
 2. Turn **Dual-write** OFF (must be off for real offline).
 3. Optional: turn **Drive backups** OFF to stop uploads (local auto-backup still works).
 
-With sync off, personal ledger writes stay on device; Mongo is not updated for ledger rows. Pull-to-refresh uses SQLite (not Mongo) — even when Cloud sync is ON, the UI stays offline-first and sync runs in the background. If an **organization** is selected, v1 still shows **personal** on-device data and a banner — org multi-user remains cloud-primary (Phase 9).
+With sync off, ledger writes stay on device; Mongo is not updated for ledger rows. Pull-to-refresh uses SQLite (not Mongo) — even when Cloud sync is ON, the UI stays offline-first and sync runs in the background. Cloud sync pulls **personal + organization** books (`scope=all`). Shop / invoices / products remain online-only.
 
 **Daily auto jobs:** once per local calendar day (after midnight), when the app is opened/foregrounded: Mongo sync (if Cloud sync ON) and Drive dated backup (if Drive ON). iOS/Android cannot guarantee a true midnight wake while the app is killed; the job runs on next open and every 15 minutes while active.
 

@@ -14,6 +14,8 @@ interface State {
 }
 
 export class ErrorBoundary extends Component<Props, State> {
+  private lastErrorInfo?: ErrorInfo;
+
   constructor(props: Props) {
     super(props);
     this.state = { hasError: false };
@@ -24,11 +26,12 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    this.lastErrorInfo = errorInfo;
     console.error("ErrorBoundary caught an error:", error, errorInfo);
-    this.setState({ error, errorInfo });
   }
 
   handleReset = () => {
+    this.lastErrorInfo = undefined;
     this.setState({ hasError: false, error: undefined, errorInfo: undefined });
   };
 
@@ -37,6 +40,8 @@ export class ErrorBoundary extends Component<Props, State> {
       if (this.props.fallback) {
         return this.props.fallback;
       }
+
+      const errorInfo = this.state.errorInfo ?? this.lastErrorInfo;
 
       return (
         <View className="flex-1 bg-gray-50 items-center justify-center p-6">
@@ -61,9 +66,9 @@ export class ErrorBoundary extends Component<Props, State> {
                 <Text className="text-xs font-mono text-gray-800">
                   {this.state.error.toString()}
                 </Text>
-                {this.state.errorInfo && (
+                {errorInfo && (
                   <Text className="text-xs font-mono text-gray-600 mt-2">
-                    {this.state.errorInfo.componentStack}
+                    {errorInfo.componentStack}
                   </Text>
                 )}
               </ScrollView>
