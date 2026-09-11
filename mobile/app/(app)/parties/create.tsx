@@ -677,22 +677,22 @@ export default function CreatePartyScreen() {
                   onPress={() => setValue("opening_balance_type", "payable")}
                   className="flex-1 p-3 rounded-xl border-2 items-center"
                   style={{
-                    borderColor: selectedBalanceType === "payable" ? "#EF4444" : colors.border,
-                    backgroundColor: selectedBalanceType === "payable" ? "#EF444410" : colors.bg.secondary,
+                    borderColor: selectedBalanceType === "payable" ? "#f43f5e" : colors.border,
+                    backgroundColor: selectedBalanceType === "payable" ? "#f43f5e10" : colors.bg.secondary,
                   }}
                 >
                   <Ionicons
                     name="arrow-up-outline"
                     size={20}
                     color={
-                      selectedBalanceType === "payable" ? "#EF4444" : colors.text.tertiary
+                      selectedBalanceType === "payable" ? "#f43f5e" : colors.text.tertiary
                     }
                   />
                   <Text
                     className="text-sm font-medium mt-1"
                     style={{
                       color: selectedBalanceType === "payable"
-                        ? "#EF4444"
+                        ? "#f43f5e"
                         : colors.text.tertiary,
                     }}
                   >

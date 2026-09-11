@@ -237,12 +237,12 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
         const statusColor = isSettled
           ? "#16a34a"
           : s.net_owed_by_me > 0
-            ? "#dc2626"
+            ? "#e11d48"
             : "#d97706";
         const statusBg = isSettled
           ? "#f0fdf4"
           : s.net_owed_by_me > 0
-            ? "#fef2f2"
+            ? "#fff1f2"
             : "#fffbeb";
         const statusLabel = isSettled
           ? "✅ Fully Settled"
@@ -268,7 +268,7 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
                   ? `${fmt(bal)} they owe`
                   : `${fmt(Math.abs(bal))} I owe`;
             const balColor =
-              bal === 0 ? "#16a34a" : bal > 0 ? "#d97706" : "#dc2626";
+              bal === 0 ? "#16a34a" : bal > 0 ? "#d97706" : "#e11d48";
             return `
             <tr class="entry-row" style="background:${cfg.bg}">
               <td class="td-date">${dayjs(e.date).format("DD MMM YYYY")}</td>
@@ -288,7 +288,7 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
         const fb = ledger.summary;
         const fbBal = fb.owed_by_them - fb.owed_by_me;
         const fbColor =
-          fbBal === 0 ? "#16a34a" : fbBal > 0 ? "#d97706" : "#dc2626";
+          fbBal === 0 ? "#16a34a" : fbBal > 0 ? "#d97706" : "#e11d48";
         const fbLabel =
           fbBal === 0
             ? "✓ Fully Settled"
@@ -678,13 +678,13 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
                   backgroundColor: ledger.summary.is_settled
                     ? "#16a34a15"
                     : ledger.summary.net_owed_by_me > 0
-                      ? "#ef444415"
+                      ? "#f43f5e15"
                       : "#f59e0b15",
                   borderWidth: 1,
                   borderColor: ledger.summary.is_settled
                     ? "#16a34a40"
                     : ledger.summary.net_owed_by_me > 0
-                      ? "#ef444440"
+                      ? "#f43f5e40"
                       : "#f59e0b40",
                 }}
               >
@@ -705,7 +705,7 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
                       color: ledger.summary.is_settled
                         ? "#16a34a"
                         : ledger.summary.net_owed_by_me > 0
-                          ? "#ef4444"
+                          ? "#f43f5e"
                           : "#f59e0b",
                     }}
                   >
@@ -717,7 +717,7 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
                     <>
                       <Text
                         className="text-xs mt-0.5"
-                        style={{ color: "#ef4444" }}
+                        style={{ color: "#f43f5e" }}
                       >
                         {t("iOweThem2")}{" "}
                         {formatAmount(ledger.summary.owed_by_me)}
@@ -1044,7 +1044,7 @@ const LedgerRow = ({
             style={{
               color:
                 runningBalance < 0
-                  ? "#ef4444"
+                  ? "#f43f5e"
                   : runningBalance > 0
                     ? "#f59e0b"
                     : "#16a34a",

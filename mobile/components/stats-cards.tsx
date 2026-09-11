@@ -253,7 +253,7 @@ export const StatsCards = ({
           subtitle={t("debitTransactions")}
           icon="trending-down"
           iconColor={colors.error}
-          iconBgColor="bg-red-50"
+          iconBgColor="bg-rose-50"
           valueColor={colors.error}
           trend={expenseTrend}
         />

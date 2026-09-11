@@ -35,7 +35,7 @@ const CURRENCIES = [
 const STATUS_OPTIONS = [
   { value: "active", label: "Active", color: "#10b981" },
   { value: "suspended", label: "Suspended", color: "#f59e0b" },
-  { value: "archived", label: "Archived", color: "#ef4444" },
+  { value: "archived", label: "Archived", color: "#f43f5e" },
 ] as const;
 
 // Zod validation schema

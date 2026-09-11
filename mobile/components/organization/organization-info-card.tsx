@@ -22,7 +22,7 @@ export function OrganizationInfoCard({
       case "suspended":
         return { bg: "#fef3c7", text: "#ca8a04" };
       case "archived":
-        return { bg: "#fee2e2", text: "#dc2626" };
+        return { bg: "#ffe4e6", text: "#e11d48" };
       default:
         return { bg: "#e5e7eb", text: "#6b7280" };
     }

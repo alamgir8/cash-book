@@ -17,7 +17,7 @@ export const lightColors = {
   primaryDark: "#1d4ed8",
   secondary: "#8b5cf6",
   success: "#10b981",
-  error: "#ef4444",
+  error: "#f43f5e",
   warning: "#f59e0b",
   info: "#05889f",
 
@@ -59,7 +59,7 @@ export const darkColors = {
   primaryDark: "#3b82f6",
   secondary: "#a78bfa",
   success: "#34d399",
-  error: "#f87171",
+  error: "#fb7185",
   warning: "#fbb400",
   info: "#22d3ee",
 

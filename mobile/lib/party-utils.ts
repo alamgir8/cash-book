@@ -25,7 +25,7 @@ export function getPartyBalanceColor(
   palette?: { success: string; error: string; muted: string },
 ): string {
   const success = palette?.success ?? "#10b981";
-  const error = palette?.error ?? "#ef4444";
+  const error = palette?.error ?? "#f43f5e";
   const muted = palette?.muted ?? "#64748b";
   if (balance > 0) return success;
   if (balance < 0) return error;

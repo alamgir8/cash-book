@@ -270,7 +270,7 @@ function UploadStep({
 
             <View className="flex-row items-center gap-4 mt-6">
               {[
-                { ext: "PDF", color: "#ef4444", icon: "document-text" },
+                { ext: "PDF", color: "#f43f5e", icon: "document-text" },
                 { ext: "XLSX", color: "#10b981", icon: "grid" },
                 { ext: "XLS", color: "#10b981", icon: "grid" },
                 { ext: "CSV", color: "#f59e0b", icon: "list" },

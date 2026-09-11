@@ -766,7 +766,7 @@ const buildReportHtml = ({
       color: #0f172a;
     }
     .kpi-value.positive { color: #0f766e; }
-    .kpi-value.negative { color: #b91c1c; }
+    .kpi-value.negative { color: #be123c; }
 
     /* Net banner (like winner ribbon) */
     .banner {
@@ -784,9 +784,9 @@ const buildReportHtml = ({
       color: #065f46;
     }
     .banner.negative {
-      background: #fef2f2;
-      border-color: #fecaca;
-      color: #7f1d1d;
+      background: #fff1f2;
+      border-color: #fecdd3;
+      color: #881337;
     }
     .banner-icon { font-size: 16px; }
     .banner-title {
@@ -874,7 +874,7 @@ const buildReportHtml = ({
 
     .amount { text-align: right; font-weight: 800; }
     .amount.credit { color: #0f766e; }
-    .amount.debit { color: #b91c1c; }
+    .amount.debit { color: #be123c; }
     .amount.balance { color: #0f172a; }
 
     .badge {
@@ -886,7 +886,7 @@ const buildReportHtml = ({
       letter-spacing: .04em;
     }
     .badge.credit { background: #d1fae5; color: #065f46; }
-    .badge.debit  { background: #fee2e2; color: #7f1d1d; }
+    .badge.debit  { background: #ffe4e6; color: #881337; }
 
     .text-muted { color: #64748b; font-size: 12px; }
     .empty {
@@ -1222,7 +1222,7 @@ const buildGroupedReportHtml = ({
     .kpi-label { font-size: 16px; text-transform: uppercase; letter-spacing: .08em; color: #1f2937; font-weight: 800; }
     .kpi-value { margin-top: 8px; font-size: 22px; font-weight: 800; color: #0f172a; }
     .kpi-value.positive { color: #0f766e; }
-    .kpi-value.negative { color: #b91c1c; }
+    .kpi-value.negative { color: #be123c; }
 
     .banner {
       display: flex;
@@ -1234,7 +1234,7 @@ const buildGroupedReportHtml = ({
       border: 1px solid;
     }
     .banner.positive { background: #ecfdf5; border-color: #a7f3d0; color: #065f46; }
-    .banner.negative { background: #fef2f2; border-color: #fecaca; color: #7f1d1d; }
+    .banner.negative { background: #fff1f2; border-color: #fecdd3; color: #881337; }
     .banner-icon { font-size: 16px; }
     .banner-title { font-size: 14px; text-transform: uppercase; letter-spacing: .08em; font-weight: 800; }
     .banner-value { font-size: 18px; font-weight: 800; margin-top: 2px; }
@@ -1261,10 +1261,10 @@ const buildGroupedReportHtml = ({
     .group-stats { display: flex; gap: 12px; flex-wrap: wrap; }
     .group-stats .stat { font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 6px; }
     .group-stats .stat.credit { background: #ecfdf5; color: #065f46; }
-    .group-stats .stat.debit { background: #fef2f2; color: #991b1b; }
+    .group-stats .stat.debit { background: #fff1f2; color: #9f1239; }
     .group-banner { font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 6px; }
     .group-banner.positive { background: #d1fae5; color: #065f46; }
-    .group-banner.negative { background: #fecaca; color: #991b1b; }
+    .group-banner.negative { background: #fecdd3; color: #9f1239; }
     .group-count { padding: 10px 16px; background: #f8fafc; font-size: 12px; color: #64748b; text-align: right; border-top: 1px solid #e5e7eb; }
 
     .table-wrap { overflow-x: auto; }
@@ -1276,10 +1276,10 @@ const buildGroupedReportHtml = ({
 
     .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; }
     .badge.positive { background: #d1fae5; color: #065f46; }
-    .badge.negative { background: #fee2e2; color: #991b1b; }
+    .badge.negative { background: #ffe4e6; color: #9f1239; }
     .amount { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
     .amount.positive { color: #047857; }
-    .amount.negative { color: #dc2626; }
+    .amount.negative { color: #e11d48; }
 
     .filters { margin: 14px 2px 14px; }
     .filters h2 { font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: #475569; margin: 0 0 8px 0; }
@@ -1611,14 +1611,14 @@ export const exportPartyLedgerPdf = async (
             <td style="padding: 12px 8px; font-size: 11px; font-weight: 600; color: #059669; text-align: right; border-bottom: 1px solid #e5e7eb;">
               ${debitAmount}
             </td>
-            <td style="padding: 12px 8px; font-size: 11px; font-weight: 600; color: #dc2626; text-align: right; border-bottom: 1px solid #e5e7eb;">
+            <td style="padding: 12px 8px; font-size: 11px; font-weight: 600; color: #e11d48; text-align: right; border-bottom: 1px solid #e5e7eb;">
               ${creditAmount}
             </td>
             <td style="padding: 12px 8px; font-size: 11px; font-weight: 700; color: ${
               entry.running_balance > 0
                 ? "#059669"
                 : entry.running_balance < 0
-                  ? "#dc2626"
+                  ? "#e11d48"
                   : "#4b5563"
             }; text-align: right; border-bottom: 1px solid #e5e7eb;">
               ${balance}
@@ -1639,7 +1639,7 @@ export const exportPartyLedgerPdf = async (
           <td style="padding: 12px 8px; font-size: 11px; color: #6b7280; text-align: right; border-bottom: 1px solid #e5e7eb;">—</td>
           <td style="padding: 12px 8px; font-size: 11px; color: #6b7280; text-align: right; border-bottom: 1px solid #e5e7eb;">—</td>
           <td style="padding: 12px 8px; font-size: 11px; font-weight: 700; color: ${
-            summary.opening_balance > 0 ? "#059669" : "#dc2626"
+            summary.opening_balance > 0 ? "#059669" : "#e11d48"
           }; text-align: right; border-bottom: 1px solid #e5e7eb;">
             ${formatBalance(summary.opening_balance)}
           </td>
@@ -1711,7 +1711,7 @@ export const exportPartyLedgerPdf = async (
             }
             .summary-card.opening .value { color: #374151; }
             .summary-card.debit .value { color: #059669; }
-            .summary-card.credit .value { color: #dc2626; }
+            .summary-card.credit .value { color: #e11d48; }
             .closing-balance {
               background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
               border: 2px solid #3b82f6;
@@ -1734,7 +1734,7 @@ export const exportPartyLedgerPdf = async (
                 summary.closing_balance > 0
                   ? "#059669"
                   : summary.closing_balance < 0
-                    ? "#dc2626"
+                    ? "#e11d48"
                     : "#374151"
               };
             }
@@ -1856,7 +1856,7 @@ export const exportInvoicePdf = async (invoiceId: string): Promise<string> => {
       pending: "#f59e0b",
       partial: "#3b82f6",
       paid: "#10b981",
-      cancelled: "#ef4444",
+      cancelled: "#f43f5e",
       overdue: "#f97316",
     };
 
@@ -2198,7 +2198,7 @@ export const exportInvoicePdf = async (invoiceId: string): Promise<string> => {
               <div class="total-row">
                 <span class="label">Balance Due:</span>
                 <span class="value" style="color: ${
-                  invoice.balance_due > 0 ? "#ef4444" : "#10b981"
+                  invoice.balance_due > 0 ? "#f43f5e" : "#10b981"
                 };">
                   ${formatAmount(invoice.balance_due)}
                 </span>

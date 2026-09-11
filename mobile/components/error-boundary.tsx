@@ -42,8 +42,8 @@ export class ErrorBoundary extends Component<Props, State> {
         <View className="flex-1 bg-gray-50 items-center justify-center p-6">
           <View className="bg-white rounded-3xl p-6 w-full max-w-md shadow-lg">
             <View className="items-center mb-6">
-              <View className="w-20 h-20 bg-red-100 rounded-full items-center justify-center mb-4">
-                <Ionicons name="alert-circle" size={48} color="#ef4444" />
+              <View className="w-20 h-20 bg-rose-100 rounded-full items-center justify-center mb-4">
+                <Ionicons name="alert-circle" size={48} color="#f43f5e" />
               </View>
               <Text className="text-2xl font-bold text-gray-900 mb-2">
                 Something went wrong

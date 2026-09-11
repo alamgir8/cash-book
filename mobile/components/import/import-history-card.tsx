@@ -18,7 +18,7 @@ const FILE_TYPE_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
 };
 
 const FILE_TYPE_COLORS: Record<string, string> = {
-  pdf: "#ef4444",
+  pdf: "#f43f5e",
   xlsx: "#10b981",
   xls: "#10b981",
   csv: "#f59e0b",

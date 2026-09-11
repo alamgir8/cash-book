@@ -184,7 +184,7 @@ export const STATUS_COLORS: Record<InvoiceStatus, StatusColorConfig> = {
   pending: { bg: "bg-yellow-100", text: "text-yellow-700" },
   partial: { bg: "bg-blue-100", text: "text-blue-700" },
   paid: { bg: "bg-green-100", text: "text-green-700" },
-  cancelled: { bg: "bg-red-100", text: "text-red-700" },
+  cancelled: { bg: "bg-rose-100", text: "text-rose-700" },
   overdue: { bg: "bg-orange-100", text: "text-orange-700" },
 };
 

@@ -46,7 +46,7 @@ const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   pending: { bg: "#FEF3C7", text: "#D97706" },
   partial: { bg: "#DBEAFE", text: "#2563EB" },
   paid: { bg: "#D1FAE5", text: "#059669" },
-  cancelled: { bg: "#FEE2E2", text: "#DC2626" },
+  cancelled: { bg: "#ffe4e6", text: "#e11d48" },
   all: { bg: "#E5E7EB", text: "#374151" },
 };
 

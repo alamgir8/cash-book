@@ -75,7 +75,8 @@ export const deleteAttachment = async (
     return { message: "Removed", attachments };
   }
 
-  const encodedKey = storageKey.split("/").map(encodeURIComponent).join("/");
+  // One path segment so Express 5 does not need a bare "*" wildcard route.
+  const encodedKey = encodeURIComponent(storageKey);
   const response = await api.delete(
     `/transactions/${transactionId}/attachments/${encodedKey}`,
   );

@@ -41,7 +41,7 @@ const STATUS_OPTIONS = [
     color: "#f59e0b",
     icon: "pause-circle",
   },
-  { value: "archived", label: "Archived", color: "#ef4444", icon: "archive" },
+  { value: "archived", label: "Archived", color: "#f43f5e", icon: "archive" },
 ];
 
 // Zod validation schema

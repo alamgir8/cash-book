@@ -27,7 +27,7 @@ type CategoryFormModalProps = {
 type FlowType = "credit" | "debit";
 
 const COLORS = [
-  "#ef4444", // red
+  "#f43f5e", // red
   "#f97316", // orange
   "#f59e0b", // amber
   "#84cc16", // lime

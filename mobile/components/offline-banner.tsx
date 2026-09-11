@@ -125,6 +125,7 @@ export function OfflineBanner() {
   if (!text) return null;
 
   const storageOnly = !syncText && Boolean(storageMessage);
+  // Rose (not hard red) for failed / unavailable / storage pressure.
   const bg =
     state === "failed" || state === "server_unavailable" || storageOnly
       ? colors.error
