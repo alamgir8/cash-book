@@ -30,9 +30,10 @@ Completed on branch `feat/local-first-sync`.
 | Reinstall | Empty DB; migrate or restore after login |
 | Different user on same device | Owner mismatch wipe before use |
 
-## Not in Phase 2
+## Not in Phase 2 (done later)
 
-- Enabling local-first by default
-- Offline invoices/products
-- Backend financial apply on sync push (Phase 5)
-- Storage % thresholds UI (Phase 6)
+- Enabling local-first by default → **done** (LF + cloud sync default ON; dual-write OFF)
+- Offline invoices/products → still deferred
+- Backend financial apply on sync push → Phase 5 (done on branch)
+- Storage % thresholds UI → Phase 6 (done on branch)
+- Org books in sync pull → done (`scope=all`)

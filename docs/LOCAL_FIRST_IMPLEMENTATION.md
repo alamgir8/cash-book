@@ -2,15 +2,17 @@
 
 Branch: `feat/local-first-sync`
 
-## How to try it (safe — flags default OFF)
+## How to try it (physical iPhone / Debug)
 
-1. Run backend + mobile as usual (cloud mode unchanged).
-2. Open **Settings → On-device storage**.
-3. Enable **Use on-device database**.
-4. Tap **Migrate from cloud** (personal data).
-5. Optionally enable **Cloud sync** / **Google Drive backups**.
+Defaults: **on-device storage ON**, **cloud sync ON**, **dual-write OFF**.
 
-Org-shared books stay on the API in v1.
+1. Install a Debug / dev-client build (`npx expo run:ios --device`) — not Expo Go.
+2. Point `mobile/.env.local` at production or your Mac LAN API, then restart Metro with `--clear`.
+3. Sign in once while online.
+4. Settings → On-device storage → **Migrate from cloud** (or **Re-download**) so SQLite is seeded. Until migrate finishes, Home/Accounts look empty.
+5. Optional: enable Google Drive backups. Keep dual-write **OFF** for real offline use.
+
+Cloud sync covers **personal + organization** ledger books (`/sync/pull?scope=all`). Shop / invoices / products stay online-only.
 
 ## Key paths
 
@@ -36,10 +38,9 @@ cd mobile && npm run test:local-first
 
 Store a Drive access token (scope `drive.file`) via `setDriveAccessToken` after Expo AuthSession. Client IDs belong in EAS secrets — not committed.
 
-## Remaining hardening (Phase 8)
+## Remaining hardening
 
 - [ ] SQLCipher / DB encryption at rest
 - [ ] Full Expo AuthSession Google connect button
-- [ ] Background sync scheduler (foreground + interval)
-- [ ] Account-detail / category hooks fully on DAL when local-first
+- [ ] Offline invoices / products / schemes
 - [ ] Device QA matrix in production plan §5
