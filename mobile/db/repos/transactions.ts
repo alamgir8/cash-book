@@ -254,7 +254,9 @@ export async function softDeleteTransaction(
     }
     const ts = nowIso();
     await txn.runAsync(
-      `UPDATE transactions SET deleted_at = ?, updated_at = ?, dirty = 1, device_id = ?, sync_version = sync_version + 1 WHERE id = ?`,
+      `UPDATE transactions SET deleted_at = ?, updated_at = ?, dirty = 1,
+        sync_status = 'pending_delete', retry_count = 0, last_sync_error = NULL,
+        device_id = ?, sync_version = sync_version + 1 WHERE id = ?`,
       ts,
       ts,
       device_id,
@@ -324,7 +326,9 @@ export async function updateTransaction(
         payment_status = ?, due_date = ?,
         due_remaining = CASE WHEN ? = 'due' THEN ? ELSE due_remaining END,
         balance_after_transaction = ?, party_balance_after = ?,
-        updated_at = ?, dirty = 1, device_id = ?, sync_version = sync_version + 1
+        updated_at = ?, dirty = 1, sync_status = 'pending_update',
+        retry_count = 0, last_sync_error = NULL,
+        device_id = ?, sync_version = sync_version + 1
        WHERE id = ?`,
       nextAccountId,
       patch.category_id !== undefined ? patch.category_id : existing.category_id,
@@ -408,7 +412,9 @@ export async function createDuePaymentTransaction(
     await txn.runAsync(
       `UPDATE transactions SET
         due_remaining = ?, due_settled_at = ?,
-        updated_at = ?, dirty = 1, device_id = ?, sync_version = sync_version + 1
+        updated_at = ?, dirty = 1, sync_status = 'pending_update',
+        retry_count = 0, last_sync_error = NULL,
+        device_id = ?, sync_version = sync_version + 1
        WHERE id = ?`,
       nextRemaining,
       settledAt,
@@ -466,6 +472,9 @@ export async function upsertTransactionFromSync(
       updated_at = excluded.updated_at,
       deleted_at = excluded.deleted_at,
       dirty = excluded.dirty,
+      sync_status = CASE WHEN excluded.dirty = 0 THEN 'synced' ELSE COALESCE(excluded.sync_status, 'pending_update') END,
+      retry_count = CASE WHEN excluded.dirty = 0 THEN 0 ELSE transactions.retry_count END,
+      last_sync_error = CASE WHEN excluded.dirty = 0 THEN NULL ELSE transactions.last_sync_error END,
       sync_version = excluded.sync_version,
       client_request_id = excluded.client_request_id,
       device_id = excluded.device_id`,

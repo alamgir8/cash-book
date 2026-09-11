@@ -558,7 +558,8 @@ export const getParties = async (req, res, next) => {
     const query = and.length === 1 ? and[0] : { $and: and };
 
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
-    const pageLimit = Math.max(1, Math.min(100, parseInt(limit, 10) || 50));
+    // Allow larger pages for ledger PDF export (default UI stays small).
+    const pageLimit = Math.max(1, Math.min(5000, parseInt(limit, 10) || 50));
     const skip = (pageNum - 1) * pageLimit;
     const sortObj = {};
     const sortField = sort.startsWith("-") ? sort.substring(1) : sort;
@@ -1066,7 +1067,8 @@ export const getPartyLedger = async (req, res, next) => {
 
     const query = { $and: andConditions };
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
-    const pageLimit = Math.max(1, Math.min(100, parseInt(limit, 10) || 50));
+    // Allow larger pages for ledger PDF export (default UI stays small).
+    const pageLimit = Math.max(1, Math.min(5000, parseInt(limit, 10) || 50));
     const skip = (pageNum - 1) * pageLimit;
     const isCustomer = party.type === "customer";
     const openingBalance = Number(party.opening_balance || 0);

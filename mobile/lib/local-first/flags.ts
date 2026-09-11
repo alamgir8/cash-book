@@ -1,8 +1,9 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 /**
- * Local-first feature flags (Phase 0).
- * Defaults stay OFF in production until cutover so existing API behavior is unchanged.
+ * Local-first feature flags.
+ * Defaults: on-device storage + cloud sync ON so the cash book works offline
+ * and retries sync daily when the backend is available.
  */
 
 export const FLAG_KEYS = {
@@ -23,8 +24,8 @@ export type LocalFirstFlags = {
 };
 
 const DEFAULTS: LocalFirstFlags = {
-  localFirstEnabled: false,
-  cloudSyncEnabled: false,
+  localFirstEnabled: true,
+  cloudSyncEnabled: true,
   driveBackupEnabled: false,
   dualWriteEnabled: false,
   migrationCompletedAt: null,

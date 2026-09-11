@@ -49,6 +49,13 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_expo._tcp</string>
+		<string>_http._tcp</string>
+	</array>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Allow Hisab Boi to connect to your Mac for local development (Metro) and your local API server on the same Wi‑Fi.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Allow Hisab Boi to access your camera for scanning receipts.</string>
 	<key>NSFaceIDUsageDescription</key>

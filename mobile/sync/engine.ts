@@ -1,4 +1,4 @@
-import { api } from "@/lib/api";
+import { api, baseURL } from "@/lib/api";
 import { getDb } from "@/db/client";
 import { META_KEYS, getMeta, setMeta } from "@/db/meta";
 import { LOCAL_SCHEMA_VERSION } from "@/db/types";
@@ -156,12 +156,17 @@ async function markClean(
             : "transfers";
   if (serverId) {
     await db.runAsync(
-      `UPDATE ${table} SET dirty = 0, server_id = ? WHERE id = ?`,
+      `UPDATE ${table} SET dirty = 0, sync_status = 'synced',
+        retry_count = 0, last_sync_error = NULL, server_id = ? WHERE id = ?`,
       serverId,
       id,
     );
   } else {
-    await db.runAsync(`UPDATE ${table} SET dirty = 0 WHERE id = ?`, id);
+    await db.runAsync(
+      `UPDATE ${table} SET dirty = 0, sync_status = 'synced',
+        retry_count = 0, last_sync_error = NULL WHERE id = ?`,
+      id,
+    );
   }
 }
 
@@ -246,6 +251,11 @@ async function applyIncoming(change: SyncChange) {
     await transactionsRepo.upsertTransactionFromSync(db, row);
   if (change.entity === "transfer")
     await transfersRepo.upsertTransferFromSync(db, row);
+
+  // Ensure pull-applied rows are marked synced (INSERT defaults are pending_*).
+  if (localId) {
+    await markClean(change.entity, localId, change.server_id ?? null);
+  }
 }
 
 export type SyncResult = {
@@ -279,10 +289,14 @@ export async function runSync(): Promise<SyncResult> {
     const { data: handshake } = await api.post<{
       serverTime: string;
       minSchemaVersion: number;
-    }>("/sync/handshake", {
-      device_id,
-      schemaVersion: LOCAL_SCHEMA_VERSION,
-    });
+    }>(
+      "/sync/handshake",
+      {
+        device_id,
+        schemaVersion: LOCAL_SCHEMA_VERSION,
+      },
+      { timeout: 30000 },
+    );
 
     if (handshake.minSchemaVersion > LOCAL_SCHEMA_VERSION) {
       throw new Error("App update required before sync");
@@ -303,7 +317,11 @@ export async function runSync(): Promise<SyncResult> {
     const { data: pushResult } = await api.post<{
       accepted: Array<{ id: string; server_id?: string }>;
       rejected: Array<{ id: string; reason: string }>;
-    }>("/sync/push", { changes, device_id });
+    }>(
+      "/sync/push",
+      { changes, device_id },
+      { timeout: 60000 },
+    );
 
     const accepted = pushResult.accepted ?? [];
     const rejected = pushResult.rejected ?? [];
@@ -313,7 +331,7 @@ export async function runSync(): Promise<SyncResult> {
       if (match) await markClean(match.entity, a.id, a.server_id ?? null);
     }
 
-    // Rejected rows stay dirty for retry; surface a concise reason.
+    // Rejected rows stay dirty for retry; mark failed + surface reason.
     if (rejected.length) {
       const sample = rejected
         .slice(0, 3)
@@ -324,31 +342,72 @@ export async function runSync(): Promise<SyncResult> {
         META_KEYS.LAST_SYNC_ERROR,
         `${rejected.length} push rejected — ${sample}`,
       );
+      for (const r of rejected) {
+        const match = changes.find((c) => c.id === r.id);
+        if (!match) continue;
+        const table =
+          match.entity === "account"
+            ? "accounts"
+            : match.entity === "category"
+              ? "categories"
+              : match.entity === "party"
+                ? "parties"
+                : match.entity === "transaction"
+                  ? "transactions"
+                  : "transfers";
+        await db.runAsync(
+          `UPDATE ${table} SET sync_status = 'failed',
+            retry_count = retry_count + 1,
+            last_sync_error = ?
+           WHERE id = ?`,
+          r.reason || "rejected",
+          r.id,
+        );
+      }
     }
 
     await setMeta(db, META_KEYS.SYNC_STAGE, "pull");
+    // Scope v2: personal + organization books. Reset cursor once so org rows
+    // created before the last personal-only sync are not skipped.
+    // Do NOT mark scope version until ack succeeds — failed full pulls must retry.
+    const scopeVersion = await getMeta(db, META_KEYS.SYNC_SCOPE_VERSION);
+    const upgradingScope = scopeVersion !== "2";
+    if (upgradingScope) {
+      await setMeta(db, META_KEYS.LAST_SYNC_CURSOR, "1970-01-01T00:00:00.000Z");
+    }
     const since =
       (await getMeta(db, META_KEYS.LAST_SYNC_CURSOR)) ||
       "1970-01-01T00:00:00.000Z";
+    // Full historical pulls of org + personal can exceed 30s on LAN.
     const { data: pull } = await api.get<{
       changes: SyncChange[];
       cursor: string;
-    }>("/sync/pull", { params: { since, scope: "personal" } });
+    }>("/sync/pull", {
+      params: { since, scope: "all" },
+      timeout: 120000,
+    });
 
     for (const change of pull.changes ?? []) {
       await applyIncoming(change);
     }
 
     await setMeta(db, META_KEYS.SYNC_STAGE, "ack");
-    await api.post("/sync/ack", { cursor: pull.cursor, run_id: runId });
+    await api.post(
+      "/sync/ack",
+      { cursor: pull.cursor, run_id: runId },
+      { timeout: 30000 },
+    );
     await setMeta(db, META_KEYS.LAST_SYNC_CURSOR, pull.cursor);
     await setMeta(db, META_KEYS.LAST_SYNC_AT, handshake.serverTime);
+    if (upgradingScope) {
+      await setMeta(db, META_KEYS.SYNC_SCOPE_VERSION, "2");
+    }
     if (!rejected.length) {
       await setMeta(db, META_KEYS.LAST_SYNC_ERROR, null);
     }
     await setMeta(db, META_KEYS.SYNC_STAGE, "done");
 
-    await recalculateBalances(db, { organizationId: null });
+    await recalculateBalances(db, { allOrganizations: true });
 
     const pushed = accepted.length;
     const pulled = pull.changes?.length ?? 0;
@@ -381,9 +440,18 @@ export async function runSync(): Promise<SyncResult> {
     const raw = e?.response?.data?.message || e?.message || "Sync failed";
     const notDeployed =
       status === 404 || /resource not found/i.test(String(raw));
+    const isTimeout =
+      e?.code === "ECONNABORTED" || /timeout/i.test(String(raw));
+    const isNetwork =
+      !e?.response &&
+      (/network error/i.test(String(raw)) || e?.code === "ERR_NETWORK");
     const message = notDeployed
       ? "Cloud sync API not on this server yet (deploy backend /sync routes)"
-      : String(raw);
+      : isTimeout
+        ? `Sync timed out talking to ${baseURL}. Large first sync can take a minute — tap Sync now again.`
+        : isNetwork
+          ? `Cannot reach API at ${baseURL}. Check Wi‑Fi / EXPO_PUBLIC_BASE_URL and that the backend is running.`
+          : String(raw);
     await setMeta(db, META_KEYS.LAST_SYNC_ERROR, message);
     // 404 is expected until production deploys /sync — don't spam telemetry/console.
     if (!notDeployed) {

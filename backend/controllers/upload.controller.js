@@ -222,10 +222,15 @@ export const uploadAttachments = async (req, res, next) => {
 export const deleteAttachment = async (req, res, next) => {
   try {
     const { transactionId } = req.params;
-    // Express wildcard stores the rest of the path in params[0]
-    const storageKey = decodeURIComponent(
-      req.params[0] || req.params.storageKey || "",
-    );
+    // Single path segment: encodeURIComponent(fullKey) so "/" → "%2F".
+    // Express may already decode once; decodeURIComponent is safe either way.
+    const rawKey = String(req.params.storageKey || req.params[0] || "");
+    let storageKey = rawKey;
+    try {
+      storageKey = decodeURIComponent(rawKey);
+    } catch {
+      storageKey = rawKey;
+    }
 
     const transaction = await Transaction.findById(transactionId);
     if (!transaction || transaction.is_deleted) {

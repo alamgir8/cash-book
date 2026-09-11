@@ -13,6 +13,12 @@ import {
   isLocalFirstEnabled,
 } from "@/lib/local-first/flags";
 import { shouldUseLocalPersonalLedger } from "@/lib/local-first/ledger-scope";
+import { notifyLocalLedgerMutation } from "@/lib/local-first/notify-mutation";
+
+async function afterLocalWrite<T>(result: T): Promise<T> {
+  void notifyLocalLedgerMutation();
+  return result;
+}
 
 export async function dalFetchTransactions(
   filters: TransactionFilters = {},
@@ -65,7 +71,7 @@ export async function dalCreateTransaction(payload: CreatePayload) {
     return apiCreateTransaction(payload);
   }
   const local = await import("./transactions.local");
-  return local.createLocalTransaction(payload);
+  return afterLocalWrite(await local.createLocalTransaction(payload));
 }
 
 export async function dalUpdateTransaction(payload: {
@@ -87,7 +93,7 @@ export async function dalUpdateTransaction(payload: {
     return apiUpdateTransaction(payload);
   }
   const local = await import("./transactions.local");
-  return local.updateLocalTransaction(payload);
+  return afterLocalWrite(await local.updateLocalTransaction(payload));
 }
 
 export async function dalDeleteTransaction(transactionId: string) {
@@ -96,7 +102,7 @@ export async function dalDeleteTransaction(transactionId: string) {
     return apiDeleteTransaction(transactionId);
   }
   const local = await import("./transactions.local");
-  return local.deleteLocalTransaction(transactionId);
+  return afterLocalWrite(await local.deleteLocalTransaction(transactionId));
 }
 
 export async function dalCreateTransfer(payload: {
@@ -112,7 +118,7 @@ export async function dalCreateTransfer(payload: {
     return apiCreateTransfer(payload);
   }
   const local = await import("./transactions.local");
-  return local.createLocalTransfer(payload);
+  return afterLocalWrite(await local.createLocalTransfer(payload));
 }
 
 export async function dalCreateDuePayment(payload: {
@@ -129,5 +135,5 @@ export async function dalCreateDuePayment(payload: {
     return apiCreateDuePayment(payload);
   }
   const local = await import("./transactions.local");
-  return local.createLocalDuePayment(payload);
+  return afterLocalWrite(await local.createLocalDuePayment(payload));
 }

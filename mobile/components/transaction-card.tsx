@@ -7,7 +7,10 @@ import { usePreferences } from "../hooks/use-preferences";
 import { useTheme } from "../hooks/use-theme";
 import { useTranslation } from "../hooks/use-translation";
 import { translateCategoryName } from "../lib/i18n/category-translations";
-import { getPartyRefName, getCategoryRefName } from "../lib/transaction-filters";
+import {
+  getPartyRefName,
+  getCategoryRefName,
+} from "../lib/transaction-filters";
 import { getLoanReturnRemaining } from "../lib/loan-utils";
 
 type Props = {
@@ -66,7 +69,10 @@ const DetailRow = ({
   labelColor: string;
   valueColor: string;
 }) => (
-  <View className="flex-row items-center gap-1.5" style={{ flexWrap: "nowrap" }}>
+  <View
+    className="flex-row items-center gap-1.5"
+    style={{ flexWrap: "nowrap" }}
+  >
     <Text
       style={{ color: labelColor }}
       className="text-xs font-semibold"
@@ -76,7 +82,7 @@ const DetailRow = ({
     </Text>
     <Text
       style={{ color: valueColor, flexShrink: 1 }}
-      className="text-xs font-medium"
+      className="text-xs font-medium mt-1"
       numberOfLines={1}
     >
       {value}
@@ -179,9 +185,16 @@ const TransactionCardComponent = ({
   const showVendorHistory =
     !!onViewHistory && hasRealVendor && !hasChain && !isTransfer;
 
-  const notes = [transaction.comment?.trim(), transaction.keyword?.trim()]
-    .filter((note): note is string => Boolean(note))
-    .filter((note, index, all) => all.indexOf(note) === index);
+  // Flatten comment/keyword into unique note lines (multiline notes → list items).
+  const noteLines = [transaction.comment, transaction.keyword]
+    .flatMap((raw) =>
+      (raw ?? "")
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean),
+    )
+    .filter((line, index, all) => all.indexOf(line) === index)
+    .filter((line) => !sameText(line, transaction.description));
 
   // For payment cards: check if the parent due still has balance outstanding
   const parentDue =
@@ -363,29 +376,38 @@ const TransactionCardComponent = ({
         </View>
       </View>
 
-      {(transaction.description || notes.length > 0) && (
-        <View className="mt-3 gap-0.5">
+      {(transaction.description || noteLines.length > 0) && (
+        <View className="mt-3 gap-1">
+          {/* Description: flat body text, no label, full content */}
           {transaction.description ? (
-            <DetailRow
-              label={t("descriptionLabel")}
-              value={transaction.description}
-              labelColor={colors.text.secondary}
-              valueColor={colors.text.secondary}
-            />
+            <Text
+              style={{ color: colors.text.secondary }}
+              className="text-sm font-medium"
+            >
+              {transaction.description}
+            </Text>
           ) : null}
-          {/* Notes. `comment` and `keyword` are separate fields; show both when
-              they differ instead of letting one hide the other. */}
-          {notes
-            .filter((note) => !sameText(note, transaction.description))
-            .map((note) => (
-              <DetailRow
-                key={note}
-                label={t("noteLabel")}
-                value={note}
-                labelColor={colors.text.tertiary}
-                valueColor={colors.text.tertiary}
-              />
-            ))}
+          {/* Notes: list view of every unique line, no "Note" label */}
+          {noteLines.length > 0 ? (
+            <View className="gap-0.5">
+              {noteLines.map((line) => (
+                <View key={line} className="flex-row items-start gap-1.5">
+                  <Text
+                    style={{ color: colors.text.tertiary, lineHeight: 18 }}
+                    className="text-xs"
+                  >
+                    •
+                  </Text>
+                  <Text
+                    style={{ color: colors.text.tertiary, flex: 1 }}
+                    className="text-xs font-medium"
+                  >
+                    {line}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
         </View>
       )}
 
@@ -438,11 +460,7 @@ const TransactionCardComponent = ({
           />
         ) : null}
         {schemeName ? (
-          <Chip
-            label={t("schemeLabel")}
-            value={schemeName}
-            color="#0891b2"
-          />
+          <Chip label={t("schemeLabel")} value={schemeName} color="#0891b2" />
         ) : null}
         {transferLabel ? (
           <Chip value={transferLabel} color={colors.text.tertiary} />
@@ -507,7 +525,8 @@ const TransactionCardComponent = ({
         ) : null}
       </View>
 
-      {(transaction.due_date || transaction.balance_after_transaction != null) && (
+      {(transaction.due_date ||
+        transaction.balance_after_transaction != null) && (
         <View className="mt-2 gap-0.5">
           {transaction.due_date ? (
             <DetailRow

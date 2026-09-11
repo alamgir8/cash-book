@@ -106,27 +106,42 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     [],
   );
 
-  const clearSession = useCallback(async () => {
-    setAuthToken();
-    stopRefreshTimer();
-    // Query cache + org/prefs storage so the next user never sees stale data
-    await clearUserScopedData();
-    try {
-      await SecureStore.deleteItemAsync(STORAGE_SESSION_KEY);
-      await SecureStore.deleteItemAsync(LEGACY_TOKEN_KEY);
-      await SecureStore.deleteItemAsync(STORAGE_USER_KEY);
-    } catch (error) {
-      console.warn("Failed to clear stored session", error);
-    }
-    if (isMountedRef.current) {
-      setState({ status: "unauthenticated", user: null, tokens: null });
-    }
-  }, [stopRefreshTimer]);
+  const clearSession = useCallback(
+    async (options: { wipeLedger?: boolean } = {}) => {
+      const wipeLedger = options.wipeLedger ?? false;
+      setAuthToken();
+      stopRefreshTimer();
+      await clearUserScopedData({ wipeLedger });
+      try {
+        await SecureStore.deleteItemAsync(STORAGE_SESSION_KEY);
+        await SecureStore.deleteItemAsync(LEGACY_TOKEN_KEY);
+        await SecureStore.deleteItemAsync(STORAGE_USER_KEY);
+      } catch (error) {
+        console.warn("Failed to clear stored session", error);
+      }
+      try {
+        const { resetSessionUnlock } = await import("@/lib/auth/login-mode");
+        resetSessionUnlock();
+      } catch {
+        /* ignore */
+      }
+      if (isMountedRef.current) {
+        setState({ status: "unauthenticated", user: null, tokens: null });
+      }
+    },
+    [stopRefreshTimer],
+  );
 
   const applySession = useCallback(
     async ({ tokens, admin }: AuthSessionResponse) => {
       setAuthToken(tokens.accessToken);
       await persistSession(tokens, admin);
+      try {
+        const { markSessionUnlocked } = await import("@/lib/auth/login-mode");
+        markSessionUnlocked();
+      } catch {
+        /* ignore */
+      }
       if (isMountedRef.current) {
         setState({ status: "authenticated", tokens, user: admin });
       }
@@ -174,8 +189,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       if (axios.isAxiosError(error) && error.response) {
         const status = error.response.status;
         if (status === 401 || status === 403) {
-          console.warn("Refresh token rejected by server, clearing session");
-          await clearSessionRef.current();
+          console.warn(
+            "Refresh token rejected by server — deferring to unauthorized handler",
+          );
+          // Do not wipe here; interceptor → handleUnauthorized decides
+          // (keeps offline session when backend is down).
           throw error;
         }
       }
@@ -209,14 +227,46 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     if (handlingUnauthorized.current) return;
     handlingUnauthorized.current = true;
 
-    const previousState = stateRef.current;
     try {
-      await clearSessionRef.current();
+      // Never lock the user out when the device/backend is unavailable —
+      // local-first cash book must keep working offline.
+      try {
+        const NetInfo = (await import("@react-native-community/netinfo"))
+          .default;
+        const net = await NetInfo.fetch();
+        const deviceOnline =
+          net.isConnected === true && net.isInternetReachable !== false;
+        if (!deviceOnline) {
+          Toast.show({
+            type: "info",
+            text1: "Working offline",
+            text2: "Your cash book stays available on this device.",
+          });
+          return;
+        }
+        const { probeBackendAvailable } = await import("@/sync/scheduler");
+        const backendOk = await probeBackendAvailable(3500);
+        if (!backendOk) {
+          Toast.show({
+            type: "info",
+            text1: "Server unavailable",
+            text2: "Continuing with on-device data.",
+          });
+          return;
+        }
+      } catch {
+        // If we cannot probe, prefer staying signed in for offline use.
+        return;
+      }
+
+      const previousState = stateRef.current;
+      // Soft clear: drop tokens so the user can sign in again, but keep SQLite.
+      await clearSessionRef.current({ wipeLedger: false });
       if (previousState.status === "authenticated") {
         Toast.show({
           type: "info",
           text1: "Session expired",
-          text2: "Please sign in again.",
+          text2: "Please sign in again. Your on-device data is safe.",
         });
       }
     } finally {
@@ -269,7 +319,26 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
       setAuthToken(tokens.accessToken);
 
-      // Try to get fresh profile, but fall back to cached user
+      // Optimistic restore: enter the app immediately from SecureStore so
+      // offline / sleeping backends never force a login screen.
+      if (cachedUser && isMountedRef.current) {
+        setState({
+          status: "authenticated",
+          tokens,
+          user: cachedUser,
+        });
+        try {
+          const { markSessionUnlocked, loadLoginMode } = await import(
+            "@/lib/auth/login-mode"
+          );
+          const mode = await loadLoginMode();
+          if (mode === "single") markSessionUnlocked();
+        } catch {
+          /* ignore */
+        }
+      }
+
+      // Background renewal — never blocks entry when we already have a cache.
       try {
         const profile = await authService.getProfile();
         await persistSessionRef.current(tokens, profile.admin);
@@ -281,27 +350,56 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           });
         }
       } catch (profileError) {
-        // If we have a cached user, use it even if profile fetch fails
         if (cachedUser) {
-          console.warn(
-            "Using cached user profile due to fetch error",
-            profileError,
-          );
-          if (isMountedRef.current) {
-            setState({ status: "authenticated", tokens, user: cachedUser });
+          // Already authenticated from cache — try silent refresh if 401.
+          const isAuthError =
+            axios.isAxiosError(profileError) &&
+            profileError.response &&
+            [401, 403].includes(profileError.response.status);
+          if (isAuthError) {
+            try {
+              const refreshed = await authService.refreshSession(
+                tokens.refreshToken,
+              );
+              await persistSessionRef.current(
+                refreshed.tokens,
+                refreshed.admin,
+              );
+              setAuthToken(refreshed.tokens.accessToken);
+              if (isMountedRef.current) {
+                setState({
+                  status: "authenticated",
+                  tokens: refreshed.tokens,
+                  user: refreshed.admin,
+                });
+              }
+            } catch (refreshError) {
+              const isRefreshAuthError =
+                axios.isAxiosError(refreshError) &&
+                refreshError.response &&
+                [401, 403].includes(refreshError.response.status);
+              // Soft-fail: keep cached session for offline. Only drop tokens
+              // when the server explicitly rejects the refresh AND we can
+              // confirm the backend is reachable (handled by unauthorized path
+              // on later API calls). Do not wipe the ledger here.
+              if (isRefreshAuthError) {
+                console.warn(
+                  "Refresh rejected — keeping offline session until online re-auth",
+                  refreshError,
+                );
+              }
+            }
           }
           return;
         }
 
-        // For bootstrap, keep session alive on network errors
-        // Only clear on explicit auth errors (401/403)
+        // No cached user — try refresh, else stay unauthenticated (no wipe).
         const isAuthError =
           axios.isAxiosError(profileError) &&
           profileError.response &&
           [401, 403].includes(profileError.response.status);
 
         if (isAuthError) {
-          // Explicit auth error - try refresh
           try {
             const refreshed = await authService.refreshSession(
               tokens.refreshToken,
@@ -315,49 +413,27 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
                 user: refreshed.admin,
               });
             }
-          } catch (refreshError) {
-            const isRefreshAuthError =
-              axios.isAxiosError(refreshError) &&
-              refreshError.response &&
-              [401, 403].includes(refreshError.response.status);
-
-            if (isRefreshAuthError) {
-              console.warn("Session expired, clearing", refreshError);
-              await clearSessionRef.current();
-            } else {
-              // Network error during refresh - keep session only if we have a cached user
-              console.warn(
-                "Bootstrap refresh failed (network) but keeping session",
-                refreshError,
+            try {
+              const { markSessionUnlocked, loadLoginMode } = await import(
+                "@/lib/auth/login-mode"
               );
-              if (cachedUser) {
-                setState({
-                  status: "authenticated",
-                  tokens,
-                  user: cachedUser,
-                });
-              } else {
-                // No cached user and can't reach server — stay unauthenticated
-                await clearSessionRef.current();
-              }
+              const mode = await loadLoginMode();
+              if (mode === "single") markSessionUnlocked();
+            } catch {
+              /* ignore */
+            }
+          } catch {
+            if (isMountedRef.current) {
+              setState({
+                status: "unauthenticated",
+                user: null,
+                tokens: null,
+              });
             }
           }
-        } else {
-          // Network error or server error - keep session alive only if cached user exists
-          console.warn(
-            "Bootstrap profile fetch failed (network/server) but keeping session",
-            profileError,
-          );
-          if (cachedUser) {
-            setState({
-              status: "authenticated",
-              tokens,
-              user: cachedUser,
-            });
-          } else {
-            // No cached user, can't verify session — stay unauthenticated
-            await clearSessionRef.current();
-          }
+        } else if (isMountedRef.current) {
+          // Network/server error and no cached user
+          setState({ status: "unauthenticated", user: null, tokens: null });
         }
       }
     } catch (error) {
@@ -397,6 +473,27 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       stopRefreshTimer();
     };
   }, [startRefreshTimer, state.status, stopRefreshTimer]);
+
+  // Bind (or wipe+rebind) the local SQLite ledger to the signed-in admin.
+  useEffect(() => {
+    if (state.status !== "authenticated" || !state.user?._id) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const { ensureLocalLedgerOwner } = await import(
+          "@/lib/local-first/owner"
+        );
+        if (!cancelled) {
+          await ensureLocalLedgerOwner(state.user._id);
+        }
+      } catch (error) {
+        console.warn("[auth] ensureLocalLedgerOwner failed", error);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [state.status, state.status === "authenticated" ? state.user._id : null]);
 
   const signIn = useCallback(
     async ({ identifier, password, pin }: LoginRequest) => {
@@ -443,7 +540,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     if (current.status === "authenticated") {
       await authService.logout(current.tokens.refreshToken);
     }
-    await clearSession();
+    await clearSession({ wipeLedger: true });
   }, [clearSession]);
 
   const switchAccount = useCallback(async () => {

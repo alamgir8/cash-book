@@ -183,11 +183,76 @@ export type Migration = {
   sql: string;
 };
 
+/**
+ * Migration 002 — sync status / retry metadata + missing updated_at indexes.
+ * Existing dirty rows are backfilled to pending_* / synced.
+ */
+export const MIGRATION_002_SQL = `
+ALTER TABLE accounts ADD COLUMN sync_status TEXT NOT NULL DEFAULT 'pending_create';
+ALTER TABLE accounts ADD COLUMN retry_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE accounts ADD COLUMN last_sync_error TEXT;
+
+ALTER TABLE categories ADD COLUMN sync_status TEXT NOT NULL DEFAULT 'pending_create';
+ALTER TABLE categories ADD COLUMN retry_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE categories ADD COLUMN last_sync_error TEXT;
+
+ALTER TABLE parties ADD COLUMN sync_status TEXT NOT NULL DEFAULT 'pending_create';
+ALTER TABLE parties ADD COLUMN retry_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE parties ADD COLUMN last_sync_error TEXT;
+
+ALTER TABLE transactions ADD COLUMN sync_status TEXT NOT NULL DEFAULT 'pending_create';
+ALTER TABLE transactions ADD COLUMN retry_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE transactions ADD COLUMN last_sync_error TEXT;
+
+ALTER TABLE transfers ADD COLUMN sync_status TEXT NOT NULL DEFAULT 'pending_create';
+ALTER TABLE transfers ADD COLUMN retry_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE transfers ADD COLUMN last_sync_error TEXT;
+
+UPDATE accounts SET sync_status = 'synced' WHERE dirty = 0;
+UPDATE accounts SET sync_status = 'pending_delete' WHERE dirty = 1 AND deleted_at IS NOT NULL;
+UPDATE accounts SET sync_status = 'pending_update' WHERE dirty = 1 AND deleted_at IS NULL AND server_id IS NOT NULL;
+UPDATE accounts SET sync_status = 'pending_create' WHERE dirty = 1 AND deleted_at IS NULL AND (server_id IS NULL OR server_id = '');
+
+UPDATE categories SET sync_status = 'synced' WHERE dirty = 0;
+UPDATE categories SET sync_status = 'pending_delete' WHERE dirty = 1 AND deleted_at IS NOT NULL;
+UPDATE categories SET sync_status = 'pending_update' WHERE dirty = 1 AND deleted_at IS NULL AND server_id IS NOT NULL;
+UPDATE categories SET sync_status = 'pending_create' WHERE dirty = 1 AND deleted_at IS NULL AND (server_id IS NULL OR server_id = '');
+
+UPDATE parties SET sync_status = 'synced' WHERE dirty = 0;
+UPDATE parties SET sync_status = 'pending_delete' WHERE dirty = 1 AND deleted_at IS NOT NULL;
+UPDATE parties SET sync_status = 'pending_update' WHERE dirty = 1 AND deleted_at IS NULL AND server_id IS NOT NULL;
+UPDATE parties SET sync_status = 'pending_create' WHERE dirty = 1 AND deleted_at IS NULL AND (server_id IS NULL OR server_id = '');
+
+UPDATE transactions SET sync_status = 'synced' WHERE dirty = 0;
+UPDATE transactions SET sync_status = 'pending_delete' WHERE dirty = 1 AND deleted_at IS NOT NULL;
+UPDATE transactions SET sync_status = 'pending_update' WHERE dirty = 1 AND deleted_at IS NULL AND server_id IS NOT NULL;
+UPDATE transactions SET sync_status = 'pending_create' WHERE dirty = 1 AND deleted_at IS NULL AND (server_id IS NULL OR server_id = '');
+
+UPDATE transfers SET sync_status = 'synced' WHERE dirty = 0;
+UPDATE transfers SET sync_status = 'pending_delete' WHERE dirty = 1 AND deleted_at IS NOT NULL;
+UPDATE transfers SET sync_status = 'pending_update' WHERE dirty = 1 AND deleted_at IS NULL AND server_id IS NOT NULL;
+UPDATE transfers SET sync_status = 'pending_create' WHERE dirty = 1 AND deleted_at IS NULL AND (server_id IS NULL OR server_id = '');
+
+CREATE INDEX IF NOT EXISTS idx_parties_updated ON parties(updated_at);
+CREATE INDEX IF NOT EXISTS idx_tx_updated ON transactions(updated_at);
+CREATE INDEX IF NOT EXISTS idx_transfers_updated ON transfers(updated_at);
+CREATE INDEX IF NOT EXISTS idx_accounts_sync_status ON accounts(sync_status);
+CREATE INDEX IF NOT EXISTS idx_categories_sync_status ON categories(sync_status);
+CREATE INDEX IF NOT EXISTS idx_parties_sync_status ON parties(sync_status);
+CREATE INDEX IF NOT EXISTS idx_tx_sync_status ON transactions(sync_status);
+CREATE INDEX IF NOT EXISTS idx_transfers_sync_status ON transfers(sync_status);
+`;
+
 export const MIGRATIONS: Migration[] = [
   {
     version: 1,
     name: "001_init",
     sql: MIGRATION_001_SQL,
+  },
+  {
+    version: 2,
+    name: "002_sync_status",
+    sql: MIGRATION_002_SQL,
   },
 ];
 
