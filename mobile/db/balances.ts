@@ -1,6 +1,7 @@
 import type { Db } from "./client";
 import { scopeWhere } from "./meta";
 import type { ScopeFilter } from "./types";
+import { partyBalanceSumSql } from "@/lib/local-first/party-balance";
 
 const paidClause = (alias = "") => {
   const col = alias ? `${alias}.payment_status` : "payment_status";
@@ -54,16 +55,20 @@ export async function recalculateBalances(
     id: string;
     server_id: string | null;
     opening_balance: number;
+    type: string | null;
   }>(
-    `SELECT id, server_id, opening_balance FROM parties WHERE ${sql} AND deleted_at IS NULL`,
+    `SELECT id, server_id, opening_balance, type FROM parties WHERE ${sql} AND deleted_at IS NULL`,
     ...params,
   );
 
   for (const party of parties) {
     const serverId = party.server_id || party.id;
+    // Type-aware sign: customers are credit-positive, suppliers debit-positive.
+    // Matches the backend `partyBalanceDelta` convention (Phase 7).
+    const sign = partyBalanceSumSql(party.type, "amount", "type");
     // Match local UUID or Mongo server id stored on the txn (migrate/dual-write).
     const sum = await db.getFirstAsync<{ net: number | null }>(
-      `SELECT COALESCE(SUM(CASE WHEN type = 'credit' THEN amount ELSE -amount END), 0) as net
+      `SELECT COALESCE(SUM(${sign}), 0) as net
        FROM transactions
        WHERE deleted_at IS NULL
          AND ${paidClause()}

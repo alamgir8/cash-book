@@ -52,6 +52,7 @@ export const createProduct = async (req, res, next) => {
       category_id,
       unit,
       purchase_price,
+      additional_cost,
       sale_price,
       tax_rate,
       current_stock,
@@ -82,6 +83,7 @@ export const createProduct = async (req, res, next) => {
       category_id,
       unit: unit || "pcs",
       purchase_price: purchase_price || 0,
+      additional_cost: additional_cost || 0,
       sale_price: sale_price || 0,
       tax_rate: tax_rate || 0,
       current_stock: current_stock || 0,
@@ -101,7 +103,7 @@ export const createProduct = async (req, res, next) => {
         product: product._id,
         type: "opening_stock",
         quantity: product.current_stock,
-        unit_cost: product.purchase_price,
+        unit_cost: product.cost_price ?? product.purchase_price,
         stock_after: product.current_stock,
         notes: "Opening stock",
         date: new Date(),
@@ -287,6 +289,7 @@ export const updateProduct = async (req, res, next) => {
       "category_id",
       "unit",
       "purchase_price",
+      "additional_cost",
       "sale_price",
       "tax_rate",
       "low_stock_threshold",
@@ -518,7 +521,7 @@ export const getProductStats = async (req, res, next) => {
           $group: {
             _id: null,
             purchase_value: {
-              $sum: { $multiply: ["$current_stock", "$purchase_price"] },
+              $sum: { $multiply: ["$current_stock", "$cost_price"] },
             },
             sale_value: {
               $sum: { $multiply: ["$current_stock", "$sale_price"] },

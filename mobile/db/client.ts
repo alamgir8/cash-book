@@ -94,6 +94,27 @@ export async function wipeLedgerData(
   await db.runAsync(`DELETE FROM parties WHERE ${orgClause}`, ...params);
   await db.runAsync(`DELETE FROM categories WHERE ${orgClause}`, ...params);
   await db.runAsync(`DELETE FROM accounts WHERE ${orgClause}`, ...params);
+
+  // Shop rows are org-scoped too — they must be cleared with the same filter,
+  // otherwise a partial restore would leave stale products/invoices behind.
+  await db.runAsync(
+    `DELETE FROM invoice_items WHERE invoice_id IN (
+       SELECT id FROM invoices WHERE ${orgClause}
+     )`,
+    ...params,
+  );
+  await db.runAsync(
+    `DELETE FROM invoice_payments WHERE invoice_id IN (
+       SELECT id FROM invoices WHERE ${orgClause}
+     )`,
+    ...params,
+  );
+  await db.runAsync(`DELETE FROM invoices WHERE ${orgClause}`, ...params);
+  await db.runAsync(
+    `DELETE FROM inventory_movements WHERE ${orgClause}`,
+    ...params,
+  );
+  await db.runAsync(`DELETE FROM products WHERE ${orgClause}`, ...params);
 }
 
 /** Full wipe of all ledger tables (personal + every organization). */
@@ -103,6 +124,18 @@ export async function wipeAllLedgerData(db: Db): Promise<void> {
   await db.runAsync(`DELETE FROM parties`);
   await db.runAsync(`DELETE FROM categories`);
   await db.runAsync(`DELETE FROM accounts`);
+
+  // Shop entities (Phase 13). Child rows first so no orphan items remain.
+  await db.runAsync(`DELETE FROM invoice_items`);
+  await db.runAsync(`DELETE FROM invoice_payments`);
+  await db.runAsync(`DELETE FROM invoices`);
+  await db.runAsync(`DELETE FROM inventory_movements`);
+  await db.runAsync(`DELETE FROM products`);
+  await db.runAsync(`DELETE FROM settings_cache`);
+  await db.runAsync(`DELETE FROM pending_ops`);
+  // Org settings cache is user data too (names, prefixes).
+  await db.runAsync(`DELETE FROM organizations`);
+
   await db.runAsync(`DELETE FROM sync_conflicts`);
   // Preserve schema; clear sync cursors / owner so restore can rebind cleanly.
   await db.runAsync(`DELETE FROM meta`);

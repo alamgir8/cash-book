@@ -14,15 +14,21 @@ import { Ionicons } from "@expo/vector-icons";
 import { ScreenHeader } from "@/components/screen-header";
 import { useOrganization } from "@/hooks/use-organization";
 import { useTheme } from "@/hooks/use-theme";
-import { organizationsApi, type Organization } from "@/services/organizations";
+import { type Organization } from "@/services/organizations";
+import {
+  dalDeleteOrganization,
+  dalFetchOrganizations,
+} from "@/data/organizations";
 import { getApiErrorMessage } from "@/lib/api";
 import { toast } from "@/lib/toast";
 import { refreshAppData } from "@/lib/refresh-app-data";
 import { OrganizationFormModal } from "@/components/organization-form-modal";
+import { useTranslation } from "@/hooks/use-translation";
 
 export default function OrganizationsScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { t } = useTranslation();
   const { setOrganizations, switchOrganization, activeOrganization } =
     useOrganization();
   const [showFormModal, setShowFormModal] = useState(false);
@@ -30,22 +36,29 @@ export default function OrganizationsScreen() {
   const { colors } = useTheme();
 
   const {
-    data: organizations = [],
+    data: organizationsResult,
     isLoading,
     refetch,
     isRefetching,
   } = useQuery({
     queryKey: ["organizations"],
-    queryFn: organizationsApi.list,
+    // Server-first with a local-mirror fallback so this screen works offline.
+    queryFn: dalFetchOrganizations,
   });
+  const organizations = organizationsResult?.organizations ?? [];
+  const offlineMode = organizationsResult?.fromCache ?? false;
 
   const deleteMutation = useMutation({
-    mutationFn: organizationsApi.delete,
+    mutationFn: dalDeleteOrganization,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["organizations"] });
       toast.success("Organization deleted successfully");
     },
     onError: (error) => {
+      if (!(error as any)?.response) {
+        toast.error(t("deleteShopNeedsConnection"));
+        return;
+      }
       toast.error(getApiErrorMessage(error));
     },
   });
@@ -53,12 +66,12 @@ export default function OrganizationsScreen() {
   const handleDelete = useCallback(
     (org: Organization) => {
       Alert.alert(
-        "Delete Organization",
+        t("deleteOrganizationTitle"),
         `Are you sure you want to delete "${org.name}"? This action cannot be undone.`,
         [
-          { text: "Cancel", style: "cancel" },
+          { text: t("cancel"), style: "cancel" },
           {
-            text: "Delete",
+            text: t("delete"),
             style: "destructive",
             onPress: async () => {
               // If deleting active org, switch to personal
@@ -82,10 +95,11 @@ export default function OrganizationsScreen() {
   const handleFormSuccess = useCallback(
     (org: Organization) => {
       queryClient.invalidateQueries({ queryKey: ["organizations"] });
-      // Update context with proper role and permissions from API
+      // Update context with proper role and permissions from the list
       refetch().then((result) => {
-        if (result.data) {
-          const summaries = result.data.map((o) => ({
+        const list = result.data?.organizations;
+        if (list) {
+          const summaries = list.map((o) => ({
             id: o._id,
             name: o.name,
             business_type: o.business_type,
@@ -122,7 +136,7 @@ export default function OrganizationsScreen() {
   if (isLoading) {
     return (
       <View className="flex-1" style={{ backgroundColor: colors.bg.primary }}>
-        <ScreenHeader title="Organizations" showBack />
+        <ScreenHeader title={t("organizations")} showBack />
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color={colors.info} />
         </View>
@@ -133,7 +147,7 @@ export default function OrganizationsScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg.primary }}>
       <ScreenHeader
-        title="Organizations"
+        title={t("organizations")}
         showBack
         onBack={() => router.push("/settings")}
         rightAction={
@@ -189,7 +203,7 @@ export default function OrganizationsScreen() {
         {organizations.length === 0 ? (
           <View className="p-8 items-center">
             <Ionicons
-              name="business-outline"
+              name={offlineMode ? "cloud-offline-outline" : "business-outline"}
               size={64}
               color={colors.text.tertiary}
             />
@@ -197,30 +211,55 @@ export default function OrganizationsScreen() {
               className="text-lg font-medium mt-4"
               style={{ color: colors.text.secondary }}
             >
-              No Organizations Yet
+              {offlineMode ? "Offline" : t("noOrganizationsYet")}
             </Text>
             <Text
               className="text-sm text-center mt-2"
               style={{ color: colors.text.tertiary }}
             >
-              Create your first organization to start managing your business
-              with multiple users.
+              {offlineMode
+                ? "Connect to the internet to load and manage your shops."
+                : t("createFirstOrganization")}
             </Text>
-            <TouchableOpacity
-              className="mt-6 px-6 py-3 rounded-lg"
-              style={{ backgroundColor: colors.info }}
-              onPress={() => {
-                setEditingOrg(null);
-                setShowFormModal(true);
-              }}
-            >
-              <Text className="text-white font-medium">
-                Create Organization
-              </Text>
-            </TouchableOpacity>
+            {!offlineMode ? (
+              <TouchableOpacity
+                className="mt-6 px-6 py-3 rounded-lg"
+                style={{ backgroundColor: colors.info }}
+                onPress={() => {
+                  setEditingOrg(null);
+                  setShowFormModal(true);
+                }}
+              >
+                <Text className="text-white font-medium">
+                  {t("createOrganization")}
+                </Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
         ) : (
           <View className="px-4 pb-4">
+            {offlineMode ? (
+              <View
+                className="mb-3 p-3 rounded-xl flex-row items-center gap-2"
+                style={{
+                  backgroundColor: colors.warning + "15",
+                  borderWidth: 1,
+                  borderColor: colors.warning + "40",
+                }}
+              >
+                <Ionicons
+                  name="cloud-offline-outline"
+                  size={18}
+                  color={colors.warning}
+                />
+                <Text
+                  className="text-sm flex-1"
+                  style={{ color: colors.warning }}
+                >
+                  {t("offlineShopsHint")}
+                </Text>
+              </View>
+            ) : null}
             {organizations.map((org) => (
               <TouchableOpacity
                 key={org._id}
@@ -288,7 +327,7 @@ export default function OrganizationsScreen() {
                       className="text-xs"
                       style={{ color: colors.text.secondary }}
                     >
-                      Currency
+                      {t("currency")}
                     </Text>
                     <Text
                       className="text-sm font-medium"
@@ -306,7 +345,7 @@ export default function OrganizationsScreen() {
                       className="text-xs"
                       style={{ color: colors.text.secondary }}
                     >
-                      Status
+                      {t("status")}
                     </Text>
                     <Text
                       className="text-sm font-medium"
@@ -317,7 +356,7 @@ export default function OrganizationsScreen() {
                             : colors.error,
                       }}
                     >
-                      {org.status === "active" ? "Active" : "Inactive"}
+                      {org.status === "active" ? t("active") : t("inactive")}
                     </Text>
                   </View>
                 </View>
@@ -341,7 +380,7 @@ export default function OrganizationsScreen() {
                         className="ml-1 text-sm"
                         style={{ color: colors.text.primary }}
                       >
-                        Edit
+                        {t("edit")}
                       </Text>
                     </TouchableOpacity>
                   )}

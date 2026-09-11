@@ -1,5 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { invoicesApi } from "@/services/invoices";
+import {
+  dalCreateInvoice,
+  dalDeleteInvoice,
+  dalFetchInvoice,
+  dalFetchInvoices,
+  dalRecordInvoicePayment,
+  dalUpdateInvoice,
+  dalUpdateInvoiceStatus,
+} from "@/data/invoices";
+import type { CreateInvoiceDALParams } from "@/data/invoices.local";
 import { toast } from "@/lib/toast";
 import { getApiErrorMessage } from "@/lib/api";
 import { QUERY_KEYS } from "@/lib/queryKeys";
@@ -16,7 +25,7 @@ import type {
 export function useInvoice(invoiceId: string | undefined) {
   return useQuery({
     queryKey: ["invoice", invoiceId],
-    queryFn: () => invoicesApi.get(invoiceId!),
+    queryFn: () => dalFetchInvoice(invoiceId!),
     enabled: !!invoiceId,
   });
 }
@@ -27,7 +36,7 @@ export function useInvoice(invoiceId: string | undefined) {
 export function useInvoices(params?: ListInvoicesParams) {
   return useQuery({
     queryKey: ["invoices", params],
-    queryFn: () => invoicesApi.list(params),
+    queryFn: () => dalFetchInvoices(params),
   });
 }
 
@@ -41,7 +50,7 @@ export function useCreateInvoice(options?: {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: invoicesApi.create,
+    mutationFn: (params: CreateInvoiceDALParams) => dalCreateInvoice(params),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.invoices });
       toast.success("Invoice created successfully");
@@ -62,13 +71,13 @@ export function useUpdateInvoice(
   options?: {
     onSuccess?: (data: Invoice) => void;
     onError?: (error: any) => void;
-  }
+  },
 ) {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (params: UpdateInvoiceParams) =>
-      invoicesApi.update(invoiceId, params),
+      dalUpdateInvoice(invoiceId, params),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["invoice", invoiceId] });
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.invoices });
@@ -90,7 +99,7 @@ export function useUpdateInvoiceStatus(invoiceId: string) {
 
   return useMutation({
     mutationFn: ({ status }: { status: InvoiceStatus }) =>
-      invoicesApi.updateStatus(invoiceId, status),
+      dalUpdateInvoiceStatus(invoiceId, status),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["invoice", invoiceId] });
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.invoices });
@@ -108,11 +117,12 @@ export function useRecordPayment(invoiceId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: invoicesApi.recordPayment,
+    mutationFn: dalRecordInvoicePayment,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["invoice", invoiceId] });
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.invoices });
       queryClient.invalidateQueries({ queryKey: ["parties"] });
+      queryClient.invalidateQueries({ queryKey: ["accounts"] });
       toast.success("Payment recorded successfully");
     },
     onError: (error) => {
@@ -131,7 +141,7 @@ export function useDeleteInvoice(options?: {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: invoicesApi.delete,
+    mutationFn: (invoiceId: string) => dalDeleteInvoice(invoiceId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.invoices });
       toast.success("Invoice deleted successfully");
@@ -143,19 +153,3 @@ export function useDeleteInvoice(options?: {
     },
   });
 }
-
-/**
- * Hook for sending invoice via email
- * Note: sendEmail API method needs to be implemented in services/invoices.ts
- */
-// export function useSendInvoice(invoiceId: string) {
-//   return useMutation({
-//     mutationFn: (email: string) => invoicesApi.sendEmail(invoiceId, email),
-//     onSuccess: () => {
-//       toast.success("Invoice sent successfully");
-//     },
-//     onError: (error) => {
-//       toast.error(getApiErrorMessage(error));
-//     },
-//   });
-// }

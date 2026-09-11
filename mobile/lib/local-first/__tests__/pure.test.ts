@@ -15,8 +15,23 @@ import { errorCodeFromUnknown } from "../telemetry.ts";
 import { googleIosReversedScheme } from "../google-oauth.ts";
 import { computeUseLocalPersonalLedger } from "../ledger-scope-pure.ts";
 import { localDayKey } from "../day-key.ts";
+import {
+  createProductFormSchema,
+  createProductEditSchema,
+  createAdjustStockSchema,
+  createInvoiceSchema,
+  createBoundedPaymentSchema,
+  createOrganizationFormSchema,
+} from "../../validations/shop.ts";
+import {
+  partyBalanceSumSql,
+  partyNetFromTotals,
+  partySignedDelta,
+} from "../party-balance.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+/** Repo root, for asserting backend files. */
 
 test("LWW prefers newer updated_at", () => {
   const decision = resolveLastWriteWins(
@@ -243,3 +258,891 @@ test("ledger screens prefer DAL over raw partiesApi/fetchAccounts", () => {
   assert.match(reports, /dalFetchPartyLedger/);
   assert.doesNotMatch(reports, /partiesApi\.getLedger/);
 });
+
+test("party balance follows backend sign convention (Phase 7)", () => {
+  // Customers are credit-positive (receivable).
+  assert.equal(partySignedDelta("customer", "credit", 100), 100);
+  assert.equal(partySignedDelta("customer", "debit", 100), -100);
+  // Suppliers are debit-positive (payable).
+  assert.equal(partySignedDelta("supplier", "debit", 100), 100);
+  assert.equal(partySignedDelta("supplier", "credit", 100), -100);
+  // "both" follows the supplier branch, matching the backend.
+  assert.equal(partySignedDelta("both", "debit", 100), 100);
+  // Dues never move a balance.
+  assert.equal(partySignedDelta("customer", "credit", 100, "due"), 0);
+  assert.equal(partySignedDelta("supplier", "debit", 100, "due"), 0);
+});
+
+test("party net totals invert for suppliers", () => {
+  assert.equal(partyNetFromTotals("customer", 300, 100), 200);
+  assert.equal(partyNetFromTotals("supplier", 300, 100), -200);
+  assert.equal(partyNetFromTotals(null, 300, 100), 200);
+});
+
+test("partyBalanceSumSql uses the party convention", () => {
+  assert.match(partyBalanceSumSql("customer"), /type = 'credit'/);
+  assert.match(partyBalanceSumSql("supplier"), /type = 'debit'/);
+  assert.match(partyBalanceSumSql("both"), /type = 'debit'/);
+});
+
+test("local repair re-runs party convention fix on existing devices", () => {
+  const src = readFileSync(join(__dirname, "../repair-ledger.ts"), "utf8");
+  assert.match(src, /LEDGER_REPAIR_VERSION = "9"/);
+});
+
+// ── Shop form validation (Phase 5 follow-up) ────────────────────────────────
+
+/**
+ * Schema factories take a translator so validation messages follow the locale.
+ * Tests use the real English dictionary, so assertions below stay stable.
+ */
+let enTranslator: Promise<(key: string, vars?: Record<string, string>) => string> | null =
+  null;
+function getEnT() {
+  if (!enTranslator) {
+    enTranslator = import("../../i18n/translations.ts").then(
+      ({ translations }) =>
+        (key: string, vars?: Record<string, string>) => {
+          let text: string = (translations.en as any)[key] ?? key;
+          if (vars) {
+            for (const [k, v] of Object.entries(vars)) {
+              text = text.replaceAll(`{${k}}`, v);
+            }
+          }
+          return text;
+        },
+    );
+  }
+  return enTranslator;
+}
+
+/** Translator for an arbitrary locale — used to prove messages localize. */
+function getT(locale: "en" | "bn") {
+  return import("../../i18n/translations.ts").then(
+    ({ translations }) =>
+      (key: string, vars?: Record<string, string>) => {
+        let text: string = (translations as any)[locale]?.[key] ?? key;
+        if (vars) {
+          for (const [k, v] of Object.entries(vars)) {
+            text = text.replaceAll(`{${k}}`, v);
+          }
+        }
+        return text;
+      },
+  );
+}
+
+
+const productInput = {
+  name: "Rice",
+  unit: "pcs",
+  purchase_price: "100",
+  additional_cost: "20",
+  sale_price: "150",
+  tax_rate: "5",
+  opening_stock: "10",
+  low_stock_threshold: "2",
+  track_inventory: true,
+};
+
+function messages(result: { success: boolean; error?: any }): string[] {
+  return result.success
+    ? []
+    : result.error.issues.map((i: any) => i.message as string);
+}
+
+test("product schema accepts a valid product and rejects bad numbers", async () => {
+  const t = await getEnT();
+  const productFormSchema = createProductFormSchema(t as any);
+
+  assert.equal(productFormSchema.safeParse(productInput).success, true);
+
+  assert.ok(
+    messages(productFormSchema.safeParse({ ...productInput, name: "  " })).some(
+      (m) => /name is required/i.test(m),
+    ),
+  );
+  assert.ok(
+    messages(
+      productFormSchema.safeParse({ ...productInput, purchase_price: "-5" }),
+    ).some((m) => /cannot be negative/i.test(m)),
+  );
+  assert.ok(
+    messages(
+      productFormSchema.safeParse({ ...productInput, sale_price: "abc" }),
+    ).some((m) => /valid number/i.test(m)),
+  );
+  assert.ok(
+    messages(
+      productFormSchema.safeParse({ ...productInput, tax_rate: "150" }),
+    ).some((m) => /at most 100/i.test(m)),
+  );
+  assert.ok(
+    messages(
+      productFormSchema.safeParse({ ...productInput, barcode: "12 34" }),
+    ).some((m) => /spaces/i.test(m)),
+  );
+  // Barcode is optional, and a free-form QR payload is allowed.
+  assert.equal(
+    productFormSchema.safeParse({ ...productInput, barcode: "" }).success,
+    true,
+  );
+  assert.equal(
+    productFormSchema.safeParse({ ...productInput, barcode: "QR-XYZ_9" })
+      .success,
+    true,
+  );
+  // Unknown units are rejected rather than silently stored.
+  assert.equal(
+    productFormSchema.safeParse({ ...productInput, unit: "furlong" }).success,
+    false,
+  );
+});
+
+test("edit schema drops opening_stock and requires is_active", async () => {
+  const t = await getEnT();
+  const productEditSchema = createProductEditSchema(t as any);
+  const productFormSchema = createProductFormSchema(t as any);
+  assert.equal(
+    productEditSchema.safeParse({ ...productInput, is_active: true }).success,
+    true,
+  );
+  // opening_stock is not editable after create.
+  assert.equal(
+    "opening_stock" in productEditSchema.shape,
+    false,
+  );
+  assert.equal("opening_stock" in productFormSchema.shape, true);
+});
+
+test("adjust stock requires a positive quantity", async () => {
+  const t = await getEnT();
+  const adjustStockSchema = createAdjustStockSchema(t as any);
+  assert.equal(
+    adjustStockSchema.safeParse({ type: "adjustment_in", quantity: "5" })
+      .success,
+    true,
+  );
+  for (const qty of ["", "0", "-3"]) {
+    const result = adjustStockSchema.safeParse({
+      type: "adjustment_out",
+      quantity: qty,
+    });
+    assert.equal(result.success, false, `quantity "${qty}" should be invalid`);
+  }
+});
+
+test("invoice schema validates line items, dates and payments", async () => {
+  const t = await getEnT();
+  const invoiceSchema = createInvoiceSchema(t as any);
+
+  const base = {
+    party_id: "p1",
+    date: "2026-09-12",
+    discount_type: "percentage" as const,
+    items: [{ description: "Rice", quantity: "2", unit_price: "50" }],
+    payment_mode: "due" as const,
+  };
+  assert.equal(invoiceSchema.safeParse(base).success, true);
+
+  assert.equal(
+    messages(
+      invoiceSchema.safeParse({
+        ...base,
+        items: [{ description: "x", quantity: "0", unit_price: "5" }],
+      }),
+    ).some((m) => /greater than 0/i.test(m)),
+    true,
+  );
+  assert.equal(
+    messages(
+      invoiceSchema.safeParse({
+        ...base,
+        items: [{ description: "x", quantity: "1", unit_price: "0" }],
+      }),
+    ).some((m) => /greater than 0/i.test(m)),
+    true,
+  );
+  assert.equal(
+    messages(invoiceSchema.safeParse({ ...base, date: "nope" })).some((m) =>
+      /valid date/i.test(m),
+    ),
+    true,
+  );
+  assert.equal(
+    messages(
+      invoiceSchema.safeParse({ ...base, due_date: "2026-09-01" }),
+    ).some((m) => /before the invoice date/i.test(m)),
+    true,
+  );
+  assert.equal(
+    messages(
+      invoiceSchema.safeParse({ ...base, discount_value: "150" }),
+    ).some((m) => /exceed 100/i.test(m)),
+    true,
+  );
+  // A negative adjustment is legitimate (discounts/rounding).
+  assert.equal(
+    invoiceSchema.safeParse({ ...base, adjustment: "-50" }).success,
+    true,
+  );
+  // Recording money needs an amount AND a destination account.
+  assert.equal(
+    messages(invoiceSchema.safeParse({ ...base, payment_mode: "partial" }))
+      .length > 0,
+    true,
+  );
+  assert.equal(
+    invoiceSchema.safeParse({
+      ...base,
+      payment_mode: "partial",
+      initial_payment_amount: "100",
+      initial_payment_account: "a1",
+    }).success,
+    true,
+  );
+  assert.equal(
+    messages(invoiceSchema.safeParse({ ...base, payment_mode: "cash" })).some(
+      (m) => /account/i.test(m),
+    ),
+    true,
+  );
+});
+
+test("payment schema is bounded by the outstanding balance", async () => {
+  const t = await getEnT();
+  const createPaymentSchema = (max: number) =>
+    createBoundedPaymentSchema(t as any, max);
+  assert.equal(
+    createPaymentSchema(500).safeParse({ amount: "400", method: "cash" })
+      .success,
+    true,
+  );
+  assert.equal(
+    createPaymentSchema(500).safeParse({ amount: "600", method: "cash" })
+      .success,
+    false,
+  );
+  assert.equal(
+    createPaymentSchema(500).safeParse({ amount: "0", method: "cash" }).success,
+    false,
+  );
+});
+
+test("organization schema restricts currency and business type", async () => {
+  const t = await getEnT();
+  const organizationFormSchema = createOrganizationFormSchema(t as any);
+  assert.equal(
+    organizationFormSchema.safeParse({
+      name: "My Shop",
+      business_type: "retail_shop",
+      currency: "BDT",
+      status: "active",
+      email: "a@b.com",
+      phone: "+880 1712-345678",
+    }).success,
+    true,
+  );
+  assert.equal(
+    organizationFormSchema.safeParse({
+      name: "My Shop",
+      business_type: "retail_shop",
+      currency: "XYZ",
+      status: "active",
+    }).success,
+    false,
+  );
+  assert.equal(
+    messages(
+      organizationFormSchema.safeParse({
+        name: "My Shop",
+        business_type: "retail_shop",
+        currency: "BDT",
+        status: "active",
+        phone: "abc",
+      }),
+    ).some((m) => /valid phone/i.test(m)),
+    true,
+  );
+});
+
+test("findFirstErrorMessage walks nested RHF-style errors", async () => {
+  const { findFirstErrorMessage } = await import("../../invoice-utils.ts");
+  assert.equal(findFirstErrorMessage({}), null);
+  assert.equal(findFirstErrorMessage(null), null);
+  assert.equal(
+    findFirstErrorMessage({ name: { message: "Required" } }),
+    "Required",
+  );
+  assert.equal(
+    findFirstErrorMessage({
+      items: { 0: { quantity: { message: "Quantity must be greater than 0" } } },
+    }),
+    "Quantity must be greater than 0",
+  );
+});
+
+test("transform maps invoice discount onto a negative adjustment", async () => {
+  const { transformInvoiceFormData } = await import("../../invoice-utils.ts");
+
+  // Percentage discount: 10% of (2 x 100) = 20, applied negatively so the
+  // saved total matches what the form showed.
+  const pct = transformInvoiceFormData({
+    party_id: "p1",
+    date: "2026-09-12",
+    discount_type: "percentage",
+    discount_value: "10",
+    items: [
+      {
+        description: "Rice",
+        quantity: "2",
+        unit_price: "100",
+        local_product_id: "local-1",
+        product: "not-an-object-id",
+      },
+    ],
+  });
+  assert.equal(pct.adjustment, -20);
+  assert.equal(pct.shipping_charge, undefined);
+  // Local product hint survives; a non-ObjectId is never sent as `product`.
+  assert.equal(pct.items[0].local_product_id, "local-1");
+  assert.equal(pct.items[0].product, undefined);
+
+  const fixed = transformInvoiceFormData({
+    party_id: "p1",
+    discount_type: "fixed",
+    discount_value: "15",
+    items: [{ description: "x", quantity: "1", unit_price: "100" }],
+  });
+  assert.equal(fixed.adjustment, -15);
+
+  // No discount and no shipping → nothing to adjust.
+  const none = transformInvoiceFormData({
+    party_id: "p1",
+    items: [{ description: "x", quantity: "1", unit_price: "10" }],
+  });
+  assert.equal(none.adjustment, undefined);
+  assert.equal(none.shipping_charge, undefined);
+
+  const shipped = transformInvoiceFormData({
+    party_id: "p1",
+    shipping_charge: "30",
+    items: [{ description: "x", quantity: "1", unit_price: "10" }],
+  });
+  assert.equal(shipped.shipping_charge, 30);
+});
+
+test("invoice schema ignores blank placeholder rows but validates filled ones", async () => {
+  const t = await getEnT();
+  const invoiceSchema = createInvoiceSchema(t as any);
+  const base = {
+    party_id: "p1",
+    date: "2026-09-12",
+    discount_type: "percentage" as const,
+    payment_mode: "due" as const,
+  };
+  const blank = { description: "", quantity: "1", unit_price: "", tax_rate: "0" };
+
+  // A row the user never touched must not block submission.
+  assert.equal(
+    invoiceSchema.safeParse({
+      ...base,
+      items: [
+        { description: "Rice", quantity: "1", unit_price: "50", tax_rate: "0" },
+        blank,
+      ],
+    }).success,
+    true,
+  );
+  // ...but a form with only blank rows has nothing to invoice.
+  assert.equal(
+    messages(invoiceSchema.safeParse({ ...base, items: [blank] })).some((m) =>
+      /at least one item/i.test(m),
+    ),
+    true,
+  );
+  // A started row without a price reports against that exact field path.
+  const missingPrice = invoiceSchema.safeParse({
+    ...base,
+    items: [{ description: "Rice", quantity: "1", unit_price: "", tax_rate: "0" }],
+  });
+  assert.equal(missingPrice.success, false);
+  assert.equal(
+    (missingPrice as any).error.issues[0].path.join("."),
+    "items.0.unit_price",
+  );
+});
+
+test("invoice schema rejects a fixed discount above the subtotal", async () => {
+  const t = await getEnT();
+  const invoiceSchema = createInvoiceSchema(t as any);
+  const base = {
+    party_id: "p1",
+    date: "2026-09-12",
+    discount_type: "fixed" as const,
+    payment_mode: "due" as const,
+    items: [{ description: "x", quantity: "2", unit_price: "50" }],
+  };
+  // 100 subtotal: a 100 fixed discount is allowed, 120 is not (would go negative).
+  assert.equal(
+    invoiceSchema.safeParse({ ...base, discount_value: "100" }).success,
+    true,
+  );
+  assert.equal(
+    invoiceSchema.safeParse({ ...base, discount_value: "120" }).success,
+    false,
+  );
+});
+
+// ── Localized validation messages ──────────────────────────────────────────
+
+test("validation messages follow the translator locale (en vs bn)", async () => {
+  const [enT, bnT] = await Promise.all([getT("en"), getT("bn")]);
+
+  const invalid = { ...productInput, name: "  " };
+
+  const enResult = createProductFormSchema(enT as any).safeParse(invalid);
+  assert.equal(enResult.success, false);
+  assert.ok(
+    messages(enResult).some((m) => /is required/i.test(m)),
+    `expected an English message, got ${JSON.stringify(messages(enResult))}`,
+  );
+
+  const bnResult = createProductFormSchema(bnT as any).safeParse(invalid);
+  assert.equal(bnResult.success, false);
+  // "আবশ্যক" = "is required"; the label is localized too, not just the suffix.
+  assert.ok(
+    messages(bnResult).some((m) => /আবশ্যক/.test(m)),
+    `expected a Bangla message, got ${JSON.stringify(messages(bnResult))}`,
+  );
+  assert.ok(messages(bnResult).some((m) => /পণ্যের নাম/.test(m)));
+
+  // Parameterised messages interpolate in both locales.
+  const bnNumber = createProductFormSchema(bnT as any).safeParse({
+    ...productInput,
+    tax_rate: "150",
+  });
+  assert.ok(
+    messages(bnNumber).some((m) => m.includes("১০০") || m.includes("100")),
+    `expected the max value to appear, got ${JSON.stringify(messages(bnNumber))}`,
+  );
+});
+
+test("every validation message key resolves in both locales", async () => {
+  const { translations } = await import("../../i18n/translations.ts");
+  const vKeys = Object.keys(translations.en).filter((k) => /^v[A-Z]/.test(k));
+  assert.ok(vKeys.length >= 20, `expected the v* key set, found ${vKeys.length}`);
+  for (const key of vKeys) {
+    const en: string = (translations.en as any)[key];
+    const bn: string = (translations.bn as any)[key];
+    assert.ok(en?.trim(), `${key} missing English`);
+    assert.ok(bn?.trim(), `${key} missing Bangla`);
+    // Both locales must expose the same placeholders, or interpolation breaks.
+    const placeholders = (s: string) => (s.match(/\{[a-z]+\}/g) ?? []).sort();
+    assert.deepEqual(
+      placeholders(bn),
+      placeholders(en),
+      `${key} placeholder mismatch`,
+    );
+  }
+});
+
+// ── Bangla natural-language items ──────────────────────────────────────────
+
+test("parses the user's spoken product phrase", async () => {
+  const { parseBanglaItem } = await import("../../voice/bangla-nlp.ts");
+  const p = parseBanglaItem("Lux সাবান/সাবান ২টা ৪৫টাকা করে");
+  assert.equal(p.name, "Lux সাবান/সাবান");
+  assert.equal(p.quantity, 2);
+  assert.equal(p.unit, "pcs");
+  assert.equal(p.unit_price, 45);
+  assert.equal(p.confidence, "high");
+});
+
+test("parses quantities, units and per-unit prices", async () => {
+  const { parseBanglaItem } = await import("../../voice/bangla-nlp.ts");
+
+  const cases: Array<[string, string, number, string, number]> = [
+    ["২ কেজি চাল ৮০ টাকা", "চাল", 2, "kg", 80],
+    ["চাল ২ কেজি ৮০ টাকা", "চাল", 2, "kg", 80],
+    ["৩ লিটার তেল ১৬০ টাকা", "তেল", 3, "liter", 160],
+    ["৫০০ গ্রাম চিনি ৬০ টাকা", "চিনি", 500, "g", 60],
+    ["এক ডজন ডিম ১২০ টাকা", "ডিম", 1, "dozen", 120],
+    ["১ বোতল পানি ২০ টাকা", "পানি", 1, "bottle", 20],
+    // spoken number + glued unit, and সরাই/glued forms
+    ["দুইটা কলম ১০ টাকা করে", "কলম", 2, "pcs", 10],
+    ["তিনটা সাবান ১২ টাকা", "সাবান", 3, "pcs", 12],
+    // "সাড়ে" = half over
+    ["সাড়ে তিন কেজি চাল ৮০ টাকা", "চাল", 3.5, "kg", 80],
+    // decimal quantity and a trailing unit echo
+    ["২.৫ কেজি আলু ৩০ টাকা কেজি", "আলু", 2.5, "kg", 30],
+    // Latin units / English-ish phrasing
+    ["Lux 2kg 45 taka", "Lux", 2, "kg", 45],
+    // multi-word brand name must survive
+    [
+      "মিল্ক ভিটা গুঁড়া দুধ ৫০০ গ্রাম ৭৮০ টাকা",
+      "মিল্ক ভিটা গুঁড়া দুধ",
+      500,
+      "g",
+      780,
+    ],
+  ];
+
+  for (const [input, name, qty, unit, price] of cases) {
+    const p = parseBanglaItem(input);
+    assert.equal(p.name, name, `name for "${input}"`);
+    assert.equal(p.quantity, qty, `quantity for "${input}"`);
+    assert.equal(p.unit, unit, `unit for "${input}"`);
+    assert.equal(p.unit_price, price, `price for "${input}"`);
+  }
+});
+
+test("separates cost from selling price using keywords", async () => {
+  const { parseBanglaItem } = await import("../../voice/bangla-nlp.ts");
+
+  // A hint word attaches to the price nearest it, regardless of order.
+  const a = parseBanglaItem("সাবান ২টা ৩৫ টাকা করে ৪৫ টাকা বিক্রয়");
+  assert.equal(a.purchase_price, 35);
+  assert.equal(a.sale_price, 45);
+  assert.equal(a.pricingAmbiguous, false);
+
+  const b = parseBanglaItem("চাল ক্রয় ৮০ টাকা বিক্রয় ৯৫ টাকা ২ কেজি");
+  assert.equal(b.purchase_price, 80);
+  assert.equal(b.sale_price, 95);
+  assert.equal(b.quantity, 2);
+  assert.equal(b.unit, "kg");
+});
+
+test("two unspecified prices default to cost then sale, and flag ambiguity", async () => {
+  const { parseBanglaItem } = await import("../../voice/bangla-nlp.ts");
+
+  // Two marked prices, no hint words → cost first, sale second, flagged.
+  const marked = parseBanglaItem("চাল ৮০ টাকা ৯৫ টাকা");
+  assert.equal(marked.name, "চাল");
+  assert.equal(marked.purchase_price, 80);
+  assert.equal(marked.sale_price, 95);
+  assert.equal(marked.pricingAmbiguous, true);
+
+  // Speech often drops the second টাকা: "চাল ৮০ ৯৫ টাকা".
+  const dropped = parseBanglaItem("চাল ৮০ ৯৫ টাকা");
+  assert.equal(dropped.name, "চাল");
+  assert.equal(dropped.purchase_price, 80);
+  assert.equal(dropped.sale_price, 95);
+  assert.equal(dropped.pricingAmbiguous, true);
+
+  // A quantity must NOT be mistaken for a second price.
+  const qty = parseBanglaItem("২টা সাবান ৪৫ টাকা");
+  assert.equal(qty.quantity, 2);
+  assert.equal(qty.unit_price, 45);
+  assert.equal(qty.purchase_price, null);
+  assert.equal(qty.sale_price, null);
+});
+
+test("splits several items from one phrase", async () => {
+  const { parseBanglaItems } = await import("../../voice/bangla-nlp.ts");
+  const items = parseBanglaItems(
+    "২টা সাবান ৪৫ করে আর ১ কেজি চাল ৮০ টাকা, ৩ লিটার তেল ১৬০ টাকা",
+  );
+  assert.equal(items.length, 3);
+  assert.deepEqual(
+    items.map((i) => [i.name, i.quantity, i.unit, i.unit_price]),
+    [
+      ["সাবান", 2, "pcs", 45],
+      ["চাল", 1, "kg", 80],
+      ["তেল", 3, "liter", 160],
+    ],
+  );
+});
+
+test("normalizes Bangla digits and never invents a name", async () => {
+  const { normalizeDigits, detectUnit, parseBanglaItem } = await import(
+    "../../voice/bangla-nlp.ts"
+  );
+  assert.equal(normalizeDigits("০১২৩৪৫৬৭৮৯"), "0123456789");
+  assert.equal(normalizeDigits("৪৫ টাকা"), "45 টাকা");
+
+  // Unit aliases resolve to canonical units used by the product schema.
+  assert.equal(detectUnit("কেজি"), "kg");
+  assert.equal(detectUnit("গ্রাম"), "g");
+  assert.equal(detectUnit("লিটার"), "liter");
+  assert.equal(detectUnit("পিস"), "pcs");
+  assert.equal(detectUnit("ডজন"), "dozen");
+  assert.equal(detectUnit("চাল"), null);
+
+  // Only numbers, no name → low confidence, empty name (caller must ask).
+  const p = parseBanglaItem("২টা ৪৫ টাকা");
+  assert.equal(p.name, "");
+  assert.equal(p.quantity, 2);
+  assert.equal(p.confidence, "low");
+});
+
+// ── Offline settings (settings-sync) ───────────────────────────────────────
+
+test("mergeSettings deep-merges objects but replaces scalars/arrays", async () => {
+  const { mergeSettings } = await import("../settings-pure.ts");
+
+  const base = {
+    name: "Shop",
+    settings: { currency_code: "USD", invoice_prefix: "INV" },
+    tags: ["a"],
+  };
+  const merged = mergeSettings(base, {
+    settings: { currency_code: "BDT" },
+    tags: ["b"],
+  });
+
+  // Untouched nested keys survive.
+  assert.equal(merged.settings.invoice_prefix, "INV");
+  assert.equal(merged.settings.currency_code, "BDT");
+  assert.equal(merged.name, "Shop");
+  // Arrays replace rather than merge.
+  assert.deepEqual(merged.tags, ["b"]);
+  // undefined patches never clobber a value.
+  assert.equal(
+    mergeSettings(base, { name: undefined }).name,
+    "Shop",
+  );
+});
+
+test("toServerProfilePayload normalizes currency and never sends login_pin", async () => {
+  const { toServerProfilePayload } = await import("../settings-pure.ts");
+
+  const fromSettings = toServerProfilePayload({
+    name: "Alamgir",
+    settings: { currency: "BDT", language: "bn" },
+  });
+  assert.deepEqual(fromSettings.profile_settings, {
+    currency_code: "BDT",
+    language: "bn",
+  });
+  assert.equal(fromSettings.name, "Alamgir");
+
+  // profile_settings wins and `currency` is dropped in favour of currency_code.
+  const fromProfileSettings = toServerProfilePayload({
+    profile_settings: { currency: "INR", currency_symbol: "₹" },
+  });
+  assert.deepEqual(fromProfileSettings.profile_settings, {
+    currency_code: "INR",
+    currency_symbol: "₹",
+  });
+
+  // A PIN smuggled into the patch must not survive into a merged payload.
+  const withPin = toServerProfilePayload({
+    name: "X",
+    login_pin: "12345",
+  });
+  assert.equal("login_pin" in withPin, false);
+});
+
+test("isValidQueuedPin only accepts empty or 5 digits", async () => {
+  const { isValidQueuedPin } = await import("../settings-pure.ts");
+  assert.equal(isValidQueuedPin(""), true);
+  assert.equal(isValidQueuedPin("12345"), true);
+  for (const bad of ["1234", "123456", "abcde", "12a45", null, undefined, 12345]) {
+    assert.equal(isValidQueuedPin(bad), false, `${String(bad)} should be invalid`);
+  }
+});
+
+test("isPermanentOpFailure only drops 4xx client errors", async () => {
+  const { isPermanentOpFailure } = await import("../settings-pure.ts");
+  for (const s of [400, 403, 404, 422]) {
+    assert.equal(isPermanentOpFailure(s), true, `${s} should be permanent`);
+  }
+  for (const s of [undefined, 401, 408, 429, 500, 503]) {
+    assert.equal(isPermanentOpFailure(s), false, `${s} should retry`);
+  }
+});
+
+test("applyProfilePatchToUser mirrors currency/language into both shapes", async () => {
+  const { applyProfilePatchToUser } = await import("../settings-pure.ts");
+
+  const user = {
+    name: "A",
+    settings: { currency: "USD", language: "en" },
+    profile_settings: { currency_code: "USD" },
+    security: { has_login_pin: true },
+  };
+
+  const patched = applyProfilePatchToUser(user, {
+    name: "B",
+    settings: { currency: "BDT", language: "bn" },
+  });
+  assert.equal(patched.name, "B");
+  // Both the legacy `settings` and `profile_settings` shapes stay in sync.
+  assert.equal(patched.settings.currency, "BDT");
+  assert.equal(patched.settings.language, "bn");
+  assert.equal(patched.profile_settings.currency_code, "BDT");
+  // Unrelated state is preserved and the original is not mutated.
+  assert.equal(patched.security.has_login_pin, true);
+  assert.equal(user.name, "A");
+
+  // Enabling a PIN, then removing it.
+  assert.equal(
+    applyProfilePatchToUser(user, {}, "12345").security.has_login_pin,
+    true,
+  );
+  assert.equal(
+    applyProfilePatchToUser(user, {}, "").security.has_login_pin,
+    false,
+  );
+});
+
+test("offline settings migration adds cache + outbox tables", () => {
+  // Read as source text: the migration module imports extensionless app paths
+  // that Node's type-stripping loader cannot resolve.
+  const migrations = readFileSync(
+    join(__dirname, "../../../db/migrations/index.ts"),
+    "utf8",
+  );
+  assert.match(
+    migrations,
+    /CREATE TABLE IF NOT EXISTS settings_cache/,
+  );
+  assert.match(migrations, /CREATE TABLE IF NOT EXISTS pending_ops/);
+  assert.match(migrations, /idx_pending_ops_created/);
+  assert.match(migrations, /005_offline_settings/);
+
+  // Schema version must stay in lockstep with the newest migration.
+  const types = readFileSync(join(__dirname, "../../../db/types.ts"), "utf8");
+  assert.match(types, /LOCAL_SCHEMA_VERSION = 5/);
+});
+
+test("settings writes never persist a PIN to SQLite", () => {
+  const src = readFileSync(join(__dirname, "../settings-sync.ts"), "utf8");
+  // The PIN goes to SecureStore only.
+  assert.match(src, /QUEUED_PIN_KEY/);
+  assert.match(src, /expo-secure-store/);
+  // saveLocalProfile must not forward a PIN into the SQLite/outbox payload.
+  const saveFn = src.slice(
+    src.indexOf("export async function saveLocalProfile"),
+    src.indexOf("export async function saveLocalPreferences"),
+  );
+  assert.doesNotMatch(saveFn, /login_pin/);
+});
+
+// ── Shop sync contract (Phase 13) ──────────────────────────────────────────
+
+const repoRoot = join(__dirname, "../../../..");
+
+test("sync entity enum includes shop entities on both client and server", () => {
+  const engine = readFileSync(join(__dirname, "../../../sync/engine.ts"), "utf8");
+  for (const entity of ["product", "invoice", "stock_movement"]) {
+    assert.match(engine, new RegExp(`"${entity}"`), `engine missing ${entity}`);
+  }
+  // Marketing the shop tables as syncable means they must be in the dirty map.
+  assert.match(engine, /product: "products"/);
+  assert.match(engine, /invoice: "invoices"/);
+  assert.match(engine, /stock_movement: "inventory_movements"/);
+
+  const routes = readFileSync(
+    join(repoRoot, "backend/routes/sync.routes.js"),
+    "utf8",
+  );
+  for (const entity of ["product", "invoice", "stock_movement"]) {
+    assert.match(routes, new RegExp(`"${entity}"`), `routes missing ${entity}`);
+  }
+});
+
+test("shop sync pushes parents before children", () => {
+  const engine = readFileSync(join(__dirname, "../../../sync/engine.ts"), "utf8");
+  const collect = engine.slice(
+    engine.indexOf("async function collectDirtyChanges"),
+    engine.indexOf("async function markClean"),
+  );
+  // Products must be collected before invoices/movements so the server can
+  // resolve references within a single batch.
+  const productAt = collect.indexOf('entity: "product"');
+  const invoiceAt = collect.indexOf('entity: "invoice"');
+  const movementAt = collect.indexOf('entity: "stock_movement"');
+  assert.ok(productAt > 0 && invoiceAt > 0 && movementAt > 0);
+  assert.ok(productAt < invoiceAt, "products must precede invoices");
+  assert.ok(productAt < movementAt, "products must precede movements");
+});
+
+test("invoice push carries embedded items and payments", () => {
+  const engine = readFileSync(join(__dirname, "../../../sync/engine.ts"), "utf8");
+  assert.match(engine, /SELECT \* FROM invoice_items WHERE invoice_id/);
+  assert.match(engine, /SELECT \* FROM invoice_payments WHERE invoice_id/);
+  assert.match(engine, /product_server_id/);
+});
+
+test("backend invoice push is side-effect free (no double counting)", () => {
+  const controller = readFileSync(
+    join(repoRoot, "backend/controllers/sync.controller.js"),
+    "utf8",
+  );
+  const mapper = controller.slice(
+    controller.indexOf("const toEmbeddedItems"),
+    controller.indexOf("const mapStockMovementPayload"),
+  );
+  // An invoice push must NOT touch inventory or balances — the client pushes
+  // stock movements and ledger transactions separately.
+  assert.doesNotMatch(mapper, /applyAccountInc/);
+  assert.doesNotMatch(mapper, /applyPartyInc/);
+  assert.doesNotMatch(mapper, /StockMovement\.create/);
+  assert.doesNotMatch(mapper, /current_stock/);
+  // It must still store the captured cost basis.
+  assert.match(mapper, /unit_cost_at_sale/);
+});
+
+test("stock movement push is idempotent by client_request_id", () => {
+  const controller = readFileSync(
+    join(repoRoot, "backend/controllers/sync.controller.js"),
+    "utf8",
+  );
+  const mapper = controller.slice(
+    controller.indexOf("const mapStockMovementPayload"),
+    controller.indexOf("const applyPushChange"),
+  );
+  assert.match(mapper, /client_request_id: clientRequestId/);
+  // Existing movement short-circuits before creating a duplicate.
+  assert.match(mapper, /findOne\(\{[\s\S]*client_request_id/);
+  assert.match(mapper, /if \(existing\)/);
+
+  const model = readFileSync(
+    join(repoRoot, "backend/models/StockMovement.js"),
+    "utf8",
+  );
+  assert.match(model, /client_request_id/);
+  assert.match(model, /unique: true/);
+});
+
+test("local wipe clears shop data so logout cannot leak it", () => {
+  const client = readFileSync(join(__dirname, "../../../db/client.ts"), "utf8");
+  const wipeAll = client.slice(
+    client.indexOf("export async function wipeAllLedgerData"),
+  );
+  for (const table of [
+    "products",
+    "invoices",
+    "invoice_items",
+    "invoice_payments",
+    "inventory_movements",
+    "settings_cache",
+    "pending_ops",
+    "organizations",
+  ]) {
+    assert.match(
+      wipeAll,
+      new RegExp(`DELETE FROM ${table}`),
+      `wipeAllLedgerData must clear ${table}`,
+    );
+  }
+});
+
+test("sync badge counts shop rows as pending", () => {
+  const pending = readFileSync(join(__dirname, "../../../sync/pending.ts"), "utf8");
+  for (const table of ["products", "invoices", "inventory_movements"]) {
+    assert.match(pending, new RegExp(`"${table}"`));
+  }
+});
+
+test("shop writes trigger a sync nudge", () => {
+  for (const file of ["products.local.ts", "invoices.local.ts"]) {
+    const src = readFileSync(join(__dirname, "../../../data", file), "utf8");
+    assert.match(src, /requestSyncSoon/, `${file} must nudge sync`);
+  }
+});
+
+
+

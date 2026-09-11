@@ -51,7 +51,7 @@ type AuthContextType = {
   /** Sign out and clear caches so another user can sign in on this device. */
   switchAccount: () => Promise<void>;
   refreshProfile: () => Promise<void>;
-  updateProfile: (payload: UpdateProfileRequest) => Promise<void>;
+  updateProfile: (payload: UpdateProfileRequest) => Promise<{ synced: boolean }>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -574,27 +574,72 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   }, []);
 
-  const updateProfile = useCallback(async (payload: UpdateProfileRequest) => {
-    if (stateRef.current.status !== "authenticated") return;
-    try {
-      const data = await authService.updateProfile(payload);
+  /**
+   * Offline-first profile/preferences save.
+   *
+   * 1. Persist + queue locally (never blocks, works offline)
+   * 2. Apply optimistic in-memory patch so the UI updates instantly
+   * 3. Best-effort flush; an unreachable backend is NOT an error
+   *
+   * The login PIN is handed to SecureStore (never SQLite) until it is flushed.
+   */
+  const updateProfile = useCallback(
+    async (payload: UpdateProfileRequest): Promise<{ synced: boolean }> => {
+      if (stateRef.current.status !== "authenticated") {
+        return { synced: false };
+      }
+
+      const { login_pin, ...rest } = (payload ?? {}) as Record<string, any>;
+
+      const settingsSync = await import("@/lib/local-first/settings-sync");
+
+      // 1) Local-first persistence.
+      let localSaved = false;
+      try {
+        await settingsSync.saveLocalProfile(rest);
+        if (login_pin !== undefined) {
+          await settingsSync.queuePinChange(String(login_pin));
+        }
+        localSaved = true;
+      } catch (error) {
+        console.warn("Failed to persist profile locally", error);
+      }
+
+      // 2) Optimistic UI so an offline save is visible immediately.
       if (isMountedRef.current) {
         setState((prev) =>
           prev.status === "authenticated"
-            ? { ...prev, user: data.admin }
+            ? {
+                ...prev,
+                user: settingsSync.applyProfilePatchToUser(
+                  prev.user as any,
+                  rest,
+                  login_pin,
+                ),
+              }
             : { status: "unauthenticated", user: null, tokens: null },
         );
       }
-      Toast.show({ type: "success", text1: "Profile updated successfully" });
-    } catch (error) {
-      const message = getApiErrorMessage(
-        error,
-        "Failed to update profile. Please try again.",
-      );
-      Toast.show({ type: "error", text1: "Update failed", text2: message });
-      throw new Error(message);
-    }
-  }, []);
+
+      if (!localSaved) {
+        throw new Error("Could not save settings on this device");
+      }
+
+      // 3) Best-effort push. Offline leaves the change queued for next sync.
+      try {
+        const result = await settingsSync.flushPendingOps();
+        if (result.flushed > 0 && result.failed === 0) {
+          await refreshProfile();
+          return { synced: true };
+        }
+        return { synced: false };
+      } catch (error) {
+        console.warn("Profile queued for later sync", error);
+        return { synced: false };
+      }
+    },
+    [refreshProfile],
+  );
 
   const value = useMemo(
     () => ({

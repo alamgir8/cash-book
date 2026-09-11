@@ -243,6 +243,254 @@ CREATE INDEX IF NOT EXISTS idx_tx_sync_status ON transactions(sync_status);
 CREATE INDEX IF NOT EXISTS idx_transfers_sync_status ON transfers(sync_status);
 `;
 
+/**
+ * Migration 003 — shop foundation (Phase 2).
+ * - products: offline catalog with cost basis + org isolation.
+ * - inventory_movements: audit foundation so stock never changes untracked.
+ * - organizations: read cache of Google-free shop settings (prefix/currency/tax).
+ *
+ * Additive only. Never edit 001/002.
+ */
+export const MIGRATION_003_SQL = `
+CREATE TABLE IF NOT EXISTS products (
+  id TEXT PRIMARY KEY NOT NULL,
+  server_id TEXT,
+  organization_id TEXT,
+  admin_id TEXT,
+  name TEXT NOT NULL,
+  sku TEXT,
+  barcode TEXT,
+  description TEXT,
+  category_id TEXT,
+  brand TEXT,
+  unit TEXT NOT NULL DEFAULT 'pcs',
+  image_uri TEXT,
+  purchase_price REAL NOT NULL DEFAULT 0,
+  additional_cost REAL NOT NULL DEFAULT 0,
+  cost_price REAL NOT NULL DEFAULT 0,
+  sale_price REAL NOT NULL DEFAULT 0,
+  tax_rate REAL NOT NULL DEFAULT 0,
+  current_stock REAL NOT NULL DEFAULT 0,
+  opening_stock REAL NOT NULL DEFAULT 0,
+  low_stock_threshold REAL NOT NULL DEFAULT 0,
+  track_inventory INTEGER NOT NULL DEFAULT 1,
+  supplier_party_id TEXT,
+  is_active INTEGER NOT NULL DEFAULT 1,
+  meta_data_json TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  deleted_at TEXT,
+  dirty INTEGER NOT NULL DEFAULT 1,
+  sync_version INTEGER NOT NULL DEFAULT 0,
+  client_request_id TEXT,
+  device_id TEXT NOT NULL,
+  sync_status TEXT NOT NULL DEFAULT 'pending_create',
+  retry_count INTEGER NOT NULL DEFAULT 0,
+  last_sync_error TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_products_org ON products(organization_id);
+CREATE INDEX IF NOT EXISTS idx_products_dirty ON products(dirty);
+CREATE INDEX IF NOT EXISTS idx_products_server ON products(server_id);
+CREATE INDEX IF NOT EXISTS idx_products_updated ON products(updated_at);
+CREATE INDEX IF NOT EXISTS idx_products_sync_status ON products(sync_status);
+CREATE INDEX IF NOT EXISTS idx_products_name ON products(name COLLATE NOCASE);
+CREATE INDEX IF NOT EXISTS idx_products_sku ON products(sku);
+CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(barcode);
+
+-- Barcode nullable but unique per org when set (NULL org handled in repo code).
+CREATE UNIQUE INDEX IF NOT EXISTS idx_products_org_barcode
+  ON products(organization_id, barcode)
+  WHERE barcode IS NOT NULL AND barcode != '';
+
+CREATE TABLE IF NOT EXISTS inventory_movements (
+  id TEXT PRIMARY KEY NOT NULL,
+  server_id TEXT,
+  organization_id TEXT,
+  product_id TEXT NOT NULL,
+  admin_id TEXT,
+  type TEXT NOT NULL,
+  quantity REAL NOT NULL,
+  unit_cost REAL NOT NULL DEFAULT 0,
+  stock_after REAL NOT NULL DEFAULT 0,
+  reference_type TEXT,
+  reference_id TEXT,
+  notes TEXT,
+  date TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  deleted_at TEXT,
+  dirty INTEGER NOT NULL DEFAULT 1,
+  sync_version INTEGER NOT NULL DEFAULT 0,
+  client_request_id TEXT,
+  device_id TEXT NOT NULL,
+  sync_status TEXT NOT NULL DEFAULT 'pending_create',
+  retry_count INTEGER NOT NULL DEFAULT 0,
+  last_sync_error TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_movements_product_date ON inventory_movements(product_id, date);
+CREATE INDEX IF NOT EXISTS idx_movements_org_date ON inventory_movements(organization_id, date);
+CREATE INDEX IF NOT EXISTS idx_movements_dirty ON inventory_movements(dirty);
+CREATE INDEX IF NOT EXISTS idx_movements_server ON inventory_movements(server_id);
+CREATE INDEX IF NOT EXISTS idx_movements_sync_status ON inventory_movements(sync_status);
+-- Idempotency: a movement op key must never be applied twice.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_movements_client_req
+  ON inventory_movements(client_request_id)
+  WHERE client_request_id IS NOT NULL AND client_request_id != '';
+
+CREATE TABLE IF NOT EXISTS organizations (
+  id TEXT PRIMARY KEY NOT NULL,
+  server_id TEXT,
+  name TEXT NOT NULL,
+  business_type TEXT,
+  currency_code TEXT,
+  currency_symbol TEXT,
+  invoice_prefix TEXT,
+  invoice_next_number INTEGER NOT NULL DEFAULT 1,
+  tax_rate REAL NOT NULL DEFAULT 0,
+  allow_negative_balance INTEGER NOT NULL DEFAULT 0,
+  role TEXT,
+  permissions_json TEXT,
+  settings_json TEXT,
+  address_json TEXT,
+  phone TEXT,
+  email TEXT,
+  logo_url TEXT,
+  status TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_organizations_updated ON organizations(updated_at);
+`;
+
+/**
+ * Migration 004 — invoices (Phase 5).
+ * Header + normalized items + payments so purchases/sales work offline with
+ * stock, dues and linked ledger transactions.
+ */
+export const MIGRATION_004_SQL = `
+CREATE TABLE IF NOT EXISTS invoices (
+  id TEXT PRIMARY KEY NOT NULL,
+  server_id TEXT,
+  organization_id TEXT,
+  admin_id TEXT,
+  invoice_number TEXT NOT NULL,
+  number_seq INTEGER,
+  type TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  party_id TEXT,
+  party_name TEXT,
+  party_phone TEXT,
+  party_address TEXT,
+  date TEXT NOT NULL,
+  due_date TEXT,
+  subtotal REAL NOT NULL DEFAULT 0,
+  total_discount REAL NOT NULL DEFAULT 0,
+  total_tax REAL NOT NULL DEFAULT 0,
+  shipping_charge REAL NOT NULL DEFAULT 0,
+  adjustment REAL NOT NULL DEFAULT 0,
+  adjustment_description TEXT,
+  grand_total REAL NOT NULL DEFAULT 0,
+  amount_paid REAL NOT NULL DEFAULT 0,
+  balance_due REAL NOT NULL DEFAULT 0,
+  notes TEXT,
+  terms TEXT,
+  internal_notes TEXT,
+  linked_transaction_ids_json TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  deleted_at TEXT,
+  dirty INTEGER NOT NULL DEFAULT 1,
+  sync_version INTEGER NOT NULL DEFAULT 0,
+  client_request_id TEXT,
+  device_id TEXT NOT NULL,
+  sync_status TEXT NOT NULL DEFAULT 'pending_create',
+  retry_count INTEGER NOT NULL DEFAULT 0,
+  last_sync_error TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_invoices_org_date ON invoices(organization_id, date);
+CREATE INDEX IF NOT EXISTS idx_invoices_org_type_date ON invoices(organization_id, type, date);
+CREATE INDEX IF NOT EXISTS idx_invoices_party ON invoices(party_id, date);
+CREATE INDEX IF NOT EXISTS idx_invoices_dirty ON invoices(dirty);
+CREATE INDEX IF NOT EXISTS idx_invoices_server ON invoices(server_id);
+CREATE INDEX IF NOT EXISTS idx_invoices_sync_status ON invoices(sync_status);
+
+CREATE TABLE IF NOT EXISTS invoice_items (
+  id TEXT PRIMARY KEY NOT NULL,
+  invoice_id TEXT NOT NULL,
+  product_id TEXT,
+  description TEXT NOT NULL,
+  quantity REAL NOT NULL DEFAULT 1,
+  unit TEXT,
+  unit_price REAL NOT NULL DEFAULT 0,
+  discount REAL NOT NULL DEFAULT 0,
+  discount_type TEXT NOT NULL DEFAULT 'fixed',
+  tax_rate REAL NOT NULL DEFAULT 0,
+  subtotal REAL NOT NULL DEFAULT 0,
+  discount_amount REAL NOT NULL DEFAULT 0,
+  tax_amount REAL NOT NULL DEFAULT 0,
+  total REAL NOT NULL DEFAULT 0,
+  unit_cost_at_sale REAL,
+  barcode_snapshot TEXT,
+  category_id TEXT,
+  notes TEXT,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (invoice_id) REFERENCES invoices(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_invoice_items_invoice ON invoice_items(invoice_id);
+CREATE INDEX IF NOT EXISTS idx_invoice_items_product ON invoice_items(product_id);
+
+CREATE TABLE IF NOT EXISTS invoice_payments (
+  id TEXT PRIMARY KEY NOT NULL,
+  invoice_id TEXT NOT NULL,
+  date TEXT NOT NULL,
+  amount REAL NOT NULL DEFAULT 0,
+  method TEXT,
+  account_id TEXT,
+  transaction_id TEXT,
+  reference TEXT,
+  notes TEXT,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (invoice_id) REFERENCES invoices(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_invoice_payments_invoice ON invoice_payments(invoice_id);
+`;
+
+/**
+ * Migration 005 — offline settings (Phase: settings offline).
+ * - settings_cache: local mirror of server-owned settings that are not sync
+ *   entities (admin profile, preferences) so Settings saves offline.
+ * - pending_ops: outbox for writes outside the sync entity enum
+ *   (profile, organization). Flushed when the backend is reachable.
+ */
+export const MIGRATION_005_SQL = `
+CREATE TABLE IF NOT EXISTS settings_cache (
+  key TEXT PRIMARY KEY NOT NULL,
+  value_json TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  dirty INTEGER NOT NULL DEFAULT 0,
+  last_sync_error TEXT
+);
+
+CREATE TABLE IF NOT EXISTS pending_ops (
+  id TEXT PRIMARY KEY NOT NULL,
+  entity TEXT NOT NULL,
+  entity_id TEXT,
+  payload_json TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  last_error TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_pending_ops_entity ON pending_ops(entity, entity_id);
+CREATE INDEX IF NOT EXISTS idx_pending_ops_created ON pending_ops(created_at);
+`;
+
 export const MIGRATIONS: Migration[] = [
   {
     version: 1,
@@ -253,6 +501,21 @@ export const MIGRATIONS: Migration[] = [
     version: 2,
     name: "002_sync_status",
     sql: MIGRATION_002_SQL,
+  },
+  {
+    version: 3,
+    name: "003_shop",
+    sql: MIGRATION_003_SQL,
+  },
+  {
+    version: 4,
+    name: "004_invoices",
+    sql: MIGRATION_004_SQL,
+  },
+  {
+    version: 5,
+    name: "005_offline_settings",
+    sql: MIGRATION_005_SQL,
   },
 ];
 

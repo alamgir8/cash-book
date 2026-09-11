@@ -1835,9 +1835,9 @@ export const exportPartyLedgerPdf = async (
 
 export const exportInvoicePdf = async (invoiceId: string): Promise<string> => {
   try {
-    const { invoicesApi } = await import("./invoices");
+    const { dalFetchInvoice } = await import("@/data/invoices");
 
-    const invoice = await invoicesApi.get(invoiceId);
+    const invoice = await dalFetchInvoice(invoiceId);
 
     const generatedAt = dayjs().format("MMM D, YYYY h:mm A");
 

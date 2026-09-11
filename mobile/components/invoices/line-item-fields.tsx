@@ -6,15 +6,20 @@ import {
   Controller,
   Control,
   FieldErrors,
+  UseFormGetValues,
   UseFormSetValue,
 } from "react-hook-form";
 import type { InvoiceFormData } from "@/lib/validations/invoice";
 import { useTheme } from "@/hooks/use-theme";
+import { useTranslation } from "@/hooks/use-translation";
 import { BarcodeScannerModal } from "./barcode-scanner-modal";
 import { ProductSearchModal } from "./product-search-modal";
+import { QuickCreateProductModal } from "./quick-create-product-modal";
 import { useActiveOrgId } from "@/hooks/use-organization";
 import type { Product } from "@/types/product";
 import { lookupBarcode, formatLookupResult } from "@/lib/barcode-lookup";
+import { dalFindProductByBarcode } from "@/data/products";
+import { isMongoObjectId } from "@/lib/invoice-utils";
 
 interface LineItemFieldsProps {
   control: Control<InvoiceFormData>;
@@ -28,6 +33,7 @@ interface LineItemFieldsProps {
     taxRate?: string | number,
   ) => number;
   setValue: UseFormSetValue<InvoiceFormData>;
+  getValues: UseFormGetValues<InvoiceFormData>;
   invoiceType?: "sale" | "purchase";
 }
 
@@ -39,14 +45,28 @@ export function LineItemFields({
   canRemove,
   onCalculateTotal,
   setValue,
+  getValues,
   invoiceType,
 }: LineItemFieldsProps) {
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const organizationId = useActiveOrgId();
 
   const [scannerVisible, setScannerVisible] = useState(false);
   const [searchVisible, setSearchVisible] = useState(false);
   const [scanLoading, setScanLoading] = useState(false);
+  const [unmatched, setUnmatched] = useState<{
+    barcode: string;
+    name?: string;
+  } | null>(null);
+  const [quickCreateVisible, setQuickCreateVisible] = useState(false);
+
+  /** Server-side product link (only when the product exists on the backend). */
+  const serverProductIdFor = useCallback((product: Product) => {
+    if (isMongoObjectId(product.server_id)) return product.server_id;
+    if (isMongoObjectId(product._id)) return product._id;
+    return "";
+  }, []);
 
   const fillFromProduct = useCallback(
     (product: Product) => {
@@ -55,36 +75,85 @@ export function LineItemFields({
         invoiceType === "purchase"
           ? product.purchase_price
           : product.sale_price;
-      setValue(`items.${index}.unit_price`, String(price));
+      setValue(`items.${index}.unit_price`, String(price ?? 0));
       setValue(`items.${index}.tax_rate`, String(product.tax_rate ?? 0));
-      // Store product id in meta if schema supports it — cast to any
-      (setValue as any)(`items.${index}.product_id`, product._id);
+      setValue(`items.${index}.unit`, product.unit);
+      setValue(`items.${index}.barcode`, product.barcode ?? "");
+      // Local UUID drives qty merge; server id is what the API can link.
+      setValue(`items.${index}.local_product_id`, product._id);
+      setValue(`items.${index}.product`, serverProductIdFor(product));
     },
-    [index, invoiceType, setValue],
+    [index, invoiceType, setValue, serverProductIdFor],
+  );
+
+  const bumpQuantity = useCallback(
+    (idx: number) => {
+      const items = getValues("items") ?? [];
+      const current = parseFloat(String(items[idx]?.quantity ?? "1")) || 0;
+      setValue(`items.${idx}.quantity`, String(current + 1));
+    },
+    [getValues, setValue],
   );
 
   const handleBarcodeScan = useCallback(
     async (barcode: string) => {
       setScannerVisible(false);
       setScanLoading(true);
+      const code = barcode.trim();
       try {
-        // Search online barcode databases in parallel (Food Facts, Beauty Facts, UPC, etc.)
-        const result = await lookupBarcode(barcode);
-        if (result) {
-          setValue(`items.${index}.description`, formatLookupResult(result));
-          toast.success(`Found via ${result.source}: ${result.name}`);
-        } else {
-          // Nothing found — prefill barcode for manual entry
-          setValue(`items.${index}.description`, barcode);
-          toast.info(
-            "Product not found online. Barcode prefilled — please enter details.",
+        // 1) Local catalog first — instant, offline, no external call.
+        const local = await dalFindProductByBarcode(
+          code,
+          organizationId ?? undefined,
+        );
+        if (local) {
+          const items = getValues("items") ?? [];
+          const isCurrentEmpty = !String(
+            items[index]?.description ?? "",
+          ).trim();
+          const sameIdx = items.findIndex(
+            (it) => it.local_product_id === local._id,
           );
+          // Same barcode rescanned → qty++ on the existing line.
+          if (sameIdx >= 0 && (sameIdx === index || isCurrentEmpty)) {
+            bumpQuantity(sameIdx);
+            toast.success(`${local.name} qty +1`);
+          } else {
+            fillFromProduct(local);
+            setValue(`items.${index}.quantity`, "1");
+            toast.success(`Added ${local.name}`);
+          }
+          setUnmatched(null);
+          return;
         }
+
+        // 2) Optional free external lookup — never required.
+        const ext = await lookupBarcode(code).catch(() => null);
+        if (ext) {
+          setValue(
+            `items.${index}.description`,
+            formatLookupResult(ext),
+          );
+          setUnmatched({ barcode: code, name: ext.name });
+        } else {
+          setValue(`items.${index}.description`, code);
+          setUnmatched({ barcode: code });
+        }
+        setValue(`items.${index}.barcode`, code);
+      } catch {
+        toast.error("Barcode lookup failed");
       } finally {
         setScanLoading(false);
       }
     },
-    [index, setValue],
+    [
+      index,
+      getValues,
+      setValue,
+      fillFromProduct,
+      bumpQuantity,
+      organizationId,
+    ],
   );
 
   return (
@@ -128,7 +197,7 @@ export function LineItemFields({
             <Text
               style={{ fontSize: 12, color: colors.info, fontWeight: "600" }}
             >
-              Scan
+              {t("scan")}
             </Text>
           </TouchableOpacity>
           {/* Search product */}
@@ -150,7 +219,7 @@ export function LineItemFields({
             <Text
               style={{ fontSize: 12, color: colors.success, fontWeight: "600" }}
             >
-              Product
+              {t("products")}
             </Text>
           </TouchableOpacity>
         </View>
@@ -174,7 +243,7 @@ export function LineItemFields({
             onChangeText={onChange}
             onBlur={onBlur}
             placeholder={
-              scanLoading ? "Looking up product…" : "Item description"
+              scanLoading ? "Looking up product…" : t("description")
             }
             editable={!scanLoading}
             placeholderTextColor={colors.inputPlaceholder}
@@ -202,7 +271,7 @@ export function LineItemFields({
             className="text-xs mb-1.5"
             style={{ color: colors.text.secondary }}
           >
-            Quantity
+            {t("quantity")}
           </Text>
           <Controller
             control={control}
@@ -232,7 +301,7 @@ export function LineItemFields({
             className="text-xs mb-1.5"
             style={{ color: colors.text.secondary }}
           >
-            Unit Price
+            {t("unitPrice")}
           </Text>
           <Controller
             control={control}
@@ -265,7 +334,7 @@ export function LineItemFields({
           className="text-xs mb-1.5"
           style={{ color: colors.text.secondary }}
         >
-          Tax Rate (%)
+          {t("taxRate")}
         </Text>
         <Controller
           control={control}
@@ -324,7 +393,7 @@ export function LineItemFields({
                 className="text-sm"
                 style={{ color: colors.text.secondary }}
               >
-                Line Total
+                {t("lineTotal")}
               </Text>
               <Text
                 className="text-base font-bold"
@@ -337,18 +406,61 @@ export function LineItemFields({
         }}
       />
 
+      {/* Local-miss banner: offer to save the scanned barcode to the catalog */}
+      {unmatched && (
+        <TouchableOpacity
+          onPress={() => setQuickCreateVisible(true)}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 6,
+            paddingVertical: 8,
+            paddingHorizontal: 10,
+            borderRadius: 10,
+            backgroundColor: colors.warning + "15",
+            borderWidth: 1,
+            borderColor: colors.warning + "40",
+            marginBottom: 10,
+          }}
+        >
+          <Ionicons
+            name="add-circle-outline"
+            size={16}
+            color={colors.warning}
+          />
+          <Text
+            style={{ fontSize: 12, color: colors.warning, fontWeight: "600" }}
+          >
+            {t("notInCatalog")}
+          </Text>
+        </TouchableOpacity>
+      )}
+
       {/* Modals */}
       <BarcodeScannerModal
         visible={scannerVisible}
         onClose={() => setScannerVisible(false)}
         onScan={handleBarcodeScan}
-        title="Scan Item Barcode"
+        title={t("scanItemBarcode")}
       />
       <ProductSearchModal
         visible={searchVisible}
         onClose={() => setSearchVisible(false)}
         onSelect={fillFromProduct}
         invoiceType={invoiceType}
+      />
+      <QuickCreateProductModal
+        visible={quickCreateVisible}
+        barcode={unmatched?.barcode ?? ""}
+        initialName={unmatched?.name}
+        invoiceType={invoiceType}
+        organizationId={organizationId}
+        onClose={() => setQuickCreateVisible(false)}
+        onCreated={(product) => {
+          fillFromProduct(product);
+          setValue(`items.${index}.quantity`, "1");
+          setUnmatched(null);
+        }}
       />
     </View>
   );

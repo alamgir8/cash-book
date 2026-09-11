@@ -4,6 +4,9 @@ import { Category } from "../models/Category.js";
 import { Party } from "../models/Party.js";
 import { Transaction } from "../models/Transaction.js";
 import { Transfer } from "../models/Transfer.js";
+import { Product } from "../models/Product.js";
+import { Invoice } from "../models/Invoice.js";
+import { StockMovement } from "../models/StockMovement.js";
 
 const MIN_SCHEMA_VERSION = 1;
 const MAX_PUSH_CHANGES = 500;
@@ -839,6 +842,311 @@ const mapTransferPayload = async (adminId, change, idMap) => {
   return { doc, created: isNew };
 };
 
+// ── Shop entity mappers (Phase 13) ─────────────────────────────────────────
+// Design: these are deliberately SIDE-EFFECT FREE. The client already owns
+// stock (via pushed `stock_movement` rows) and cash (via pushed `transaction`
+// rows), so an invoice push must not touch balances or inventory — otherwise
+// every sync would double-count.
+
+const boolNum = (value) => (Number(value) || value === true ? 1 : 0);
+
+const mapProductPayload = async (adminId, change, idMap) => {
+  const payload = change.payload || {};
+  const clientId = change.id || payload.id;
+  const serverId = change.server_id || payload.server_id;
+
+  let doc = await findByServerOrClientId(Product, adminId, serverId, clientId);
+  rejectIfStale(doc, change);
+
+  if (change.op === "delete") {
+    if (!doc) return { doc: null, created: false };
+    doc.is_deleted = true;
+    doc.deleted_at = change.deleted_at
+      ? new Date(change.deleted_at)
+      : new Date();
+    doc.meta_data = mergeClientMeta(
+      { ...doc.meta_data, device_id: change.device_id },
+      clientId,
+    );
+    applyTimestamps(doc, payload, change);
+    await doc.save({ timestamps: false });
+    return { doc, created: false };
+  }
+
+  const isNew = !doc;
+  if (isNew) doc = new Product({ admin: adminId });
+
+  const orgRef = orgIdFromPayload(payload);
+  if (orgRef) doc.organization = orgRef;
+  else if (isNew) doc.organization = undefined;
+
+  const assign = (key) => {
+    if (payload[key] !== undefined) doc[key] = payload[key];
+  };
+  assign("name");
+  assign("sku");
+  assign("barcode");
+  assign("description");
+  assign("unit");
+  assign("tax_rate");
+  assign("low_stock_threshold");
+
+  // Numbers arrive as REAL from SQLite.
+  for (const key of [
+    "purchase_price",
+    "additional_cost",
+    "sale_price",
+    "current_stock",
+    "opening_stock",
+  ]) {
+    if (payload[key] !== undefined) doc[key] = Number(payload[key]);
+  }
+  if (payload.category_id !== undefined) {
+    const catRef = await resolveRefId(
+      Category,
+      adminId,
+      payload.category_id,
+      payload.category_server_id,
+      idMap,
+    );
+    doc.category_id = catRef || undefined;
+  }
+  if (payload.track_inventory !== undefined) {
+    doc.track_inventory = Boolean(Number(payload.track_inventory));
+  }
+  if (payload.is_active !== undefined) {
+    doc.is_active = Boolean(Number(payload.is_active));
+  }
+  if (payload.is_deleted !== undefined) {
+    doc.is_deleted = Boolean(Number(payload.is_deleted));
+  }
+  if (payload.deleted_at !== undefined) {
+    doc.deleted_at = payload.deleted_at ? new Date(payload.deleted_at) : undefined;
+  } else if (doc.is_deleted === false) {
+    doc.deleted_at = undefined;
+  }
+
+  if (payload.client_request_id) {
+    doc.client_request_id = payload.client_request_id;
+  }
+  doc.meta_data = mergeClientMeta(
+    { ...doc.meta_data, device_id: change.device_id },
+    clientId,
+  );
+  applyTimestamps(doc, payload, change);
+  await doc.save({ timestamps: false });
+  if (clientId) idMap.set(String(clientId), doc._id.toString());
+  return { doc, created: isNew };
+};
+
+/** Build the embedded items array from the client's normalized item rows. */
+const toEmbeddedItems = (items) =>
+  (Array.isArray(items) ? items : []).map((it) => ({
+    description: String(it.description ?? ""),
+    quantity: Number(it.quantity || 0),
+    unit: it.unit ?? "pcs",
+    unit_price: Number(it.unit_price || 0),
+    discount: Number(it.discount || 0),
+    discount_type: it.discount_type === "percent" ? "percent" : "fixed",
+    tax_rate: Number(it.tax_rate || 0),
+    subtotal: Number(it.subtotal || 0),
+    discount_amount: Number(it.discount_amount || 0),
+    tax_amount: Number(it.tax_amount || 0),
+    total: Number(it.total || 0),
+    barcode: it.barcode_snapshot ?? undefined,
+    notes: it.notes ?? undefined,
+    // Cost basis captured at sale time — the whole point of Phase 9.
+    unit_cost_at_sale:
+      it.unit_cost_at_sale === null || it.unit_cost_at_sale === undefined
+        ? undefined
+        : Number(it.unit_cost_at_sale),
+    ...(it.product_server_id
+      ? { product: new mongoose.Types.ObjectId(it.product_server_id) }
+      : {}),
+  }));
+
+const mapInvoicePayload = async (adminId, change, idMap) => {
+  const payload = change.payload || {};
+  const clientId = change.id || payload.id;
+  const serverId = change.server_id || payload.server_id;
+  const clientRequestId =
+    change.client_request_id || payload.client_request_id || null;
+
+  let doc = null;
+  if (clientRequestId) {
+    doc = await Invoice.findOne({
+      admin: adminId,
+      client_request_id: clientRequestId,
+      is_deleted: { $ne: true },
+    });
+  }
+  if (!doc) {
+    doc = await findByServerOrClientId(Invoice, adminId, serverId, clientId);
+  }
+  rejectIfStale(doc, change);
+
+  if (change.op === "delete") {
+    if (!doc) return { doc: null, created: false };
+    doc.status = "cancelled";
+    doc.cancelled_at = change.deleted_at
+      ? new Date(change.deleted_at)
+      : new Date();
+    doc.meta_data = mergeClientMeta(
+      { ...doc.meta_data, device_id: change.device_id },
+      clientId,
+    );
+    applyTimestamps(doc, payload, change);
+    await doc.save({ timestamps: false });
+    return { doc, created: false };
+  }
+
+  const isNew = !doc;
+  if (isNew) doc = new Invoice({ admin: adminId });
+
+  const orgRef = orgIdFromPayload(payload);
+  if (orgRef) doc.organization = orgRef;
+
+  if (payload.invoice_number) doc.invoice_number = payload.invoice_number;
+  if (payload.type) doc.type = payload.type === "purchase" ? "purchase" : "sale";
+  if (payload.status) doc.status = payload.status;
+  if (payload.date) doc.date = new Date(payload.date);
+  if (payload.due_date !== undefined) {
+    doc.due_date = payload.due_date ? new Date(payload.due_date) : undefined;
+  }
+  if (payload.party_name !== undefined) doc.party_name = payload.party_name;
+  if (payload.party_phone !== undefined) doc.party_phone = payload.party_phone;
+  if (payload.party_address !== undefined) {
+    doc.party_address = payload.party_address;
+  }
+  if (payload.party_id) {
+    const partyRef = await resolveRefId(
+      Party,
+      adminId,
+      payload.party_id,
+      payload.party_server_id,
+      idMap,
+    );
+    doc.party = partyRef || undefined;
+  }
+  if (Array.isArray(payload.items)) {
+    doc.items = toEmbeddedItems(payload.items);
+  }
+  if (payload.notes !== undefined) doc.notes = payload.notes;
+  if (payload.terms !== undefined) doc.terms = payload.terms;
+  if (payload.internal_notes !== undefined) {
+    doc.internal_notes = payload.internal_notes;
+  }
+  if (payload.linked_transactions !== undefined) {
+    doc.linked_transactions = payload.linked_transactions
+      .map((t) => (isValidObjectId(String(t)) ? toObjectId(String(t)) : null))
+      .filter(Boolean);
+  }
+  if (clientRequestId) doc.client_request_id = clientRequestId;
+
+  // Amounts are recomputed by the model's pre-save hook from items. Payments
+  // are pushed as part of the invoice payload so a later payment re-pushes the
+  // same doc (idempotent by client_request_id).
+  if (Array.isArray(payload.payments)) {
+    doc.payments = payload.payments.map((p) => ({
+      date: p.date ? new Date(p.date) : new Date(),
+      amount: Number(p.amount || 0),
+      method: p.method || "cash",
+      reference: p.reference ?? undefined,
+      notes: p.notes ?? undefined,
+    }));
+  }
+
+  doc.created_by = doc.created_by || adminId;
+  doc.is_deleted = false;
+  doc.meta_data = mergeClientMeta(
+    { ...doc.meta_data, device_id: change.device_id },
+    clientId,
+  );
+  applyTimestamps(doc, payload, change);
+
+  try {
+    await doc.save({ timestamps: false });
+  } catch (error) {
+    // A local invoice number can collide with the org counter. Keep the data by
+    // giving this doc a unique suffix instead of failing the whole push.
+    if (error?.code === 11000 && error?.keyPattern?.invoice_number) {
+      doc.invoice_number = `${doc.invoice_number}-${String(doc._id).slice(-5)}`;
+      await doc.save({ timestamps: false });
+    } else {
+      throw error;
+    }
+  }
+
+  if (clientId) idMap.set(String(clientId), doc._id.toString());
+  return { doc, created: isNew };
+};
+
+const mapStockMovementPayload = async (adminId, change, idMap) => {
+  const payload = change.payload || {};
+  const clientId = change.id || payload.id;
+  const serverId = change.server_id || payload.server_id;
+  const clientRequestId =
+    change.client_request_id || payload.client_request_id || null;
+
+  // Idempotency first: a retried movement must never double-count stock.
+  if (clientRequestId) {
+    const existing = await StockMovement.findOne({
+      admin: adminId,
+      client_request_id: clientRequestId,
+    });
+    if (existing) {
+      if (clientId) idMap.set(String(clientId), existing._id.toString());
+      return { doc: existing, created: false };
+    }
+  }
+
+  let doc = await findByServerOrClientId(
+    StockMovement,
+    adminId,
+    serverId,
+    clientId,
+  );
+  rejectIfStale(doc, change);
+  if (doc) {
+    if (clientId) idMap.set(String(clientId), doc._id.toString());
+    return { doc, created: false };
+  }
+
+  const productRef = await resolveRefId(
+    Product,
+    adminId,
+    payload.product_id,
+    payload.product_server_id,
+    idMap,
+  );
+  if (!productRef) {
+    throw new Error("Stock movement product reference not found");
+  }
+
+  doc = new StockMovement({
+    admin: adminId,
+    product: productRef,
+    type: payload.type,
+    quantity: Number(payload.quantity || 0),
+    unit_cost: Number(payload.unit_cost || 0),
+    stock_after: Number(payload.stock_after || 0),
+    notes: payload.notes ?? undefined,
+    date: payload.date ? new Date(payload.date) : new Date(),
+    created_by: adminId,
+  });
+  const orgRef = orgIdFromPayload(payload);
+  if (orgRef) doc.organization = orgRef;
+  if (clientRequestId) doc.client_request_id = clientRequestId;
+  doc.meta_data = mergeClientMeta(
+    { ...doc.meta_data, device_id: change.device_id },
+    clientId,
+  );
+  applyTimestamps(doc, payload, change);
+  await doc.save({ timestamps: false });
+  if (clientId) idMap.set(String(clientId), doc._id.toString());
+  return { doc, created: true };
+};
+
 const applyPushChange = async (adminId, change, idMap) => {
   switch (change.entity) {
     case "account":
@@ -851,6 +1159,12 @@ const applyPushChange = async (adminId, change, idMap) => {
       return mapTransactionPayload(adminId, change, idMap);
     case "transfer":
       return mapTransferPayload(adminId, change, idMap);
+    case "product":
+      return mapProductPayload(adminId, change, idMap);
+    case "invoice":
+      return mapInvoicePayload(adminId, change, idMap);
+    case "stock_movement":
+      return mapStockMovementPayload(adminId, change, idMap);
     default:
       throw new Error(`Unsupported entity: ${change.entity}`);
   }
@@ -1022,6 +1336,122 @@ const transferToPayload = (doc) => ({
   device_id: doc.meta_data?.device_id || "server",
 });
 
+const productToPayload = (doc) => ({
+  id: clientIdFromDoc(doc) || doc._id.toString(),
+  server_id: doc._id.toString(),
+  organization_id: doc.organization ? String(doc.organization) : null,
+  name: doc.name,
+  sku: doc.sku ?? null,
+  barcode: doc.barcode ?? null,
+  description: doc.description ?? null,
+  category_id: doc.category_id ? String(doc.category_id) : null,
+  unit: doc.unit ?? "pcs",
+  purchase_price: doc.purchase_price ?? 0,
+  additional_cost: doc.additional_cost ?? 0,
+  cost_price: doc.cost_price ?? 0,
+  sale_price: doc.sale_price ?? 0,
+  tax_rate: doc.tax_rate ?? 0,
+  current_stock: doc.current_stock ?? 0,
+  opening_stock: doc.opening_stock ?? 0,
+  low_stock_threshold: doc.low_stock_threshold ?? 0,
+  track_inventory: doc.track_inventory === false ? 0 : 1,
+  is_active: doc.is_active === false ? 0 : 1,
+  is_deleted: doc.is_deleted ? 1 : 0,
+  deleted_at: toIso(doc.deleted_at),
+  created_at: toIso(doc.createdAt),
+  updated_at: toIso(doc.updatedAt),
+  dirty: 0,
+  sync_version: 0,
+  client_request_id: doc.client_request_id ?? null,
+  device_id: doc.meta_data?.device_id || "server",
+  sync_status: "synced",
+  meta_data_json: doc.meta_data ? JSON.stringify(doc.meta_data) : null,
+});
+
+const invoiceToPayload = (doc) => ({
+  id: clientIdFromDoc(doc) || doc._id.toString(),
+  server_id: doc._id.toString(),
+  organization_id: doc.organization ? String(doc.organization) : null,
+  invoice_number: doc.invoice_number,
+  type: doc.type,
+  status: doc.status,
+  party_id: doc.party ? String(doc.party) : null,
+  party_name: doc.party_name ?? null,
+  party_phone: doc.party_phone ?? null,
+  party_address: doc.party_address ?? null,
+  date: toIso(doc.date),
+  due_date: toIso(doc.due_date),
+  subtotal: doc.subtotal ?? 0,
+  total_discount: doc.total_discount ?? 0,
+  total_tax: doc.total_tax ?? 0,
+  shipping_charge: doc.shipping_charge ?? 0,
+  adjustment: doc.adjustment ?? 0,
+  adjustment_description: doc.adjustment_description ?? null,
+  grand_total: doc.grand_total ?? 0,
+  amount_paid: doc.amount_paid ?? 0,
+  balance_due: doc.balance_due ?? 0,
+  notes: doc.notes ?? null,
+  terms: doc.terms ?? null,
+  internal_notes: doc.internal_notes ?? null,
+  items: (doc.items || []).map((it) => ({
+    id: it._id ? String(it._id) : null,
+    product_id: it.product ? String(it.product) : null,
+    description: it.description,
+    quantity: it.quantity,
+    unit: it.unit ?? "pcs",
+    unit_price: it.unit_price,
+    discount: it.discount ?? 0,
+    discount_type: it.discount_type ?? "fixed",
+    tax_rate: it.tax_rate ?? 0,
+    subtotal: it.subtotal ?? 0,
+    discount_amount: it.discount_amount ?? 0,
+    tax_amount: it.tax_amount ?? 0,
+    total: it.total ?? 0,
+    unit_cost_at_sale: it.unit_cost_at_sale ?? null,
+    barcode_snapshot: it.barcode ?? null,
+    notes: it.notes ?? null,
+  })),
+  payments: (doc.payments || []).map((p) => ({
+    id: p._id ? String(p._id) : null,
+    date: toIso(p.date),
+    amount: p.amount,
+    method: p.method ?? null,
+    account_id: p.account ? String(p.account) : null,
+    transaction_id: p.transaction ? String(p.transaction) : null,
+    reference: p.reference ?? null,
+    notes: p.notes ?? null,
+  })),
+  created_at: toIso(doc.createdAt),
+  updated_at: toIso(doc.updatedAt),
+  deleted_at: null,
+  dirty: 0,
+  sync_version: 0,
+  client_request_id: doc.client_request_id ?? null,
+  device_id: doc.meta_data?.device_id || "server",
+  sync_status: "synced",
+});
+
+const stockMovementToPayload = (doc) => ({
+  id: clientIdFromDoc(doc) || doc._id.toString(),
+  server_id: doc._id.toString(),
+  organization_id: doc.organization ? String(doc.organization) : null,
+  product_id: doc.product ? String(doc.product) : null,
+  type: doc.type,
+  quantity: doc.quantity,
+  unit_cost: doc.unit_cost ?? 0,
+  stock_after: doc.stock_after ?? 0,
+  notes: doc.notes ?? null,
+  date: toIso(doc.date),
+  created_at: toIso(doc.createdAt),
+  updated_at: toIso(doc.updatedAt),
+  deleted_at: null,
+  dirty: 0,
+  sync_version: 0,
+  client_request_id: doc.client_request_id ?? null,
+  device_id: doc.meta_data?.device_id || "server",
+  sync_status: "synced",
+});
+
 export const handshake = async (req, res, next) => {
   try {
     res.json({
@@ -1112,6 +1542,23 @@ export const pull = async (req, res, next) => {
         Transfer.find(filter).lean(),
       ]);
 
+    // Shop entities. Products/movements/invoices all carry `admin`, so the same
+    // filter works. Kept in a separate query so a shop-model error cannot break
+    // ledger pull for older deployments.
+    let products = [];
+    let invoices = [];
+    let stockMovements = [];
+    try {
+      [products, invoices, stockMovements] = await Promise.all([
+        Product.find(filter).lean(),
+        Invoice.find(filter).lean(),
+        StockMovement.find(filter).lean(),
+      ]);
+    } catch (e) {
+      // Models may be absent on an older server — ledger sync still succeeds.
+      console.warn("[sync] shop pull skipped", e?.message);
+    }
+
     const changes = [];
     let maxUpdatedAt = since.getTime();
 
@@ -1150,6 +1597,27 @@ export const pull = async (req, res, next) => {
       trackMax(doc);
       changes.push(
         toSyncChange("transfer", doc, { payload: transferToPayload(doc) }),
+      );
+    }
+
+    for (const doc of products) {
+      trackMax(doc);
+      changes.push(
+        toSyncChange("product", doc, { payload: productToPayload(doc) }),
+      );
+    }
+    for (const doc of invoices) {
+      trackMax(doc);
+      changes.push(
+        toSyncChange("invoice", doc, { payload: invoiceToPayload(doc) }),
+      );
+    }
+    for (const doc of stockMovements) {
+      trackMax(doc);
+      changes.push(
+        toSyncChange("stock_movement", doc, {
+          payload: stockMovementToPayload(doc),
+        }),
       );
     }
 

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -24,31 +24,28 @@ import {
 } from "@/hooks/use-products";
 import { BarcodeScannerModal } from "@/components/invoices/barcode-scanner-modal";
 import { ScreenHeader } from "@/components/screen-header";
-import type { ProductUnit, StockMovement } from "@/types/product";
-
-const UNITS: ProductUnit[] = [
-  "pcs",
-  "kg",
-  "g",
-  "liter",
-  "ml",
-  "meter",
-  "box",
-  "pack",
-  "dozen",
-  "pair",
-  "set",
-  "bag",
-  "bottle",
-  "can",
-  "carton",
-];
+import { useTranslation } from "@/hooks/use-translation";
+import type { StockMovement } from "@/types/product";
+import { Controller, useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import {
+  PRODUCT_UNIT_VALUES,
+  createAdjustStockSchema,
+  createProductEditSchema,
+  type AdjustStockFormData,
+  type ProductEditFormData,
+} from "@/lib/validations/shop";
+import {
+  normalizeAmountInput,
+  parseAmountInput,
+} from "@/lib/amount-input";
 
 type Tab = "details" | "stock";
 
 export default function ProductDetailScreen() {
   const { productId } = useLocalSearchParams<{ productId: string }>();
   const { colors } = useTheme();
+  const { t, language } = useTranslation();
   const router = useRouter();
 
   const [activeTab, setActiveTab] = useState<Tab>("details");
@@ -56,25 +53,59 @@ export default function ProductDetailScreen() {
   const [scannerVisible, setScannerVisible] = useState(false);
   const [adjustModalVisible, setAdjustModalVisible] = useState(false);
 
-  // Form state
-  const [name, setName] = useState("");
-  const [sku, setSku] = useState("");
-  const [barcode, setBarcode] = useState("");
-  const [description, setDescription] = useState("");
-  const [unit, setUnit] = useState<ProductUnit>("pcs");
-  const [purchasePrice, setPurchasePrice] = useState("");
-  const [salePrice, setSalePrice] = useState("");
-  const [taxRate, setTaxRate] = useState("");
-  const [lowStockThreshold, setLowStockThreshold] = useState("");
-  const [trackInventory, setTrackInventory] = useState(true);
-  const [isActive, setIsActive] = useState(true);
+  // Schema factories keyed on the language so messages follow the locale.
+  const editSchema = useMemo(() => createProductEditSchema(t), [language]);
+  const adjustSchema = useMemo(() => createAdjustStockSchema(t), [language]);
 
-  // Adjust stock form
-  const [adjustType, setAdjustType] = useState<
-    "adjustment_in" | "adjustment_out"
-  >("adjustment_in");
-  const [adjustQty, setAdjustQty] = useState("");
-  const [adjustNotes, setAdjustNotes] = useState("");
+  // ── Edit form (Zod-validated) ──────────────────────────────────────────
+  const {
+    control,
+    handleSubmit: handleEditSubmit,
+    reset: resetEdit,
+    setValue,
+    watch,
+    formState: { errors },
+  } = useForm<ProductEditFormData>({
+    resolver: zodResolver(editSchema),
+    defaultValues: {
+      name: "",
+      sku: "",
+      barcode: "",
+      description: "",
+      unit: "pcs",
+      purchase_price: "",
+      additional_cost: "",
+      sale_price: "",
+      tax_rate: "0",
+      low_stock_threshold: "0",
+      track_inventory: true,
+      is_active: true,
+    },
+  });
+
+  const unit = watch("unit");
+  const trackInventory = watch("track_inventory");
+  const isActive = watch("is_active");
+
+  // ── Adjust stock form (Zod-validated) ─────────────────────────────────
+  const {
+    control: adjustControl,
+    handleSubmit: handleAdjustSubmit,
+    reset: resetAdjust,
+    setValue: setAdjustValue,
+    watch: watchAdjust,
+    formState: { errors: adjustErrors },
+  } = useForm<AdjustStockFormData>({
+    resolver: zodResolver(adjustSchema),
+    defaultValues: {
+      type: "adjustment_in",
+      quantity: "",
+      unit_cost: "",
+      notes: "",
+    },
+  });
+
+  const adjustType = watchAdjust("type");
 
   const { data: product, isLoading } = useProduct(productId);
   const { data: movementsData } = useStockMovements(productId, { limit: 50 });
@@ -86,69 +117,58 @@ export default function ProductDetailScreen() {
   const adjustMutation = useAdjustStock(productId!, {
     onSuccess: () => {
       setAdjustModalVisible(false);
-      setAdjustQty("");
-      setAdjustNotes("");
+      resetAdjust();
     },
   });
 
   // Populate form from product
   useEffect(() => {
     if (product) {
-      setName(product.name);
-      setSku(product.sku ?? "");
-      setBarcode(product.barcode ?? "");
-      setDescription(product.description ?? "");
-      setUnit(product.unit);
-      setPurchasePrice(String(product.purchase_price));
-      setSalePrice(String(product.sale_price));
-      setTaxRate(String(product.tax_rate));
-      setLowStockThreshold(String(product.low_stock_threshold));
-      setTrackInventory(product.track_inventory);
-      setIsActive(product.is_active);
+      resetEdit({
+        name: product.name,
+        sku: product.sku ?? "",
+        barcode: product.barcode ?? "",
+        description: product.description ?? "",
+        unit: product.unit,
+        purchase_price: String(product.purchase_price),
+        additional_cost: String(product.additional_cost ?? 0),
+        sale_price: String(product.sale_price),
+        tax_rate: String(product.tax_rate),
+        low_stock_threshold: String(product.low_stock_threshold),
+        track_inventory: product.track_inventory,
+        is_active: product.is_active,
+      });
     }
-  }, [product]);
+  }, [product, resetEdit]);
 
-  const handleSave = useCallback(() => {
-    if (!name.trim()) {
-      Alert.alert("Validation", "Product name is required.");
-      return;
-    }
-    updateMutation.mutate({
-      name: name.trim(),
-      sku: sku.trim() || undefined,
-      barcode: barcode.trim() || undefined,
-      description: description.trim() || undefined,
-      unit,
-      purchase_price: parseFloat(purchasePrice) || 0,
-      sale_price: parseFloat(salePrice) || 0,
-      tax_rate: parseFloat(taxRate) || 0,
-      low_stock_threshold: parseFloat(lowStockThreshold) || 0,
-      track_inventory: trackInventory,
-      is_active: isActive,
-    });
-  }, [
-    name,
-    sku,
-    barcode,
-    description,
-    unit,
-    purchasePrice,
-    salePrice,
-    taxRate,
-    lowStockThreshold,
-    trackInventory,
-    isActive,
-    updateMutation,
-  ]);
+  const onSaveProduct = useCallback(
+    (data: ProductEditFormData) => {
+      updateMutation.mutate({
+        name: data.name.trim(),
+        sku: data.sku?.trim() || undefined,
+        barcode: data.barcode?.trim() || undefined,
+        description: data.description?.trim() || undefined,
+        unit: data.unit,
+        purchase_price: parseAmountInput(data.purchase_price),
+        additional_cost: parseAmountInput(data.additional_cost),
+        sale_price: parseAmountInput(data.sale_price),
+        tax_rate: parseAmountInput(data.tax_rate),
+        low_stock_threshold: parseAmountInput(data.low_stock_threshold),
+        track_inventory: data.track_inventory,
+        is_active: data.is_active,
+      });
+    },
+    [updateMutation],
+  );
 
   const handleDelete = useCallback(() => {
     Alert.alert(
-      "Delete Product",
-      `Delete "${product?.name}"? This cannot be undone.`,
+      t("deleteProductTitle"),
+      t("deleteProductMessage", { name: product?.name ?? "" }),
       [
-        { text: "Cancel", style: "cancel" },
+        { text: t("cancel"), style: "cancel" },
         {
-          text: "Delete",
+          text: t("delete"),
           style: "destructive",
           onPress: () => deleteMutation.mutate(productId!),
         },
@@ -156,18 +176,17 @@ export default function ProductDetailScreen() {
     );
   }, [product, productId, deleteMutation]);
 
-  const handleAdjust = useCallback(() => {
-    const qty = parseFloat(adjustQty);
-    if (!qty || qty <= 0) {
-      Alert.alert("Validation", "Enter a valid quantity.");
-      return;
-    }
-    adjustMutation.mutate({
-      type: adjustType,
-      quantity: qty,
-      notes: adjustNotes.trim() || undefined,
-    });
-  }, [adjustQty, adjustType, adjustNotes, adjustMutation]);
+  const onAdjustStock = useCallback(
+    (data: AdjustStockFormData) => {
+      adjustMutation.mutate({
+        type: data.type,
+        quantity: parseAmountInput(data.quantity),
+        unit_cost: data.unit_cost ? parseAmountInput(data.unit_cost) : undefined,
+        notes: data.notes?.trim() || undefined,
+      });
+    },
+    [adjustMutation],
+  );
 
   if (isLoading || !product) {
     return (
@@ -188,12 +207,12 @@ export default function ProductDetailScreen() {
 
   const badge = () => {
     if (!product.track_inventory)
-      return { text: "No tracking", color: colors.text.tertiary };
+      return { text: t("noTracking"), color: colors.text.tertiary };
     if (product.current_stock <= 0)
-      return { text: "Out of stock", color: colors.error };
+      return { text: t("outOfStock"), color: colors.error };
     if (product.is_low_stock)
-      return { text: `Low Stock`, color: colors.warning };
-    return { text: "In Stock", color: colors.success };
+      return { text: t("lowStock"), color: colors.warning };
+    return { text: t("inStock"), color: colors.success };
   };
 
   const b = badge();
@@ -204,14 +223,17 @@ export default function ProductDetailScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <ScreenHeader
-        title={editing ? "Edit Product" : product.name}
+        title={editing ? t("editProduct") : product.name}
         showBack
         rightAction={
           editing ? (
             updateMutation.isPending ? (
               <ActivityIndicator color={colors.info} />
             ) : (
-              <TouchableOpacity onPress={handleSave} style={{ padding: 6 }}>
+              <TouchableOpacity
+                onPress={handleEditSubmit(onSaveProduct)}
+                style={{ padding: 6 }}
+              >
                 <Text
                   style={{
                     color: colors.info,
@@ -219,7 +241,7 @@ export default function ProductDetailScreen() {
                     fontSize: 16,
                   }}
                 >
-                  Save
+                  {t("save")}
                 </Text>
               </TouchableOpacity>
             )
@@ -254,7 +276,7 @@ export default function ProductDetailScreen() {
         >
           <View style={{ flex: 1 }}>
             <Text style={{ fontSize: 13, color: colors.text.tertiary }}>
-              Current Stock
+              {t("currentStock")}
             </Text>
             <Text
               style={{
@@ -281,7 +303,7 @@ export default function ProductDetailScreen() {
           </View>
           <View style={{ flex: 1 }}>
             <Text style={{ fontSize: 13, color: colors.text.tertiary }}>
-              Sale Price
+              {t("salePrice")}
             </Text>
             <Text
               style={{
@@ -299,7 +321,7 @@ export default function ProductDetailScreen() {
                 marginTop: 2,
               }}
             >
-              Cost: {product.purchase_price.toLocaleString()}
+              {t("costLabel")}: {product.purchase_price.toLocaleString()}
             </Text>
           </View>
           <TouchableOpacity
@@ -349,7 +371,7 @@ export default function ProductDetailScreen() {
                   textTransform: "capitalize",
                 }}
               >
-                {tab === "stock" ? "Stock History" : "Details"}
+                {tab === "stock" ? t("stockHistory") : t("details")}
               </Text>
             </TouchableOpacity>
           ))}
@@ -360,28 +382,63 @@ export default function ProductDetailScreen() {
         {editing ? (
           // ── Edit form ─────────────────────────────────────────────────────
           <>
-            <Field label="Product Name *" colors={colors}>
-              <TextInput
-                style={inputStyle(colors)}
-                value={name}
-                onChangeText={setName}
+            <Field
+              label={`${t("productName")} *`}
+              colors={colors}
+              error={errors.name?.message}
+            >
+              <Controller
+                control={control}
+                name="name"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <TextInput
+                    style={inputStyle(colors, !!errors.name)}
+                    value={value}
+                    onChangeText={onChange}
+                    onBlur={onBlur}
+                  />
+                )}
               />
             </Field>
             <View style={{ flexDirection: "row", gap: 10 }}>
-              <Field label="SKU" colors={colors} style={{ flex: 1 }}>
-                <TextInput
-                  style={inputStyle(colors)}
-                  value={sku}
-                  onChangeText={setSku}
-                  autoCapitalize="characters"
+              <Field
+                label={t("sku")}
+                colors={colors}
+                style={{ flex: 1 }}
+                error={errors.sku?.message}
+              >
+                <Controller
+                  control={control}
+                  name="sku"
+                  render={({ field: { onChange, onBlur, value } }) => (
+                    <TextInput
+                      style={inputStyle(colors, !!errors.sku)}
+                      value={value}
+                      onChangeText={onChange}
+                      onBlur={onBlur}
+                      autoCapitalize="characters"
+                    />
+                  )}
                 />
               </Field>
-              <Field label="Barcode" colors={colors} style={{ flex: 1 }}>
+              <Field
+                label={t("barcode")}
+                colors={colors}
+                style={{ flex: 1 }}
+                error={errors.barcode?.message}
+              >
                 <View style={{ flexDirection: "row", gap: 6 }}>
-                  <TextInput
-                    style={[inputStyle(colors), { flex: 1 }]}
-                    value={barcode}
-                    onChangeText={setBarcode}
+                  <Controller
+                    control={control}
+                    name="barcode"
+                    render={({ field: { onChange, onBlur, value } }) => (
+                      <TextInput
+                        style={[inputStyle(colors, !!errors.barcode), { flex: 1 }]}
+                        value={value}
+                        onChangeText={onChange}
+                        onBlur={onBlur}
+                      />
+                    )}
                   />
                   <TouchableOpacity
                     onPress={() => setScannerVisible(true)}
@@ -403,16 +460,18 @@ export default function ProductDetailScreen() {
               </Field>
             </View>
 
-            <Field label="Unit" colors={colors}>
+            <Field label={t("unit")} colors={colors} error={errors.unit?.message}>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={{ gap: 8 }}
               >
-                {UNITS.map((u) => (
+                {PRODUCT_UNIT_VALUES.map((u) => (
                   <TouchableOpacity
                     key={u}
-                    onPress={() => setUnit(u)}
+                    onPress={() =>
+                      setValue("unit", u, { shouldValidate: true })
+                    }
                     style={{
                       paddingHorizontal: 12,
                       paddingVertical: 7,
@@ -437,59 +496,137 @@ export default function ProductDetailScreen() {
             </Field>
 
             <View style={{ flexDirection: "row", gap: 10 }}>
-              <Field label="Purchase Price" colors={colors} style={{ flex: 1 }}>
-                <TextInput
-                  style={inputStyle(colors)}
-                  value={purchasePrice}
-                  onChangeText={setPurchasePrice}
-                  keyboardType="decimal-pad"
+              <Field
+                label={t("purchasePrice")}
+                colors={colors}
+                style={{ flex: 1 }}
+                error={errors.purchase_price?.message}
+              >
+                <Controller
+                  control={control}
+                  name="purchase_price"
+                  render={({ field: { onChange, onBlur, value } }) => (
+                    <TextInput
+                      style={inputStyle(colors, !!errors.purchase_price)}
+                      value={value}
+                      onChangeText={(t) => onChange(normalizeAmountInput(t))}
+                      onBlur={onBlur}
+                      keyboardType="decimal-pad"
+                    />
+                  )}
                 />
               </Field>
-              <Field label="Sale Price" colors={colors} style={{ flex: 1 }}>
-                <TextInput
-                  style={inputStyle(colors)}
-                  value={salePrice}
-                  onChangeText={setSalePrice}
-                  keyboardType="decimal-pad"
+              <Field
+                label={t("salePrice")}
+                colors={colors}
+                style={{ flex: 1 }}
+                error={errors.sale_price?.message}
+              >
+                <Controller
+                  control={control}
+                  name="sale_price"
+                  render={({ field: { onChange, onBlur, value } }) => (
+                    <TextInput
+                      style={inputStyle(colors, !!errors.sale_price)}
+                      value={value}
+                      onChangeText={(t) => onChange(normalizeAmountInput(t))}
+                      onBlur={onBlur}
+                      keyboardType="decimal-pad"
+                    />
+                  )}
                 />
               </Field>
             </View>
 
+            <Field
+              label={t("additionalCost")}
+              colors={colors}
+              error={errors.additional_cost?.message}
+            >
+              <Controller
+                control={control}
+                name="additional_cost"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <TextInput
+                    style={inputStyle(colors, !!errors.additional_cost)}
+                    value={value}
+                    onChangeText={(t) => onChange(normalizeAmountInput(t))}
+                    onBlur={onBlur}
+                    keyboardType="decimal-pad"
+                    placeholder="0.00"
+                    placeholderTextColor={colors.text.tertiary}
+                  />
+                )}
+              />
+            </Field>
+
             <View style={{ flexDirection: "row", gap: 10 }}>
-              <Field label="Tax Rate (%)" colors={colors} style={{ flex: 1 }}>
-                <TextInput
-                  style={inputStyle(colors)}
-                  value={taxRate}
-                  onChangeText={setTaxRate}
-                  keyboardType="decimal-pad"
+              <Field
+                label={t("taxRate")}
+                colors={colors}
+                style={{ flex: 1 }}
+                error={errors.tax_rate?.message}
+              >
+                <Controller
+                  control={control}
+                  name="tax_rate"
+                  render={({ field: { onChange, onBlur, value } }) => (
+                    <TextInput
+                      style={inputStyle(colors, !!errors.tax_rate)}
+                      value={value}
+                      onChangeText={(t) => onChange(normalizeAmountInput(t))}
+                      onBlur={onBlur}
+                      keyboardType="decimal-pad"
+                    />
+                  )}
                 />
               </Field>
               <Field
-                label="Low Stock Alert"
+                label={t("lowStockAlert")}
                 colors={colors}
                 style={{ flex: 1 }}
+                error={errors.low_stock_threshold?.message}
               >
-                <TextInput
-                  style={inputStyle(colors)}
-                  value={lowStockThreshold}
-                  onChangeText={setLowStockThreshold}
-                  keyboardType="decimal-pad"
+                <Controller
+                  control={control}
+                  name="low_stock_threshold"
+                  render={({ field: { onChange, onBlur, value } }) => (
+                    <TextInput
+                      style={inputStyle(colors, !!errors.low_stock_threshold)}
+                      value={value}
+                      onChangeText={(t) => onChange(normalizeAmountInput(t))}
+                      onBlur={onBlur}
+                      keyboardType="decimal-pad"
+                    />
+                  )}
                 />
               </Field>
             </View>
 
             <View style={{ flexDirection: "row", gap: 12 }}>
-              <ToggleRow
-                label="Track Inventory"
-                value={trackInventory}
-                onChange={setTrackInventory}
-                colors={colors}
+              <Controller
+                control={control}
+                name="track_inventory"
+                render={({ field: { onChange, value } }) => (
+                  <ToggleRow
+                    label={t("trackInventory")}
+                    value={value}
+                    onChange={onChange}
+                    colors={colors}
+                  />
+                )}
               />
-              <ToggleRow
-                label="Active"
-                value={isActive}
-                onChange={setIsActive}
-                colors={colors}
+              <Controller
+                control={control}
+                name="is_active"
+                render={({ field: { onChange, value } }) => (
+                  <ToggleRow
+                    label={t("active")}
+                    value={value}
+                    onChange={onChange}
+                    colors={colors}
+                  />
+                )}
               />
             </View>
           </>
@@ -497,20 +634,30 @@ export default function ProductDetailScreen() {
           // ── Details view ──────────────────────────────────────────────────
           <View style={{ gap: 12 }}>
             <InfoRow label="Name" value={product.name} colors={colors} />
-            <InfoRow label="SKU" value={product.sku || "—"} colors={colors} />
+            <InfoRow label={t("sku")} value={product.sku || "—"} colors={colors} />
             <InfoRow
-              label="Barcode"
+              label={t("barcode")}
               value={product.barcode || "—"}
               colors={colors}
             />
-            <InfoRow label="Unit" value={product.unit} colors={colors} />
+            <InfoRow label={t("unit")} value={product.unit} colors={colors} />
             <InfoRow
-              label="Purchase Price"
+              label={t("purchasePrice")}
               value={product.purchase_price.toLocaleString()}
               colors={colors}
             />
             <InfoRow
-              label="Sale Price"
+              label="Additional Cost"
+              value={(product.additional_cost ?? 0).toLocaleString()}
+              colors={colors}
+            />
+            <InfoRow
+              label={t("costPrice")}
+              value={(product.cost_price ?? product.purchase_price).toLocaleString()}
+              colors={colors}
+            />
+            <InfoRow
+              label={t("salePrice")}
               value={product.sale_price.toLocaleString()}
               colors={colors}
             />
@@ -520,12 +667,12 @@ export default function ProductDetailScreen() {
               colors={colors}
             />
             <InfoRow
-              label="Profit Margin"
+              label={t("profitMargin")}
               value={`${product.profit_margin}%`}
               colors={colors}
             />
             <InfoRow
-              label="Low Stock Alert"
+              label={t("lowStockAlert")}
               value={
                 product.low_stock_threshold > 0
                   ? `${product.low_stock_threshold} ${product.unit}`
@@ -534,7 +681,7 @@ export default function ProductDetailScreen() {
               colors={colors}
             />
             <InfoRow
-              label="Track Inventory"
+              label={t("trackInventory")}
               value={product.track_inventory ? "Yes" : "No"}
               colors={colors}
             />
@@ -550,7 +697,7 @@ export default function ProductDetailScreen() {
             />
             {product.description ? (
               <InfoRow
-                label="Description"
+                label={t("description")}
                 value={product.description}
                 colors={colors}
               />
@@ -565,7 +712,7 @@ export default function ProductDetailScreen() {
               color={colors.text.tertiary}
             />
             <Text style={{ color: colors.text.secondary, marginTop: 12 }}>
-              No stock movements yet
+              {t("noStockMovements")}
             </Text>
           </View>
         ) : (
@@ -662,10 +809,10 @@ export default function ProductDetailScreen() {
         visible={scannerVisible}
         onClose={() => setScannerVisible(false)}
         onScan={(code) => {
-          setBarcode(code);
+          setValue("barcode", code, { shouldValidate: true });
           setScannerVisible(false);
         }}
-        title="Scan Barcode"
+        title={t("scanBarcode")}
       />
 
       {/* Adjust stock modal */}
@@ -693,7 +840,7 @@ export default function ProductDetailScreen() {
                 color: colors.text.primary,
               }}
             >
-              Adjust Stock
+              {t("adjustStock")}
             </Text>
             <TouchableOpacity onPress={() => setAdjustModalVisible(false)}>
               <Ionicons name="close" size={26} color={colors.text.primary} />
@@ -707,7 +854,7 @@ export default function ProductDetailScreen() {
               marginBottom: 14,
             }}
           >
-            Current stock:{" "}
+            {t("currentStock")}:{" "}
             <Text style={{ fontWeight: "700", color: colors.text.primary }}>
               {product.current_stock} {product.unit}
             </Text>
@@ -715,25 +862,25 @@ export default function ProductDetailScreen() {
 
           {/* Type */}
           <View style={{ flexDirection: "row", gap: 10, marginBottom: 16 }}>
-            {(["adjustment_in", "adjustment_out"] as const).map((t) => (
+            {(["adjustment_in", "adjustment_out"] as const).map((adjustmentType) => (
               <TouchableOpacity
-                key={t}
-                onPress={() => setAdjustType(t)}
+                key={adjustmentType}
+                onPress={() => setAdjustValue("type", adjustmentType)}
                 style={{
                   flex: 1,
                   paddingVertical: 12,
                   borderRadius: 10,
                   alignItems: "center",
                   backgroundColor:
-                    adjustType === t
-                      ? t === "adjustment_in"
+                    adjustType === adjustmentType
+                      ? adjustmentType === "adjustment_in"
                         ? colors.success
                         : colors.error
                       : colors.bg.secondary,
                   borderWidth: 1,
                   borderColor:
-                    adjustType === t
-                      ? t === "adjustment_in"
+                    adjustType === adjustmentType
+                      ? adjustmentType === "adjustment_in"
                         ? colors.success
                         : colors.error
                       : colors.border,
@@ -741,51 +888,95 @@ export default function ProductDetailScreen() {
               >
                 <Ionicons
                   name={
-                    t === "adjustment_in"
+                    adjustmentType === "adjustment_in"
                       ? "add-circle-outline"
                       : "remove-circle-outline"
                   }
                   size={20}
-                  color={adjustType === t ? "#fff" : colors.text.secondary}
+                  color={adjustType === adjustmentType ? "#fff" : colors.text.secondary}
                 />
                 <Text
                   style={{
                     marginTop: 4,
                     fontWeight: "600",
-                    color: adjustType === t ? "#fff" : colors.text.secondary,
+                    color: adjustType === adjustmentType ? "#fff" : colors.text.secondary,
                     fontSize: 13,
                   }}
                 >
-                  {t === "adjustment_in" ? "Add Stock" : "Remove Stock"}
+                  {adjustmentType === "adjustment_in" ? t("addStock") : t("removeStock")}
                 </Text>
               </TouchableOpacity>
             ))}
           </View>
 
-          <Field label="Quantity" colors={colors}>
-            <TextInput
-              style={inputStyle(colors)}
-              value={adjustQty}
-              onChangeText={setAdjustQty}
-              placeholder="Enter quantity"
-              placeholderTextColor={colors.text.tertiary}
-              keyboardType="decimal-pad"
-              autoFocus
+          <Field
+            label={t("quantity")}
+            colors={colors}
+            error={adjustErrors.quantity?.message}
+          >
+            <Controller
+              control={adjustControl}
+              name="quantity"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  style={inputStyle(colors, !!adjustErrors.quantity)}
+                  value={value}
+                  onChangeText={(t) => onChange(normalizeAmountInput(t))}
+                  onBlur={onBlur}
+                  placeholder={t("quantityPlaceholder")}
+                  placeholderTextColor={colors.text.tertiary}
+                  keyboardType="decimal-pad"
+                  autoFocus
+                />
+              )}
             />
           </Field>
 
-          <Field label="Notes (optional)" colors={colors}>
-            <TextInput
-              style={inputStyle(colors)}
-              value={adjustNotes}
-              onChangeText={setAdjustNotes}
-              placeholder="Reason for adjustment"
-              placeholderTextColor={colors.text.tertiary}
+          <Field
+            label={t("unitCostOptional")}
+            colors={colors}
+            error={adjustErrors.unit_cost?.message}
+          >
+            <Controller
+              control={adjustControl}
+              name="unit_cost"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  style={inputStyle(colors, !!adjustErrors.unit_cost)}
+                  value={value}
+                  onChangeText={(t) => onChange(normalizeAmountInput(t))}
+                  onBlur={onBlur}
+                  placeholder={t("unitCostPlaceholder")}
+                  placeholderTextColor={colors.text.tertiary}
+                  keyboardType="decimal-pad"
+                />
+              )}
+            />
+          </Field>
+
+          <Field
+            label="Notes (optional)"
+            colors={colors}
+            error={adjustErrors.notes?.message}
+          >
+            <Controller
+              control={adjustControl}
+              name="notes"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  style={inputStyle(colors, !!adjustErrors.notes)}
+                  value={value}
+                  onChangeText={onChange}
+                  onBlur={onBlur}
+                  placeholder={t("adjustmentNotesPlaceholder")}
+                  placeholderTextColor={colors.text.tertiary}
+                />
+              )}
             />
           </Field>
 
           <TouchableOpacity
-            onPress={handleAdjust}
+            onPress={handleAdjustSubmit(onAdjustStock)}
             disabled={adjustMutation.isPending}
             style={{
               backgroundColor: adjustMutation.isPending
@@ -801,7 +992,7 @@ export default function ProductDetailScreen() {
               <ActivityIndicator color="#fff" />
             ) : (
               <Text style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}>
-                Confirm Adjustment
+                {t("confirmAdjustment")}
               </Text>
             )}
           </TouchableOpacity>
@@ -818,11 +1009,13 @@ function Field({
   children,
   colors,
   style,
+  error,
 }: {
   label: string;
   children: React.ReactNode;
   colors: any;
   style?: object;
+  error?: string;
 }) {
   return (
     <View style={[{ marginBottom: 12 }, style]}>
@@ -837,6 +1030,11 @@ function Field({
         {label}
       </Text>
       {children}
+      {error ? (
+        <Text style={{ color: colors.error, fontSize: 12, marginTop: 4 }}>
+          {error}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -918,11 +1116,11 @@ function ToggleRow({
   );
 }
 
-const inputStyle = (colors: any) => ({
+const inputStyle = (colors: any, hasError = false) => ({
   backgroundColor: colors.bg.secondary,
   borderRadius: 10,
   borderWidth: 1,
-  borderColor: colors.border,
+  borderColor: hasError ? colors.error : colors.border,
   paddingHorizontal: 12,
   paddingVertical: 11,
   fontSize: 15,

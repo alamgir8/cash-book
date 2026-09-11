@@ -209,10 +209,12 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
         payload.login_pin = "";
       }
 
-      await updateProfile(payload);
+      const result = await updateProfile(payload);
       Toast.show({
         type: "success",
         text1: t("profileUpdated"),
+        // Be explicit that an offline save is queued rather than sent.
+        text2: result.synced ? undefined : "Saved on this device — will sync",
       });
       handleClose();
     } catch (error) {

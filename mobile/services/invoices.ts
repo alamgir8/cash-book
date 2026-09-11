@@ -29,6 +29,12 @@ export interface InvoiceLineItem {
   tax_amount?: number;
   total?: number;
   notes?: string;
+  /** Mongo product id when the line came from the catalog (server link). */
+  product?: string;
+  /** Barcode snapshot captured at entry time. */
+  barcode?: string;
+  /** Cost basis at sale time (Phase 9 fills this). */
+  unit_cost_at_sale?: number;
 }
 
 export interface InvoicePayment {
@@ -99,6 +105,11 @@ export interface CreateInvoiceParams {
     discount_type?: "fixed" | "percent";
     tax_rate?: number;
     notes?: string;
+    /** Mongo product id — links the line to the catalog for stock + cost basis. */
+    product?: string;
+    /** Local SQLite product id — lets the offline DAL resolve stock/cost. */
+    local_product_id?: string;
+    barcode?: string;
   }[];
   shipping_charge?: number;
   adjustment?: number;

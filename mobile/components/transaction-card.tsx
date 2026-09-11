@@ -282,7 +282,7 @@ const TransactionCardComponent = ({
               >
                 {isSettled
                   ? t("settled")
-                  : `Due · ${formatAmount(remaining)} left`}
+                  : `${t("due")} · ${t("dueAmountLeft", { n: formatAmount(remaining) })}`}
               </Text>
             </View>
           )}
@@ -323,7 +323,7 @@ const TransactionCardComponent = ({
                 color={colors.text.tertiary}
               />
               <Text className="text-xs" style={{ color: colors.text.tertiary }}>
-                Due {dayjs(transaction.due_date).format("MMM D")}
+                {t("due")} {dayjs(transaction.due_date).format("MMM D")}
               </Text>
             </View>
           )}
@@ -516,7 +516,7 @@ const TransactionCardComponent = ({
               className="text-xs font-semibold"
             >
               {paymentShowsParentDue
-                ? `Due · ${formatAmount(parentRemaining)} left`
+                ? `${t("due")} · ${t("dueAmountLeft", { n: formatAmount(parentRemaining) })}`
                 : transaction.payment_status === "due"
                   ? t("due")
                   : t("paid")}
@@ -585,7 +585,7 @@ const TransactionCardComponent = ({
                     style={{ color: "#d97706" }}
                     className="text-xs font-semibold"
                   >
-                    Pay ({formatAmount(parentRemaining)} left)
+                    {t("pay")} ({formatAmount(parentRemaining)} {t("left")})
                   </Text>
                 </TouchableOpacity>
               )}
@@ -623,7 +623,7 @@ const TransactionCardComponent = ({
                     style={{ color: colors.text.secondary }}
                     className="text-xs font-semibold"
                   >
-                    History
+                    {t("paymentHistory")}
                   </Text>
                 </TouchableOpacity>
               )}
@@ -666,7 +666,7 @@ const TransactionCardComponent = ({
                   style={{ color: colors.text.secondary }}
                   className="text-xs font-semibold"
                 >
-                  History
+                  {t("viewHistory")}
                 </Text>
               </TouchableOpacity>
             </View>

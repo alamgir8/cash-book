@@ -14,6 +14,7 @@ import { ScreenHeader } from "@/components/screen-header";
 import { exportInvoicePdf } from "@/services/reports";
 import { getApiErrorMessage } from "@/lib/api";
 import { useTheme } from "@/hooks/use-theme";
+import { useTranslation } from "@/hooks/use-translation";
 import {
   useInvoice,
   useUpdateInvoiceStatus,
@@ -51,9 +52,9 @@ export default function InvoiceDetailScreen() {
       "Change Status",
       `Are you sure you want to change status to "${newStatus}"?`,
       [
-        { text: "Cancel", style: "cancel" },
+        { text: t("cancel"), style: "cancel" },
         {
-          text: "Confirm",
+          text: t("confirm"),
           onPress: () => statusMutation.mutate({ status: newStatus }),
         },
       ],
@@ -75,18 +76,14 @@ export default function InvoiceDetailScreen() {
   };
 
   const handleDelete = () => {
-    Alert.alert(
-      "Delete Invoice",
-      "Are you sure you want to delete this invoice? This action cannot be undone.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => deleteMutation.mutate(invoiceId!),
-        },
-      ],
-    );
+    Alert.alert(t("deleteInvoiceTitle"), t("deleteInvoiceMessage"), [
+      { text: t("cancel"), style: "cancel" },
+      {
+        text: t("delete"),
+        style: "destructive",
+        onPress: () => deleteMutation.mutate(invoiceId!),
+      },
+    ]);
   };
 
   const handleExportPdf = async () => {
@@ -96,7 +93,7 @@ export default function InvoiceDetailScreen() {
       toast.success("Invoice PDF exported successfully");
     } catch (error) {
       console.error("PDF export error:", error);
-      toast.error("Failed to export PDF");
+      toast.error(t("exportFailed"));
     } finally {
       setExportingPdf(false);
     }
@@ -114,11 +111,21 @@ export default function InvoiceDetailScreen() {
     : [];
 
   const { colors } = useTheme();
+  const { t } = useTranslation();
+
+  const statusLabels: Record<InvoiceStatus, string> = {
+    draft: t("draft"),
+    pending: t("pending"),
+    partial: t("partial"),
+    paid: t("paid"),
+    overdue: t("overdue"),
+    cancelled: t("cancelled"),
+  };
 
   if (isLoading) {
     return (
       <View className="flex-1" style={{ backgroundColor: colors.bg.primary }}>
-        <ScreenHeader title="Invoice Details" showBack />
+        <ScreenHeader title={t("invoiceDetails")} showBack />
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color={colors.info} />
         </View>
@@ -129,7 +136,7 @@ export default function InvoiceDetailScreen() {
   if (isError || !invoice) {
     return (
       <View className="flex-1" style={{ backgroundColor: colors.bg.primary }}>
-        <ScreenHeader title="Error" showBack />
+        <ScreenHeader title={t("error")} showBack />
         <View className="flex-1 items-center justify-center p-4">
           <Ionicons
             name="alert-circle-outline"
@@ -183,7 +190,7 @@ export default function InvoiceDetailScreen() {
               <>
                 <Ionicons name="download-outline" size={18} color="#ffffff" />
                 <Text className="ml-1.5 text-sm font-semibold" style={{ color: colors.buttonText }}>
-                  Export
+                  {t("exportPdf")}
                 </Text>
               </>
             )}
@@ -215,7 +222,9 @@ export default function InvoiceDetailScreen() {
                 className="ml-3 text-sm capitalize"
                 style={{ color: colors.text.secondary }}
               >
-                {invoice.type} Invoice
+                {invoice.type === "sale"
+                  ? t("saleInvoice")
+                  : `${t("purchase")} ${t("invoice")}`}
               </Text>
             </View>
             <InvoiceStatusBadge status={invoice.status} />
@@ -235,7 +244,7 @@ export default function InvoiceDetailScreen() {
                   className="text-xs mb-1"
                   style={{ color: colors.text.tertiary }}
                 >
-                  Total
+                  {t("total")}
                 </Text>
                 <Text
                   className="text-lg font-bold"
@@ -250,7 +259,7 @@ export default function InvoiceDetailScreen() {
                   className="text-xs mb-1"
                   style={{ color: colors.text.tertiary }}
                 >
-                  Paid
+                  {t("paid")}
                 </Text>
                 <Text
                   className="text-lg font-bold"
@@ -265,7 +274,7 @@ export default function InvoiceDetailScreen() {
                   className="text-xs mb-1"
                   style={{ color: colors.text.tertiary }}
                 >
-                  Balance
+                  {t("balance")}
                 </Text>
                 <Text
                   className="text-lg font-bold"
@@ -293,7 +302,7 @@ export default function InvoiceDetailScreen() {
                   className="ml-2 font-semibold"
                   style={{ color: colors.buttonText }}
                 >
-                  Record Payment
+                  {t("recordPaymentBtn")}
                 </Text>
               </TouchableOpacity>
             )}
@@ -341,7 +350,7 @@ export default function InvoiceDetailScreen() {
                 className="text-xs font-semibold uppercase mb-2"
                 style={{ color: colors.text.secondary }}
               >
-                Terms & Conditions
+                {t("terms")}
               </Text>
               <Text
                 className="text-sm"
@@ -390,7 +399,7 @@ export default function InvoiceDetailScreen() {
                             : colors.primary,
                       }}
                     >
-                      {status === "paid" ? "Mark as Paid" : status}
+                      {status === "paid" ? t("markAsPaid") : statusLabels[status]}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -412,7 +421,7 @@ export default function InvoiceDetailScreen() {
                 className="text-center font-medium"
                 style={{ color: colors.error }}
               >
-                Delete Invoice
+                {t("deleteInvoiceTitle")}
               </Text>
             </TouchableOpacity>
           )}

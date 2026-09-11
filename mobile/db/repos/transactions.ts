@@ -7,6 +7,7 @@ import {
   createLocalId,
   nowIso,
 } from "@/lib/local-first/ids";
+import { partySignedDelta } from "@/lib/local-first/party-balance";
 
 export type TransactionInput = {
   account_id: string;
@@ -63,7 +64,7 @@ async function applyAccountDelta(
   return Number(row?.current_balance ?? 0);
 }
 
-async function applyPartyDelta(
+async function applyPartyDeltaRaw(
   db: Db,
   partyId: string | null | undefined,
   delta: number,
@@ -82,6 +83,36 @@ async function applyPartyDelta(
     partyId,
   );
   return Number(row?.current_balance ?? 0);
+}
+
+async function resolvePartyType(
+  db: Db,
+  partyId: string | null | undefined,
+): Promise<string | null> {
+  if (!partyId) return null;
+  const row = await db.getFirstAsync<{ type: string }>(
+    `SELECT type FROM parties WHERE id = ? OR server_id = ? LIMIT 1`,
+    partyId,
+    partyId,
+  );
+  return row?.type ?? null;
+}
+
+/** Type-aware party delta (customer credit-positive, supplier debit-positive). */
+async function applyPartySignedDelta(
+  db: Db,
+  partyId: string | null | undefined,
+  txnType: "debit" | "credit",
+  amount: number,
+  paymentStatus: "paid" | "due",
+): Promise<number | null> {
+  if (!partyId) return null;
+  const partyType = await resolvePartyType(db, partyId);
+  // Mirror the backend: no resolvable party type → no balance effect.
+  if (!partyType) return null;
+  const delta = partySignedDelta(partyType, txnType, amount, paymentStatus);
+  if (!delta) return null;
+  return applyPartyDeltaRaw(db, partyId, delta);
 }
 
 export async function listTransactions(
@@ -179,10 +210,19 @@ export async function createTransaction(
   let partyBalanceAfter: number | null = null;
 
   if (applyBalance) {
-    const delta = signedDelta(input.type, amount);
-    balanceAfter = await applyAccountDelta(db, input.account_id, delta);
-    // Party: credit increases receivable (they owe us) for typical income linked to party
-    partyBalanceAfter = await applyPartyDelta(db, input.party_id, delta);
+    balanceAfter = await applyAccountDelta(
+      db,
+      input.account_id,
+      signedDelta(input.type, amount),
+    );
+    // Type-aware party delta (customer credit-positive / supplier debit-positive).
+    partyBalanceAfter = await applyPartySignedDelta(
+      db,
+      input.party_id,
+      input.type,
+      amount,
+      "paid",
+    );
   }
 
   await db.runAsync(
@@ -250,7 +290,16 @@ export async function softDeleteTransaction(
     if (existing.payment_status === "paid") {
       const reverse = -signedDelta(existing.type, existing.amount);
       await applyAccountDelta(txn, existing.account_id, reverse);
-      await applyPartyDelta(txn, existing.party_id, reverse);
+      const existingPartyType = await resolvePartyType(txn, existing.party_id);
+      const reverseParty = -partySignedDelta(
+        existingPartyType,
+        existing.type,
+        existing.amount,
+        "paid",
+      );
+      if (existing.party_id && reverseParty) {
+        await applyPartyDeltaRaw(txn, existing.party_id, reverseParty);
+      }
     }
     const ts = nowIso();
     await txn.runAsync(
@@ -295,7 +344,16 @@ export async function updateTransaction(
     if (existing.payment_status === "paid") {
       const reverse = -signedDelta(existing.type, existing.amount);
       await applyAccountDelta(txn, existing.account_id, reverse);
-      await applyPartyDelta(txn, existing.party_id, reverse);
+      const existingPartyType = await resolvePartyType(txn, existing.party_id);
+      const reverseParty = -partySignedDelta(
+        existingPartyType,
+        existing.type,
+        existing.amount,
+        "paid",
+      );
+      if (existing.party_id && reverseParty) {
+        await applyPartyDeltaRaw(txn, existing.party_id, reverseParty);
+      }
     }
 
     const nextType = patch.type ?? existing.type;
@@ -311,9 +369,18 @@ export async function updateTransaction(
     let partyBalanceAfter: number | null = existing.party_balance_after;
 
     if (nextStatus === "paid") {
-      const delta = signedDelta(nextType, nextAmount);
-      balanceAfter = await applyAccountDelta(txn, nextAccountId, delta);
-      partyBalanceAfter = await applyPartyDelta(txn, nextPartyId, delta);
+      balanceAfter = await applyAccountDelta(
+        txn,
+        nextAccountId,
+        signedDelta(nextType, nextAmount),
+      );
+      partyBalanceAfter = await applyPartySignedDelta(
+        txn,
+        nextPartyId,
+        nextType,
+        nextAmount,
+        "paid",
+      );
     } else {
       balanceAfter = null;
       partyBalanceAfter = null;

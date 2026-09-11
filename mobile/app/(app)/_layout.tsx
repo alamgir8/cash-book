@@ -43,7 +43,7 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
     },
     {
       name: "shop",
-      label: "Shop",
+      label: t("tabShop"),
       icon: "bag-handle-outline",
       iconFocused: "bag-handle",
     },

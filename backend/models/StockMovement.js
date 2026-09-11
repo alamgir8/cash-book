@@ -76,6 +76,18 @@ const stockMovementSchema = new Schema(
       default: () => new Date(),
       index: true,
     },
+    /**
+     * Sync idempotency key (local-first). A retried op must never double-count
+     * stock, so this is unique per admin when set.
+     */
+    client_request_id: {
+      type: String,
+      trim: true,
+    },
+    /** Client UUID + opaque sync fields. */
+    meta_data: {
+      type: Schema.Types.Mixed,
+    },
     created_by: {
       type: Schema.Types.ObjectId,
       ref: "Admin",
@@ -88,6 +100,16 @@ stockMovementSchema.index({ product: 1, date: -1 });
 stockMovementSchema.index({ admin: 1, product: 1, date: -1 });
 stockMovementSchema.index({ organization: 1, product: 1, date: -1 });
 stockMovementSchema.index({ invoice: 1, product: 1 });
+// Idempotency: a movement op key is applied at most once per admin.
+stockMovementSchema.index(
+  { admin: 1, client_request_id: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      client_request_id: { $type: "string", $ne: "" },
+    },
+  },
+);
 
 export const StockMovement = mongoose.model(
   "StockMovement",

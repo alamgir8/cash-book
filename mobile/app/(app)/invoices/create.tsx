@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -11,7 +11,12 @@ import {
   Image,
 } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
-import { useForm, Controller, useFieldArray } from "react-hook-form";
+import {
+  useForm,
+  Controller,
+  useFieldArray,
+  type FieldErrors,
+} from "react-hook-form";
 import { toast } from "@/lib/toast";
 import { useQuery } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
@@ -25,7 +30,11 @@ import {
 } from "@/data/parties";
 import { dalFetchAccounts } from "@/data/accounts";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { invoiceSchema, type InvoiceFormData } from "@/lib/validations/invoice";
+import {
+  createInvoiceSchema,
+  type InvoiceFormData,
+} from "@/lib/validations/shop";
+import { findFirstErrorMessage } from "@/lib/invoice-utils";
 import { LineItemFields, InvoiceTotalsSummary } from "@/components/invoices";
 import {
   calculateLineItemTotal,
@@ -33,6 +42,7 @@ import {
   transformInvoiceFormData,
 } from "@/lib/invoice-utils";
 import { useTheme } from "@/hooks/use-theme";
+import { useTranslation } from "@/hooks/use-translation";
 import { useKeyboardFooterLift } from "@/hooks/use-keyboard-footer-lift";
 import { SearchableSelect } from "@/components/searchable-select";
 import type { SelectOption } from "@/components/searchable-select";
@@ -42,7 +52,10 @@ import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import { uploadAttachments } from "@/services/attachments";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
-import { amountInputProps } from "@/lib/amount-input";
+import {
+  amountInputProps,
+  normalizeAmountInput,
+} from "@/lib/amount-input";
 
 type StagedFile = { uri: string; name: string; type: string; size?: number };
 const MAX_STAGED = 10;
@@ -55,7 +68,22 @@ export default function CreateInvoiceScreen() {
   }>();
   const organizationId = useActiveOrgId();
   const { colors } = useTheme();
+  const { t, language } = useTranslation();
   const { footerContainerStyle, scrollProps } = useKeyboardFooterLift();
+
+  const paymentModeLabels: Record<string, string> = {
+    due: t("due"),
+    cash: t("paid"),
+    partial: t("partial"),
+  };
+
+  const paymentMethodLabels: Record<string, string> = {
+    cash: t("cash"),
+    bank: t("bank"),
+    mobile_wallet: t("mobileWallet"),
+    cheque: t("cheque"),
+    other: t("other"),
+  };
 
   const invoiceType: InvoiceType =
     typeParam === "purchase" ? "purchase" : "sale";
@@ -72,14 +100,18 @@ export default function CreateInvoiceScreen() {
     onSuccess: () => router.back(),
   });
 
+  // Schema factory is keyed on the language so messages follow the locale.
+  const schema = useMemo(() => createInvoiceSchema(t), [language]);
+
   const {
     control,
     handleSubmit,
     watch,
     setValue,
+    getValues,
     formState: { errors },
   } = useForm<InvoiceFormData>({
-    resolver: zodResolver(invoiceSchema),
+    resolver: zodResolver(schema),
     defaultValues: {
       party_id: "",
       date: new Date().toISOString().split("T")[0],
@@ -156,7 +188,7 @@ export default function CreateInvoiceScreen() {
         subtitle: newParty.phone ?? newParty.code,
       };
     } catch {
-      toast.error("Failed to add party");
+      toast.error(t("failedToAddParty"));
       return null;
     }
   };
@@ -199,7 +231,7 @@ export default function CreateInvoiceScreen() {
   const requestCamera = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert("Permission Required", "Camera access is needed.");
+      Alert.alert(t("permissionRequired"), t("cameraPermissionNeeded"));
       return false;
     }
     return true;
@@ -207,7 +239,7 @@ export default function CreateInvoiceScreen() {
   const requestMedia = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert("Permission Required", "Photo library access is needed.");
+      Alert.alert(t("permissionRequired"), t("photoLibraryPermissionNeeded"));
       return false;
     }
     return true;
@@ -221,7 +253,10 @@ export default function CreateInvoiceScreen() {
   const addStaged = (files: StagedFile[]) => {
     for (const f of files) {
       if (f.size && f.size > MAX_RAW_MB * 1024 * 1024) {
-        Alert.alert("File Too Large", `"${f.name}" exceeds ${MAX_RAW_MB} MB.`);
+        Alert.alert(
+          t("fileTooLargeAlert"),
+          `"${f.name}" exceeds ${MAX_RAW_MB} MB.`,
+        );
         return;
       }
     }
@@ -270,14 +305,27 @@ export default function CreateInvoiceScreen() {
     setStagedFiles((prev) => prev.filter((_, idx) => idx !== i));
 
   // ── Submit ─────────────────────────────────────────────────────────────
+  /**
+   * Safety net: some invoice fields (notes, reference, internal ones) have no
+   * inline error slot, so surface the first problem as a toast rather than
+   * letting the submit button appear to do nothing.
+   */
+  const onInvalid = useCallback(
+    (formErrors: FieldErrors<InvoiceFormData>) => {
+      const first = findFirstErrorMessage(formErrors);
+      if (first) toast.error(first);
+    },
+    [],
+  );
+
   const onSubmit = async (data: InvoiceFormData) => {
+    // Zod already guarantees description + price per line; keep the guard as a
+    // defensive check for programmatic callers.
     const validItems = data.items.filter(
       (item) => item.description.trim() && parseFloat(item.unit_price) > 0,
     );
     if (validItems.length === 0) {
-      toast.error(
-        "Please add at least one valid item with description and price",
-      );
+      toast.error(t("addAtLeastOneItem"));
       return;
     }
     const transformedData = transformInvoiceFormData(data);
@@ -345,7 +393,9 @@ export default function CreateInvoiceScreen() {
               textAlign: "center",
             }}
           >
-            New {invoiceType === "sale" ? "Sales" : "Purchase"} Invoice
+            {invoiceType === "sale"
+              ? `${t("newSale")} ${t("invoice")}`
+              : `${t("newPurchase")} ${t("invoice")}`}
           </Text>
           <Text
             style={{
@@ -377,7 +427,7 @@ export default function CreateInvoiceScreen() {
             className="text-base font-semibold mb-3"
             style={{ color: colors.text.primary }}
           >
-            {invoiceType === "sale" ? "Customer" : "Supplier"}{" "}
+            {invoiceType === "sale" ? t("customer") : t("supplier")}{" "}
             <Text style={{ color: colors.error }}>*</Text>
           </Text>
           <Controller
@@ -388,15 +438,21 @@ export default function CreateInvoiceScreen() {
                 <SearchableSelect
                   label={
                     invoiceType === "sale"
-                      ? "Select Customer"
-                      : "Select Supplier"
+                      ? t("selectCustomer")
+                      : t("selectSupplier")
                   }
-                  placeholder={`Search ${invoiceType === "sale" ? "customers" : "suppliers"}...`}
+                  placeholder={
+                    invoiceType === "sale"
+                      ? t("searchCustomersPlaceholder")
+                      : t("searchSuppliersPlaceholder")
+                  }
                   value={value}
                   options={partyOptions}
                   onSelect={(val) => onChange(val)}
                   onAddNew={handleAddParty}
-                  addNewLabel={invoiceType === "sale" ? "customer" : "supplier"}
+                  addNewLabel={
+                    invoiceType === "sale" ? t("customer") : t("supplier")
+                  }
                   fetchOptions={async (q) => {
                     const res = await dalFetchParties({
                       organization: organizationId || undefined,
@@ -430,7 +486,7 @@ export default function CreateInvoiceScreen() {
             className="text-base font-semibold mb-4"
             style={{ color: colors.text.primary }}
           >
-            Invoice Details
+            {t("invoiceDetails")}
           </Text>
 
           {/* Date row */}
@@ -440,7 +496,7 @@ export default function CreateInvoiceScreen() {
                 className="text-sm font-medium mb-2"
                 style={{ color: colors.text.secondary }}
               >
-                Date <Text style={{ color: colors.error }}>*</Text>
+                {t("invoiceDate")} <Text style={{ color: colors.error }}>*</Text>
               </Text>
               <Controller
                 control={control}
@@ -470,7 +526,7 @@ export default function CreateInvoiceScreen() {
                       >
                         {value
                           ? dayjs(value).format("MMM DD, YYYY")
-                          : "Select date"}
+                          : t("selectDate")}
                       </Text>
                       <Ionicons
                         name="calendar-outline"
@@ -495,39 +551,53 @@ export default function CreateInvoiceScreen() {
                 className="text-sm font-medium mb-2"
                 style={{ color: colors.text.secondary }}
               >
-                Due Date
+                {t("dueDate")}
               </Text>
               <Controller
                 control={control}
                 name="due_date"
-                render={({ field: { value } }) => (
-                  <TouchableOpacity
-                    onPress={() => {
-                      setPickingField("due_date");
-                      setShowDatePicker(true);
-                    }}
-                    className="flex-row items-center justify-between border rounded-xl px-4 py-3.5"
-                    style={{
-                      backgroundColor: colors.bg.secondary,
-                      borderColor: colors.inputBorder,
-                    }}
-                  >
-                    <Text
-                      className="text-base flex-1"
+                render={({ field: { value }, fieldState }) => (
+                  <>
+                    <TouchableOpacity
+                      onPress={() => {
+                        setPickingField("due_date");
+                        setShowDatePicker(true);
+                      }}
+                      className="flex-row items-center justify-between border rounded-xl px-4 py-3.5"
                       style={{
-                        color: value
-                          ? colors.text.primary
-                          : colors.inputPlaceholder,
+                        backgroundColor: colors.bg.secondary,
+                        borderColor: fieldState.error
+                          ? colors.error
+                          : colors.inputBorder,
                       }}
                     >
-                      {value ? dayjs(value).format("MMM DD, YYYY") : "Optional"}
-                    </Text>
-                    <Ionicons
-                      name="calendar-outline"
-                      size={18}
-                      color={colors.text.secondary}
-                    />
-                  </TouchableOpacity>
+                      <Text
+                        className="text-base flex-1"
+                        style={{
+                          color: value
+                            ? colors.text.primary
+                            : colors.inputPlaceholder,
+                        }}
+                      >
+                        {value
+                          ? dayjs(value).format("MMM DD, YYYY")
+                          : t("optional")}
+                      </Text>
+                      <Ionicons
+                        name="calendar-outline"
+                        size={18}
+                        color={colors.text.secondary}
+                      />
+                    </TouchableOpacity>
+                    {fieldState.error && (
+                      <Text
+                        className="text-sm mt-1"
+                        style={{ color: colors.error }}
+                      >
+                        {fieldState.error.message}
+                      </Text>
+                    )}
+                  </>
                 )}
               />
             </View>
@@ -539,7 +609,7 @@ export default function CreateInvoiceScreen() {
               className="text-sm font-medium mb-2"
               style={{ color: colors.text.secondary }}
             >
-              Reference
+              {t("reference")}
             </Text>
             <Controller
               control={control}
@@ -573,7 +643,7 @@ export default function CreateInvoiceScreen() {
               className="text-base font-semibold"
               style={{ color: colors.text.primary }}
             >
-              Line Items <Text style={{ color: colors.error }}>*</Text>
+              {t("lineItems")} <Text style={{ color: colors.error }}>*</Text>
             </Text>
             <TouchableOpacity
               className="flex-row items-center px-3 py-2 rounded-lg"
@@ -592,7 +662,7 @@ export default function CreateInvoiceScreen() {
                 className="ml-1 text-sm font-medium"
                 style={{ color: colors.primary }}
               >
-                Add Item
+                {t("addItem")}
               </Text>
             </TouchableOpacity>
           </View>
@@ -613,6 +683,7 @@ export default function CreateInvoiceScreen() {
               canRemove={fields.length > 1}
               onCalculateTotal={calculateLineItemTotal}
               setValue={setValue}
+              getValues={getValues}
               invoiceType={invoiceType}
             />
           ))}
@@ -627,7 +698,7 @@ export default function CreateInvoiceScreen() {
             className="text-base font-semibold mb-4"
             style={{ color: colors.text.primary }}
           >
-            Discount (Optional)
+            {t("discountOptional")}
           </Text>
           <View className="flex-row gap-3">
             <Controller
@@ -668,21 +739,33 @@ export default function CreateInvoiceScreen() {
             <Controller
               control={control}
               name="discount_value"
-              render={({ field: { onChange, onBlur, value } }) => (
-                <TextInput
-                  value={value}
-                  onChangeText={onChange}
-                  onBlur={onBlur}
-                  placeholder="0"
-                  placeholderTextColor={colors.inputPlaceholder}
-                  {...amountInputProps}
-                  className="flex-1 border rounded-xl px-4 py-3 text-base"
-                  style={{
-                    backgroundColor: colors.bg.secondary,
-                    borderColor: colors.inputBorder,
-                    color: colors.text.primary,
-                  }}
-                />
+              render={({ field: { onChange, onBlur, value }, fieldState }) => (
+                <View className="flex-1">
+                  <TextInput
+                    value={value}
+                    onChangeText={(t) => onChange(normalizeAmountInput(t))}
+                    onBlur={onBlur}
+                    placeholder="0"
+                    placeholderTextColor={colors.inputPlaceholder}
+                    {...amountInputProps}
+                    className="border rounded-xl px-4 py-3 text-base"
+                    style={{
+                      backgroundColor: colors.bg.secondary,
+                      borderColor: fieldState.error
+                        ? colors.error
+                        : colors.inputBorder,
+                      color: colors.text.primary,
+                    }}
+                  />
+                  {fieldState.error && (
+                    <Text
+                      className="text-sm mt-1"
+                      style={{ color: colors.error }}
+                    >
+                      {fieldState.error.message}
+                    </Text>
+                  )}
+                </View>
               )}
             />
           </View>
@@ -699,7 +782,7 @@ export default function CreateInvoiceScreen() {
             className="text-base font-semibold mb-1"
             style={{ color: colors.text.primary }}
           >
-            Payment Mode
+            {t("paymentMode")}
           </Text>
           <Text
             className="text-xs mb-4"
@@ -766,7 +849,7 @@ export default function CreateInvoiceScreen() {
                             : colors.text.secondary,
                       }}
                     >
-                      {opt.label}
+                      {paymentModeLabels[opt.key] ?? opt.label}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -790,8 +873,7 @@ export default function CreateInvoiceScreen() {
                 className="flex-1 text-sm"
                 style={{ color: colors.warning }}
               >
-                No cash movement. The amount will be tracked as due in the party
-                ledger (Halkhata). You can record payment later.
+                {t("duePaymentNote")}
               </Text>
             </View>
           )}
@@ -803,14 +885,24 @@ export default function CreateInvoiceScreen() {
               <Controller
                 control={control}
                 name="initial_payment_account"
-                render={({ field: { value, onChange } }) => (
-                  <SearchableSelect
-                    label="Deposit to Account"
-                    placeholder="Select account..."
-                    value={value ?? ""}
-                    options={accountOptions}
-                    onSelect={(val) => onChange(val)}
-                  />
+                render={({ field: { value, onChange }, fieldState }) => (
+                  <View>
+                    <SearchableSelect
+                      label={t("depositToAccount")}
+                      placeholder={t("selectAccountPlaceholder")}
+                      value={value ?? ""}
+                      options={accountOptions}
+                      onSelect={(val) => onChange(val)}
+                    />
+                    {fieldState.error && (
+                      <Text
+                        className="text-sm mt-1"
+                        style={{ color: colors.error }}
+                      >
+                        {fieldState.error.message}
+                      </Text>
+                    )}
+                  </View>
                 )}
               />
 
@@ -824,7 +916,7 @@ export default function CreateInvoiceScreen() {
                       className="text-sm font-medium mb-2"
                       style={{ color: colors.text.secondary }}
                     >
-                      Payment Method
+                      {t("paymentMethod")}
                     </Text>
                     <View className="flex-row flex-wrap gap-2">
                       {(
@@ -858,7 +950,7 @@ export default function CreateInvoiceScreen() {
                                   : colors.text.secondary,
                             }}
                           >
-                            {m.label}
+                            {paymentMethodLabels[m.key] ?? m.label}
                           </Text>
                         </TouchableOpacity>
                       ))}
@@ -872,27 +964,37 @@ export default function CreateInvoiceScreen() {
                 <Controller
                   control={control}
                   name="initial_payment_amount"
-                  render={({ field: { value, onChange } }) => (
+                  render={({ field: { value, onChange }, fieldState }) => (
                     <View>
                       <Text
                         className="text-sm font-medium mb-2"
                         style={{ color: colors.text.secondary }}
                       >
-                        Amount Paid Now
+                        {t("amountPaid")}
                       </Text>
                       <TextInput
                         value={value ?? ""}
-                        onChangeText={onChange}
+                        onChangeText={(t) => onChange(normalizeAmountInput(t))}
                         placeholder="0"
                         placeholderTextColor={colors.inputPlaceholder}
                         {...amountInputProps}
                         className="border rounded-xl px-4 py-3.5 text-base"
                         style={{
                           backgroundColor: colors.bg.secondary,
-                          borderColor: colors.inputBorder,
+                          borderColor: fieldState.error
+                            ? colors.error
+                            : colors.inputBorder,
                           color: colors.text.primary,
                         }}
                       />
+                      {fieldState.error && (
+                        <Text
+                          className="text-sm mt-1"
+                          style={{ color: colors.error }}
+                        >
+                          {fieldState.error.message}
+                        </Text>
+                      )}
                     </View>
                   )}
                 />
@@ -908,9 +1010,9 @@ export default function CreateInvoiceScreen() {
                       className="text-sm font-medium mb-2"
                       style={{ color: colors.text.secondary }}
                     >
-                      Reference{" "}
+                      {t("reference")}{" "}
                       <Text style={{ color: colors.text.tertiary }}>
-                        (optional)
+                        ({t("optional")})
                       </Text>
                     </Text>
                     <TextInput
@@ -941,7 +1043,7 @@ export default function CreateInvoiceScreen() {
             className="text-base font-semibold mb-3"
             style={{ color: colors.text.primary }}
           >
-            Notes
+            {t("notesOptional")}
           </Text>
           <Controller
             control={control}
@@ -976,7 +1078,7 @@ export default function CreateInvoiceScreen() {
             className="text-base font-semibold mb-3"
             style={{ color: colors.text.primary }}
           >
-            Attachments
+            {t("attachments")}
           </Text>
 
           {stagedFiles.length > 0 && (
@@ -1081,7 +1183,7 @@ export default function CreateInvoiceScreen() {
                   style={{ color: colors.text.secondary }}
                   className="text-sm font-medium"
                 >
-                  Gallery
+                  {t("gallery")}
                 </Text>
               </TouchableOpacity>
               {Platform.OS !== "web" && (
@@ -1127,7 +1229,7 @@ export default function CreateInvoiceScreen() {
         }}
       >
         <TouchableOpacity
-          onPress={handleSubmit(onSubmit)}
+          onPress={handleSubmit(onSubmit, onInvalid)}
           disabled={isLoading}
           className="rounded-2xl py-4 items-center shadow-lg"
           style={{
@@ -1139,9 +1241,7 @@ export default function CreateInvoiceScreen() {
             <View className="flex-row items-center gap-2">
               <ActivityIndicator color="white" size="small" />
               <Text className="text-white font-bold text-base">
-                {uploadingAttachments
-                  ? "Uploading attachments…"
-                  : "Creating…"}
+                {uploadingAttachments ? t("uploadingAttachments") : "Creating…"}
               </Text>
             </View>
           ) : (
@@ -1153,8 +1253,8 @@ export default function CreateInvoiceScreen() {
               />
               <Text className="text-white font-bold text-base">
                 {stagedFiles.length > 0
-                  ? `Create Invoice + ${stagedFiles.length} attachment${stagedFiles.length > 1 ? "s" : ""}`
-                  : "Create Invoice"}
+                  ? `${t("addInvoice")} + ${stagedFiles.length} ${t("attachments")}`
+                  : t("addInvoice")}
               </Text>
             </View>
           )}

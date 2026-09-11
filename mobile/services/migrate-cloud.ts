@@ -1,9 +1,20 @@
 import { partiesApi } from "@/services/parties";
+import { productsApi } from "@/services/products";
+import { invoicesApi } from "@/services/invoices";
 import { organizationsApi } from "@/services/organizations";
 import { api } from "@/lib/api";
-import { getDb } from "@/db/client";
+import { getDb, withDbTransaction } from "@/db/client";
+import * as productsRepo from "@/db/repos/products";
+import * as invoicesRepo from "@/db/repos/invoices";
+import { cacheOrganizations } from "@/data/organizations";
 import { META_KEYS, setMeta } from "@/db/meta";
 import { importLocalBackup } from "@/services/local-backup";
+import type {
+  LocalInvoice,
+  LocalInvoiceItem,
+  LocalInvoicePayment,
+  LocalProduct,
+} from "@/db/types";
 import {
   getLocalFirstFlagsSync,
   setLocalFirstFlags,
@@ -238,6 +249,229 @@ async function fetchAllParties(): Promise<any[]> {
   return [...byId.values()];
 }
 
+/** Personal + every organization product catalog (paginated). */
+async function fetchAllCloudProducts(): Promise<any[]> {
+  const byId = new Map<string, any>();
+
+  const pushList = async (params: Record<string, any>) => {
+    try {
+      let page = 1;
+      let pages = 1;
+      while (page <= pages) {
+        const listed = await productsApi.list({ ...params, page, limit: 200 });
+        for (const p of listed.products || []) byId.set(String(p._id), p);
+        pages = Math.max(1, Number(listed.pagination?.pages ?? 1));
+        page += 1;
+        if (page > 500) break;
+      }
+    } catch (e) {
+      console.warn("[migrate] product page failed", e);
+    }
+  };
+
+  await pushList({});
+  try {
+    const orgs = await organizationsApi.list();
+    for (const org of orgs || []) {
+      const id = (org as any).id || org._id;
+      if (id) await pushList({ organization: String(id) });
+    }
+  } catch {
+    /* personal catalog still migrated */
+  }
+
+  return [...byId.values()];
+}
+
+/** Cloud product → local row. Migrated rows are clean (id = server id). */
+function cloudProductToLocal(p: any): LocalProduct {
+  const serverId = String(p._id);
+  const purchase = Number(p.purchase_price ?? 0);
+  const additional = Number(p.additional_cost ?? 0);
+  const created = p.createdAt ?? p.created_at ?? new Date().toISOString();
+  const updated = p.updatedAt ?? p.updated_at ?? created;
+  const organizationId = p.organization
+    ? String(p.organization._id ?? p.organization)
+    : null;
+  const categoryId = p.category_id
+    ? String(p.category_id._id ?? p.category_id)
+    : null;
+
+  return {
+    id: serverId,
+    server_id: serverId,
+    organization_id: organizationId,
+    admin_id: p.admin ? String(p.admin._id ?? p.admin) : null,
+    name: p.name,
+    sku: p.sku ?? null,
+    barcode: p.barcode ?? null,
+    description: p.description ?? null,
+    category_id: categoryId,
+    brand: p.brand ?? null,
+    unit: p.unit ?? "pcs",
+    image_uri: p.images?.[0]?.url ?? null,
+    purchase_price: purchase,
+    additional_cost: additional,
+    cost_price: Number(p.cost_price ?? purchase + additional),
+    sale_price: Number(p.sale_price ?? 0),
+    tax_rate: Number(p.tax_rate ?? 0),
+    current_stock: Number(p.current_stock ?? 0),
+    opening_stock: Number(p.opening_stock ?? 0),
+    low_stock_threshold: Number(p.low_stock_threshold ?? 0),
+    track_inventory: p.track_inventory === false ? 0 : 1,
+    supplier_party_id: null,
+    is_active: p.is_active === false ? 0 : 1,
+    meta_data_json: p.meta_data ? JSON.stringify(p.meta_data) : null,
+    created_at: created,
+    updated_at: updated,
+    deleted_at: p.is_deleted ? (p.deleted_at ?? null) : null,
+    dirty: 0,
+    sync_version: 0,
+    client_request_id: null,
+    device_id: "migrate",
+    sync_status: "synced",
+    retry_count: 0,
+    last_sync_error: null,
+  };
+}
+
+/** Personal + every organization invoices (paginated; items/payments included). */
+async function fetchAllCloudInvoices(): Promise<any[]> {
+  const byId = new Map<string, any>();
+
+  const pushList = async (params: Record<string, any>) => {
+    try {
+      let page = 1;
+      let pages = 1;
+      while (page <= pages) {
+        const listed = await invoicesApi.list({ ...params, page, limit: 100 });
+        for (const inv of listed.invoices || []) byId.set(String(inv._id), inv);
+        pages = Math.max(1, Number(listed.pagination?.pages ?? 1));
+        page += 1;
+        if (page > 500) break;
+      }
+    } catch (e) {
+      console.warn("[migrate] invoice page failed", e);
+    }
+  };
+
+  await pushList({});
+  try {
+    const orgs = await organizationsApi.list();
+    for (const org of orgs || []) {
+      const id = (org as any).id || org._id;
+      if (id) await pushList({ organization: String(id) });
+    }
+  } catch {
+    /* personal invoices still migrated */
+  }
+
+  return [...byId.values()];
+}
+
+const idStr = (v: any): string | null => {
+  if (!v) return null;
+  if (typeof v === "object") return v._id ? String(v._id) : null;
+  return String(v);
+};
+
+function cloudInvoiceToLocal(inv: any): {
+  invoice: LocalInvoice;
+  items: LocalInvoiceItem[];
+  payments: LocalInvoicePayment[];
+} {
+  const serverId = String(inv._id);
+  const created = inv.createdAt ?? inv.created_at ?? new Date().toISOString();
+  const updated = inv.updatedAt ?? inv.updated_at ?? created;
+  const deletedAt = inv.deleted_at ?? null;
+
+  const invoice: LocalInvoice = {
+    id: serverId,
+    server_id: serverId,
+    organization_id: idStr(inv.organization),
+    admin_id: idStr(inv.admin),
+    invoice_number: inv.invoice_number,
+    number_seq: null,
+    type: inv.type === "purchase" ? "purchase" : "sale",
+    status: inv.status ?? "pending",
+    party_id: idStr(inv.party),
+    party_name: inv.party_name ?? (inv.party?.name as string) ?? null,
+    party_phone: inv.party_phone ?? null,
+    party_address: inv.party_address ?? null,
+    date: inv.date,
+    due_date: inv.due_date ?? null,
+    subtotal: Number(inv.subtotal ?? 0),
+    total_discount: Number(inv.total_discount ?? 0),
+    total_tax: Number(inv.total_tax ?? 0),
+    shipping_charge: Number(inv.shipping_charge ?? 0),
+    adjustment: Number(inv.adjustment ?? 0),
+    adjustment_description: inv.adjustment_description ?? null,
+    grand_total: Number(inv.grand_total ?? 0),
+    amount_paid: Number(inv.amount_paid ?? 0),
+    balance_due: Number(inv.balance_due ?? 0),
+    notes: inv.notes ?? null,
+    terms: inv.terms ?? null,
+    internal_notes: inv.internal_notes ?? null,
+    linked_transaction_ids_json: Array.isArray(inv.linked_transactions)
+      ? JSON.stringify(inv.linked_transactions.map((t: any) => idStr(t)))
+      : null,
+    created_at: created,
+    updated_at: updated,
+    deleted_at: deletedAt,
+    dirty: 0,
+    sync_version: 0,
+    client_request_id: null,
+    device_id: "migrate",
+    sync_status: "synced",
+    retry_count: 0,
+    last_sync_error: null,
+  };
+
+  const items: LocalInvoiceItem[] = (inv.items ?? []).map(
+    (it: any, idx: number): LocalInvoiceItem => ({
+      id: it._id ? String(it._id) : `${serverId}:item:${idx}`,
+      invoice_id: serverId,
+      product_id: idStr(it.product),
+      description: it.description ?? "",
+      quantity: Number(it.quantity ?? 1),
+      unit: it.unit ?? null,
+      unit_price: Number(it.unit_price ?? 0),
+      discount: Number(it.discount ?? 0),
+      discount_type: it.discount_type === "percent" ? "percent" : "fixed",
+      tax_rate: Number(it.tax_rate ?? 0),
+      subtotal: Number(it.subtotal ?? 0),
+      discount_amount: Number(it.discount_amount ?? 0),
+      tax_amount: Number(it.tax_amount ?? 0),
+      total: Number(it.total ?? 0),
+      unit_cost_at_sale:
+        it.unit_cost_at_sale === undefined || it.unit_cost_at_sale === null
+          ? null
+          : Number(it.unit_cost_at_sale),
+      barcode_snapshot: it.barcode ?? null,
+      category_id: idStr(it.category_id),
+      notes: it.notes ?? null,
+      created_at: created,
+    }),
+  );
+
+  const payments: LocalInvoicePayment[] = (inv.payments ?? []).map(
+    (p: any, idx: number): LocalInvoicePayment => ({
+      id: p._id ? String(p._id) : `${serverId}:pay:${idx}`,
+      invoice_id: serverId,
+      date: p.date ?? created,
+      amount: Number(p.amount ?? 0),
+      method: p.method ?? null,
+      account_id: idStr(p.account),
+      transaction_id: idStr(p.transaction),
+      reference: p.reference ?? null,
+      notes: p.notes ?? null,
+      created_at: created,
+    }),
+  );
+
+  return { invoice, items, payments };
+}
+
 /**
  * Cloud → local migration. Imports personal + organization ledgers into SQLite
  * with relational fields (party, for_party, category, description, etc.).
@@ -307,6 +541,64 @@ export async function migrateCloudToLocal(opts?: {
     });
     const completedAt = new Date().toISOString();
     const db = await getDb();
+
+    // Shop foundation (Phase 2): seed product catalog + shop settings cache.
+    // Best-effort — ledger migration must never fail if shop APIs 404.
+    let productsCount = 0;
+    let productsSkipped = 0;
+    try {
+      const cloudProducts = await fetchAllCloudProducts();
+      // Unique (org, barcode) is enforced locally but NOT on the server, so a
+      // single duplicate must not abort seeding the whole catalog.
+      for (const p of cloudProducts) {
+        try {
+          await productsRepo.upsertProductFromSync(db, cloudProductToLocal(p));
+          productsCount += 1;
+        } catch (e) {
+          productsSkipped += 1;
+          console.warn(
+            "[migrate] skipped product (duplicate barcode?)",
+            (p as any)?.name,
+            e,
+          );
+        }
+      }
+    } catch (e) {
+      console.warn("[migrate] product seed failed", e);
+    }
+    let invoicesCount = 0;
+    let invoicesSkipped = 0;
+    try {
+      const cloudInvoices = await fetchAllCloudInvoices();
+      await withDbTransaction(db, async (txn) => {
+        for (const inv of cloudInvoices) {
+          try {
+            const mapped = cloudInvoiceToLocal(inv);
+            await invoicesRepo.upsertInvoiceFromSync(txn, mapped.invoice);
+            for (const it of mapped.items) {
+              await invoicesRepo.upsertInvoiceItemFromSync(txn, it);
+            }
+            for (const p of mapped.payments) {
+              await invoicesRepo.upsertInvoicePaymentFromSync(txn, p);
+            }
+            invoicesCount += 1;
+          } catch (e) {
+            // One malformed invoice must not abort the whole history.
+            invoicesSkipped += 1;
+            console.warn("[migrate] skipped invoice", (inv as any)?._id, e);
+          }
+        }
+      });
+    } catch (e) {
+      console.warn("[migrate] invoice seed failed", e);
+    }
+    try {
+      const orgs = await organizationsApi.list();
+      await cacheOrganizations(orgs);
+    } catch (e) {
+      console.warn("[migrate] org cache seed failed", e);
+    }
+
     await setMeta(db, META_KEYS.MIGRATION_COMPLETED_AT, completedAt);
     // Fresh full export already includes org books — skip epoch re-pull.
     await setMeta(db, META_KEYS.LAST_SYNC_CURSOR, completedAt);
@@ -329,6 +621,10 @@ export async function migrateCloudToLocal(opts?: {
         partiesCount: summary.partiesCount,
         transactionsCount: summary.transactionsCount,
         transfersCount: summary.transfersCount,
+        productsCount,
+        productsSkipped,
+        invoicesCount,
+        invoicesSkipped,
       },
     };
   } catch (e) {

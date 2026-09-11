@@ -8,11 +8,22 @@ const LEDGER_TABLES = [
   "transfers",
 ] as const;
 
+/**
+ * Every table that can hold rows waiting to push. Shop entities are included so
+ * the sync badge reflects real pending work (Phase 13 made them syncable).
+ */
+const SYNC_TABLES = [
+  ...LEDGER_TABLES,
+  "products",
+  "invoices",
+  "inventory_movements",
+] as const;
+
 /** Count rows waiting to push (dirty = 1). */
 export async function countPendingDirty(): Promise<number> {
   const db = await getDb();
   let total = 0;
-  for (const table of LEDGER_TABLES) {
+  for (const table of SYNC_TABLES) {
     const row = await db.getFirstAsync<{ c: number }>(
       `SELECT COUNT(*) as c FROM ${table} WHERE dirty = 1`,
     );

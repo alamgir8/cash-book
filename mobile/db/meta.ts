@@ -59,6 +59,8 @@ export const META_KEYS = {
   MIGRATION_COMPLETED_AT: "migration_completed_at",
   /** Bump when repairLocalLedgerSemantics logic changes so devices re-run it. */
   LEDGER_REPAIR_VERSION: "ledger_repair_version",
+  /** Bump when product stock reconciliation logic changes so devices re-run it. */
+  PRODUCT_STOCK_RECONCILE_VERSION: "product_stock_reconcile_version",
   LAST_LOCAL_BACKUP_AT: "last_local_backup_at",
   LAST_DRIVE_BACKUP_AT: "last_drive_backup_at",
   LAST_DRIVE_PATH: "last_drive_path",

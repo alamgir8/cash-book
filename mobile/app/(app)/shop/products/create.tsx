@@ -1,150 +1,220 @@
-import React, { useState, useCallback } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
-  Alert,
   ActivityIndicator,
-  Platform,
   Switch,
   ScrollView,
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { Controller, useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { useTheme } from "@/hooks/use-theme";
 import { useActiveOrgId } from "@/hooks/use-organization";
 import { useCreateProduct } from "@/hooks/use-products";
 import { BarcodeScannerModal } from "@/components/invoices/barcode-scanner-modal";
 import { ScreenHeader } from "@/components/screen-header";
-import type { ProductUnit } from "@/types/product";
-import { amountInputProps } from "@/lib/amount-input";
+import {
+  PRODUCT_UNIT_VALUES,
+  createProductFormSchema,
+  type ProductFormData,
+} from "@/lib/validations/shop";
+import {
+  amountInputProps,
+  normalizeAmountInput,
+  parseAmountInput,
+} from "@/lib/amount-input";
 import { useKeyboardFooterLift } from "@/hooks/use-keyboard-footer-lift";
-
-const UNITS: ProductUnit[] = [
-  "pcs",
-  "kg",
-  "g",
-  "liter",
-  "ml",
-  "meter",
-  "box",
-  "pack",
-  "dozen",
-  "pair",
-  "set",
-  "bag",
-  "bottle",
-  "can",
-  "carton",
-];
+import { toast } from "@/lib/toast";
+import {
+  SmartAddBar,
+  type SmartAddItem,
+} from "@/components/shop/smart-add-bar";
+import { useTranslation } from "@/hooks/use-translation";
 
 export default function CreateProductScreen() {
   const { colors } = useTheme();
+  const { t, language } = useTranslation();
   const { footerContainerStyle, scrollProps } = useKeyboardFooterLift();
   const router = useRouter();
   const organizationId = useActiveOrgId();
-
-  const [name, setName] = useState("");
-  const [sku, setSku] = useState("");
-  const [barcode, setBarcode] = useState("");
-  const [description, setDescription] = useState("");
-  const [unit, setUnit] = useState<ProductUnit>("pcs");
-  const [purchasePrice, setPurchasePrice] = useState("");
-  const [salePrice, setSalePrice] = useState("");
-  const [taxRate, setTaxRate] = useState("0");
-  const [openingStock, setOpeningStock] = useState("0");
-  const [lowStockThreshold, setLowStockThreshold] = useState("0");
-  const [trackInventory, setTrackInventory] = useState(true);
   const [scannerVisible, setScannerVisible] = useState(false);
+
+  // Schema factory is keyed on the language so messages follow the locale.
+  const schema = useMemo(() => createProductFormSchema(t), [language]);
+
+  const {
+    control,
+    handleSubmit,
+    setValue,
+    watch,
+    formState: { errors },
+  } = useForm<ProductFormData>({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      name: "",
+      sku: "",
+      barcode: "",
+      description: "",
+      unit: "pcs",
+      purchase_price: "",
+      additional_cost: "",
+      sale_price: "",
+      tax_rate: "0",
+      opening_stock: "0",
+      low_stock_threshold: "0",
+      track_inventory: true,
+    },
+  });
+
+  const trackInventory = watch("track_inventory");
+  const unit = watch("unit");
 
   const mutation = useCreateProduct({
     onSuccess: () => router.back(),
   });
 
-  const handleScan = useCallback((scannedBarcode: string) => {
-    setBarcode(scannedBarcode);
-    setScannerVisible(false);
-  }, []);
+  const handleScan = useCallback(
+    (scannedBarcode: string) => {
+      setValue("barcode", scannedBarcode, { shouldValidate: true });
+      setScannerVisible(false);
+    },
+    [setValue],
+  );
 
-  const handleSubmit = useCallback(() => {
-    if (!name.trim()) {
-      Alert.alert("Validation", "Product name is required.");
-      return;
-    }
-    mutation.mutate({
-      organization: organizationId || undefined,
-      name: name.trim(),
-      sku: sku.trim() || undefined,
-      barcode: barcode.trim() || undefined,
-      description: description.trim() || undefined,
-      unit,
-      purchase_price: parseFloat(purchasePrice) || 0,
-      sale_price: parseFloat(salePrice) || 0,
-      tax_rate: parseFloat(taxRate) || 0,
-      current_stock: parseFloat(openingStock) || 0,
-      low_stock_threshold: parseFloat(lowStockThreshold) || 0,
-      track_inventory: trackInventory,
-    });
-  }, [
-    name,
-    sku,
-    barcode,
-    description,
-    unit,
-    purchasePrice,
-    salePrice,
-    taxRate,
-    openingStock,
-    lowStockThreshold,
-    trackInventory,
-    organizationId,
-    mutation,
-  ]);
+  /** Fill the form from a spoken/typed phrase, e.g. "সাবান ২টা ৪৫ টাকা". */
+  const applySmartItem = useCallback(
+    (items: SmartAddItem[]) => {
+      const item = items[0];
+      if (!item) return;
+      setValue("name", item.name);
+      if (item.unit && (PRODUCT_UNIT_VALUES as readonly string[]).includes(item.unit)) {
+        setValue("unit", item.unit as (typeof PRODUCT_UNIT_VALUES)[number]);
+      }
+      if (item.quantity !== null) {
+        setValue("opening_stock", String(item.quantity));
+      }
+      // A single spoken price is treated as the SELLING price, since that is
+      // what a price usually means for a catalog entry. Saying two prices
+      // ("ক্রয় ৪০ বিক্রয় ৪৫") fills both explicitly.
+      if (item.sale_price !== null) {
+        setValue("sale_price", String(item.sale_price));
+      } else if (item.unit_price !== null && item.purchase_price === null) {
+        setValue("sale_price", String(item.unit_price));
+      }
+      if (item.purchase_price !== null) {
+        setValue("purchase_price", String(item.purchase_price));
+      }
+      if (item.pricingAmbiguous) {
+        toast.info(t("pricingOrderAssumed"));
+      }
+    },
+    [setValue, t],
+  );
+
+  const onSubmit = useCallback(
+    (data: ProductFormData) => {
+      mutation.mutate({
+        organization: organizationId || undefined,
+        name: data.name.trim(),
+        sku: data.sku?.trim() || undefined,
+        barcode: data.barcode?.trim() || undefined,
+        description: data.description?.trim() || undefined,
+        unit: data.unit,
+        purchase_price: parseAmountInput(data.purchase_price),
+        additional_cost: parseAmountInput(data.additional_cost),
+        sale_price: parseAmountInput(data.sale_price),
+        tax_rate: parseAmountInput(data.tax_rate),
+        current_stock: parseAmountInput(data.opening_stock),
+        low_stock_threshold: parseAmountInput(data.low_stock_threshold),
+        track_inventory: data.track_inventory,
+      });
+    },
+    [mutation, organizationId],
+  );
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg.primary }}>
-      <ScreenHeader title="Add Product" showBack />
+      <ScreenHeader title={t("addProduct")} showBack />
 
       <KeyboardAwareScrollView
         style={{ flex: 1 }}
         {...scrollProps}
         contentContainerStyle={{ padding: 16, paddingBottom: 24 }}
       >
+        {/* Speak or type the whole product in one line. */}
+        <SmartAddBar
+          mode="product"
+          organizationId={organizationId}
+          onSubmit={applySmartItem}
+        />
+
         {/* Basic Info */}
         <SectionTitle title="Basic Information" colors={colors} />
 
-        <Field label="Product Name *" colors={colors}>
-          <TextInput
-            style={inputStyle(colors)}
-            value={name}
-            onChangeText={setName}
-            placeholder="e.g. Basmati Rice 5kg"
-            placeholderTextColor={colors.text.tertiary}
+        <Field label={`${t("productName")} *`} colors={colors} error={errors.name?.message}>
+          <Controller
+            control={control}
+            name="name"
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
+                style={inputStyle(colors, !!errors.name)}
+                value={value}
+                onChangeText={onChange}
+                onBlur={onBlur}
+                placeholder={t("productNamePlaceholder")}
+                placeholderTextColor={colors.text.tertiary}
+              />
+            )}
           />
         </Field>
 
-        <Field label="SKU (auto-generated if blank)" colors={colors}>
-          <TextInput
-            style={inputStyle(colors)}
-            value={sku}
-            onChangeText={setSku}
-            placeholder="e.g. RICE001"
-            placeholderTextColor={colors.text.tertiary}
-            autoCapitalize="characters"
+        <Field
+          label={t("skuAutoHint")}
+          colors={colors}
+          error={errors.sku?.message}
+        >
+          <Controller
+            control={control}
+            name="sku"
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
+                style={inputStyle(colors, !!errors.sku)}
+                value={value}
+                onChangeText={onChange}
+                onBlur={onBlur}
+                placeholder="e.g. RICE001"
+                placeholderTextColor={colors.text.tertiary}
+                autoCapitalize="characters"
+              />
+            )}
           />
         </Field>
 
-        <Field label="Barcode" colors={colors}>
+        <Field
+          label={t("barcodeOptional")}
+          colors={colors}
+          error={errors.barcode?.message}
+        >
           <View style={{ flexDirection: "row", gap: 8 }}>
-            <TextInput
-              style={[inputStyle(colors), { flex: 1 }]}
-              value={barcode}
-              onChangeText={setBarcode}
-              placeholder="Scan or enter manually"
-              placeholderTextColor={colors.text.tertiary}
-              keyboardType="default"
+            <Controller
+              control={control}
+              name="barcode"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  style={[inputStyle(colors, !!errors.barcode), { flex: 1 }]}
+                  value={value}
+                  onChangeText={onChange}
+                  onBlur={onBlur}
+                  placeholder={t("barcodePlaceholder")}
+                  placeholderTextColor={colors.text.tertiary}
+                  keyboardType="default"
+                />
+              )}
             />
             <TouchableOpacity
               onPress={() => setScannerVisible(true)}
@@ -163,31 +233,42 @@ export default function CreateProductScreen() {
           </View>
         </Field>
 
-        <Field label="Description" colors={colors}>
-          <TextInput
-            style={[
-              inputStyle(colors),
-              { height: 72, textAlignVertical: "top" },
-            ]}
-            value={description}
-            onChangeText={setDescription}
-            placeholder="Optional notes about this product"
-            placeholderTextColor={colors.text.tertiary}
-            multiline
+        <Field
+          label={t("description")}
+          colors={colors}
+          error={errors.description?.message}
+        >
+          <Controller
+            control={control}
+            name="description"
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
+                style={[
+                  inputStyle(colors, !!errors.description),
+                  { height: 72, textAlignVertical: "top" },
+                ]}
+                value={value}
+                onChangeText={onChange}
+                onBlur={onBlur}
+                placeholder="Optional notes about this product"
+                placeholderTextColor={colors.text.tertiary}
+                multiline
+              />
+            )}
           />
         </Field>
 
         {/* Unit */}
-        <SectionTitle title="Unit" colors={colors} />
+        <SectionTitle title={t("unit")} colors={colors} />
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={{ gap: 8, paddingVertical: 4 }}
         >
-          {UNITS.map((u) => (
+          {PRODUCT_UNIT_VALUES.map((u) => (
             <TouchableOpacity
               key={u}
-              onPress={() => setUnit(u)}
+              onPress={() => setValue("unit", u, { shouldValidate: true })}
               style={{
                 paddingHorizontal: 14,
                 paddingVertical: 8,
@@ -210,44 +291,101 @@ export default function CreateProductScreen() {
         </ScrollView>
 
         {/* Pricing */}
-        <SectionTitle title="Pricing" colors={colors} />
+        <SectionTitle title={t("pricing")} colors={colors} />
 
         <View style={{ flexDirection: "row", gap: 10 }}>
-          <Field label="Purchase Price" colors={colors} style={{ flex: 1 }}>
-            <TextInput
-              style={inputStyle(colors)}
-              value={purchasePrice}
-              onChangeText={setPurchasePrice}
-              placeholder="0.00"
-              placeholderTextColor={colors.text.tertiary}
-              {...amountInputProps}
+          <Field
+            label={t("purchasePrice")}
+            colors={colors}
+            style={{ flex: 1 }}
+            error={errors.purchase_price?.message}
+          >
+            <Controller
+              control={control}
+              name="purchase_price"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  style={inputStyle(colors, !!errors.purchase_price)}
+                  value={value}
+                  onChangeText={(t) => onChange(normalizeAmountInput(t))}
+                  onBlur={onBlur}
+                  placeholder="0.00"
+                  placeholderTextColor={colors.text.tertiary}
+                  {...amountInputProps}
+                />
+              )}
             />
           </Field>
-          <Field label="Sale Price" colors={colors} style={{ flex: 1 }}>
-            <TextInput
-              style={inputStyle(colors)}
-              value={salePrice}
-              onChangeText={setSalePrice}
-              placeholder="0.00"
-              placeholderTextColor={colors.text.tertiary}
-              {...amountInputProps}
+          <Field
+            label={t("salePrice")}
+            colors={colors}
+            style={{ flex: 1 }}
+            error={errors.sale_price?.message}
+          >
+            <Controller
+              control={control}
+              name="sale_price"
+              render={({ field: { onChange, onBlur, value } }) => (
+                <TextInput
+                  style={inputStyle(colors, !!errors.sale_price)}
+                  value={value}
+                  onChangeText={(t) => onChange(normalizeAmountInput(t))}
+                  onBlur={onBlur}
+                  placeholder="0.00"
+                  placeholderTextColor={colors.text.tertiary}
+                  {...amountInputProps}
+                />
+              )}
             />
           </Field>
         </View>
 
-        <Field label="Tax Rate (%)" colors={colors}>
-          <TextInput
-            style={inputStyle(colors)}
-            value={taxRate}
-            onChangeText={setTaxRate}
-            placeholder="0"
-            placeholderTextColor={colors.text.tertiary}
-            {...amountInputProps}
+        <Field
+          label={t("additionalCost")}
+          colors={colors}
+          error={errors.additional_cost?.message}
+        >
+          <Controller
+            control={control}
+            name="additional_cost"
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
+                style={inputStyle(colors, !!errors.additional_cost)}
+                value={value}
+                onChangeText={(t) => onChange(normalizeAmountInput(t))}
+                onBlur={onBlur}
+                placeholder="0.00"
+                placeholderTextColor={colors.text.tertiary}
+                {...amountInputProps}
+              />
+            )}
+          />
+        </Field>
+
+        <Field
+          label={t("taxRate")}
+          colors={colors}
+          error={errors.tax_rate?.message}
+        >
+          <Controller
+            control={control}
+            name="tax_rate"
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
+                style={inputStyle(colors, !!errors.tax_rate)}
+                value={value}
+                onChangeText={(t) => onChange(normalizeAmountInput(t))}
+                onBlur={onBlur}
+                placeholder="0"
+                placeholderTextColor={colors.text.tertiary}
+                {...amountInputProps}
+              />
+            )}
           />
         </Field>
 
         {/* Inventory */}
-        <SectionTitle title="Inventory" colors={colors} />
+        <SectionTitle title={t("inventory")} colors={colors} />
 
         <View
           style={{
@@ -270,7 +408,7 @@ export default function CreateProductScreen() {
                 color: colors.text.primary,
               }}
             >
-              Track Inventory
+              {t("trackInventory")}
             </Text>
             <Text
               style={{
@@ -279,42 +417,71 @@ export default function CreateProductScreen() {
                 marginTop: 2,
               }}
             >
-              Automatically update stock on invoices
+              {t("trackInventoryHint")}
             </Text>
           </View>
-          <Switch
-            value={trackInventory}
-            onValueChange={setTrackInventory}
-            trackColor={{ true: colors.info, false: colors.border }}
-            thumbColor={trackInventory ? "#fff" : "#aaa"}
+          <Controller
+            control={control}
+            name="track_inventory"
+            render={({ field: { onChange, value } }) => (
+              <Switch
+                value={value}
+                onValueChange={onChange}
+                trackColor={{ true: colors.info, false: colors.border }}
+                thumbColor={value ? "#fff" : "#aaa"}
+              />
+            )}
           />
         </View>
 
         {trackInventory && (
           <View style={{ flexDirection: "row", gap: 10 }}>
-            <Field label="Opening Stock" colors={colors} style={{ flex: 1 }}>
-              <TextInput
-                style={inputStyle(colors)}
-                value={openingStock}
-                onChangeText={setOpeningStock}
-                placeholder="0"
-                placeholderTextColor={colors.text.tertiary}
-                {...amountInputProps}
+            <Field
+              label={t("openingStock")}
+              colors={colors}
+              style={{ flex: 1 }}
+              error={errors.opening_stock?.message}
+            >
+              <Controller
+                control={control}
+                name="opening_stock"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <TextInput
+                    style={inputStyle(colors, !!errors.opening_stock)}
+                    value={value}
+                    onChangeText={(t) => onChange(normalizeAmountInput(t))}
+                    onBlur={onBlur}
+                    placeholder="0"
+                    placeholderTextColor={colors.text.tertiary}
+                    {...amountInputProps}
+                  />
+                )}
               />
             </Field>
-            <Field label="Low Stock Alert" colors={colors} style={{ flex: 1 }}>
-              <TextInput
-                style={inputStyle(colors)}
-                value={lowStockThreshold}
-                onChangeText={setLowStockThreshold}
-                placeholder="0"
-                placeholderTextColor={colors.text.tertiary}
-                {...amountInputProps}
+            <Field
+              label={t("lowStockAlert")}
+              colors={colors}
+              style={{ flex: 1 }}
+              error={errors.low_stock_threshold?.message}
+            >
+              <Controller
+                control={control}
+                name="low_stock_threshold"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <TextInput
+                    style={inputStyle(colors, !!errors.low_stock_threshold)}
+                    value={value}
+                    onChangeText={(t) => onChange(normalizeAmountInput(t))}
+                    onBlur={onBlur}
+                    placeholder="0"
+                    placeholderTextColor={colors.text.tertiary}
+                    {...amountInputProps}
+                  />
+                )}
               />
             </Field>
           </View>
         )}
-
       </KeyboardAwareScrollView>
 
       <View
@@ -325,7 +492,7 @@ export default function CreateProductScreen() {
         }}
       >
         <TouchableOpacity
-          onPress={handleSubmit}
+          onPress={handleSubmit(onSubmit)}
           disabled={mutation.isPending}
           className="rounded-2xl py-4 items-center shadow-lg"
           style={{
@@ -336,13 +503,13 @@ export default function CreateProductScreen() {
           {mutation.isPending ? (
             <View className="flex-row items-center gap-2">
               <ActivityIndicator color="#fff" />
-              <Text className="text-white font-bold text-base">Saving…</Text>
+              <Text className="text-white font-bold text-base">{t("saving")}</Text>
             </View>
           ) : (
             <View className="flex-row items-center gap-2">
               <Ionicons name="checkmark-circle" size={20} color="white" />
               <Text className="text-white font-bold text-base">
-                Save Product
+                {t("saveProduct")}
               </Text>
             </View>
           )}
@@ -353,7 +520,7 @@ export default function CreateProductScreen() {
         visible={scannerVisible}
         onClose={() => setScannerVisible(false)}
         onScan={handleScan}
-        title="Scan Product Barcode"
+        title={t("scanProductBarcode")}
       />
     </View>
   );
@@ -384,11 +551,13 @@ function Field({
   children,
   colors,
   style,
+  error,
 }: {
   label: string;
   children: React.ReactNode;
   colors: any;
   style?: object;
+  error?: string;
 }) {
   return (
     <View style={[{ marginBottom: 12 }, style]}>
@@ -399,15 +568,20 @@ function Field({
         {label}
       </Text>
       {children}
+      {error ? (
+        <Text style={{ color: colors.error, fontSize: 12, marginTop: 4 }}>
+          {error}
+        </Text>
+      ) : null}
     </View>
   );
 }
 
-const inputStyle = (colors: any) => ({
+const inputStyle = (colors: any, hasError = false) => ({
   backgroundColor: colors.bg.tertiary,
   borderRadius: 12,
   borderWidth: 1,
-  borderColor: colors.border,
+  borderColor: hasError ? colors.error : colors.border,
   paddingHorizontal: 16,
   paddingVertical: 12,
   fontSize: 16,

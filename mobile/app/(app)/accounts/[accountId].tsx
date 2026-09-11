@@ -127,13 +127,13 @@ export default function AccountDetailScreen() {
       await refreshTransactionData(queryClient);
       setModalVisible(false);
       setEditingTransaction(null);
-      Toast.show({ type: "success", text1: "Transaction updated" });
+      Toast.show({ type: "success", text1: t("transactionUpdated") });
     },
     onError: () =>
       Toast.show({
         type: "error",
-        text1: "Error updating transaction",
-        text2: "Please try again.",
+        text1: t("updateFailed"),
+        text2: t("somethingWentWrong"),
       }),
   });
 
@@ -142,13 +142,13 @@ export default function AccountDetailScreen() {
     onSuccess: async () => {
       resetToPageOne();
       await refreshTransactionData(queryClient);
-      Toast.show({ type: "success", text1: "Transaction deleted" });
+      Toast.show({ type: "success", text1: t("transactionDeleted") });
     },
     onError: () =>
       Toast.show({
         type: "error",
-        text1: "Delete failed",
-        text2: "Please try again.",
+        text1: t("deleteFailed"),
+        text2: t("somethingWentWrong"),
       }),
   });
 
@@ -162,7 +162,7 @@ export default function AccountDetailScreen() {
 
   const lastActivityLabel = summary?.lastTransactionDate
     ? dayjs(summary.lastTransactionDate).format("MMM D, YYYY")
-    : "No activity yet";
+    : t("noActivityYet");
 
   const handleViewHistory = useCallback((txn: Transaction) => {
     setViewingVendorHistoryFor(txn);
@@ -181,9 +181,9 @@ export default function AccountDetailScreen() {
           transaction.type === "credit" ? "+" : "-"
         }${transaction.amount})? This cannot be undone.`,
         [
-          { text: "Cancel", style: "cancel" },
+          { text: t("cancel"), style: "cancel" },
           {
-            text: "Delete",
+            text: t("delete"),
             style: "destructive",
             onPress: () => deleteMutation.mutate(transaction._id),
           },
@@ -241,10 +241,10 @@ export default function AccountDetailScreen() {
           break;
       }
 
-      Toast.show({ type: "success", text1: "PDF exported successfully" });
+      Toast.show({ type: "success", text1: t("pdfExported") });
       setExportModalVisible(false);
     } catch {
-      Toast.show({ type: "error", text1: "Failed to export PDF" });
+      Toast.show({ type: "error", text1: t("exportFailed") });
     } finally {
       setExporting(false);
       setExportingType(null);

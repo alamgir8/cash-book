@@ -2,6 +2,7 @@ import { View, Text, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useTheme } from "@/hooks/use-theme";
+import { useTranslation } from "@/hooks/use-translation";
 
 interface BusinessManagementSectionProps {
   canManageParties: boolean;
@@ -15,6 +16,7 @@ export function BusinessManagementSection({
   isOwner,
 }: BusinessManagementSectionProps) {
   const { colors } = useTheme();
+  const { t } = useTranslation();
   return (
     <View
       className="rounded-3xl p-6 border shadow-lg"
@@ -62,7 +64,7 @@ export function BusinessManagementSection({
                 className="font-bold text-base"
                 style={{ color: colors.text.primary }}
               >
-                Organizations
+                {t("organizations")}
               </Text>
               <Text
                 className="text-sm"
@@ -97,7 +99,7 @@ export function BusinessManagementSection({
                 className="font-bold text-base"
                 style={{ color: colors.text.primary }}
               >
-                Customers & Suppliers
+                {t("customersAndSuppliers")}
               </Text>
               <Text
                 className="text-sm"
@@ -166,7 +168,7 @@ export function BusinessManagementSection({
                 className="font-bold text-base"
                 style={{ color: colors.text.primary }}
               >
-                Invoices
+                {t("invoices")}
               </Text>
               <Text
                 className="text-sm"

@@ -36,6 +36,7 @@ import {
 } from "@/data/parties";
 import { getApiErrorMessage } from "@/lib/api";
 import { useDeleteMode } from "@/hooks/use-delete-mode";
+import { useTranslation } from "@/hooks/use-translation";
 import { PartyListCard } from "@/components/parties/party-list-card";
 import { MergeTargetRow } from "@/components/parties/merge-target-row";
 
@@ -74,6 +75,7 @@ export default function PartiesScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { colors, isDark } = useTheme();
+  const { t } = useTranslation();
   const themeKey = isDark ? "dark" : "light";
   const { canManageParties, organizations } = useOrganization();
   const { localFirstEnabled, ready: flagsReady } = useLocalFirstFlags();
@@ -98,14 +100,14 @@ export default function PartiesScreen() {
 
   const orgFilterChips = useMemo(
     () => [
-      { value: "all" as const, label: "All" },
+      { value: "all" as const, label: t("all") },
       { value: "personal" as const, label: "Personal" },
       ...organizations.map((org) => ({
         value: org.id,
         label: org.name,
       })),
     ],
-    [organizations],
+    [organizations, t],
   );
 
   // Debounce search → server query (avoids request storms)
@@ -185,7 +187,7 @@ export default function PartiesScreen() {
       setMergeSearchInput("");
       setMergeSearch("");
       toast.success(
-        "Merge complete",
+        t("mergeComplete"),
         result.message ||
           "Links moved. Source party was kept — delete it if you no longer need it.",
       );
@@ -267,7 +269,7 @@ export default function PartiesScreen() {
         "Confirm merge",
         `Move all transactions/invoices from "${mergeSource.name}" to "${target.name}"?\n\n"${mergeSource.name}" will NOT be deleted automatically.`,
         [
-          { text: "Cancel", style: "cancel" },
+          { text: t("cancel"), style: "cancel" },
           {
             text: "Merge",
             onPress: () =>
@@ -288,9 +290,9 @@ export default function PartiesScreen() {
         "Delete party?",
         `Remove "${party.name}"?\n\nIf it has linked transactions, you'll be offered a merge option instead.`,
         [
-          { text: "Cancel", style: "cancel" },
+          { text: t("cancel"), style: "cancel" },
           {
-            text: "Delete",
+            text: t("delete"),
             style: "destructive",
             onPress: () => {
               void (async () => {
@@ -306,7 +308,7 @@ export default function PartiesScreen() {
                       errData?.message ||
                         `"${party.name}" has linked transactions. Merge into another party first.`,
                       [
-                        { text: "Cancel", style: "cancel" },
+                        { text: t("cancel"), style: "cancel" },
                         {
                           text: "Merge into another…",
                           onPress: () => startMergeFlow(party),
@@ -479,7 +481,7 @@ export default function PartiesScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg.primary }}>
       <ScreenHeader
-        title="Customers & Suppliers"
+        title={t("customersAndSuppliers")}
         showBack
         onBack={goBackToSettings}
         rightAction={

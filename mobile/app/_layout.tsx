@@ -58,6 +58,13 @@ const OrganizationLoader = ({ children }: { children: React.ReactNode }) => {
             permissions: o.permissions || {},
             settings: o.settings,
           }));
+          // Refresh the offline shop-settings cache (best-effort).
+          try {
+            const { cacheOrganizations } = await import("@/data/organizations");
+            await cacheOrganizations(orgs);
+          } catch (e) {
+            if (__DEV__) console.warn("Org cache write failed:", e);
+          }
           setOrganizations(summaries);
         } catch (error: any) {
           const status = error?.response?.status;
@@ -71,32 +78,42 @@ const OrganizationLoader = ({ children }: { children: React.ReactNode }) => {
               "@/lib/local-first/flags"
             );
             if (isLocalFirstEnabled()) {
-              const { getDb } = await import("@/db/client");
-              const db = await getDb();
-              const rows = await db.getAllAsync<{
-                organization_id: string;
-                c: number;
-              }>(
-                `SELECT organization_id, COUNT(*) as c FROM transactions
-                 WHERE deleted_at IS NULL
-                   AND organization_id IS NOT NULL AND organization_id != ''
-                 GROUP BY organization_id
-                 ORDER BY c DESC`,
+              // Prefer the cached org mirror (real names + shop settings).
+              const { readCachedOrganizations } = await import(
+                "@/data/organizations"
               );
-              if (rows.length) {
-                setOrganizations(
-                  rows.map((r, i) => ({
-                    id: r.organization_id,
-                    name:
-                      rows.length === 1
-                        ? "Organization"
-                        : `Organization ${i + 1}`,
-                    business_type: "other",
-                    role: "owner",
-                    permissions: {},
-                    settings: {},
-                  })),
+              const cached = await readCachedOrganizations().catch(() => []);
+              if (cached.length) {
+                setOrganizations(cached);
+              } else {
+                // Last resort: derive org ids from on-device ledger rows.
+                const { getDb } = await import("@/db/client");
+                const db = await getDb();
+                const rows = await db.getAllAsync<{
+                  organization_id: string;
+                  c: number;
+                }>(
+                  `SELECT organization_id, COUNT(*) as c FROM transactions
+                   WHERE deleted_at IS NULL
+                     AND organization_id IS NOT NULL AND organization_id != ''
+                   GROUP BY organization_id
+                   ORDER BY c DESC`,
                 );
+                if (rows.length) {
+                  setOrganizations(
+                    rows.map((r, i) => ({
+                      id: r.organization_id,
+                      name:
+                        rows.length === 1
+                          ? "Organization"
+                          : `Organization ${i + 1}`,
+                      business_type: "other",
+                      role: "owner",
+                      permissions: {},
+                      settings: {} as OrganizationSummary["settings"],
+                    })),
+                  );
+                }
               }
             }
           } catch {

@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -6,14 +6,24 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { FormSheetModal } from "./form-sheet-modal";
-import { organizationsApi, type Organization } from "../services/organizations";
+import { type Organization } from "../services/organizations";
+import {
+  dalCreateOrganization,
+  dalUpdateOrganization,
+} from "../data/organizations";
 import { getApiErrorMessage } from "../lib/api";
 import { toast } from "../lib/toast";
-import { z } from "zod";
 import { useForm, Controller } from "react-hook-form";
 import { CustomInput } from "./custom-input";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useTheme } from "../hooks/use-theme";
+import { useTranslation } from "../hooks/use-translation";
+import {
+  CURRENCY_VALUES,
+  ORGANIZATION_STATUS_VALUES,
+  createOrganizationFormSchema,
+  type OrganizationFormData,
+} from "../lib/validations/shop";
 
 const BUSINESS_TYPES = [
   { value: "retail_shop", label: "Retail Shop", icon: "storefront" },
@@ -33,24 +43,36 @@ const CURRENCIES = [
 ] as const;
 
 const STATUS_OPTIONS = [
-  { value: "active", label: "Active", color: "#10b981" },
-  { value: "suspended", label: "Suspended", color: "#f59e0b" },
-  { value: "archived", label: "Archived", color: "#f43f5e" },
+  { value: "active", labelKey: "active", color: "#10b981" },
+  { value: "suspended", labelKey: "orgStatusSuspended", color: "#f59e0b" },
+  { value: "archived", labelKey: "orgStatusArchived", color: "#f43f5e" },
 ] as const;
 
-// Zod validation schema
-const organizationSchema = z.object({
-  name: z.string().min(2, "Business name must be at least 2 characters"),
-  description: z.string().optional(),
-  business_type: z.string(),
-  phone: z.string().optional(),
-  email: z.string().email("Invalid email address").optional().or(z.literal("")),
-  address: z.string().optional(),
-  currency: z.string(),
-  status: z.enum(["active", "suspended", "archived"]),
-});
+/**
+ * A stored currency outside the picker's options (e.g. set on the backend)
+ * would be an invalid enum value, so fall back to the default rather than
+ * trapping the user on an unsaveable form.
+ */
+function coerceCurrency(stored?: string | null): OrganizationFormData["currency"] {
+  return (CURRENCY_VALUES as readonly string[]).includes(stored ?? "")
+    ? (stored as OrganizationFormData["currency"])
+    : "USD";
+}
 
-type OrganizationFormData = z.infer<typeof organizationSchema>;
+function coerceBusinessType(
+  stored?: string | null,
+): OrganizationFormData["business_type"] {
+  const known = BUSINESS_TYPES.map((t) => t.value) as readonly string[];
+  return known.includes(stored ?? "")
+    ? (stored as OrganizationFormData["business_type"])
+    : "general";
+}
+
+function coerceStatus(stored?: string | null): OrganizationFormData["status"] {
+  return (ORGANIZATION_STATUS_VALUES as readonly string[]).includes(stored ?? "")
+    ? (stored as OrganizationFormData["status"])
+    : "active";
+}
 
 interface OrganizationFormModalProps {
   visible: boolean;
@@ -66,7 +88,10 @@ export function OrganizationFormModal({
   onSuccess,
 }: OrganizationFormModalProps) {
   const isEditing = !!organization;
+  const { t, language } = useTranslation();
   const [isLoading, setIsLoading] = React.useState(false);
+  const schema = useMemo(() => createOrganizationFormSchema(t), [language]);
+
   const {
     control,
     handleSubmit,
@@ -75,7 +100,7 @@ export function OrganizationFormModal({
     reset,
     formState: { errors },
   } = useForm<OrganizationFormData>({
-    resolver: zodResolver(organizationSchema),
+    resolver: zodResolver(schema),
     defaultValues: {
       name: "",
       description: "",
@@ -98,15 +123,15 @@ export function OrganizationFormModal({
         reset({
           name: organization.name || "",
           description: organization.description || "",
-          business_type: organization.business_type || "general",
+          business_type: coerceBusinessType(organization.business_type),
           phone: organization.contact?.phone || "",
           email: organization.contact?.email || "",
           address: organization.address?.street || "",
-          currency:
+          currency: coerceCurrency(
             organization.settings?.currency_code ||
-            organization.settings?.currency ||
-            "USD",
-          status: organization.status || "active",
+              organization.settings?.currency,
+          ),
+          status: coerceStatus(organization.status),
         });
       } else {
         reset({
@@ -145,9 +170,20 @@ export function OrganizationFormModal({
 
       let result: Organization;
       if (isEditing && organization) {
-        result = await organizationsApi.update(organization._id, params);
+        // Offline-first: mirrors locally and queues the server update.
+        result = await dalUpdateOrganization(organization._id, params);
+        toast.success(t("shopSaved"));
       } else {
-        result = await organizationsApi.create(params);
+        // Create needs the backend: it owns the id used by every shop row.
+        try {
+          result = await dalCreateOrganization(params);
+        } catch (e: any) {
+          if (!e?.response) {
+            toast.error(t("createShopNeedsConnection"));
+            return;
+          }
+          throw e;
+        }
       }
 
       onSuccess(result);
@@ -165,17 +201,17 @@ export function OrganizationFormModal({
     <FormSheetModal
       visible={visible}
       onClose={onClose}
-      title={isEditing ? "Edit Organization" : "New Organization"}
+      title={isEditing ? t("editOrganization") : t("newOrganization")}
       subtitle={
         isEditing
           ? "Update organization details"
           : "Create a new organization"
       }
-      submitLabel={isEditing ? "Save Changes" : "Create Organization"}
+      submitLabel={isEditing ? t("saveShop") : t("createOrganization")}
       submitIcon={isEditing ? "checkmark-circle" : "add-circle"}
       onSubmit={handleSubmit(onSubmit)}
       isSubmitting={isLoading}
-      submittingLabel="Saving…"
+      submittingLabel={t("saving")}
     >
       <View className="gap-5">
               {/* Business Name */}
@@ -184,7 +220,7 @@ export function OrganizationFormModal({
                 name="name"
                 render={({ field: { onChange, onBlur, value } }) => (
                   <CustomInput
-                    label="Business Name *"
+                    label={`${t("businessName")} *`}
                     value={value}
                     onChangeText={onChange}
                     onBlur={onBlur}
@@ -202,7 +238,7 @@ export function OrganizationFormModal({
                   className="mb-3 text-base font-medium"
                   style={{ color: colors.text.primary }}
                 >
-                  Business Type
+                  {t("businessType")}
                 </Text>
                 <View className="flex-row flex-wrap gap-2">
                   {BUSINESS_TYPES.map((type) => (
@@ -219,8 +255,7 @@ export function OrganizationFormModal({
                             ? colors.primary
                             : colors.border,
                       }}
-                      onPress={() => setValue("business_type", type.value)}
-                    >
+                      onPress={() => setValue("business_type", type.value)}                    >
                       <Ionicons
                         name={type.icon as any}
                         size={18}
@@ -252,7 +287,7 @@ export function OrganizationFormModal({
                 name="description"
                 render={({ field: { onChange, onBlur, value } }) => (
                   <CustomInput
-                    label="Description"
+                    label={t("description")}
                     value={value}
                     onChangeText={onChange}
                     onBlur={onBlur}
@@ -342,7 +377,7 @@ export function OrganizationFormModal({
                     className="mb-2 text-sm font-medium"
                     style={{ color: colors.text.primary }}
                   >
-                    Currency
+                    {t("currency")}
                   </Text>
                   <View className="flex-row flex-wrap gap-2">
                     {CURRENCIES.map((curr) => (
@@ -395,7 +430,7 @@ export function OrganizationFormModal({
                       className="mb-2 text-sm font-medium"
                       style={{ color: colors.text.primary }}
                     >
-                      Status
+                      {t("status")}
                     </Text>
                     <View className="flex-row flex-wrap gap-2">
                       {STATUS_OPTIONS.map((status) => (
@@ -440,7 +475,7 @@ export function OrganizationFormModal({
                                   : colors.text.secondary,
                             }}
                           >
-                            {status.label}
+                            {t(status.labelKey)}
                           </Text>
                         </TouchableOpacity>
                       ))}

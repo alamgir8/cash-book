@@ -20,7 +20,10 @@ import * as transfersRepo from "@/db/repos/transfers";
 import type {
   LocalAccount,
   LocalCategory,
+  LocalInvoice,
   LocalParty,
+  LocalProduct,
+  LocalStockMovement,
   LocalTransaction,
   LocalTransfer,
 } from "@/db/types";
@@ -31,7 +34,12 @@ export type SyncChange = {
     | "category"
     | "party"
     | "transaction"
-    | "transfer";
+    | "transfer"
+    // Shop entities (Phase 13). Pushed parents-first: products → invoices →
+    // movements, so server-side references resolve inside one batch.
+    | "product"
+    | "invoice"
+    | "stock_movement";
   id: string;
   server_id: string | null;
   op: "upsert" | "delete";
@@ -41,6 +49,22 @@ export type SyncChange = {
   client_request_id: string | null;
   payload: Record<string, unknown>;
 };
+
+/** Local table backing each sync entity (single source of truth). */
+const TABLE_FOR_ENTITY: Record<SyncChange["entity"], string> = {
+  account: "accounts",
+  category: "categories",
+  party: "parties",
+  transaction: "transactions",
+  transfer: "transfers",
+  product: "products",
+  invoice: "invoices",
+  stock_movement: "inventory_movements",
+};
+
+function tableForEntity(entity: SyncChange["entity"]): string {
+  return TABLE_FOR_ENTITY[entity];
+}
 
 let syncLock = false;
 
@@ -135,6 +159,92 @@ async function collectDirtyChanges(limit = 500): Promise<SyncChange[]> {
     });
   }
 
+  // ── Shop entities (Phase 13) ─────────────────────────────────────────────
+  // Order matters: products before invoices/movements so the server can resolve
+  // references inside a single batch. The backend treats an invoice push as
+  // side-effect free, so stock/cash are never double-counted.
+
+  const products = await db.getAllAsync<LocalProduct>(
+    `SELECT * FROM products WHERE dirty = 1 ORDER BY updated_at ASC LIMIT ?`,
+    limit,
+  );
+  for (const row of products) {
+    changes.push({
+      entity: "product",
+      id: row.id,
+      server_id: row.server_id,
+      op: row.deleted_at ? "delete" : "upsert",
+      updated_at: row.updated_at,
+      deleted_at: row.deleted_at,
+      device_id: row.device_id,
+      client_request_id: row.client_request_id,
+      payload: row as unknown as Record<string, unknown>,
+    });
+  }
+
+  const invoices = await db.getAllAsync<LocalInvoice>(
+    `SELECT * FROM invoices WHERE dirty = 1 ORDER BY updated_at ASC LIMIT ?`,
+    limit,
+  );
+  for (const row of invoices) {
+    // Items and payments are embedded on the server model, so attach them here.
+    const items = await db.getAllAsync<any>(
+      `SELECT * FROM invoice_items WHERE invoice_id = ? ORDER BY rowid ASC`,
+      row.id,
+    );
+    const payments = await db.getAllAsync<any>(
+      `SELECT * FROM invoice_payments WHERE invoice_id = ? ORDER BY rowid ASC`,
+      row.id,
+    );
+    // Link to the catalog via the product's server id when one exists.
+    const enrichedItems = [];
+    for (const item of items) {
+      let productServerId: string | null = null;
+      if (item.product_id) {
+        const p = await db.getFirstAsync<{ server_id: string | null }>(
+          `SELECT server_id FROM products WHERE id = ?`,
+          item.product_id,
+        );
+        productServerId = p?.server_id ?? null;
+      }
+      enrichedItems.push({ ...item, product_server_id: productServerId });
+    }
+
+    changes.push({
+      entity: "invoice",
+      id: row.id,
+      server_id: row.server_id,
+      op: row.deleted_at ? "delete" : "upsert",
+      updated_at: row.updated_at,
+      deleted_at: row.deleted_at,
+      device_id: row.device_id,
+      client_request_id: row.client_request_id,
+      payload: {
+        ...(row as unknown as Record<string, unknown>),
+        items: enrichedItems,
+        payments,
+      },
+    });
+  }
+
+  const movements = await db.getAllAsync<LocalStockMovement>(
+    `SELECT * FROM inventory_movements WHERE dirty = 1 ORDER BY created_at ASC LIMIT ?`,
+    limit,
+  );
+  for (const row of movements) {
+    changes.push({
+      entity: "stock_movement",
+      id: row.id,
+      server_id: row.server_id,
+      op: row.deleted_at ? "delete" : "upsert",
+      updated_at: row.updated_at,
+      deleted_at: row.deleted_at,
+      device_id: row.device_id,
+      client_request_id: row.client_request_id,
+      payload: row as unknown as Record<string, unknown>,
+    });
+  }
+
   return changes;
 }
 
@@ -144,16 +254,7 @@ async function markClean(
   serverId?: string | null,
 ) {
   const db = await getDb();
-  const table =
-    entity === "account"
-      ? "accounts"
-      : entity === "category"
-        ? "categories"
-        : entity === "party"
-          ? "parties"
-          : entity === "transaction"
-            ? "transactions"
-            : "transfers";
+  const table = tableForEntity(entity);
   if (serverId) {
     await db.runAsync(
       `UPDATE ${table} SET dirty = 0, sync_status = 'synced',
@@ -184,19 +285,35 @@ async function applyIncoming(change: SyncChange) {
           ? await partiesRepo.getPartyById(db, change.id)
           : change.entity === "transaction"
             ? await transactionsRepo.getTransactionById(db, change.id)
-            : await transfersRepo.getTransferById(db, change.id);
+            : change.entity === "transfer"
+              ? await transfersRepo.getTransferById(db, change.id)
+              : null;
+
+  // Shop rows: resolve by local id first, then server id.
+  if (!existing && change.entity === "product") {
+    existing = await db.getFirstAsync<any>(
+      `SELECT * FROM products WHERE id = ? OR server_id = ? LIMIT 1`,
+      change.id,
+      change.server_id ?? change.id,
+    );
+  }
+  if (!existing && change.entity === "invoice") {
+    existing = await db.getFirstAsync<any>(
+      `SELECT * FROM invoices WHERE id = ? OR server_id = ? LIMIT 1`,
+      change.id,
+      change.server_id ?? change.id,
+    );
+  }
+  if (!existing && change.entity === "stock_movement") {
+    existing = await db.getFirstAsync<any>(
+      `SELECT * FROM inventory_movements WHERE id = ? OR server_id = ? LIMIT 1`,
+      change.id,
+      change.server_id ?? change.id,
+    );
+  }
 
   if (!existing && change.server_id) {
-    const table =
-      change.entity === "account"
-        ? "accounts"
-        : change.entity === "category"
-          ? "categories"
-          : change.entity === "party"
-            ? "parties"
-            : change.entity === "transaction"
-              ? "transactions"
-              : "transfers";
+    const table = tableForEntity(change.entity);
     existing = await db.getFirstAsync<any>(
       `SELECT * FROM ${table} WHERE server_id = ? OR id = ? LIMIT 1`,
       change.server_id,
@@ -251,6 +368,54 @@ async function applyIncoming(change: SyncChange) {
     await transactionsRepo.upsertTransactionFromSync(db, row);
   if (change.entity === "transfer")
     await transfersRepo.upsertTransferFromSync(db, row);
+
+  // Shop entities (Phase 13). Pulled rows are written with dirty = 0.
+  if (change.entity === "product") {
+    const { upsertProductFromSync } = await import("@/db/repos/products");
+    await upsertProductFromSync(db, row as any);
+  }
+  if (change.entity === "stock_movement") {
+    const { upsertMovementFromSync } = await import(
+      "@/db/repos/stock-movements"
+    );
+    await upsertMovementFromSync(db, row as any);
+  }
+  if (change.entity === "invoice") {
+    const invoicesRepo = await import("@/db/repos/invoices");
+    const invoiceRow = { ...row } as any;
+    const items = Array.isArray(invoiceRow.items) ? invoiceRow.items : [];
+    const payments = Array.isArray(invoiceRow.payments)
+      ? invoiceRow.payments
+      : [];
+    delete invoiceRow.items;
+    delete invoiceRow.payments;
+    await invoicesRepo.upsertInvoiceFromSync(db, invoiceRow);
+    // Replace child rows so a re-pull cannot duplicate them.
+    await db.runAsync(
+      `DELETE FROM invoice_items WHERE invoice_id = ?`,
+      invoiceRow.id,
+    );
+    await db.runAsync(
+      `DELETE FROM invoice_payments WHERE invoice_id = ?`,
+      invoiceRow.id,
+    );
+    for (const it of items) {
+      await invoicesRepo.upsertInvoiceItemFromSync(db, {
+        ...it,
+        id: it.id ? String(it.id) : `${invoiceRow.id}:item:${items.indexOf(it)}`,
+        invoice_id: invoiceRow.id,
+      });
+    }
+    for (const p of payments) {
+      await invoicesRepo.upsertInvoicePaymentFromSync(db, {
+        ...p,
+        id: p.id
+          ? String(p.id)
+          : `${invoiceRow.id}:pay:${payments.indexOf(p)}`,
+        invoice_id: invoiceRow.id,
+      });
+    }
+  }
 
   // Ensure pull-applied rows are marked synced (INSERT defaults are pending_*).
   if (localId) {
@@ -345,16 +510,7 @@ export async function runSync(): Promise<SyncResult> {
       for (const r of rejected) {
         const match = changes.find((c) => c.id === r.id);
         if (!match) continue;
-        const table =
-          match.entity === "account"
-            ? "accounts"
-            : match.entity === "category"
-              ? "categories"
-              : match.entity === "party"
-                ? "parties"
-                : match.entity === "transaction"
-                  ? "transactions"
-                  : "transfers";
+        const table = tableForEntity(match.entity);
         await db.runAsync(
           `UPDATE ${table} SET sync_status = 'failed',
             retry_count = retry_count + 1,
@@ -408,6 +564,25 @@ export async function runSync(): Promise<SyncResult> {
     await setMeta(db, META_KEYS.SYNC_STAGE, "done");
 
     await recalculateBalances(db, { allOrganizations: true });
+
+    // Settings/profile writes live outside the sync entity enum — push them
+    // on the same cycle so an offline save lands as soon as we're reachable.
+    try {
+      const { flushPendingOps } = await import(
+        "@/lib/local-first/settings-sync"
+      );
+      await flushPendingOps();
+    } catch (e) {
+      if (__DEV__) console.warn("[sync] settings flush skipped", e);
+    }
+
+    // Shop stock is rebuildable from movements — keep the cache consistent.
+    try {
+      const { recalculateProductStock } = await import("@/db/stock");
+      await recalculateProductStock(db, { allOrganizations: true });
+    } catch (e) {
+      if (__DEV__) console.warn("[sync] product stock reconcile skipped", e);
+    }
 
     const pushed = accepted.length;
     const pulled = pull.changes?.length ?? 0;
