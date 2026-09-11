@@ -68,4 +68,6 @@ export const META_KEYS = {
   OWNER_ADMIN_ID: "owner_admin_id",
   LAST_VACUUM_AT: "last_vacuum_at",
   CLOCK_OFFSET_MS: "clock_offset_ms",
+  /** Bump when pull scope expands (e.g. personal → all orgs). */
+  SYNC_SCOPE_VERSION: "sync_scope_version",
 } as const;

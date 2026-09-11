@@ -308,6 +308,10 @@ export async function migrateCloudToLocal(opts?: {
     const completedAt = new Date().toISOString();
     const db = await getDb();
     await setMeta(db, META_KEYS.MIGRATION_COMPLETED_AT, completedAt);
+    // Fresh full export already includes org books — skip epoch re-pull.
+    await setMeta(db, META_KEYS.LAST_SYNC_CURSOR, completedAt);
+    await setMeta(db, META_KEYS.SYNC_SCOPE_VERSION, "2");
+    await setMeta(db, META_KEYS.LAST_SYNC_ERROR, null);
     await setLocalFirstFlags({
       localFirstEnabled: true,
       migrationCompletedAt: completedAt,

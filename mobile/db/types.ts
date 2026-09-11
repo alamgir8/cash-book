@@ -1,7 +1,14 @@
 /** Current local SQLite schema version (bump when adding migrations). */
-export const LOCAL_SCHEMA_VERSION = 1;
+export const LOCAL_SCHEMA_VERSION = 2;
 
 export const DB_NAME = "hisabboi_local.db";
+
+export type SyncStatus =
+  | "pending_create"
+  | "pending_update"
+  | "pending_delete"
+  | "synced"
+  | "failed";
 
 export type SyncableColumns = {
   id: string;
@@ -11,6 +18,10 @@ export type SyncableColumns = {
   updated_at: string;
   deleted_at: string | null;
   dirty: number;
+  /** Present after schema v2; optional for older in-memory payloads. */
+  sync_status?: SyncStatus;
+  retry_count?: number;
+  last_sync_error?: string | null;
   sync_version: number;
   client_request_id: string | null;
   device_id: string;

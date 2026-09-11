@@ -13,6 +13,16 @@ const personalScope = (adminId) => ({
   $or: [{ organization: { $exists: false } }, { organization: null }],
 });
 
+/** All books owned by this admin (personal + organizations). */
+const adminScope = (adminId) => ({ admin: adminId });
+
+const orgIdFromPayload = (payload) => {
+  const raw =
+    payload?.organization_id ?? payload?.organization ?? payload?.organizationId;
+  if (!raw) return null;
+  if (isValidObjectId(String(raw))) return toObjectId(String(raw));
+  return null;
+};
 const isValidObjectId = (value) => {
   if (!value || typeof value !== "string") return false;
   return (
@@ -31,6 +41,38 @@ const toIso = (value) => {
 
 const boolFromPayload = (value) => Boolean(Number(value) || value === true);
 
+/** Cash impact: credit +, debit −. Skip dues (not yet cash). */
+const accountCashDelta = (type, amount, paymentStatus) => {
+  if (paymentStatus === "due") return 0;
+  const n = Number(amount) || 0;
+  return type === "credit" ? n : -n;
+};
+
+/** Party ledger convention — matches REST transaction controller. */
+const partyBalanceDelta = (partyType, type, amount, paymentStatus) => {
+  if (paymentStatus === "due" || !partyType) return 0;
+  const n = Number(amount) || 0;
+  const isCustomer = partyType === "customer";
+  if (isCustomer) {
+    return type === "credit" ? n : -n;
+  }
+  return type === "debit" ? n : -n;
+};
+
+const applyAccountInc = async (accountId, delta) => {
+  if (!accountId || !delta) return;
+  await Account.findByIdAndUpdate(accountId, {
+    $inc: { current_balance: delta },
+  });
+};
+
+const applyPartyInc = async (partyId, delta) => {
+  if (!partyId || !delta) return;
+  await Party.findByIdAndUpdate(partyId, {
+    $inc: { current_balance: delta },
+  });
+};
+
 const mergeClientMeta = (existingMeta, clientId) => {
   const meta =
     existingMeta && typeof existingMeta === "object" ? { ...existingMeta } : {};
@@ -43,14 +85,12 @@ const findByServerOrClientId = async (Model, adminId, serverId, clientId) => {
     const doc = await Model.findOne({
       _id: toObjectId(serverId),
       admin: adminId,
-      ...personalScope(adminId),
     });
     if (doc) return doc;
   }
   if (clientId) {
     return Model.findOne({
       admin: adminId,
-      ...personalScope(adminId),
       "meta_data.client_id": clientId,
     });
   }
@@ -65,7 +105,6 @@ const resolveRefId = async (Model, adminId, refValue, serverIdHint, idMap) => {
     const doc = await Model.findOne({
       _id: toObjectId(serverIdHint),
       admin: adminId,
-      ...personalScope(adminId),
     }).select("_id");
     if (doc) return doc._id;
   }
@@ -73,14 +112,12 @@ const resolveRefId = async (Model, adminId, refValue, serverIdHint, idMap) => {
     const doc = await Model.findOne({
       _id: toObjectId(refValue),
       admin: adminId,
-      ...personalScope(adminId),
     }).select("_id");
     if (doc) return doc._id;
   }
   if (refValue) {
     const doc = await Model.findOne({
       admin: adminId,
-      ...personalScope(adminId),
       "meta_data.client_id": String(refValue),
     }).select("_id");
     if (doc) return doc._id;
@@ -159,14 +196,24 @@ const mapAccountPayload = async (adminId, change, idMap) => {
     doc = new Account({ admin: adminId });
   }
 
+  const orgRef = orgIdFromPayload(payload);
+  if (orgRef) doc.organization = orgRef;
+  else if (isNew) doc.organization = undefined;
+
   if (payload.name !== undefined) doc.name = payload.name;
   if (payload.description !== undefined) doc.description = payload.description;
   if (payload.kind !== undefined) doc.kind = payload.kind;
   if (payload.opening_balance !== undefined) {
     doc.opening_balance = Number(payload.opening_balance);
   }
-  if (payload.current_balance !== undefined) {
-    doc.current_balance = Number(payload.current_balance);
+  // Do NOT trust client current_balance on sync push for existing accounts —
+  // balances are applied via transaction $inc. New accounts start at opening.
+  if (isNew) {
+    doc.current_balance = Number(
+      payload.opening_balance !== undefined
+        ? payload.opening_balance
+        : payload.current_balance ?? 0,
+    );
   }
   if (payload.currency_code !== undefined) {
     doc.currency_code = payload.currency_code;
@@ -224,6 +271,10 @@ const mapCategoryPayload = async (adminId, change, idMap) => {
     doc = new Category({ admin: adminId });
   }
 
+  const orgRef = orgIdFromPayload(payload);
+  if (orgRef) doc.organization = orgRef;
+  else if (isNew) doc.organization = undefined;
+
   if (payload.type !== undefined) doc.type = payload.type;
   if (payload.flow !== undefined) doc.flow = payload.flow;
   if (payload.name !== undefined) doc.name = payload.name;
@@ -274,6 +325,9 @@ const mapPartyPayload = async (adminId, change, idMap) => {
     doc = new Party({ admin: adminId, type: "customer" });
   }
 
+  const orgRef = orgIdFromPayload(payload);
+  if (orgRef) doc.organization = orgRef;
+
   if (payload.type !== undefined) doc.type = payload.type;
   if (payload.name !== undefined) doc.name = payload.name;
   if (payload.code !== undefined) doc.code = payload.code;
@@ -294,8 +348,13 @@ const mapPartyPayload = async (adminId, change, idMap) => {
   if (payload.opening_balance !== undefined) {
     doc.opening_balance = Number(payload.opening_balance);
   }
-  if (payload.current_balance !== undefined) {
-    doc.current_balance = Number(payload.current_balance);
+  // Party balances are applied via transaction $inc; new parties start at opening.
+  if (isNew) {
+    doc.current_balance = Number(
+      payload.opening_balance !== undefined
+        ? payload.opening_balance
+        : payload.current_balance ?? 0,
+    );
   }
   if (payload.credit_limit !== undefined) {
     doc.credit_limit = Number(payload.credit_limit ?? 0);
@@ -329,7 +388,6 @@ const mapTransactionPayload = async (adminId, change, idMap) => {
       admin: adminId,
       client_request_id: clientRequestId,
       is_deleted: { $ne: true },
-      ...personalScope(adminId),
     });
   }
   if (!doc) {
@@ -344,6 +402,36 @@ const mapTransactionPayload = async (adminId, change, idMap) => {
 
   if (change.op === "delete") {
     if (!doc) return { doc: null, created: false };
+    // Already soft-deleted — idempotent.
+    if (doc.is_deleted) {
+      return { doc, created: false };
+    }
+    // Revert cash/party if this was a paid transaction.
+    const cashDelta = accountCashDelta(
+      doc.type,
+      doc.amount,
+      doc.payment_status,
+    );
+    if (cashDelta) {
+      await applyAccountInc(doc.account, -cashDelta);
+    }
+    if (doc.party && cashDelta) {
+      const partyDoc = await Party.findById(doc.party).select("type").lean();
+      const pDelta = partyBalanceDelta(
+        partyDoc?.type,
+        doc.type,
+        doc.amount,
+        doc.payment_status,
+      );
+      if (pDelta) await applyPartyInc(doc.party, -pDelta);
+    }
+    // Restore parent due remaining when deleting a due payment.
+    if (doc.parent_due_id) {
+      await Transaction.findByIdAndUpdate(doc.parent_due_id, {
+        $inc: { due_remaining: Number(doc.amount) || 0 },
+        $unset: { due_settled_at: 1 },
+      });
+    }
     doc.is_deleted = true;
     doc.deleted_at = change.deleted_at
       ? new Date(change.deleted_at)
@@ -397,9 +485,23 @@ const mapTransactionPayload = async (adminId, change, idMap) => {
     : null;
 
   const isNew = !doc;
+  const prevSnapshot = doc
+    ? {
+        account: doc.account,
+        party: doc.party,
+        type: doc.type,
+        amount: doc.amount,
+        payment_status: doc.payment_status,
+        is_deleted: doc.is_deleted,
+      }
+    : null;
+
   if (isNew) {
     doc = new Transaction({ admin: adminId, account: accountId });
   }
+
+  const orgRef = orgIdFromPayload(payload);
+  if (orgRef) doc.organization = orgRef;
 
   doc.account = accountId;
   doc.category_id = categoryId || undefined;
@@ -430,7 +532,13 @@ const mapTransactionPayload = async (adminId, change, idMap) => {
     doc.parent_due_id =
       payload.parent_due_id && isValidObjectId(payload.parent_due_id)
         ? toObjectId(payload.parent_due_id)
-        : undefined;
+        : await resolveRefId(
+            Transaction,
+            adminId,
+            payload.parent_due_id,
+            payload.parent_due_server_id,
+            idMap,
+          );
   }
   if (payload.due_remaining !== undefined) {
     doc.due_remaining = payload.due_remaining;
@@ -452,12 +560,7 @@ const mapTransactionPayload = async (adminId, change, idMap) => {
   } else if (payload.meta_data !== undefined) {
     doc.meta_data = payload.meta_data;
   }
-  if (payload.balance_after_transaction !== undefined) {
-    doc.balance_after_transaction = payload.balance_after_transaction;
-  }
-  if (payload.party_balance_after !== undefined) {
-    doc.party_balance_after = payload.party_balance_after;
-  }
+  // Ignore client balance_after_* — server denormalized fields are set after $inc.
   if (payload.transfer_id !== undefined) {
     doc.transfer_id =
       payload.transfer_id && isValidObjectId(payload.transfer_id)
@@ -484,7 +587,90 @@ const mapTransactionPayload = async (adminId, change, idMap) => {
   doc.deleted_at = undefined;
   doc.meta_data = mergeClientMeta(doc.meta_data, clientId);
   applyTimestamps(doc, payload, change);
+
+  // Balance side-effects: revert previous paid state, apply new paid state.
+  if (prevSnapshot && !prevSnapshot.is_deleted) {
+    const oldCash = accountCashDelta(
+      prevSnapshot.type,
+      prevSnapshot.amount,
+      prevSnapshot.payment_status,
+    );
+    if (oldCash) {
+      await applyAccountInc(prevSnapshot.account, -oldCash);
+    }
+    if (prevSnapshot.party && oldCash) {
+      const partyDoc = await Party.findById(prevSnapshot.party)
+        .select("type")
+        .lean();
+      const pDelta = partyBalanceDelta(
+        partyDoc?.type,
+        prevSnapshot.type,
+        prevSnapshot.amount,
+        prevSnapshot.payment_status,
+      );
+      if (pDelta) await applyPartyInc(prevSnapshot.party, -pDelta);
+    }
+  }
+
+  const newCash = accountCashDelta(doc.type, doc.amount, doc.payment_status);
+  if (newCash) {
+    const newBal = await Account.findByIdAndUpdate(
+      doc.account,
+      { $inc: { current_balance: newCash } },
+      { new: true },
+    );
+    doc.balance_after_transaction = newBal?.current_balance ?? null;
+  } else if (doc.payment_status === "due") {
+    doc.balance_after_transaction = undefined;
+    if (isNew && !doc.due_remaining && doc.due_remaining !== 0) {
+      doc.due_remaining = Number(doc.amount) || 0;
+    }
+    if (isNew && !doc.due_group_id) {
+      // Will set after save when we have _id
+    }
+  }
+
+  if (doc.party && newCash) {
+    const partyDoc = await Party.findById(doc.party).select("type").lean();
+    const pDelta = partyBalanceDelta(
+      partyDoc?.type,
+      doc.type,
+      doc.amount,
+      doc.payment_status,
+    );
+    if (pDelta) {
+      const updatedParty = await Party.findByIdAndUpdate(
+        doc.party,
+        { $inc: { current_balance: pDelta } },
+        { new: true },
+      );
+      doc.party_balance_after = updatedParty?.current_balance ?? null;
+    }
+  }
+
+  // Due payment against parent.
+  if (isNew && doc.parent_due_id && doc.payment_status === "paid") {
+    const parent = await Transaction.findById(doc.parent_due_id);
+    if (parent && !parent.is_deleted) {
+      const next = Math.max(
+        0,
+        Number(parent.due_remaining ?? parent.amount ?? 0) -
+          Number(doc.amount || 0),
+      );
+      parent.due_remaining = next;
+      if (next <= 1e-9) parent.due_settled_at = new Date();
+      await parent.save();
+    }
+  }
+
   await doc.save({ timestamps: false });
+
+  if (isNew && doc.payment_status === "due" && !doc.due_group_id) {
+    doc.due_group_id = doc._id;
+    if (doc.due_remaining == null) doc.due_remaining = Number(doc.amount) || 0;
+    await doc.save({ timestamps: false });
+  }
+
   if (clientId) idMap.set(String(clientId), doc._id.toString());
   return { doc, created: isNew };
 };
@@ -501,7 +687,6 @@ const mapTransferPayload = async (adminId, change, idMap) => {
     doc = await Transfer.findOne({
       admin: adminId,
       client_request_id: clientRequestId,
-      ...personalScope(adminId),
     });
   }
   if (!doc) {
@@ -622,6 +807,9 @@ const mapTransferPayload = async (adminId, change, idMap) => {
     });
   }
 
+  const orgRef = orgIdFromPayload(payload);
+  if (orgRef) doc.organization = orgRef;
+
   doc.from_account = fromAccountId;
   doc.to_account = toAccountId;
   doc.debit_transaction = debitTxId;
@@ -707,7 +895,7 @@ const toSyncChange = (entity, doc, opts = {}) => {
 const accountToPayload = (doc) => ({
   id: clientIdFromDoc(doc) || doc._id.toString(),
   server_id: doc._id.toString(),
-  organization_id: null,
+  organization_id: doc.organization ? String(doc.organization) : null,
   name: doc.name,
   description: doc.description ?? null,
   kind: doc.kind,
@@ -730,7 +918,7 @@ const accountToPayload = (doc) => ({
 const categoryToPayload = (doc) => ({
   id: clientIdFromDoc(doc) || doc._id.toString(),
   server_id: doc._id.toString(),
-  organization_id: null,
+  organization_id: doc.organization ? String(doc.organization) : null,
   type: doc.type,
   flow: doc.flow,
   name: doc.name,
@@ -751,7 +939,7 @@ const categoryToPayload = (doc) => ({
 const partyToPayload = (doc) => ({
   id: doc._id.toString(),
   server_id: doc._id.toString(),
-  organization_id: null,
+  organization_id: doc.organization ? String(doc.organization) : null,
   type: doc.type,
   name: doc.name,
   code: doc.code ?? null,
@@ -776,7 +964,7 @@ const partyToPayload = (doc) => ({
 const transactionToPayload = (doc) => ({
   id: doc._id.toString(),
   server_id: doc._id.toString(),
-  organization_id: null,
+  organization_id: doc.organization ? String(doc.organization) : null,
   account_id: doc.account?.toString() ?? null,
   category_id: doc.category_id?.toString() ?? null,
   party_id: doc.party?.toString() ?? null,
@@ -812,7 +1000,7 @@ const transactionToPayload = (doc) => ({
 const transferToPayload = (doc) => ({
   id: clientIdFromDoc(doc) || doc._id.toString(),
   server_id: doc._id.toString(),
-  organization_id: null,
+  organization_id: doc.organization ? String(doc.organization) : null,
   from_account_id: doc.from_account?.toString() ?? null,
   to_account_id: doc.to_account?.toString() ?? null,
   amount: doc.amount,
@@ -913,7 +1101,7 @@ export const pull = async (req, res, next) => {
     const filter =
       scope === "personal"
         ? { ...personalScope(adminId), updatedAt: { $gt: since } }
-        : { admin: adminId, updatedAt: { $gt: since } };
+        : { ...adminScope(adminId), updatedAt: { $gt: since } };
 
     const [accounts, categories, parties, transactions, transfers] =
       await Promise.all([

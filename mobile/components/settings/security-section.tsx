@@ -1,7 +1,15 @@
-import { View, Text, TouchableOpacity } from "react-native";
+import { useEffect, useState } from "react";
+import { View, Text, TouchableOpacity, Switch } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/use-theme";
 import { useTranslation } from "@/hooks/use-translation";
+import {
+  getLoginModeSync,
+  loadLoginMode,
+  setLoginMode,
+  subscribeLoginMode,
+  type LoginMode,
+} from "@/lib/auth/login-mode";
 
 interface SecuritySectionProps {
   biometricType?: string;
@@ -22,6 +30,14 @@ export function SecuritySection({
 }: SecuritySectionProps) {
   const { colors } = useTheme();
   const { t } = useTranslation();
+  const [loginMode, setMode] = useState<LoginMode>(getLoginModeSync());
+
+  useEffect(() => {
+    void loadLoginMode().then(setMode);
+    return subscribeLoginMode(setMode);
+  }, []);
+
+  const everyTime = loginMode === "every_time";
 
   return (
     <View
@@ -52,6 +68,31 @@ export function SecuritySection({
             {t("protectYourAccount")}
           </Text>
         </View>
+      </View>
+
+      <View
+        className="flex-row items-center gap-3 rounded-2xl p-4 mb-3"
+        style={{ backgroundColor: colors.bg.primary }}
+      >
+        <View className="flex-1">
+          <Text
+            className="font-bold text-base"
+            style={{ color: colors.text.primary }}
+          >
+            Login every time
+          </Text>
+          <Text className="text-sm mt-1" style={{ color: colors.text.secondary }}>
+            {everyTime
+              ? "Ask for password/PIN when opening the app (only while online). Offline access is always allowed."
+              : "Single login — stay signed in on this device (best for offline)."}
+          </Text>
+        </View>
+        <Switch
+          value={everyTime}
+          onValueChange={(v) => {
+            void setLoginMode(v ? "every_time" : "single");
+          }}
+        />
       </View>
 
       <TouchableOpacity

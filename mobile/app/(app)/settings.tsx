@@ -113,29 +113,30 @@ export default function SettingsScreen() {
   // Handlers
   const handleExport = async (type: ExportType) => {
     if (!type) return;
+    const exportFilters = orgId ? { organizationId: orgId } : {};
     try {
       setExportingType(type);
       switch (type) {
         case "all":
-          await exportTransactionsPdf({});
+          await exportTransactionsPdf(exportFilters);
           Toast.show({ type: "success", text1: "Full report exported" });
           break;
         case "category":
-          await exportTransactionsByCategoryPdf();
+          await exportTransactionsByCategoryPdf(exportFilters);
           Toast.show({
             type: "success",
             text1: "Category-wise report exported",
           });
           break;
         case "counterparty":
-          await exportTransactionsByCounterpartyPdf();
+          await exportTransactionsByCounterpartyPdf(exportFilters);
           Toast.show({
             type: "success",
             text1: "Counterparty-wise report exported",
           });
           break;
         case "account":
-          await exportTransactionsByAccountPdf();
+          await exportTransactionsByAccountPdf(exportFilters);
           Toast.show({
             type: "success",
             text1: "Account-wise report exported",

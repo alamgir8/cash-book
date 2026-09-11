@@ -18,8 +18,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { useActiveOrgId } from "@/hooks/use-organization";
 import { useCreateInvoice } from "@/hooks/use-invoices";
 import type { InvoiceType } from "@/types/invoice";
-import { partiesApi } from "@/services/parties";
-import { fetchAccounts } from "@/services/accounts";
+import {
+  dalFetchParties,
+  dalCreateParty,
+  dalFetchParty,
+} from "@/data/parties";
+import { dalFetchAccounts } from "@/data/accounts";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { invoiceSchema, type InvoiceFormData } from "@/lib/validations/invoice";
 import { LineItemFields, InvoiceTotalsSummary } from "@/components/invoices";
@@ -104,10 +108,10 @@ export default function CreateInvoiceScreen() {
   const watchDueDate = watch("due_date");
   const watchPaymentMode = watch("payment_mode");
 
-  // Load accounts for payment
+  // Load accounts for payment (DAL → SQLite when local-first is on)
   const { data: accountsData } = useQuery({
-    queryKey: ["accounts"],
-    queryFn: fetchAccounts,
+    queryKey: ["accounts", organizationId ?? "personal"],
+    queryFn: () => dalFetchAccounts(organizationId),
   });
   const accountOptions = (accountsData ?? []).map((a: any) => ({
     value: a._id,
@@ -123,7 +127,7 @@ export default function CreateInvoiceScreen() {
       invoiceType === "sale" ? "customer" : "supplier",
     ],
     queryFn: () =>
-      partiesApi.list({
+      dalFetchParties({
         organization: organizationId || undefined,
         type: invoiceType === "sale" ? "customer" : "supplier",
         limit: 50,
@@ -141,7 +145,7 @@ export default function CreateInvoiceScreen() {
   // Inline party creation — creates the party and returns it as a SelectOption
   const handleAddParty = async (name: string): Promise<SelectOption | null> => {
     try {
-      const newParty = await partiesApi.create({
+      const newParty = await dalCreateParty({
         organization: organizationId || undefined,
         name: name.trim(),
         type: invoiceType === "sale" ? "customer" : "supplier",
@@ -160,7 +164,7 @@ export default function CreateInvoiceScreen() {
   // Pre-select party when navigated with partyId param
   const { data: preSelectedParty } = useQuery({
     queryKey: ["party", partyIdParam],
-    queryFn: () => partiesApi.get(partyIdParam!),
+    queryFn: () => dalFetchParty(partyIdParam!),
     enabled: !!partyIdParam,
   });
   useEffect(() => {
@@ -394,7 +398,7 @@ export default function CreateInvoiceScreen() {
                   onAddNew={handleAddParty}
                   addNewLabel={invoiceType === "sale" ? "customer" : "supplier"}
                   fetchOptions={async (q) => {
-                    const res = await partiesApi.list({
+                    const res = await dalFetchParties({
                       organization: organizationId || undefined,
                       type: invoiceType === "sale" ? "customer" : "supplier",
                       search: q,

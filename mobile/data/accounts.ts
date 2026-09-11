@@ -12,7 +12,13 @@ import {
   isLocalFirstEnabled,
 } from "@/lib/local-first/flags";
 import { shouldUseLocalPersonalLedger } from "@/lib/local-first/ledger-scope";
+import { notifyLocalLedgerMutation } from "@/lib/local-first/notify-mutation";
 import type { TransactionFilters } from "@/services/transactions";
+
+async function afterLocalWrite<T>(result: T): Promise<T> {
+  void notifyLocalLedgerMutation();
+  return result;
+}
 
 export async function dalFetchAccounts(
   organizationId?: string | null,
@@ -66,7 +72,7 @@ export async function dalCreateAccount(
     return apiCreateAccount(payload);
   }
   const local = await import("./accounts.local");
-  return local.createLocalAccount(payload);
+  return afterLocalWrite(await local.createLocalAccount(payload));
 }
 
 export async function dalUpdateAccount(
@@ -77,7 +83,7 @@ export async function dalUpdateAccount(
     return apiUpdateAccount(args);
   }
   const local = await import("./accounts.local");
-  return local.updateLocalAccount(args);
+  return afterLocalWrite(await local.updateLocalAccount(args));
 }
 
 export async function dalDeleteAccount(accountId: string) {
@@ -86,5 +92,5 @@ export async function dalDeleteAccount(accountId: string) {
     return apiDeleteAccount(accountId);
   }
   const local = await import("./accounts.local");
-  return local.deleteLocalAccount(accountId);
+  return afterLocalWrite(await local.deleteLocalAccount(accountId));
 }

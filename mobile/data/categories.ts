@@ -10,6 +10,12 @@ import {
   isLocalFirstEnabled,
 } from "@/lib/local-first/flags";
 import { shouldUseLocalPersonalLedger } from "@/lib/local-first/ledger-scope";
+import { notifyLocalLedgerMutation } from "@/lib/local-first/notify-mutation";
+
+async function afterLocalWrite<T>(result: T): Promise<T> {
+  void notifyLocalLedgerMutation();
+  return result;
+}
 
 export async function dalFetchCategories(
   options: {
@@ -38,7 +44,7 @@ export async function dalCreateCategory(payload: {
     return apiCreateCategory(payload);
   }
   const local = await import("./categories.local");
-  return local.createLocalCategory(payload);
+  return afterLocalWrite(await local.createLocalCategory(payload));
 }
 
 export async function dalUpdateCategory(
@@ -56,7 +62,7 @@ export async function dalUpdateCategory(
     return apiUpdateCategory(categoryId, payload);
   }
   const local = await import("./categories.local");
-  return local.updateLocalCategory(categoryId, payload);
+  return afterLocalWrite(await local.updateLocalCategory(categoryId, payload));
 }
 
 export async function dalDeleteCategory(categoryId: string) {
@@ -65,5 +71,5 @@ export async function dalDeleteCategory(categoryId: string) {
     return apiDeleteCategory(categoryId);
   }
   const local = await import("./categories.local");
-  return local.deleteLocalCategory(categoryId);
+  return afterLocalWrite(await local.deleteLocalCategory(categoryId));
 }

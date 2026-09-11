@@ -266,6 +266,11 @@ router.post(
   },
   asyncHandler(uploadAttachments),
 );
-router.delete("/:transactionId/attachments/*", asyncHandler(deleteAttachment));
+// Named param (not bare "*") — Express 5 / path-to-regexp v8 rejects "/*".
+// Client sends encodeURIComponent(storageKey) as a single segment (%2F for "/").
+router.delete(
+  "/:transactionId/attachments/:storageKey",
+  asyncHandler(deleteAttachment),
+);
 
 export default router;

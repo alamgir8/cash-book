@@ -103,6 +103,9 @@ export async function wipeAllLedgerData(db: Db): Promise<void> {
   await db.runAsync(`DELETE FROM parties`);
   await db.runAsync(`DELETE FROM categories`);
   await db.runAsync(`DELETE FROM accounts`);
+  await db.runAsync(`DELETE FROM sync_conflicts`);
+  // Preserve schema; clear sync cursors / owner so restore can rebind cleanly.
+  await db.runAsync(`DELETE FROM meta`);
 }
 
 export async function deleteDatabaseFile(): Promise<void> {

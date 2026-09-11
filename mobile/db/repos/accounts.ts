@@ -103,7 +103,9 @@ export async function updateAccount(
       name = ?, description = ?, kind = ?,
       opening_balance = ?, currency_code = ?, currency_symbol = ?,
       archived = ?, archived_at = ?,
-      updated_at = ?, dirty = 1, device_id = ?, sync_version = sync_version + 1
+      updated_at = ?, dirty = 1, sync_status = 'pending_update',
+      retry_count = 0, last_sync_error = NULL,
+      device_id = ?, sync_version = sync_version + 1
      WHERE id = ?`,
     patch.name?.trim() ?? existing.name,
     patch.description !== undefined ? patch.description : existing.description,
@@ -135,7 +137,9 @@ export async function softDeleteAccount(
 ): Promise<void> {
   const ts = nowIso();
   await db.runAsync(
-    `UPDATE accounts SET deleted_at = ?, updated_at = ?, dirty = 1, device_id = ?, sync_version = sync_version + 1 WHERE id = ?`,
+    `UPDATE accounts SET deleted_at = ?, updated_at = ?, dirty = 1,
+      sync_status = 'pending_delete', retry_count = 0, last_sync_error = NULL,
+      device_id = ?, sync_version = sync_version + 1 WHERE id = ?`,
     ts,
     ts,
     device_id,
@@ -169,6 +173,9 @@ export async function upsertAccountFromSync(
       updated_at = excluded.updated_at,
       deleted_at = excluded.deleted_at,
       dirty = excluded.dirty,
+      sync_status = CASE WHEN excluded.dirty = 0 THEN 'synced' ELSE COALESCE(excluded.sync_status, 'pending_update') END,
+      retry_count = CASE WHEN excluded.dirty = 0 THEN 0 ELSE accounts.retry_count END,
+      last_sync_error = CASE WHEN excluded.dirty = 0 THEN NULL ELSE accounts.last_sync_error END,
       sync_version = excluded.sync_version,
       client_request_id = excluded.client_request_id,
       device_id = excluded.device_id`,

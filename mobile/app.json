@@ -23,6 +23,11 @@
         "NSPhotoLibraryAddUsageDescription": "Allow Hisab Boi to save photos to your library.",
         "NSFaceIDUsageDescription": "Use Face ID to quickly and securely sign in to Hisab Boi.",
         "NSMicrophoneUsageDescription": "Allow Hisab Boi to use the microphone for voice input when adding transactions.",
+        "NSLocalNetworkUsageDescription": "Allow Hisab Boi to connect to your Mac for local development (Metro) and your local API server on the same Wi‑Fi.",
+        "NSBonjourServices": [
+          "_expo._tcp",
+          "_http._tcp"
+        ],
         "ITSAppUsesNonExemptEncryption": false,
         "CFBundleURLTypes": [
           {
@@ -95,6 +100,7 @@
     },
     "plugins": [
       "expo-router",
+      "expo-dev-client",
       [
         "expo-splash-screen",
         {

@@ -128,6 +128,118 @@ test("computeUseLocalPersonalLedger is offline-first when LF on", () => {
   assert.equal(computeUseLocalPersonalLedger(true, true, null), true);
 });
 
+test("local-first defaults are on-device + cloud sync", () => {
+  const src = readFileSync(
+    join(__dirname, "../flags.ts"),
+    "utf8",
+  );
+  assert.match(src, /localFirstEnabled:\s*true/);
+  assert.match(src, /cloudSyncEnabled:\s*true/);
+});
+
+test("login mode defaults to single", () => {
+  const src = readFileSync(
+    join(__dirname, "../../auth/login-mode.ts"),
+    "utf8",
+  );
+  assert.match(src, /DEFAULT_MODE:\s*LoginMode\s*=\s*"single"/);
+  assert.match(src, /every_time/);
+});
+
 test("localDayKey formats YYYY-MM-DD", () => {
   assert.equal(localDayKey(new Date(2026, 7, 3, 23, 30, 0)), "2026-08-03");
+});
+
+test("migration 002 adds sync_status columns", () => {
+  const src = readFileSync(
+    join(__dirname, "../../../db/migrations/index.ts"),
+    "utf8",
+  );
+  assert.match(src, /name: "002_sync_status"/);
+  assert.match(src, /ALTER TABLE accounts ADD COLUMN sync_status/);
+  assert.match(src, /ALTER TABLE transactions ADD COLUMN retry_count/);
+  assert.match(src, /idx_parties_updated/);
+});
+
+test("syncStatusForMutation maps create/update/delete", async () => {
+  const { syncStatusForMutation } = await import(
+    "../../../db/sync-status.ts"
+  );
+  assert.equal(syncStatusForMutation({ isCreate: true }), "pending_create");
+  assert.equal(syncStatusForMutation({}), "pending_update");
+  assert.equal(syncStatusForMutation({ deleted: true }), "pending_delete");
+});
+
+test("owner helper exports isolation API", () => {
+  const src = readFileSync(
+    join(__dirname, "../owner.ts"),
+    "utf8",
+  );
+  assert.match(src, /export async function ensureLocalLedgerOwner/);
+  assert.match(src, /export async function resetLocalLedgerForUserChange/);
+  assert.match(src, /export async function clearLocalAttachmentFiles/);
+  assert.match(src, /META_KEYS\.OWNER_ADMIN_ID/);
+});
+
+test("levelFromRatio uses configurable thresholds", async () => {
+  const { levelFromRatio, DEFAULT_STORAGE_THRESHOLDS } = await import(
+    "../storage-monitor.ts"
+  );
+  assert.equal(levelFromRatio(0.5, DEFAULT_STORAGE_THRESHOLDS), "ok");
+  assert.equal(levelFromRatio(0.8, DEFAULT_STORAGE_THRESHOLDS), "warning");
+  assert.equal(levelFromRatio(0.9, DEFAULT_STORAGE_THRESHOLDS), "strong");
+  assert.equal(levelFromRatio(0.95, DEFAULT_STORAGE_THRESHOLDS), "critical");
+});
+
+test("scheduler exports mutation + backoff sync entry points", () => {
+  const src = readFileSync(
+    join(__dirname, "../../../sync/scheduler.ts"),
+    "utf8",
+  );
+  assert.match(src, /export function requestSyncSoon/);
+  assert.match(src, /export function requestSyncNow/);
+  assert.match(src, /BACKOFF_STEPS_MS/);
+  assert.match(src, /probeBackendAvailable/);
+  assert.match(src, /reconnect/);
+});
+
+test("backend sync applies account \$inc on transaction push", () => {
+  const src = readFileSync(
+    join(
+      __dirname,
+      "../../../../backend/controllers/sync.controller.js",
+    ),
+    "utf8",
+  );
+  assert.match(src, /accountCashDelta/);
+  assert.match(src, /applyAccountInc/);
+  assert.match(src, /Do NOT trust client current_balance/);
+});
+
+test("ledger screens prefer DAL over raw partiesApi/fetchAccounts", () => {
+  const invoice = readFileSync(
+    join(__dirname, "../../../app/(app)/invoices/create.tsx"),
+    "utf8",
+  );
+  assert.match(invoice, /dalFetchAccounts/);
+  assert.match(invoice, /dalFetchParties/);
+  assert.match(invoice, /dalCreateParty/);
+  assert.doesNotMatch(invoice, /from "@\/services\/parties"/);
+  assert.doesNotMatch(invoice, /from "@\/services\/accounts"/);
+
+  const scheme = readFileSync(
+    join(__dirname, "../../../app/(app)/schemes/[schemeId]/index.tsx"),
+    "utf8",
+  );
+  assert.match(scheme, /dalFetchAccounts/);
+  assert.match(scheme, /dalCreateParty/);
+  assert.doesNotMatch(scheme, /from "@\/services\/parties"/);
+
+  const reports = readFileSync(
+    join(__dirname, "../../../services/reports.ts"),
+    "utf8",
+  );
+  assert.match(reports, /dalFetchAccountDetail/);
+  assert.match(reports, /dalFetchPartyLedger/);
+  assert.doesNotMatch(reports, /partiesApi\.getLedger/);
 });
