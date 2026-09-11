@@ -14,8 +14,8 @@ Agreed scope for v1. Keep org multi-user on cloud API until Phase 9.
 | Sync conflicts log | ✅ | ❌ | N/A | Local support log |
 | Organization (meta) | read cache later | optional | later | Mode C deferred |
 | Org members | ❌ | ❌ | ❌ | Cloud-primary |
-| Invoice | ❌ | ❌ | ❌ | Deferred |
-| Product / Stock | ❌ | ❌ | ❌ | Deferred |
+| Invoice | ❌ | ❌ | ❌ | Deferred for ledger v1 — **shop offline target:** see [`SHOP_LOCAL_FIRST_MASTER.md`](./SHOP_LOCAL_FIRST_MASTER.md) |
+| Product / Stock | ❌ | ❌ | ❌ | Deferred for ledger v1 — **shop offline target:** see [`SHOP_LOCAL_FIRST_MASTER.md`](./SHOP_LOCAL_FIRST_MASTER.md) |
 | Collection schemes | ❌ | ❌ | ❌ | Deferred |
 | Attachments | local files later | zip later | later | Not in JSON v3 body |
 | Auth tokens | SecureStore | ❌ | N/A | |

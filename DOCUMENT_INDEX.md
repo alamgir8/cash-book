@@ -8,6 +8,17 @@ This file helps you navigate all the improvement documentation for the Cash Book
 
 ## 🎯 START HERE
 
+### Shop + Offline POS / Inventory (new workstream)
+**File**: `docs/SHOP_LOCAL_FIRST_MASTER.md`
+- Source of truth for evolving Personal Cash Book → local shop / POS / inventory / purchase / sales / P&L
+- Current audit snapshot, ownership model, schema proposal, accounting matrix, phases 1–15
+- Copy-paste starter prompt for a new implementation chat
+- **Do not implement shop features without reading this first**
+
+**Related**: `docs/ENTITY_INVENTORY.md`, `docs/OFFLINE_FIRST_PROGRESS.md`, `docs/LOCAL_FIRST_IMPLEMENTATION.md`
+
+---
+
 ### For Busy People: 5-Minute Overview
 **File**: `QUICK_START.md`
 - What's fixed (ready to use)
@@ -147,8 +158,9 @@ FINAL_REPORT.md             (10 min read)
 
 ### Technical Planning
 ```
-IMPROVEMENTS_PLAN.md        (15 min read)
-README_IMPROVEMENTS.md      (20 min read)
+docs/SHOP_LOCAL_FIRST_MASTER.md  (shop / POS / inventory offline plan)
+IMPROVEMENTS_PLAN.md             (15 min read)
+README_IMPROVEMENTS.md           (20 min read)
 ```
 
 ### Implementation Details

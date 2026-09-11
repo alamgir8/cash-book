@@ -47,6 +47,6 @@ Fresh install still needs **Migrate from cloud** once (empty SQLite until then).
 4. Airplane mode: add/edit ledger; reopen online → Sync now
 
 ## Still deferred
-- Offline invoices / products / schemes
+- Offline invoices / products / schemes — **planned:** full offline shop CRUD in [`SHOP_LOCAL_FIRST_MASTER.md`](./SHOP_LOCAL_FIRST_MASTER.md)
 - SQLCipher
 - Multi-writer org conflict UX
