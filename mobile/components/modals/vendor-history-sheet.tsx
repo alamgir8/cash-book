@@ -127,16 +127,16 @@ export const VendorHistorySheet = ({
           : net > 0
             ? "Net Received"
             : "Net Spent";
-      const netColor = net === 0 ? "#16a34a" : net > 0 ? "#f59e0b" : "#dc2626";
+      const netColor = net === 0 ? "#16a34a" : net > 0 ? "#f59e0b" : "#e11d48";
 
       const statsHtml = `<div class="stats-bar">
         <div class="stat-box" style="border-top:3px solid #16a34a">
           <div class="stat-label">Total Credit (In)</div>
           <div class="stat-value" style="color:#16a34a">${fmt(s.total_credit)}</div>
         </div>
-        <div class="stat-box" style="border-top:3px solid #dc2626">
+        <div class="stat-box" style="border-top:3px solid #e11d48">
           <div class="stat-label">Total Debit (Out)</div>
-          <div class="stat-value" style="color:#dc2626">${fmt(s.total_debit)}</div>
+          <div class="stat-value" style="color:#e11d48">${fmt(s.total_debit)}</div>
         </div>
       </div>`;
 
@@ -153,11 +153,11 @@ export const VendorHistorySheet = ({
       const rowsHtml = chronological
         .map((e) => {
           const isCredit = e.entry_type === "credit";
-          const amtColor = isCredit ? "#16a34a" : "#dc2626";
+          const amtColor = isCredit ? "#16a34a" : "#e11d48";
           const sign = isCredit ? "+" : "-";
           const bal = e.running_balance;
           const balColor =
-            bal === 0 ? "#16a34a" : bal > 0 ? "#f59e0b" : "#dc2626";
+            bal === 0 ? "#16a34a" : bal > 0 ? "#f59e0b" : "#e11d48";
           const balLabel = isLoanContext
             ? bal === 0
               ? "✓ Clear"
@@ -168,7 +168,7 @@ export const VendorHistorySheet = ({
           const catName =
             (e as any).category?.name ?? (e as any).category_id?.name ?? "";
           return `
-            <tr class="entry-row" style="background:${isCredit ? "#f0fdf4" : "#fef2f2"}">
+            <tr class="entry-row" style="background:${isCredit ? "#f0fdf4" : "#fff1f2"}">
               <td class="td-date">${dayjs(e.date).format("DD MMM YYYY")}</td>
               <td class="td-type">
                 <span class="type-chip" style="background:${amtColor}20;color:${amtColor}">
@@ -184,7 +184,7 @@ export const VendorHistorySheet = ({
 
       const finalBal = ledger.summary.net_balance;
       const fbColor =
-        finalBal === 0 ? "#16a34a" : finalBal > 0 ? "#f59e0b" : "#dc2626";
+        finalBal === 0 ? "#16a34a" : finalBal > 0 ? "#f59e0b" : "#e11d48";
       const fbLabel = isLoanContext
         ? finalBal === 0
           ? "✓ Fully Settled"
@@ -386,7 +386,7 @@ export const VendorHistorySheet = ({
                 <SummaryCard
                   label="Total Debit (Out)"
                   value={formatAmount(ledger.summary.total_debit)}
-                  color="#dc2626"
+                  color="#e11d48"
                   colors={colors}
                 />
               </View>
@@ -478,7 +478,7 @@ const NetBalanceChip = ({
 }) => {
   const isSettled = netBalance === 0;
   const youAreOwed = netBalance > 0;
-  const color = isSettled ? "#16a34a" : youAreOwed ? "#f59e0b" : "#dc2626";
+  const color = isSettled ? "#16a34a" : youAreOwed ? "#f59e0b" : "#e11d48";
   const label = isSettled
     ? "Settled"
     : youAreOwed
@@ -547,7 +547,7 @@ const VendorLedgerRow = ({
   colors,
 }: VendorLedgerRowProps) => {
   const isCredit = entryType === "credit";
-  const color = isCredit ? "#16a34a" : "#dc2626";
+  const color = isCredit ? "#16a34a" : "#e11d48";
   const icon = isCredit ? "arrow-down-outline" : "arrow-up-outline";
   const sign = isCredit ? "+" : "-";
   const label = isCredit ? "Credit" : "Debit";
@@ -557,7 +557,7 @@ const VendorLedgerRow = ({
       ? "#16a34a"
       : runningBalance > 0
         ? "#f59e0b"
-        : "#dc2626";
+        : "#e11d48";
   const balLabel = showOweBalance
     ? runningBalance === 0
       ? "Clear"

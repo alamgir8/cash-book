@@ -157,9 +157,9 @@ export function LineItemFields({
         {canRemove && (
           <TouchableOpacity
             onPress={onRemove}
-            className="w-8 h-8 rounded-full bg-red-100 items-center justify-center"
+            className="w-8 h-8 rounded-full bg-rose-100 items-center justify-center"
           >
-            <Ionicons name="trash-outline" size={16} color="#EF4444" />
+            <Ionicons name="trash-outline" size={16} color="#f43f5e" />
           </TouchableOpacity>
         )}
       </View>

@@ -421,7 +421,7 @@ export const FilterBar = ({
                 : option.paymentStatus === "paid"
                   ? "#16a34a"
                   : option.loanFilter === "loan_given"
-                    ? "#dc2626"
+                    ? "#e11d48"
                     : option.loanFilter === "loan_received"
                       ? "#2563eb"
                       : colors.info;
