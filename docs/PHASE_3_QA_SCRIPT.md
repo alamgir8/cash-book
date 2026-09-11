@@ -11,6 +11,51 @@
 
 ## 0. Pre-flight (read this first)
 
+### 0.0 CRITICAL — the API URL protocol bug (found 2026-09-12)
+
+**Everything backend-dependent was failing because of one character.** The local
+backend serves **plain HTTP** on port 5050, but `mobile/.env.local` was set to
+**`https://`**. There is no TLS listener, so every request died with
+"Network Error".
+
+Verified with `curl`:
+
+```
+http://192.168.0.249:5050/health   -> 200
+https://192.168.0.249:5050/health  -> connection failed
+```
+
+This single issue explains all of these symptoms:
+
+- `Failed to load organizations on startup: [AxiosError: Network Error]`
+- `[reconcile] personal cloud fetch failed`
+- `[sync] Cannot reach API at https://192.168.0.249:5050/api`
+- "Migrate from cloud" never completing
+
+**Fixed** — `.env.local` now uses `http://192.168.0.249:5050/api`. After any
+`.env.local` change you must restart Metro with `--clear` (env vars are inlined at
+bundle time):
+
+```bash
+npx expo start --dev-client --clear
+```
+
+If your Mac's IP changes, run `ipconfig getifaddr en0` and update it. Phone and
+Mac must be on the same Wi‑Fi.
+
+### 0.0b Restart the backend
+
+The backend currently running on 5050 was started as `node api/index.js`
+(**not** nodemon), so it is running pre-Phase-13 code. Restart it to pick up the
+new shop sync entities:
+
+```bash
+cd cash-book/backend && npm start    # or: npm run dev (nodemon, auto-reload)
+```
+
+Without this restart the client will push `product`/`invoice`/`stock_movement`
+changes and the server will reject them as an unsupported entity.
+
 ### 0.1 You need a Debug dev-client build — a Release build cannot test code changes
 
 A Release / internal-distribution build (EAS `preview`, `production`, or `eas build --profile simulator`) bakes the JS bundle and `EXPO_PUBLIC_*` values in at build time. It never talks to Metro, so it will **never** show local changes. A `Release` build that "works fine on the phone" is running old code.
@@ -82,13 +127,15 @@ Watch the Metro / Xcode console for non-fatal seed skips (expected if the server
 
 ## 1. Known limitations — do NOT file these as bugs
 
-- Products / invoices / stock rows are created locally but **do not sync to the server yet** (shop sync is Phase 13). The sync badge counts ledger pending only, so shop rows will sit local.
-- Server stock only moves for products that exist on the server (migrated ones). A product created offline does not affect server stock.
+- ~~Products / invoices / stock rows do not sync yet~~ — **Phase 13 landed**: they push/pull and the badge counts them. Verify in Section H.
+- ~~Server stock only moves for server products~~ — server stock now follows the pushed `stock_movement` rows. During sync, check it moves **once**, not twice (item 44).
 - A credit invoice's unpaid balance lives on the invoice (`balance_due` + status), **not** on the party's balance card. Only *payments* post to the party ledger.
-- "Backup Now" does not yet include shop entities (products/invoices/movements) — Phase 14.
-- Local invoice numbers can differ from server numbers until Phase 13 reconciles.
+- "Backup Now" still does **not** include shop entities — Phase 14. Sync protects them; backup does not yet.
+- Local invoice numbers can differ from server numbers; a collision is resolved server-side with a short suffix (item 47).
 - Supplier party balances may legitimately **change** on first load after repair v9 (they converge to the server convention). Customer balances should not change.
 - Full offline invoice **edit** and **returns/credit notes** are Phase 8.
+- **Voice on the phone needs one rebuild** (free `expo-speech-recognition`). Typing the same phrase works today — Section I tests via typing.
+- Zod validation **messages** are Bangla, but server/network error text comes from the backend and stays English.
 
 ---
 
@@ -157,6 +204,62 @@ If those pass, the core of Phases 2–7 is working.
 
 - [ ] **37.** Ledger transactions push/pull on reconnect with no duplicates; shop rows stay local (expected).
 - [ ] **38.** Fresh install → **Migrate from cloud** → products **and** invoices are seeded.
+
+---
+
+## 10. Section H — Shop SYNC (Phase 13, new)
+
+Do this after Section B so there are products to sync. Watch Metro logs for
+`[sync]` warnings.
+
+- [ ] **39.** Restart the backend, then in the app **Settings → Sync now** → no "Cannot reach API" error.
+- [ ] **40.** Create a product offline (airplane mode) → sync badge shows pending work. Reconnect → **Sync now** → badge clears.
+- [ ] **41.** Confirm the product reached the server: refresh `GET /products` (or look in Mongo `products`) → the row is there with `current_stock`, `purchase_price`, `additional_cost`, `cost_price`.
+- [ ] **42.** **Idempotency:** with a product still pending, tap **Sync now** twice in a row → the server has **exactly one** product, not two.
+- [ ] **43.** Create a purchase invoice offline → reconnect → sync → the server has **one** invoice with its items, and `unit_cost_at_sale` is populated on sale lines.
+- [ ] **44.** **No double-counting (important):** after syncing a sale, the server product's `current_stock` must change by the **movement quantity once**, not twice. Compare `GET /products/:id` before/after.
+- [ ] **45.** Check `stock_movements` in Mongo → one movement per business event (no duplicates after repeated syncs).
+- [ ] **46.** Two-device check (optional): second device with the same account → **Migrate from cloud** → products/invoices appear.
+- [ ] **47.** Invoice number collision: create an offline invoice whose number matches an existing server one → sync succeeds (server appends a short suffix) instead of the push failing.
+- [ ] **48.** **Logout safety:** log out → sign in as a *different* account → Shop shows **no** products/invoices from the previous account.
+
+## 11. Section I — Voice / natural-language entry (new)
+
+The bar is on **Shop → New Sale (POS)** and **Shop → Products → Add Product**.
+On the phone the mic needs a rebuild, but **typing works today** — test by typing.
+
+- [ ] **49.** In POS, type exactly: `Lux সাবান/সাবান ২টা ৪৫টাকা করে` → preview reads name **Lux সাবান/সাবান**, qty **2**, price **45**. Tap add → one cart line, qty 2, unit price 45.
+- [ ] **50.** Type `২ কেজি চাল ৮০ টাকা` → qty 2, unit **kg**, price 80.
+- [ ] **51.** Type `৫০০ গ্রাম চিনি ৬০ টাকা` → unit **g**, qty 500.
+- [ ] **52.** Type `সাবান ২টা ৩৫ টাকা করে ৪৫ টাকা বিক্রয়` → cost 35 **and** sale 45 shown.
+- [ ] **53.** Type two items in one line: `২টা সাবান ৪৫ করে আর ১ কেজি চাল ৮০ টাকা` → **two** preview rows → both added.
+- [ ] **54.** Type a catalog product's name → it shows **existing** (matched) and a suggestion chip appears; tap the chip → added to cart without re-typing.
+- [ ] **55.** In **Add Product**, type `লাক্স সাবান ২টা ৪৫ টাকা` → the form fills name, sale price 45, opening stock 2, unit pcs.
+- [ ] **56.** Type `সাড়ে তিন কেজি চাল ৮০ টাকা` → qty **3.5** kg (not 3).
+- [ ] **57.** Sale line shows **profit** when the product has a cost price. Sell below cost → the number goes negative (a loss).
+- [ ] **58.** Voice unavailable message is shown on the phone (expected until the rebuild) and the **text field still works**.
+
+## 12. Section J — Bangla localization (new)
+
+- [ ] **59.** Settings → language → **বাংলা** → the whole app switches.
+- [ ] **60.** **Shop tab label** reads **শপ** (was the only untranslated tab).
+- [ ] **61.** Shop dashboard: quick actions, Today, Inventory stat labels all Bangla.
+- [ ] **62.** POS: Scan/Find, cart empty text, payment modes (নগদ/আংশিক/বাকি), Subtotal/Grand Total, Charge button all Bangla.
+- [ ] **63.** Products list + Add Product: labels, placeholders, empty states Bangla.
+- [ ] **64.** Invoices list + detail + payment modal Bangla (status chips পরিশোধিত/বাকি/আংশিক).
+- [ ] **65.** **Validation messages are Bangla:** submit an empty product name → **"পণ্যের নাম আবশ্যক"**, not English.
+- [ ] **66.** Submit an invoice line with qty 0 → the error is Bangla.
+- [ ] **67.** Organizations screen: status chips (সক্রিয়/স্থগিত/সংরক্ষিত) and offline banner Bangla.
+- [ ] **68.** Transaction cards / account ledger show Bangla labels (due amount reads naturally, e.g. "৫০০ বাকি").
+
+## 13. Section K — Offline settings (new)
+
+- [ ] **69.** **Airplane mode.** Settings → Edit profile → change currency + language → **saves without an error** (toast mentions it will sync).
+- [ ] **70.** Still offline: Shop → Edit shop → change currency → saves.
+- [ ] **71.** Reconnect → **Sync now** → reopen the profile → the change persisted to the server.
+- [ ] **72.** Enable the login PIN while offline → sign out/in → the PIN works **offline** (stored in SecureStore).
+- [ ] **73.** Offline, previously-opened shops still list (cached), with the offline banner; **creating** a shop offline shows the "needs a connection once" message rather than a generic failure.
+- [ ] **74.** Disable the PIN while offline → after sync, `has_login_pin` is false on the server.
 
 ---
 
