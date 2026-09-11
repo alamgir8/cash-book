@@ -98,8 +98,9 @@ export function useDashboard() {
 
   const createMutation = useMutation({
     mutationFn: dalCreateTransaction,
-    onSuccess: () => {
-      void invalidateAll();
+    onSuccess: async () => {
+      // Await so the modal closes only after the list has the new row.
+      await invalidateAll();
       Toast.show({ type: "success", text1: "Transaction added" });
     },
     onError: () =>
@@ -112,10 +113,10 @@ export function useDashboard() {
 
   const updateMutation = useMutation({
     mutationFn: dalUpdateTransaction,
-    onSuccess: () => {
+    onSuccess: async () => {
       setModalVisible(false);
       setEditingTransaction(null);
-      void invalidateAll();
+      await invalidateAll();
       Toast.show({ type: "success", text1: "Transaction updated" });
     },
     onError: () =>
@@ -128,8 +129,8 @@ export function useDashboard() {
 
   const deleteMutation = useMutation({
     mutationFn: dalDeleteTransaction,
-    onSuccess: () => {
-      void invalidateAll();
+    onSuccess: async () => {
+      await invalidateAll();
       Toast.show({ type: "success", text1: "Transaction deleted" });
     },
     onError: () =>
@@ -142,8 +143,8 @@ export function useDashboard() {
 
   const createTransferMutation = useMutation({
     mutationFn: dalCreateTransfer,
-    onSuccess: () => {
-      void invalidateAll();
+    onSuccess: async () => {
+      await invalidateAll();
       Toast.show({ type: "success", text1: "Transfer completed" });
     },
     onError: () =>

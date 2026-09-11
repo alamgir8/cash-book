@@ -78,28 +78,28 @@ Before running locally, set up the required `.env` / `.env.local` files for the 
 Install backend dependencies:
 
 ```shell
-cd /Users/alamgirhossain/Themeforest/cash-book/backend
+cd /Users/alamgirhossain/Themeforest/native-apps/cash-book/backend
 npm install
 ```
 
 Install mobile dependencies:
 
 ```shell
-cd /Users/alamgirhossain/Themeforest/cash-book/mobile
+cd /Users/alamgirhossain/Themeforest/native-apps/cash-book/mobile
 npm install
 ```
 
 Run backend locally:
 
 ```shell
-cd /Users/alamgirhossain/Themeforest/cash-book/backend
+cd /Users/alamgirhossain/Themeforest/native-apps/cash-book/backend
 npm start
 ```
 
 Run mobile locally:
 
 ```shell
-cd /Users/alamgirhossain/Themeforest/cash-book/mobile
+cd /Users/alamgirhossain/Themeforest/native-apps/cash-book/mobile
 npm run dev
 ```
 
@@ -168,28 +168,28 @@ Settings → **Switch Account** signs out, clears React Query cache and user-sco
 Build Android `.apk`:
 
 ```shell
-cd /Users/alamgirhossain/Themeforest/cash-book/mobile
+cd /Users/alamgirhossain/Themeforest/native-apps/cash-book/mobile
 eas build -p android --profile preview
 ```
 
 Build Android `.apk` with clear cache:
 
 ```shell
-cd /Users/alamgirhossain/Themeforest/cash-book/mobile
+cd /Users/alamgirhossain/Themeforest/native-apps/cash-book/mobile
 eas build -p android --profile preview --clear-cache
 ```
 
 Build Android `.aab`:
 
 ```shell
-cd /Users/alamgirhossain/Themeforest/cash-book/mobile
+cd /Users/alamgirhossain/Themeforest/native-apps/cash-book/mobile
 eas build --platform android
 ```
 
 Build Android production `.aab`:
 
 ```shell
-cd /Users/alamgirhossain/Themeforest/cash-book/mobile
+cd /Users/alamgirhossain/Themeforest/native-apps/cash-book/mobile
 eas build -p android --profile production --clear-cache
 ```
 
@@ -200,7 +200,7 @@ eas build -p android --profile production --clear-cache
 Check package compatibility:
 
 ```shell
-cd /Users/alamgirhossain/Themeforest/cash-book/mobile
+cd /Users/alamgirhossain/Themeforest/native-apps/cash-book/mobile
 npx expo-doctor
 npx expo install --check
 ```
@@ -220,14 +220,14 @@ expo logout
 Reset Metro cache:
 
 ```shell
-cd /Users/alamgirhossain/Themeforest/cash-book/mobile
+cd /Users/alamgirhossain/Themeforest/native-apps/cash-book/mobile
 npm start -- --reset-cache
 ```
 
 Start Expo server:
 
 ```shell
-cd /Users/alamgirhossain/Themeforest/cash-book/mobile
+cd /Users/alamgirhossain/Themeforest/native-apps/cash-book/mobile
 npx expo start
 ```
 
@@ -264,21 +264,21 @@ If it says the tools are already installed, continue.
 Install mobile dependencies:
 
 ```shell
-cd /Users/alamgirhossain/Themeforest/cash-book/mobile
+cd /Users/alamgirhossain/Themeforest/native-apps/cash-book/mobile
 npm install
 ```
 
 Generate the native iOS project if `mobile/ios` does not exist:
 
 ```shell
-cd /Users/alamgirhossain/Themeforest/cash-book/mobile
+cd /Users/alamgirhossain/Themeforest/native-apps/cash-book/mobile
 npx expo prebuild -p ios
 ```
 
 Open the iOS project in Xcode:
 
 ```shell
-cd /Users/alamgirhossain/Themeforest/cash-book/mobile
+cd /Users/alamgirhossain/Themeforest/native-apps/cash-book/mobile
 xed ios
 ```
 
@@ -352,7 +352,7 @@ com.alamgir.hisabboi.local
 Use this command to build a standalone **Release** app:
 
 ```shell
-cd /Users/alamgirhossain/Themeforest/cash-book/mobile/ios
+cd /Users/alamgirhossain/Themeforest/native-apps/cash-book/mobile/ios
 xcodebuild -workspace HisabBoi.xcworkspace \
   -scheme HisabBoi \
   -configuration Release \
@@ -416,7 +416,7 @@ Reconnect your iPhone and run **both** commands below (build + install).
 **Step 1 — Rebuild Release app and refresh Apple ID signing:**
 
 ```shell
-cd /Users/alamgirhossain/Themeforest/cash-book/mobile/ios
+cd /Users/alamgirhossain/Themeforest/native-apps/cash-book/mobile/ios
 xcodebuild -workspace HisabBoi.xcworkspace \
   -scheme HisabBoi \
   -configuration Release \
@@ -471,7 +471,7 @@ When you change code and want the updated app on the iPhone:
 4. Run the Release build again:
 
 ```shell
-cd /Users/alamgirhossain/Themeforest/cash-book/mobile/ios
+cd /Users/alamgirhossain/Themeforest/native-apps/cash-book/mobile/ios
 xcodebuild -workspace HisabBoi.xcworkspace \
   -scheme HisabBoi \
   -configuration Release \
@@ -538,7 +538,7 @@ From Xcode:
 Or from Terminal:
 
 ```shell
-cd /Users/alamgirhossain/Themeforest/cash-book/mobile
+cd /Users/alamgirhossain/Themeforest/native-apps/cash-book/mobile
 npx expo run:ios --device
 ```
 
@@ -559,14 +559,14 @@ ipconfig getifaddr en0
 2. Start the backend:
 
 ```shell
-cd /Users/alamgirhossain/Themeforest/cash-book/backend
+cd /Users/alamgirhossain/Themeforest/native-apps/cash-book/backend
 npm run dev
 ```
 
 3. Start Metro with the **dev client** (not Expo Go):
 
 ```shell
-cd /Users/alamgirhossain/Themeforest/cash-book/mobile
+cd /Users/alamgirhossain/Themeforest/native-apps/cash-book/mobile
 npm run dev
 ```
 
@@ -586,7 +586,7 @@ npx expo start --dev-client --host lan
 6. After changing `.env.local`, restart Metro with a clean cache:
 
 ```shell
-cd /Users/alamgirhossain/Themeforest/cash-book/mobile
+cd /Users/alamgirhossain/Themeforest/native-apps/cash-book/mobile
 npx expo start --dev-client --host lan --clear
 ```
 
@@ -613,7 +613,7 @@ EXPO_PUBLIC_BASE_URL=http://YOUR_MAC_LAN_IP:5050/api
 3. Start only the backend:
 
 ```shell
-cd /Users/alamgirhossain/Themeforest/cash-book/backend
+cd /Users/alamgirhossain/Themeforest/native-apps/cash-book/backend
 npm run dev
 ```
 

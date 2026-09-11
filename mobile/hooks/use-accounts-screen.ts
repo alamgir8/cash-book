@@ -56,9 +56,12 @@ export function useAccountsScreen() {
   // ── Invalidation helper ──────────────────────────────────────────────────
   const invalidateAccountData = useCallback(
     async (accountId?: string) => {
+      const { refreshTransactionData } = await import("@/lib/refresh-app-data");
       const tasks: Promise<unknown>[] = [
         queryClient.invalidateQueries({ queryKey: queryKeys.accounts }),
         queryClient.invalidateQueries({ queryKey: queryKeys.accountsOverview }),
+        // Renames/deletes must refresh Home/Ledger txn cards that embed account names.
+        refreshTransactionData(queryClient),
       ];
       if (accountId) {
         tasks.push(
@@ -183,7 +186,7 @@ export function useAccountsScreen() {
 
       Alert.alert(
         "Delete account?",
-        `Remove "${accountName}"? This cannot be undone.`,
+        `Hide "${accountName}" from this device? It will be removed from the cloud on next sync.`,
         [
           { text: "Cancel", style: "cancel" },
           {

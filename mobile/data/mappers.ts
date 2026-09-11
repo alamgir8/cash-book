@@ -48,6 +48,8 @@ export function localPartyToApi(row: LocalParty, totalTransactions = 0): Party {
 export function localAccountToOverview(row: LocalAccount): AccountOverview {
   return {
     ...localAccountToApi(row),
+    // Prefer local UUID so edit/delete hit SQLite `id` (server_id is for sync).
+    _id: row.id,
     summary: {
       totalTransactions: 0,
       totalDebit: 0,

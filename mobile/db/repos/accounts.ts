@@ -136,15 +136,18 @@ export async function softDeleteAccount(
   device_id: string,
 ): Promise<void> {
   const ts = nowIso();
-  await db.runAsync(
+  const result = await db.runAsync(
     `UPDATE accounts SET deleted_at = ?, updated_at = ?, dirty = 1,
       sync_status = 'pending_delete', retry_count = 0, last_sync_error = NULL,
-      device_id = ?, sync_version = sync_version + 1 WHERE id = ?`,
+      device_id = ?, sync_version = sync_version + 1 WHERE id = ? AND deleted_at IS NULL`,
     ts,
     ts,
     device_id,
     id,
   );
+  if (!result.changes) {
+    throw new Error("Account not found");
+  }
 }
 
 export async function upsertAccountFromSync(

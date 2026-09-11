@@ -256,9 +256,13 @@ export async function createLocalAccount(
 export async function updateLocalAccount(
   args: { accountId: string; archived?: boolean } & Partial<AccountPayload>,
 ) {
-  const db = await getDb();
   const device_id = await getOrCreateDeviceId();
-  const row = await accountsRepo.updateAccount(db, args.accountId, {
+  // UI lists often pass Mongo server_id as _id — resolve to local SQLite row.
+  const { db, row: existing } = await resolveLocalAccount(args.accountId);
+  if (!existing) {
+    throw new Error("Account not found");
+  }
+  const row = await accountsRepo.updateAccount(db, existing.id, {
     name: args.name,
     description: args.description,
     kind: args.kind,
@@ -290,15 +294,18 @@ export async function updateLocalAccount(
 }
 
 export async function deleteLocalAccount(accountId: string) {
-  const db = await getDb();
   const device_id = await getOrCreateDeviceId();
-  const existing = await accountsRepo.getAccountById(db, accountId);
-  await accountsRepo.softDeleteAccount(db, accountId, device_id);
+  const { db, row: existing } = await resolveLocalAccount(accountId);
+  if (!existing) {
+    throw new Error("Account not found");
+  }
+  // Soft-delete (deleted_at) — list filters hide the row; sync pushes pending_delete.
+  await accountsRepo.softDeleteAccount(db, existing.id, device_id);
 
-  if (isDualWriteEnabled() && existing?.server_id) {
+  if (isDualWriteEnabled() && existing.server_id) {
     try {
       await apiDeleteAccount(existing.server_id);
-      await db.runAsync(`UPDATE accounts SET dirty = 0 WHERE id = ?`, accountId);
+      await db.runAsync(`UPDATE accounts SET dirty = 0 WHERE id = ?`, existing.id);
     } catch (e) {
       console.warn("[dal] dual-write account delete failed", e);
     }
