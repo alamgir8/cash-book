@@ -409,6 +409,25 @@ export async function runSync(): Promise<SyncResult> {
 
     await recalculateBalances(db, { allOrganizations: true });
 
+    // Settings/profile writes live outside the sync entity enum — push them
+    // on the same cycle so an offline save lands as soon as we're reachable.
+    try {
+      const { flushPendingOps } = await import(
+        "@/lib/local-first/settings-sync"
+      );
+      await flushPendingOps();
+    } catch (e) {
+      if (__DEV__) console.warn("[sync] settings flush skipped", e);
+    }
+
+    // Shop stock is rebuildable from movements — keep the cache consistent.
+    try {
+      const { recalculateProductStock } = await import("@/db/stock");
+      await recalculateProductStock(db, { allOrganizations: true });
+    } catch (e) {
+      if (__DEV__) console.warn("[sync] product stock reconcile skipped", e);
+    }
+
     const pushed = accepted.length;
     const pulled = pull.changes?.length ?? 0;
 

@@ -13,9 +13,10 @@ import { useTheme } from "@/hooks/use-theme";
 import { useActiveOrgId } from "@/hooks/use-organization";
 import { useProductStats } from "@/hooks/use-products";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { invoicesApi } from "@/services/invoices";
+import { dalFetchInvoiceSummary } from "@/data/invoices";
 import { ScreenHeader } from "@/components/screen-header";
 import { refreshAppData } from "@/lib/refresh-app-data";
+import { useTranslation } from "@/hooks/use-translation";
 
 function StatCard({
   label,
@@ -81,6 +82,7 @@ function StatCard({
 
 export default function ShopDashboard() {
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const router = useRouter();
   const queryClient = useQueryClient();
   const organizationId = useActiveOrgId();
@@ -97,7 +99,7 @@ export default function ShopDashboard() {
   const { data: saleSummary, isLoading: saleLoading } = useQuery({
     queryKey: ["invoices", "summary", organizationId, "today-sale"],
     queryFn: () =>
-      invoicesApi.getSummary({
+      dalFetchInvoiceSummary({
         organization: organizationId || undefined,
         type: "sale",
         startDate: startOfDay,
@@ -108,7 +110,7 @@ export default function ShopDashboard() {
   const { data: purchaseSummary, isLoading: purchaseLoading } = useQuery({
     queryKey: ["invoices", "summary", organizationId, "today-purchase"],
     queryFn: () =>
-      invoicesApi.getSummary({
+      dalFetchInvoiceSummary({
         organization: organizationId || undefined,
         type: "purchase",
         startDate: startOfDay,
@@ -130,7 +132,7 @@ export default function ShopDashboard() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg.primary }}>
-      <ScreenHeader title="Shop" showBack />
+      <ScreenHeader title={t("shop")} showBack />
 
       <ScrollView
         contentContainerStyle={{ padding: 16 }}
@@ -149,13 +151,11 @@ export default function ShopDashboard() {
             textTransform: "uppercase",
           }}
         >
-          Quick Actions
+          {t("quickActions")}
         </Text>
         <View style={{ flexDirection: "row", gap: 10, marginBottom: 20 }}>
           <TouchableOpacity
-            onPress={() =>
-              router.push("/(app)/shop/invoices/create?type=sale" as any)
-            }
+            onPress={() => router.push("/(app)/shop/pos" as any)}
             style={{
               flex: 1,
               backgroundColor: colors.success,
@@ -165,9 +165,28 @@ export default function ShopDashboard() {
               gap: 6,
             }}
           >
+            <Ionicons name="cart" size={28} color="#fff" />
+            <Text style={{ color: "#fff", fontWeight: "700", fontSize: 13 }}>
+              {t("newSale")}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() =>
+              router.push("/(app)/shop/invoices/create?type=sale" as any)
+            }
+            style={{
+              flex: 1,
+              backgroundColor: colors.info,
+              borderRadius: 12,
+              padding: 14,
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
             <Ionicons name="arrow-up-circle" size={28} color="#fff" />
             <Text style={{ color: "#fff", fontWeight: "700", fontSize: 13 }}>
-              New Sale
+              {t("saleInvoice")}
             </Text>
           </TouchableOpacity>
 
@@ -186,7 +205,7 @@ export default function ShopDashboard() {
           >
             <Ionicons name="arrow-down-circle" size={28} color="#fff" />
             <Text style={{ color: "#fff", fontWeight: "700", fontSize: 13 }}>
-              New Purchase
+              {t("newPurchase")}
             </Text>
           </TouchableOpacity>
 
@@ -203,7 +222,7 @@ export default function ShopDashboard() {
           >
             <Ionicons name="add-circle" size={28} color="#fff" />
             <Text style={{ color: "#fff", fontWeight: "700", fontSize: 13 }}>
-              Add Product
+              {t("addProduct")}
             </Text>
           </TouchableOpacity>
         </View>
@@ -219,7 +238,7 @@ export default function ShopDashboard() {
             textTransform: "uppercase",
           }}
         >
-          Today
+          {t("today")}
         </Text>
         <View
           style={{
@@ -233,7 +252,7 @@ export default function ShopDashboard() {
             <ActivityIndicator color={colors.info} />
           ) : (
             <StatCard
-              label="Today's Sales"
+              label={t("todaysSales")}
               value={fmt(saleSummary?.sales?.total ?? 0)}
               icon="trending-up"
               iconBg={colors.success + "20"}
@@ -247,7 +266,7 @@ export default function ShopDashboard() {
             <ActivityIndicator color={colors.info} />
           ) : (
             <StatCard
-              label="Today's Purchases"
+              label={t("todaysPurchases")}
               value={fmt(purchaseSummary?.purchases?.total ?? 0)}
               icon="trending-down"
               iconBg={colors.warning + "20"}
@@ -270,7 +289,7 @@ export default function ShopDashboard() {
             textTransform: "uppercase",
           }}
         >
-          Inventory
+          {t("inventory")}
         </Text>
         {statsLoading ? (
           <ActivityIndicator color={colors.info} style={{ marginTop: 20 }} />
@@ -284,7 +303,7 @@ export default function ShopDashboard() {
             }}
           >
             <StatCard
-              label="Total Products"
+              label={t("totalProducts")}
               value={stats?.total_products ?? 0}
               icon="cube"
               iconBg={colors.info + "20"}
@@ -292,7 +311,7 @@ export default function ShopDashboard() {
               onPress={() => router.push("/(app)/shop/products" as any)}
             />
             <StatCard
-              label="Low Stock"
+              label={t("lowStock")}
               value={stats?.low_stock_count ?? 0}
               icon="warning"
               iconBg={colors.error + "20"}
@@ -302,14 +321,14 @@ export default function ShopDashboard() {
               }
             />
             <StatCard
-              label="Stock Value (Cost)"
+              label={`${t("stockValue")} (${t("costPrice")})`}
               value={fmt(stats?.stock_purchase_value ?? 0)}
               icon="wallet"
               iconBg={colors.warning + "20"}
               iconColor={colors.warning}
             />
             <StatCard
-              label="Potential Profit"
+              label={t("profitMargin")}
               value={fmt(stats?.potential_profit ?? 0)}
               icon="cash"
               iconBg={colors.success + "20"}
@@ -329,26 +348,26 @@ export default function ShopDashboard() {
             textTransform: "uppercase",
           }}
         >
-          Shortcuts
+          {t("shortcuts")}
         </Text>
         {[
           {
-            label: "All Products",
+            label: t("allProducts"),
             icon: "cube-outline" as const,
             route: "/(app)/shop/products",
           },
           {
-            label: "Sales Invoices",
+            label: t("salesInvoices"),
             icon: "receipt-outline" as const,
             route: "/(app)/shop/invoices?type=sale",
           },
           {
-            label: "Purchase Invoices",
+            label: t("purchaseInvoices"),
             icon: "document-text-outline" as const,
             route: "/(app)/shop/invoices?type=purchase",
           },
           {
-            label: "Parties / Suppliers",
+            label: t("partiesSuppliers"),
             icon: "people-outline" as const,
             route: "/(app)/shop/parties",
           },

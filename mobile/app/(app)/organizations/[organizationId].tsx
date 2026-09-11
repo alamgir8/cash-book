@@ -12,6 +12,10 @@ import {
   organizationsApi,
   type OrganizationMember,
 } from "@/services/organizations";
+import {
+  dalFetchOrganization,
+  dalUpdateOrganization,
+} from "@/data/organizations";
 import { getApiErrorMessage } from "@/lib/api";
 import { toast } from "@/lib/toast";
 import { refreshAppData } from "@/lib/refresh-app-data";
@@ -19,20 +23,24 @@ import { AddMemberModal } from "@/components/modals/add-member-modal";
 import { OrganizationSettingsModal } from "@/components/organization/organization-settings-modal";
 import { OrganizationInfoCard } from "@/components/organization/organization-info-card";
 import { MemberList } from "@/components/organization/member-list";
+import { useTranslation } from "@/hooks/use-translation";
 
 export default function OrganizationDetailScreen() {
   const { organizationId } = useLocalSearchParams<{ organizationId: string }>();
   const queryClient = useQueryClient();
   const router = useRouter();
+  const { t } = useTranslation();
 
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
 
   const { data, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ["organization", organizationId],
-    queryFn: () => organizationsApi.get(organizationId!),
+    // Server-first with a local-mirror fallback so settings open offline.
+    queryFn: () => dalFetchOrganization(organizationId!),
     enabled: !!organizationId,
   });
+  const orgOffline = data?.fromCache ?? false;
 
   const addMemberMutation = useMutation({
     mutationFn: (params: {
@@ -58,13 +66,14 @@ export default function OrganizationDetailScreen() {
     mutationFn: (params: {
       settings: { currency: string };
       status: "active" | "suspended" | "archived";
-    }) => organizationsApi.update(organizationId!, params),
+    }) => dalUpdateOrganization(organizationId!, params),
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: ["organization", organizationId],
       });
+      queryClient.invalidateQueries({ queryKey: ["organizations"] });
       setShowSettingsModal(false);
-      toast.success("Settings updated successfully");
+      toast.success("Settings saved");
     },
     onError: (error) => {
       toast.error(getApiErrorMessage(error));
@@ -113,7 +122,7 @@ export default function OrganizationDetailScreen() {
   if (isLoading) {
     return (
       <View style={{ flex: 1, backgroundColor: "white" }}>
-        <ScreenHeader title="Organization" showBack />
+        <ScreenHeader title={t("organization")} showBack />
         <View
           style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
         >
@@ -129,7 +138,7 @@ export default function OrganizationDetailScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: "#f9fafb" }}>
       <ScreenHeader
-        title={organization?.name || "Organization"}
+        title={organization?.name || t("organization")}
         showBack
         onBack={() => router.push("/organizations")}
       />

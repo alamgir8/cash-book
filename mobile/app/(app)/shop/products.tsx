@@ -15,10 +15,12 @@ import { useTheme } from "@/hooks/use-theme";
 import { useActiveOrgId } from "@/hooks/use-organization";
 import { useProducts, useDeleteProduct } from "@/hooks/use-products";
 import { ScreenHeader } from "@/components/screen-header";
+import { useTranslation } from "@/hooks/use-translation";
 import type { Product } from "@/types/product";
 
 export default function ProductsScreen() {
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const router = useRouter();
   const { low_stock } = useLocalSearchParams<{ low_stock?: string }>();
   const organizationId = useActiveOrgId();
@@ -40,12 +42,12 @@ export default function ProductsScreen() {
   const handleDelete = useCallback(
     (product: Product) => {
       Alert.alert(
-        "Delete Product",
-        `Delete "${product.name}"? This cannot be undone.`,
+        t("deleteProductTitle"),
+        t("deleteProductMessage", { name: product.name }),
         [
-          { text: "Cancel", style: "cancel" },
+          { text: t("cancel"), style: "cancel" },
           {
-            text: "Delete",
+            text: t("delete"),
             style: "destructive",
             onPress: () => deleteMutation.mutate(product._id),
           },
@@ -57,9 +59,9 @@ export default function ProductsScreen() {
 
   const stockBadge = (p: Product) => {
     if (!p.track_inventory)
-      return { text: "No tracking", color: colors.text.tertiary };
+      return { text: t("noTracking"), color: colors.text.tertiary };
     if (p.current_stock <= 0)
-      return { text: "Out of stock", color: colors.error };
+      return { text: t("outOfStock"), color: colors.error };
     if (p.is_low_stock)
       return { text: `Low: ${p.current_stock}`, color: colors.warning };
     return { text: `${p.current_stock} ${p.unit}`, color: colors.success };
@@ -68,7 +70,7 @@ export default function ProductsScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg.primary }}>
       <ScreenHeader
-        title="Products"
+        title={t("products")}
         showBack
         rightAction={
           <TouchableOpacity
@@ -103,7 +105,7 @@ export default function ProductsScreen() {
             fontSize: 15,
             color: colors.text.primary,
           }}
-          placeholder="Search name, SKU, barcode…"
+          placeholder={t("searchProductsPlaceholder")}
           placeholderTextColor={colors.text.tertiary}
           value={search}
           onChangeText={setSearch}
@@ -146,7 +148,7 @@ export default function ProductsScreen() {
               color: !showLowStock ? "#fff" : colors.text.secondary,
             }}
           >
-            All
+            {t("all")}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -167,7 +169,7 @@ export default function ProductsScreen() {
               color: showLowStock ? "#fff" : colors.text.secondary,
             }}
           >
-            ⚠ Low Stock
+            ⚠ {t("lowStock")}
           </Text>
         </TouchableOpacity>
       </View>
@@ -210,7 +212,7 @@ export default function ProductsScreen() {
                   fontWeight: "600",
                 }}
               >
-                No Products Found
+                {t("noProductsFound")}
               </Text>
               <Text
                 style={{
@@ -220,8 +222,8 @@ export default function ProductsScreen() {
                 }}
               >
                 {showLowStock
-                  ? "No products are low on stock."
-                  : "Tap + to add your first product."}
+                  ? t("noProductsLowStock")
+                  : t("tapToAddFirstProduct")}
               </Text>
             </View>
           }

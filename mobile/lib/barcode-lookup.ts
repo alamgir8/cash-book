@@ -21,8 +21,21 @@ export interface BarcodeLookupResult {
 
 const TIMEOUT_MS = 12000;
 
-function signal() {
-  return AbortSignal.timeout(TIMEOUT_MS);
+/**
+ * React Native does not implement `AbortSignal.timeout`, so using it directly
+ * made every lookup throw (caught → "not found") and external lookup never
+ * worked on device. Fall back to AbortController + setTimeout.
+ */
+function signal(): AbortSignal {
+  const anySignal = AbortSignal as unknown as {
+    timeout?: (ms: number) => AbortSignal;
+  };
+  if (typeof anySignal.timeout === "function") {
+    return anySignal.timeout(TIMEOUT_MS);
+  }
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), TIMEOUT_MS);
+  return controller.signal;
 }
 
 /** Normalise a name: trim, collapse whitespace, capitalize first letter */

@@ -132,8 +132,8 @@ export default function AccountDetailScreen() {
     onError: () =>
       Toast.show({
         type: "error",
-        text1: "Error updating transaction",
-        text2: "Please try again.",
+        text1: t("updateFailed"),
+        text2: t("somethingWentWrong"),
       }),
   });
 
@@ -147,8 +147,8 @@ export default function AccountDetailScreen() {
     onError: () =>
       Toast.show({
         type: "error",
-        text1: "Delete failed",
-        text2: "Please try again.",
+        text1: t("deleteFailed"),
+        text2: t("somethingWentWrong"),
       }),
   });
 
@@ -162,7 +162,7 @@ export default function AccountDetailScreen() {
 
   const lastActivityLabel = summary?.lastTransactionDate
     ? dayjs(summary.lastTransactionDate).format("MMM D, YYYY")
-    : "No activity yet";
+    : t("noActivityYet");
 
   const handleViewHistory = useCallback((txn: Transaction) => {
     setViewingVendorHistoryFor(txn);
@@ -181,9 +181,9 @@ export default function AccountDetailScreen() {
           transaction.type === "credit" ? "+" : "-"
         }${transaction.amount})? This cannot be undone.`,
         [
-          { text: "Cancel", style: "cancel" },
+          { text: t("cancel"), style: "cancel" },
           {
-            text: "Delete",
+            text: t("delete"),
             style: "destructive",
             onPress: () => deleteMutation.mutate(transaction._id),
           },
@@ -244,7 +244,7 @@ export default function AccountDetailScreen() {
       Toast.show({ type: "success", text1: "PDF exported successfully" });
       setExportModalVisible(false);
     } catch {
-      Toast.show({ type: "error", text1: "Failed to export PDF" });
+      Toast.show({ type: "error", text1: t("exportFailed") });
     } finally {
       setExporting(false);
       setExportingType(null);

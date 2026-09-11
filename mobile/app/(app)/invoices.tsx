@@ -16,8 +16,9 @@ import { ScreenHeader } from "@/components/screen-header";
 import { refreshAppData } from "@/lib/refresh-app-data";
 import { useActiveOrgId, useOrganization } from "@/hooks/use-organization";
 import { useTheme } from "@/hooks/use-theme";
+import { useTranslation } from "@/hooks/use-translation";
+import { dalFetchInvoices } from "@/data/invoices";
 import {
-  invoicesApi,
   type InvoiceType,
   type InvoiceStatus,
 } from "@/services/invoices";
@@ -66,7 +67,7 @@ export default function InvoicesScreen() {
   const { data, isLoading, isRefetching } = useQuery({
     queryKey: ["invoices", organizationId, activeType, activeStatus],
     queryFn: () =>
-      invoicesApi.list({
+      dalFetchInvoices({
         organization: organizationId || undefined,
         type: activeType === "all" ? undefined : activeType,
         status: activeStatus === "all" ? undefined : activeStatus,
@@ -76,6 +77,23 @@ export default function InvoicesScreen() {
   });
 
   const { colors } = useTheme();
+  const { t } = useTranslation();
+
+  const statusLabels: Record<string, string> = {
+    all: t("all"),
+    draft: t("draft"),
+    pending: t("pending"),
+    partial: t("partial"),
+    paid: t("paid"),
+    overdue: t("overdue"),
+    cancelled: t("cancelled"),
+  };
+
+  const typeLabels: Record<string, string> = {
+    all: t("all"),
+    sale: t("sale"),
+    purchase: t("purchase"),
+  };
 
   const invoices = useMemo(() => {
     const list = data?.invoices || [];
@@ -115,7 +133,7 @@ export default function InvoicesScreen() {
   if (isLoading) {
     return (
       <View className="flex-1" style={{ backgroundColor: colors.bg.primary }}>
-        <ScreenHeader title="Invoices" showBack />
+        <ScreenHeader title={t("invoices")} showBack />
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color={colors.primary} />
           <Text
@@ -132,7 +150,7 @@ export default function InvoicesScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg.primary }}>
       <ScreenHeader
-        title="Invoices"
+        title={t("invoices")}
         showBack
         rightAction={
           canCreateInvoices ? (
@@ -224,7 +242,7 @@ export default function InvoicesScreen() {
                   color: isActive ? "#fff" : colors.text.secondary,
                 }}
               >
-                {tab.label}
+                {typeLabels[tab.value] ?? tab.label}
               </Text>
             </TouchableOpacity>
           );
@@ -261,7 +279,7 @@ export default function InvoicesScreen() {
                 className="text-xs font-semibold"
                 style={{ color: isActive ? sc.text : colors.text.secondary }}
               >
-                {s.label}
+                {statusLabels[s.value] ?? s.label}
               </Text>
             </TouchableOpacity>
           );
@@ -295,7 +313,7 @@ export default function InvoicesScreen() {
               className="text-xl font-bold text-center"
               style={{ color: colors.text.primary }}
             >
-              No Invoices Found
+              {t("noInvoicesFound")}
             </Text>
             <Text
               className="text-sm text-center mt-2 leading-5"
@@ -313,7 +331,9 @@ export default function InvoicesScreen() {
                   onPress={() => handleCreateInvoice("sale")}
                 >
                   <Ionicons name="arrow-up-circle" size={20} color="#fff" />
-                  <Text className="text-white font-bold">Sales Invoice</Text>
+                  <Text className="text-white font-bold">
+                    {t("saleInvoice")}
+                  </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   className="flex-1 flex-row items-center justify-center py-3.5 rounded-2xl gap-2"
@@ -321,7 +341,9 @@ export default function InvoicesScreen() {
                   onPress={() => handleCreateInvoice("purchase")}
                 >
                   <Ionicons name="arrow-down-circle" size={20} color="#fff" />
-                  <Text className="text-white font-bold">Purchase</Text>
+                  <Text className="text-white font-bold">
+                    {t("purchase")}
+                  </Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -397,7 +419,7 @@ export default function InvoicesScreen() {
                             className="text-xs font-semibold capitalize"
                             style={{ color: sc.text }}
                           >
-                            {invoice.status}
+                            {statusLabels[invoice.status] ?? invoice.status}
                           </Text>
                         </View>
                       </View>
@@ -415,7 +437,7 @@ export default function InvoicesScreen() {
                         >
                           {formatDate(invoice.date)}
                           {invoice.due_date &&
-                            ` · Due ${formatDate(invoice.due_date)}`}
+                            ` · ${t("due")} ${formatDate(invoice.due_date)}`}
                         </Text>
                         <View
                           className="ml-2 px-2 py-0.5 rounded-md"
@@ -431,7 +453,7 @@ export default function InvoicesScreen() {
                               color: isSale ? colors.success : colors.warning,
                             }}
                           >
-                            {isSale ? "Sale" : "Purchase"}
+                            {isSale ? t("sale") : t("purchase")}
                           </Text>
                         </View>
                       </View>
@@ -449,7 +471,7 @@ export default function InvoicesScreen() {
                             className="text-xs"
                             style={{ color: colors.text.tertiary }}
                           >
-                            Total
+                            {t("total")}
                           </Text>
                           <Text
                             className="text-sm font-bold mt-0.5"
@@ -466,7 +488,7 @@ export default function InvoicesScreen() {
                             className="text-xs"
                             style={{ color: colors.text.tertiary }}
                           >
-                            Paid
+                            {t("paid")}
                           </Text>
                           <Text
                             className="text-sm font-bold mt-0.5"
@@ -480,7 +502,7 @@ export default function InvoicesScreen() {
                             className="text-xs"
                             style={{ color: colors.text.tertiary }}
                           >
-                            Due
+                            {t("due")}
                           </Text>
                           <Text
                             className="text-sm font-bold mt-0.5"
@@ -529,7 +551,7 @@ export default function InvoicesScreen() {
             className="text-xl font-bold mb-2"
             style={{ color: colors.text.primary }}
           >
-            Create Invoice
+            {t("addInvoice")}
           </Text>
           <Text
             className="text-sm mb-6"
@@ -558,7 +580,7 @@ export default function InvoicesScreen() {
                 className="text-base font-bold"
                 style={{ color: colors.success }}
               >
-                Sales Invoice
+                {t("saleInvoice")}
               </Text>
               <Text
                 className="text-sm mt-0.5"
@@ -590,7 +612,7 @@ export default function InvoicesScreen() {
                 className="text-base font-bold"
                 style={{ color: colors.warning }}
               >
-                Purchase Invoice
+                {`${t("purchase")} ${t("invoice")}`}
               </Text>
               <Text
                 className="text-sm mt-0.5"

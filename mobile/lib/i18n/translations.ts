@@ -532,6 +532,193 @@ export type AppTranslations = {
   submitTransfer: string;
   submitWithAttachments: string;
   transferSavedAttachmentsFailed: string;
+
+  // ── Shop / POS / Products / Invoices ──────────────────────────────────────
+  shop: string;
+  shopDashboard: string;
+  newSale: string;
+  saleInvoice: string;
+  newPurchase: string;
+  addProduct: string;
+  todaysSales: string;
+  todaysPurchases: string;
+  inventory: string;
+  totalProducts: string;
+  lowStock: string;
+  stockValue: string;
+  outOfStock: string;
+  inStock: string;
+  noTracking: string;
+  products: string;
+  productName: string;
+  productNamePlaceholder: string;
+  sku: string;
+  skuAutoHint: string;
+  barcode: string;
+  barcodeOptional: string;
+  barcodePlaceholder: string;
+  scanBarcode: string;
+  scanProductBarcode: string;
+  scanItemBarcode: string;
+  scanItem: string;
+  barcodeDetected: string;
+  pointCameraAtBarcode: string;
+  cameraPermissionRequired: string;
+  grantPermission: string;
+  description: string;
+  unit: string;
+  pricing: string;
+  purchasePrice: string;
+  salePrice: string;
+  additionalCost: string;
+  additionalCostHint: string;
+  costPrice: string;
+  taxRate: string;
+  profitMargin: string;
+  openingStock: string;
+  lowStockAlert: string;
+  trackInventory: string;
+  trackInventoryHint: string;
+  active: string;
+  inactive: string;
+  details: string;
+  stockHistory: string;
+  currentStock: string;
+  adjustStock: string;
+  addStock: string;
+  removeStock: string;
+  quantity: string;
+  quantityPlaceholder: string;
+  unitCostOptional: string;
+  unitCostPlaceholder: string;
+  adjustmentNotesPlaceholder: string;
+  confirmAdjustment: string;
+  stockAdjustedSuccess: string;
+  insufficientStock: string;
+  noStockMovements: string;
+  adjustmentIn: string;
+  adjustmentOut: string;
+  purchase: string;
+  sale: string;
+  purchaseReturn: string;
+  saleReturn: string;
+  openingStockMovement: string;
+  noProductsFound: string;
+  noProductsLowStock: string;
+  tapToAddFirstProduct: string;
+  searchProductsPlaceholder: string;
+  productCreated: string;
+  productUpdated: string;
+  productDeleted: string;
+  deleteProductTitle: string;
+  deleteProductMessage: string;
+  notInCatalog: string;
+  createProductInline: string;
+  newProduct: string;
+  noBarcode: string;
+  restockRequired: string;
+  invoice: string;
+  invoiceNumber: string;
+  invoiceDate: string;
+  dueDate: string;
+  reference: string;
+  referenceOptional: string;
+  terms: string;
+  internalNotes: string;
+  customer: string;
+  supplier: string;
+  selectCustomer: string;
+  selectSupplier: string;
+  searchCustomersPlaceholder: string;
+  searchSuppliersPlaceholder: string;
+  walkInCustomer: string;
+  lineItems: string;
+  addItem: string;
+  customerRequired: string;
+  discountOptional: string;
+  discount: string;
+  discountType: string;
+  shippingCharge: string;
+  adjustment: string;
+  adjustmentDescription: string;
+  invoiceDetails: string;
+  subTotal: string;
+  grandTotal: string;
+  amountPaid: string;
+  balanceDue: string;
+  amountReceived: string;
+  paymentMethod: string;
+  depositToAccount: string;
+  selectAccountPlaceholder: string;
+  selectAccountForPayment: string;
+  cash: string;
+  bank: string;
+  mobileWallet: string;
+  cheque: string;
+  other: string;
+  part: string;
+  credit: string;
+  partial: string;
+  pending: string;
+  overdue: string;
+  cancelled: string;
+  draft: string;
+  outstanding: string;
+  recordPaymentBtn: string;
+  noInvoicesFound: string;
+  deleteInvoiceTitle: string;
+  deleteInvoiceMessage: string;
+  cancelInvoiceTitle: string;
+  cancelInvoiceMessage: string;
+  invoiceCreated: string;
+  invoiceUpdated: string;
+  invoiceDeleted: string;
+  invoiceCancelled: string;
+  creditSaleNote: string;
+  duePaymentNote: string;
+  exportInvoicePdf: string;
+  billTo: string;
+  billFrom: string;
+  scanFirstHint: string;
+  cartEmpty: string;
+  cartEmptyHint: string;
+  find: string;
+  charge: string;
+  completeSale: string;
+  saleCompleted: string;
+  tapForReceipt: string;
+  onlyNInStock: string;
+  addAtLeastOneItem: string;
+  totalCannotBeNegative: string;
+  barcodeAlreadyUsed: string;
+  invalidBarcode: string;
+  taxRateMax: string;
+  mustBePositive: string;
+  required: string;
+  fieldRequired: string;
+  optional: string;
+  saveProduct: string;
+  deleteCannotBeUndone: string;
+  organization: string;
+  shopSettings: string;
+  currency: string;
+  status: string;
+  businessName: string;
+  businessType: string;
+  createOrganization: string;
+  editOrganization: string;
+  saveShop: string;
+  shopSaved: string;
+  offlineShopsHint: string;
+  createShopNeedsConnection: string;
+  deleteShopNeedsConnection: string;
+  noOrganizationsYet: string;
+  createFirstOrganization: string;
+  shortcuts: string;
+  allProducts: string;
+  salesInvoices: string;
+  purchaseInvoices: string;
+  partiesSuppliers: string;
 };
 
 // ── English ───────────────────────────────────────────────────────────────────
@@ -1072,6 +1259,198 @@ const en: AppTranslations = {
   submitWithAttachments: "Submit with {n} attachment{s}",
   transferSavedAttachmentsFailed:
     "Transfer saved, but attachments could not be uploaded.",
+
+  // ── Shop / POS / Products / Invoices ──────────────────────────────────────
+  shop: "Shop",
+  shopDashboard: "Shop",
+  newSale: "New Sale",
+  saleInvoice: "Sale Invoice",
+  newPurchase: "New Purchase",
+  addProduct: "Add Product",
+  todaysSales: "Today's Sales",
+  todaysPurchases: "Today's Purchases",
+  inventory: "Inventory",
+  totalProducts: "Products",
+  lowStock: "Low Stock",
+  stockValue: "Stock Value",
+  outOfStock: "Out of stock",
+  inStock: "In Stock",
+  noTracking: "No tracking",
+  products: "Products",
+  productName: "Product Name",
+  productNamePlaceholder: "e.g. Basmati Rice 5kg",
+  sku: "SKU",
+  skuAutoHint: "SKU (auto-generated if blank)",
+  barcode: "Barcode",
+  barcodeOptional: "Barcode (optional)",
+  barcodePlaceholder: "Scan or enter manually",
+  scanBarcode: "Scan Barcode",
+  scanProductBarcode: "Scan Product Barcode",
+  scanItemBarcode: "Scan Item Barcode",
+  scanItem: "Scan Item",
+  barcodeDetected: "Barcode detected!",
+  pointCameraAtBarcode: "Point camera at a barcode",
+  cameraPermissionRequired: "Camera permission is required",
+  grantPermission: "Grant Permission",
+  description: "Description",
+  unit: "Unit",
+  pricing: "Pricing",
+  purchasePrice: "Purchase Price",
+  salePrice: "Sale Price",
+  additionalCost: "Additional Cost (landed: freight, duty…)",
+  additionalCostHint: "Freight, duty and other landed costs",
+  costPrice: "Cost Price",
+  taxRate: "Tax Rate (%)",
+  profitMargin: "Profit Margin",
+  openingStock: "Opening Stock",
+  lowStockAlert: "Low Stock Alert",
+  trackInventory: "Track Inventory",
+  trackInventoryHint: "Automatically update stock on invoices",
+  active: "Active",
+  inactive: "Inactive",
+  details: "Details",
+  stockHistory: "Stock History",
+  currentStock: "Current stock",
+  adjustStock: "Adjust Stock",
+  addStock: "Add Stock",
+  removeStock: "Remove Stock",
+  quantity: "Quantity",
+  quantityPlaceholder: "Enter quantity",
+  unitCostOptional: "Unit Cost (optional)",
+  unitCostPlaceholder: "Defaults to cost price",
+  adjustmentNotesPlaceholder: "Reason for adjustment",
+  confirmAdjustment: "Confirm Adjustment",
+  stockAdjustedSuccess: "Stock adjusted successfully",
+  insufficientStock: "Insufficient stock for this movement",
+  noStockMovements: "No stock movements yet",
+  adjustmentIn: "adjustment in",
+  adjustmentOut: "adjustment out",
+  purchase: "Purchase",
+  sale: "Sale",
+  purchaseReturn: "Purchase return",
+  saleReturn: "Sale return",
+  openingStockMovement: "Opening stock",
+  noProductsFound: "No Products Found",
+  noProductsLowStock: "No products are low on stock.",
+  tapToAddFirstProduct: "Tap + to add your first product.",
+  searchProductsPlaceholder: "Search name, SKU, barcode…",
+  productCreated: "Product created successfully",
+  productUpdated: "Product updated successfully",
+  productDeleted: "Product deleted successfully",
+  deleteProductTitle: "Delete Product",
+  deleteProductMessage: 'Delete "{name}"? This cannot be undone.',
+  notInCatalog: "Not in catalog — save as new product",
+  createProductInline: "Create & Add to Invoice",
+  newProduct: "New Product",
+  noBarcode: "No barcode",
+  restockRequired: "Only {n} in stock — the sale will be rejected if it exceeds stock.",
+  invoice: "Invoice",
+  invoiceNumber: "Invoice #",
+  invoiceDate: "Invoice date",
+  dueDate: "Due date",
+  reference: "Reference",
+  referenceOptional: "Reference (Optional)",
+  terms: "Terms",
+  internalNotes: "Internal notes",
+  customer: "Customer",
+  supplier: "Supplier",
+  selectCustomer: "Select Customer",
+  selectSupplier: "Select Supplier",
+  searchCustomersPlaceholder: "Search customers...",
+  searchSuppliersPlaceholder: "Search suppliers...",
+  walkInCustomer: "Walk-in customer",
+  lineItems: "Line Items",
+  addItem: "Add Item",
+  customerRequired: "Please select a party",
+  discountOptional: "Discount (Optional)",
+  discount: "Discount",
+  discountType: "Discount type",
+  shippingCharge: "Shipping charge",
+  adjustment: "Adjustment",
+  adjustmentDescription: "Adjustment description",
+  invoiceDetails: "Invoice Details",
+  subTotal: "Subtotal",
+  grandTotal: "Grand Total",
+  amountPaid: "Paid",
+  balanceDue: "Due",
+  amountReceived: "Amount received",
+  paymentMethod: "Payment Method",
+  depositToAccount: "Deposit to Account",
+  selectAccountPlaceholder: "Select account...",
+  selectAccountForPayment: "Select the account for this payment",
+  cash: "Cash",
+  bank: "Bank",
+  mobileWallet: "MFS",
+  cheque: "Cheque",
+  other: "Other",
+  part: "Part",
+  credit: "Credit",
+  partial: "Partial",
+  pending: "Pending",
+  overdue: "Overdue",
+  cancelled: "Cancelled",
+  draft: "Draft",
+  outstanding: "Outstanding",
+  recordPaymentBtn: "Record Payment",
+  noInvoicesFound: "No invoices found",
+  deleteInvoiceTitle: "Delete Invoice",
+  deleteInvoiceMessage: "Delete this invoice? This cannot be undone.",
+  cancelInvoiceTitle: "Cancel Invoice",
+  cancelInvoiceMessage: "Cancel this invoice? Stock will be reversed.",
+  invoiceCreated: "Invoice created successfully",
+  invoiceUpdated: "Invoice updated successfully",
+  invoiceDeleted: "Invoice deleted successfully",
+  invoiceCancelled: "Invoice cancelled successfully",
+  creditSaleNote:
+    "Credit sale: the amount stays due. Record the payment later from the invoice.",
+  duePaymentNote:
+    "No cash movement. The amount will be tracked as due in the party ledger. You can record payment later.",
+  exportInvoicePdf: "Export invoice PDF",
+  billTo: "Bill To",
+  billFrom: "Bill From",
+  scanFirstHint: "Scan a barcode or tap Find to add items",
+  cartEmpty: "Cart is empty",
+  cartEmptyHint: "Scan a barcode or tap Find to add items",
+  find: "Find",
+  charge: "Charge",
+  completeSale: "Complete sale",
+  saleCompleted: "Sale completed",
+  tapForReceipt: "tap for receipt",
+  onlyNInStock: "Only {n} in stock",
+  addAtLeastOneItem: "Add at least one item with a description and price",
+  totalCannotBeNegative: "Invoice total cannot be negative",
+  barcodeAlreadyUsed: 'Barcode already used by "{name}"',
+  invalidBarcode: "Barcode cannot contain spaces",
+  taxRateMax: "Tax rate must be at most 100",
+  mustBePositive: "{label} must be greater than 0",
+  required: "This field is required",
+  fieldRequired: "{label} is required",
+  optional: "Optional",
+  saveProduct: "Save Product",
+  deleteCannotBeUndone: "This cannot be undone.",
+  organization: "Organization",
+  shopSettings: "Organization Settings",
+  currency: "Currency",
+  status: "Status",
+  businessName: "Business Name",
+  businessType: "Business Type",
+  createOrganization: "Create Organization",
+  editOrganization: "Edit Organization",
+  saveShop: "Save Changes",
+  shopSaved: "Shop saved",
+  offlineShopsHint:
+    "Offline — showing saved shops. Edits are saved here and sync when you reconnect.",
+  createShopNeedsConnection:
+    "Creating a shop needs a connection once. Other settings save offline.",
+  deleteShopNeedsConnection: "Deleting a shop needs a connection.",
+  noOrganizationsYet: "No Organizations Yet",
+  createFirstOrganization:
+    "Create your first organization to start managing your business with multiple users.",
+  shortcuts: "Shortcuts",
+  allProducts: "All Products",
+  salesInvoices: "Sales Invoices",
+  purchaseInvoices: "Purchase Invoices",
+  partiesSuppliers: "Parties / Suppliers",
 };
 
 // ── Bengali (বাংলা) ────────────────────────────────────────────────────────────
@@ -1614,6 +1993,198 @@ const bn: AppTranslations = {
   submitWithAttachments: "{n}টি সংযুক্তিসহ জমা দিন",
   transferSavedAttachmentsFailed:
     "স্থানান্তর সংরক্ষিত হয়েছে, কিন্তু সংযুক্তি আপলোড হয়নি।",
+
+  // ── Shop / POS / Products / Invoices ──────────────────────────────────────
+  shop: "শপ",
+  shopDashboard: "শপ",
+  newSale: "নতুন বিক্রয়",
+  saleInvoice: "বিক্রয় ইনভয়েস",
+  newPurchase: "নতুন ক্রয়",
+  addProduct: "পণ্য যোগ করুন",
+  todaysSales: "আজকের বিক্রয়",
+  todaysPurchases: "আজকের ক্রয়",
+  inventory: "মজুদ",
+  totalProducts: "পণ্য",
+  lowStock: "কম মজুদ",
+  stockValue: "মজুদের মূল্য",
+  outOfStock: "স্টক নেই",
+  inStock: "স্টকে আছে",
+  noTracking: "ট্র্যাকিং নেই",
+  products: "পণ্যসমূহ",
+  productName: "পণ্যের নাম",
+  productNamePlaceholder: "যেমন: বাসমতি চাল ৫ কেজি",
+  sku: "এসকেইউ",
+  skuAutoHint: "এসকেইউ (খালি রাখলে স্বয়ংক্রিয়ভাবে তৈরি হবে)",
+  barcode: "বারকোড",
+  barcodeOptional: "বারকোড (ঐচ্ছিক)",
+  barcodePlaceholder: "স্ক্যান করুন বা হাতে লিখুন",
+  scanBarcode: "বারকোড স্ক্যান করুন",
+  scanProductBarcode: "পণ্যের বারকোড স্ক্যান করুন",
+  scanItemBarcode: "পণ্যের বারকোড স্ক্যান করুন",
+  scanItem: "পণ্য স্ক্যান করুন",
+  barcodeDetected: "বারকোড পাওয়া গেছে!",
+  pointCameraAtBarcode: "ক্যামেরা বারকোডের দিকে ধরুন",
+  cameraPermissionRequired: "ক্যামেরার অনুমতি প্রয়োজন",
+  grantPermission: "অনুমতি দিন",
+  description: "বিবরণ",
+  unit: "একক",
+  pricing: "মূল্য নির্ধারণ",
+  purchasePrice: "ক্রয় মূল্য",
+  salePrice: "বিক্রয় মূল্য",
+  additionalCost: "অতিরিক্ত খরচ (পরিবহন, শুল্ক…)",
+  additionalCostHint: "পরিবহন, শুল্ক ও অন্যান্য খরচ",
+  costPrice: "ক্রয় খরচ",
+  taxRate: "কর হার (%)",
+  profitMargin: "মুনাফার হার",
+  openingStock: "প্রারম্ভিক মজুদ",
+  lowStockAlert: "কম মজুদের সতর্কতা",
+  trackInventory: "মজুদ ট্র্যাক করুন",
+  trackInventoryHint: "ইনভয়েসে স্বয়ংক্রিয়ভাবে মজুদ হালনাগাদ হবে",
+  active: "সক্রিয়",
+  inactive: "নিষ্ক্রিয়",
+  details: "বিবরণ",
+  stockHistory: "মজুদের ইতিহাস",
+  currentStock: "বর্তমান মজুদ",
+  adjustStock: "মজুদ সমন্বয়",
+  addStock: "মজুদ যোগ",
+  removeStock: "মজুদ কমাও",
+  quantity: "পরিমাণ",
+  quantityPlaceholder: "পরিমাণ লিখুন",
+  unitCostOptional: "একক খরচ (ঐচ্ছিক)",
+  unitCostPlaceholder: "ডিফল্ট: ক্রয় খরচ",
+  adjustmentNotesPlaceholder: "সমন্বয়ের কারণ",
+  confirmAdjustment: "সমন্বয় নিশ্চিত করুন",
+  stockAdjustedSuccess: "মজুদ সফলভাবে সমন্বয় হয়েছে",
+  insufficientStock: "এই পরিবর্তনের জন্য পর্যাপ্ত মজুদ নেই",
+  noStockMovements: "এখনো কোনো মজুদ পরিবর্তন নেই",
+  adjustmentIn: "মজুদ বৃদ্ধি",
+  adjustmentOut: "মজুদ হ্রাস",
+  purchase: "ক্রয়",
+  sale: "বিক্রয়",
+  purchaseReturn: "ক্রয় ফেরত",
+  saleReturn: "বিক্রয় ফেরত",
+  openingStockMovement: "প্রারম্ভিক মজুদ",
+  noProductsFound: "কোনো পণ্য পাওয়া যায়নি",
+  noProductsLowStock: "কোনো পণ্যের মজুদ কম নয়।",
+  tapToAddFirstProduct: "প্রথম পণ্য যোগ করতে + চাপুন।",
+  searchProductsPlaceholder: "নাম, এসকেইউ, বারকোড দিয়ে খুঁজুন…",
+  productCreated: "পণ্য সফলভাবে তৈরি হয়েছে",
+  productUpdated: "পণ্য সফলভাবে হালনাগাদ হয়েছে",
+  productDeleted: "পণ্য সফলভাবে মুছে ফেলা হয়েছে",
+  deleteProductTitle: "পণ্য মুছুন",
+  deleteProductMessage: '"{name}" মুছে ফেলবেন? এটি ফেরানো যাবে না।',
+  notInCatalog: "ক্যাটালগে নেই — নতুন পণ্য হিসেবে সংরক্ষণ করুন",
+  createProductInline: "তৈরি করুন ও ইনভয়েসে যোগ করুন",
+  newProduct: "নতুন পণ্য",
+  noBarcode: "বারকোড নেই",
+  restockRequired: "মজুদ মাত্র {n}টি — এর বেশি বিক্রয় করা যাবে না।",
+  invoice: "ইনভয়েস",
+  invoiceNumber: "ইনভয়েস নম্বর",
+  invoiceDate: "ইনভয়েসের তারিখ",
+  dueDate: "পরিশোধের তারিখ",
+  reference: "রেফারেন্স",
+  referenceOptional: "রেফারেন্স (ঐচ্ছিক)",
+  terms: "শর্তাবলী",
+  internalNotes: "অভ্যন্তরীণ নোট",
+  customer: "ক্রেতা",
+  supplier: "সরবরাহকারী",
+  selectCustomer: "ক্রেতা নির্বাচন করুন",
+  selectSupplier: "সরবরাহকারী নির্বাচন করুন",
+  searchCustomersPlaceholder: "ক্রেতা খুঁজুন...",
+  searchSuppliersPlaceholder: "সরবরাহকারী খুঁজুন...",
+  walkInCustomer: "সাধারণ ক্রেতা",
+  lineItems: "আইটেম তালিকা",
+  addItem: "আইটেম যোগ করুন",
+  customerRequired: "একটি পক্ষ নির্বাচন করুন",
+  discountOptional: "ছাড় (ঐচ্ছিক)",
+  discount: "ছাড়",
+  discountType: "ছাড়ের ধরন",
+  shippingCharge: "পরিবহন খরচ",
+  adjustment: "সমন্বয়",
+  adjustmentDescription: "সমন্বয়ের বিবরণ",
+  invoiceDetails: "ইনভয়েসের বিবরণ",
+  subTotal: "উপমোট",
+  grandTotal: "সর্বমোট",
+  amountPaid: "পরিশোধিত",
+  balanceDue: "বাকি",
+  amountReceived: "প্রাপ্ত পরিমাণ",
+  paymentMethod: "পরিশোধের মাধ্যম",
+  depositToAccount: "যে অ্যাকাউন্টে জমা হবে",
+  selectAccountPlaceholder: "অ্যাকাউন্ট নির্বাচন করুন...",
+  selectAccountForPayment: "এই পরিশোধের জন্য অ্যাকাউন্ট নির্বাচন করুন",
+  cash: "নগদ",
+  bank: "ব্যাংক",
+  mobileWallet: "মোবাইল ব্যাংকিং",
+  cheque: "চেক",
+  other: "অন্যান্য",
+  part: "আংশিক",
+  credit: "বাকি",
+  partial: "আংশিক",
+  pending: "অপেক্ষমাণ",
+  overdue: "সময়োত্তীর্ণ",
+  cancelled: "বাতিল",
+  draft: "খসড়া",
+  outstanding: "বাকি আছে",
+  recordPaymentBtn: "পরিশোধ রেকর্ড করুন",
+  noInvoicesFound: "কোনো ইনভয়েস পাওয়া যায়নি",
+  deleteInvoiceTitle: "ইনভয়েস মুছুন",
+  deleteInvoiceMessage: "ইনভয়েসটি মুছে ফেলবেন? এটি ফেরানো যাবে না।",
+  cancelInvoiceTitle: "ইনভয়েস বাতিল",
+  cancelInvoiceMessage: "ইনভয়েস বাতিল করবেন? মজুদ ফিরিয়ে নেওয়া হবে।",
+  invoiceCreated: "ইনভয়েস সফলভাবে তৈরি হয়েছে",
+  invoiceUpdated: "ইনভয়েস সফলভাবে হালনাগাদ হয়েছে",
+  invoiceDeleted: "ইনভয়েস সফলভাবে মুছে ফেলা হয়েছে",
+  invoiceCancelled: "ইনভয়েস সফলভাবে বাতিল হয়েছে",
+  creditSaleNote:
+    "বাকি বিক্রয়: টাকা বাকি থাকবে। পরে ইনভয়েস থেকে পরিশোধ রেকর্ড করুন।",
+  duePaymentNote:
+    "কোনো নগদ লেনদেন হবে না। টাকা পক্ষের খাতায় বাকি হিসেবে থাকবে। পরে পরিশোধ রেকর্ড করতে পারবেন।",
+  exportInvoicePdf: "ইনভয়েস পিডিএফ এক্সপোর্ট",
+  billTo: "যার কাছে বিল",
+  billFrom: "যার কাছ থেকে বিল",
+  scanFirstHint: "বারকোড স্ক্যান করুন বা খুঁজুন চেপে পণ্য যোগ করুন",
+  cartEmpty: "কার্ট খালি",
+  cartEmptyHint: "বারকোড স্ক্যান করুন বা খুঁজুন চেপে পণ্য যোগ করুন",
+  find: "খুঁজুন",
+  charge: "নিন",
+  completeSale: "বিক্রয় সম্পন্ন করুন",
+  saleCompleted: "বিক্রয় সম্পন্ন",
+  tapForReceipt: "রসিদ দেখতে চাপুন",
+  onlyNInStock: "মজুদ মাত্র {n}টি",
+  addAtLeastOneItem: "বিবরণ ও মূল্যসহ অন্তত একটি আইটেম যোগ করুন",
+  totalCannotBeNegative: "ইনভয়েসের মোট ঋণাত্মক হতে পারে না",
+  barcodeAlreadyUsed: 'বারকোড "{name}" এর সাথে ব্যবহৃত হয়েছে',
+  invalidBarcode: "বারকোডে স্পেস থাকতে পারে না",
+  taxRateMax: "কর হার সর্বোচ্চ ১০০ হতে পারে",
+  mustBePositive: "{label} ০ এর বেশি হতে হবে",
+  required: "এই ঘরটি পূরণ করা আবশ্যক",
+  fieldRequired: "{label} আবশ্যক",
+  optional: "ঐচ্ছিক",
+  saveProduct: "পণ্য সংরক্ষণ করুন",
+  deleteCannotBeUndone: "এটি ফেরানো যাবে না।",
+  organization: "প্রতিষ্ঠান",
+  shopSettings: "প্রতিষ্ঠানের সেটিংস",
+  currency: "মুদ্রা",
+  status: "অবস্থা",
+  businessName: "ব্যবসার নাম",
+  businessType: "ব্যবসার ধরন",
+  createOrganization: "প্রতিষ্ঠান তৈরি করুন",
+  editOrganization: "প্রতিষ্ঠান সম্পাদনা",
+  saveShop: "পরিবর্তন সংরক্ষণ করুন",
+  shopSaved: "শপ সংরক্ষিত হয়েছে",
+  offlineShopsHint:
+    "অফলাইন — সংরক্ষিত শপ দেখানো হচ্ছে। পরিবর্তন এখানে সংরক্ষিত হবে এবং ইন্টারনেট এলে সিঙ্ক হবে।",
+  createShopNeedsConnection:
+    "নতুন শপ তৈরি করতে একবার ইন্টারনেট প্রয়োজন। বাকি সেটিংস অফলাইনে সংরক্ষিত হয়।",
+  deleteShopNeedsConnection: "শপ মুছতে ইন্টারনেট প্রয়োজন।",
+  noOrganizationsYet: "এখনো কোনো প্রতিষ্ঠান নেই",
+  createFirstOrganization:
+    "একাধিক ব্যবহারকারীর সাথে ব্যবসা পরিচালনা করতে প্রথম প্রতিষ্ঠান তৈরি করুন।",
+  shortcuts: "শর্টকাট",
+  allProducts: "সব পণ্য",
+  salesInvoices: "বিক্রয় ইনভয়েস",
+  purchaseInvoices: "ক্রয় ইনভয়েস",
+  partiesSuppliers: "পক্ষ / সরবরাহকারী",
 };
 
 export const translations: Record<string, AppTranslations> = { en, bn };

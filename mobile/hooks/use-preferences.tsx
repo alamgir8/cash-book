@@ -134,35 +134,30 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
 
   const updatePreferences = useCallback(
     async (newPrefs: Partial<UserPreferences>) => {
-      try {
-        const updatedPrefs = {
-          ...preferences,
-          ...newPrefs,
-          currency_symbol:
-            currencyMap[newPrefs.currency || preferences.currency]?.symbol ||
-            "$",
-          language_label:
-            languageMap[newPrefs.language || preferences.language] || "English",
-        };
+      const updatedPrefs = {
+        ...preferences,
+        ...newPrefs,
+        currency_symbol:
+          currencyMap[newPrefs.currency || preferences.currency]?.symbol || "$",
+        language_label:
+          languageMap[newPrefs.language || preferences.language] || "English",
+      };
 
-        setPreferences(updatedPrefs);
+      // Optimistic local UI first — this must never depend on the network.
+      setPreferences(updatedPrefs);
+      await AsyncStorage.setItem(
+        PREFERENCES_STORAGE_KEY,
+        JSON.stringify(updatedPrefs),
+      ).catch(() => {});
 
-        if (state.status === "authenticated") {
-          await updateProfile({
-            settings: {
-              currency: updatedPrefs.currency,
-              language: updatedPrefs.language,
-            },
-          });
-        } else {
-          await AsyncStorage.setItem(
-            PREFERENCES_STORAGE_KEY,
-            JSON.stringify(updatedPrefs),
-          );
-        }
-      } catch (error) {
-        console.warn("Failed to save preferences:", error);
-        throw error;
+      if (state.status === "authenticated") {
+        // Offline-first: persists + queues locally; never throws when offline.
+        await updateProfile({
+          settings: {
+            currency: updatedPrefs.currency,
+            language: updatedPrefs.language,
+          },
+        });
       }
     },
     [preferences, state.status, updateProfile],

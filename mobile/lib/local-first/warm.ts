@@ -24,7 +24,13 @@ export async function warmLocalFirstRuntime(): Promise<void> {
     import("@/data/categories.local"),
     import("@/data/transactions.local"),
     import("@/data/parties.local"),
+    import("@/data/products.local"),
   ]);
+
+  // Shop stock cache is rebuildable from movements — reconcile once, don't block.
+  void import("@/db/stock")
+    .then((m) => m.ensureProductStockReconciled(db))
+    .catch(() => {});
 
   // Weekly maintenance — never block warm on failure.
   void import("./maintenance")

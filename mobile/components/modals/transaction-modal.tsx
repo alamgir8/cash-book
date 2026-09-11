@@ -227,7 +227,7 @@ export const TransactionModal = ({
             text2:
               err?.response?.data?.message ||
               err?.message ||
-              "Please try again",
+              t("somethingWentWrong"),
           });
         });
 
@@ -470,7 +470,7 @@ export const TransactionModal = ({
           const rawGroup = c.type
             ? c.type.charAt(0).toUpperCase() +
               c.type.slice(1).replace(/_/g, " ")
-            : "Other";
+            : t("other");
           return {
             value: c._id,
             label: translateCategoryName(c.name, language),

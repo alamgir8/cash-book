@@ -2,6 +2,11 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": false,
+    // The pure test suite runs through Node's `--experimental-strip-types`,
+    // which requires explicit `.ts` extensions on relative imports. This is
+    // type-check only (noEmit is inherited from expo/tsconfig.base), so no
+    // output is affected.
+    "allowImportingTsExtensions": true,
     "paths": {
       "@/*": ["./*"]
     }

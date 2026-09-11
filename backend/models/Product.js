@@ -82,6 +82,18 @@ const productSchema = new Schema(
       default: 0,
       min: 0,
     },
+    // Extra landed cost (freight, duty, packaging) added to purchase price
+    additional_cost: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    // Derived cost basis — purchase_price + additional_cost (never set directly)
+    cost_price: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
     sale_price: {
       type: Number,
       default: 0,
@@ -199,7 +211,8 @@ productSchema.virtual("is_low_stock").get(function () {
 productSchema.virtual("profit_margin").get(function () {
   if (!this.sale_price || this.sale_price === 0) return 0;
   return (
-    ((this.sale_price - this.purchase_price) / this.sale_price) *
+    ((this.sale_price - (this.cost_price ?? this.purchase_price)) /
+      this.sale_price) *
     100
   ).toFixed(2);
 });
@@ -207,8 +220,12 @@ productSchema.virtual("profit_margin").get(function () {
 productSchema.set("toJSON", { virtuals: true });
 productSchema.set("toObject", { virtuals: true });
 
-// ── Pre-save: auto-generate SKU ────────────────────────────────────────────
+// ── Pre-save: auto-generate SKU + cost basis ───────────────────────────────
 productSchema.pre("validate", function (next) {
+  // Cost basis is always derived, never client-set.
+  this.cost_price =
+    Number(this.purchase_price || 0) + Number(this.additional_cost || 0);
+
   if (!this.sku && this.name) {
     const namePart = this.name
       .substring(0, 4)

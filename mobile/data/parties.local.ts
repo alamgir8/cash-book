@@ -10,6 +10,11 @@ import {
 } from "@/services/parties";
 import type { PartyRef } from "@/services/transactions";
 import { isDualWriteEnabled } from "@/lib/local-first/flags";
+import {
+  partyBalanceSumSql,
+  partyNetFromTotals,
+  partySignedDelta,
+} from "@/lib/local-first/party-balance";
 import { getOrCreateDeviceId } from "@/services/device";
 import { localPartyToApi } from "./mappers";
 
@@ -399,7 +404,8 @@ export async function fetchLocalPartyLedger(
   const opening = Number(row.opening_balance ?? 0);
   const totalDebit = Number(sums?.debit ?? 0);
   const totalCredit = Number(sums?.credit ?? 0);
-  const closing = opening + totalCredit - totalDebit;
+  // Supplier ledgers invert credit/debit (Phase 7 type-aware convention).
+  const closing = opening + partyNetFromTotals(row.type, totalCredit, totalDebit);
 
   // The page is newest-first, so the first row's balance is the closing balance
   // minus everything newer than this page. Walking back from there gives a true
@@ -407,7 +413,7 @@ export async function fetchLocalPartyLedger(
   // and would be wrong here.
   const newerRow = offset
     ? await db.getFirstAsync<{ net: number }>(
-        `SELECT COALESCE(SUM(CASE WHEN type = 'credit' THEN amount ELSE -amount END), 0) as net
+        `SELECT COALESCE(SUM(${partyBalanceSumSql(row.type, "amount", "type")}), 0) as net
          FROM (
            SELECT type, amount FROM transactions WHERE ${where}
            ORDER BY date DESC, created_at DESC
@@ -563,6 +569,7 @@ export async function fetchLocalVendorLedger(params: {
   const bind: (string | number)[] = [];
   let partyName = "";
   let resolvedPartyId: string | null = params.partyId ?? null;
+  let partyType: string | null = null;
 
   if (params.partyId) {
     const { row } = await resolveLocalParty(params.partyId);
@@ -582,6 +589,7 @@ export async function fetchLocalVendorLedger(params: {
     }
     partyName = row.name;
     resolvedPartyId = row.server_id || row.id;
+    partyType = row.type ?? null;
     // Vendor ledger: party_id only (not for_party)
     clauses.push(`(party_id = ? OR party_id = ?)`);
     bind.push(row.id, row.server_id || row.id);
@@ -650,8 +658,12 @@ export async function fetchLocalVendorLedger(params: {
   const timelineAsc = [];
   for (const t of rows) {
     const amt = Number(t.amount ?? 0);
-    if (t.type === "credit") running += amt;
-    else running -= amt;
+    running += partySignedDelta(
+      partyType,
+      t.type === "credit" ? "credit" : "debit",
+      amt,
+      "paid",
+    );
     running = Math.round(running * 100) / 100;
 
     const account = await db.getFirstAsync<{ id: string; name: string }>(
@@ -695,7 +707,9 @@ export async function fetchLocalVendorLedger(params: {
     summary: {
       total_credit: Math.round(totalCredit * 100) / 100,
       total_debit: Math.round(totalDebit * 100) / 100,
-      net_balance: Math.round((totalCredit - totalDebit) * 100) / 100,
+      net_balance:
+        Math.round(partyNetFromTotals(partyType, totalCredit, totalDebit) * 100) /
+        100,
       transaction_count: transactionCount,
     },
   };

@@ -1,8 +1,11 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { View, Text, TextInput, TouchableOpacity } from "react-native";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { paymentSchema, type PaymentFormData } from "@/lib/validations/invoice";
+import {
+  createPaymentSchema,
+  type PaymentFormData,
+} from "@/lib/validations/shop";
 import type { PaymentMethod } from "@/types/invoice";
 import { FormSheetModal } from "@/components/form-sheet-modal";
 import {
@@ -10,6 +13,7 @@ import {
   normalizeAmountInput,
 } from "@/lib/amount-input";
 import { useTheme } from "@/hooks/use-theme";
+import { useTranslation } from "@/hooks/use-translation";
 
 interface PaymentModalProps {
   visible: boolean;
@@ -35,6 +39,29 @@ export function PaymentModal({
   maxAmount,
 }: PaymentModalProps) {
   const { colors } = useTheme();
+  const { t } = useTranslation();
+
+  const methodLabel = (value: PaymentMethod) => {
+    switch (value) {
+      case "cash":
+        return t("cash");
+      case "bank":
+        return t("bank");
+      case "mobile_wallet":
+        return t("mobileWallet");
+      case "cheque":
+        return t("cheque");
+      case "other":
+        return t("other");
+    }
+  };
+
+  // The resolver is rebuilt whenever the outstanding balance changes so the
+  // user can never record more than is owed.
+  const resolver = useMemo(
+    () => zodResolver(createPaymentSchema(maxAmount)),
+    [maxAmount],
+  );
 
   const {
     control,
@@ -42,7 +69,7 @@ export function PaymentModal({
     formState: { errors },
     reset,
   } = useForm<PaymentFormData>({
-    resolver: zodResolver(paymentSchema),
+    resolver,
     defaultValues: {
       amount: "",
       method: "cash",
@@ -72,13 +99,13 @@ export function PaymentModal({
     <FormSheetModal
       visible={visible}
       onClose={handleClose}
-      title="Record Payment"
-      subtitle={`Outstanding: ${maxAmount.toFixed(2)}`}
-      submitLabel="Record Payment"
+      title={t("recordPaymentBtn")}
+      subtitle={`${t("outstanding")}: ${maxAmount.toFixed(2)}`}
+      submitLabel={t("recordPaymentBtn")}
       submitIcon="cash-outline"
       onSubmit={handleSubmit(handleFormSubmit)}
       isSubmitting={isSubmitting}
-      submittingLabel="Saving…"
+      submittingLabel={t("saving")}
       sheetRatio={0.75}
     >
       <View className="gap-5">
@@ -87,7 +114,7 @@ export function PaymentModal({
             className="text-sm font-semibold mb-2"
             style={{ color: colors.text.primary }}
           >
-            Amount *
+            {t("amountLabel")} *
           </Text>
           <Controller
             control={control}
@@ -122,7 +149,7 @@ export function PaymentModal({
             className="text-sm font-semibold mb-2"
             style={{ color: colors.text.primary }}
           >
-            Payment Method *
+            {t("paymentMethod")} *
           </Text>
           <Controller
             control={control}
@@ -152,7 +179,7 @@ export function PaymentModal({
                             : colors.text.secondary,
                       }}
                     >
-                      {method.label}
+                      {methodLabel(method.value)}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -166,7 +193,7 @@ export function PaymentModal({
             className="text-sm font-semibold mb-2"
             style={{ color: colors.text.primary }}
           >
-            Reference (Optional)
+            {t("referenceOptional")}
           </Text>
           <Controller
             control={control}
@@ -193,7 +220,7 @@ export function PaymentModal({
             className="text-sm font-semibold mb-2"
             style={{ color: colors.text.primary }}
           >
-            Notes (Optional)
+            {t("notesOptional")}
           </Text>
           <Controller
             control={control}

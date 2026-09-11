@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/use-theme";
+import { useTranslation } from "@/hooks/use-translation";
 import { useProducts } from "@/hooks/use-products";
 import { useActiveOrgId } from "@/hooks/use-organization";
 import type { Product } from "@/types/product";
@@ -29,6 +30,7 @@ export function ProductSearchModal({
   invoiceType,
 }: ProductSearchModalProps) {
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const organizationId = useActiveOrgId();
   const [search, setSearch] = useState("");
 
@@ -51,10 +53,10 @@ export function ProductSearchModal({
   );
 
   const formatStock = (p: Product) => {
-    if (!p.track_inventory) return "No tracking";
+    if (!p.track_inventory) return t("noTracking");
     const stock = p.current_stock;
-    if (stock <= 0) return "Out of stock";
-    if (p.is_low_stock) return `Low: ${stock} ${p.unit}`;
+    if (stock <= 0) return t("outOfStock");
+    if (p.is_low_stock) return `${t("lowStock")}: ${stock} ${p.unit}`;
     return `${stock} ${p.unit}`;
   };
 
@@ -124,7 +126,7 @@ export function ProductSearchModal({
               fontSize: 15,
               color: colors.text.primary,
             }}
-            placeholder="Search by name, SKU, or barcode…"
+            placeholder={t("searchProductsPlaceholder")}
             placeholderTextColor={colors.text.tertiary}
             value={search}
             onChangeText={setSearch}
@@ -176,7 +178,7 @@ export function ProductSearchModal({
                     fontSize: 15,
                   }}
                 >
-                  {search ? "No products found" : "No products yet"}
+                  {search ? t("noProductsFound") : "No products yet"}
                 </Text>
               </View>
             }

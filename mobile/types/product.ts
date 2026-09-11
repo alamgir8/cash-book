@@ -34,6 +34,8 @@ export interface ProductImage {
 
 export interface Product {
   _id: string;
+  /** Mongo id when known — required to link a product on a server invoice. */
+  server_id?: string;
   organization?: string;
   admin: string;
   name: string;
@@ -48,6 +50,10 @@ export interface Product {
   };
   unit: ProductUnit;
   purchase_price: number;
+  /** Extra landed cost (freight, duty, …). cost_price = purchase_price + additional_cost. */
+  additional_cost?: number;
+  /** Derived cost basis stored on the product (and snapshotted on sale lines later). */
+  cost_price?: number;
   sale_price: number;
   tax_rate: number;
   current_stock: number;
@@ -109,6 +115,7 @@ export interface CreateProductParams {
   category_id?: string;
   unit?: ProductUnit;
   purchase_price?: number;
+  additional_cost?: number;
   sale_price?: number;
   tax_rate?: number;
   current_stock?: number;

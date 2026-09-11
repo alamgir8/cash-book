@@ -13,12 +13,17 @@ import {
   Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { z } from "zod";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/hooks/use-theme";
 import type { Organization } from "@/services/organizations";
+import {
+  CURRENCY_VALUES,
+  ORGANIZATION_STATUS_VALUES,
+  organizationSettingsSchema,
+  type OrganizationSettingsFormData,
+} from "@/lib/validations/shop";
 
 const CURRENCIES = [
   { code: "USD", symbol: "$", name: "US Dollar" },
@@ -42,15 +47,24 @@ const STATUS_OPTIONS = [
     icon: "pause-circle",
   },
   { value: "archived", label: "Archived", color: "#f43f5e", icon: "archive" },
-];
+] as const;
 
-// Zod validation schema
-const settingsSchema = z.object({
-  currency: z.string(),
-  status: z.enum(["active", "suspended", "archived"]),
-});
+/** Keep an out-of-list stored currency from making the form unsaveable. */
+function coerceCurrency(
+  stored?: string | null,
+): OrganizationSettingsFormData["currency"] {
+  return (CURRENCY_VALUES as readonly string[]).includes(stored ?? "")
+    ? (stored as OrganizationSettingsFormData["currency"])
+    : "USD";
+}
 
-type SettingsFormData = z.infer<typeof settingsSchema>;
+function coerceStatus(
+  stored?: string | null,
+): OrganizationSettingsFormData["status"] {
+  return (ORGANIZATION_STATUS_VALUES as readonly string[]).includes(stored ?? "")
+    ? (stored as OrganizationSettingsFormData["status"])
+    : "active";
+}
 
 interface OrganizationSettingsModalProps {
   visible: boolean;
@@ -69,29 +83,30 @@ export function OrganizationSettingsModal({
 }: OrganizationSettingsModalProps) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
-  const { control, handleSubmit, reset, watch } = useForm<SettingsFormData>({
-    resolver: zodResolver(settingsSchema),
-    defaultValues: {
-      currency: "USD",
-      status: "active",
-    },
-  });
+  const { control, handleSubmit, reset, watch } =
+    useForm<OrganizationSettingsFormData>({
+      resolver: zodResolver(organizationSettingsSchema),
+      defaultValues: {
+        currency: "USD",
+        status: "active",
+      },
+    });
 
   const selectedStatus = watch("status");
 
   useEffect(() => {
     if (visible && organization) {
       reset({
-        currency:
+        currency: coerceCurrency(
           organization.settings?.currency_code ||
-          organization.settings?.currency ||
-          "USD",
-        status: organization.status || "active",
+            organization.settings?.currency,
+        ),
+        status: coerceStatus(organization.status),
       });
     }
   }, [visible, organization, reset]);
 
-  const handleFormSubmit = (data: SettingsFormData) => {
+  const handleFormSubmit = (data: OrganizationSettingsFormData) => {
     if (data.status === "archived") {
       Alert.alert(
         "Archive Organization",
