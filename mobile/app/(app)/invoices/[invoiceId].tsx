@@ -399,7 +399,7 @@ export default function InvoiceDetailScreen() {
                             : colors.primary,
                       }}
                     >
-                      {status === "paid" ? "Mark as Paid" : statusLabels[status]}
+                      {status === "paid" ? t("markAsPaid") : statusLabels[status]}
                     </Text>
                   </TouchableOpacity>
                 ))}

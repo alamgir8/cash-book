@@ -149,7 +149,7 @@ export default function TransactionsScreen() {
     <View style={{ flex: 1, backgroundColor: colors.bg.primary }}>
       <ScreenHeader
         title={t("transactions")}
-        subtitle={accountId ? "Account transactions" : t("allTransactions")}
+        subtitle={accountId ? t("accountTransactions") : t("allTransactions")}
         icon="receipt"
         backgroundColor={colors.bg.primary}
         actionButton={

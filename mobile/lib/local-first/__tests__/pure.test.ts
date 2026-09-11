@@ -16,6 +16,14 @@ import { googleIosReversedScheme } from "../google-oauth.ts";
 import { computeUseLocalPersonalLedger } from "../ledger-scope-pure.ts";
 import { localDayKey } from "../day-key.ts";
 import {
+  createProductFormSchema,
+  createProductEditSchema,
+  createAdjustStockSchema,
+  createInvoiceSchema,
+  createBoundedPaymentSchema,
+  createOrganizationFormSchema,
+} from "../../validations/shop.ts";
+import {
   partyBalanceSumSql,
   partyNetFromTotals,
   partySignedDelta,
@@ -282,6 +290,47 @@ test("local repair re-runs party convention fix on existing devices", () => {
 
 // ── Shop form validation (Phase 5 follow-up) ────────────────────────────────
 
+/**
+ * Schema factories take a translator so validation messages follow the locale.
+ * Tests use the real English dictionary, so assertions below stay stable.
+ */
+let enTranslator: Promise<(key: string, vars?: Record<string, string>) => string> | null =
+  null;
+function getEnT() {
+  if (!enTranslator) {
+    enTranslator = import("../../i18n/translations.ts").then(
+      ({ translations }) =>
+        (key: string, vars?: Record<string, string>) => {
+          let text: string = (translations.en as any)[key] ?? key;
+          if (vars) {
+            for (const [k, v] of Object.entries(vars)) {
+              text = text.replaceAll(`{${k}}`, v);
+            }
+          }
+          return text;
+        },
+    );
+  }
+  return enTranslator;
+}
+
+/** Translator for an arbitrary locale — used to prove messages localize. */
+function getT(locale: "en" | "bn") {
+  return import("../../i18n/translations.ts").then(
+    ({ translations }) =>
+      (key: string, vars?: Record<string, string>) => {
+        let text: string = (translations as any)[locale]?.[key] ?? key;
+        if (vars) {
+          for (const [k, v] of Object.entries(vars)) {
+            text = text.replaceAll(`{${k}}`, v);
+          }
+        }
+        return text;
+      },
+  );
+}
+
+
 const productInput = {
   name: "Rice",
   unit: "pcs",
@@ -301,7 +350,8 @@ function messages(result: { success: boolean; error?: any }): string[] {
 }
 
 test("product schema accepts a valid product and rejects bad numbers", async () => {
-  const { productFormSchema } = await import("../../validations/shop.ts");
+  const t = await getEnT();
+  const productFormSchema = createProductFormSchema(t as any);
 
   assert.equal(productFormSchema.safeParse(productInput).success, true);
 
@@ -348,9 +398,9 @@ test("product schema accepts a valid product and rejects bad numbers", async () 
 });
 
 test("edit schema drops opening_stock and requires is_active", async () => {
-  const { productEditSchema, productFormSchema } = await import(
-    "../../validations/shop.ts"
-  );
+  const t = await getEnT();
+  const productEditSchema = createProductEditSchema(t as any);
+  const productFormSchema = createProductFormSchema(t as any);
   assert.equal(
     productEditSchema.safeParse({ ...productInput, is_active: true }).success,
     true,
@@ -364,7 +414,8 @@ test("edit schema drops opening_stock and requires is_active", async () => {
 });
 
 test("adjust stock requires a positive quantity", async () => {
-  const { adjustStockSchema } = await import("../../validations/shop.ts");
+  const t = await getEnT();
+  const adjustStockSchema = createAdjustStockSchema(t as any);
   assert.equal(
     adjustStockSchema.safeParse({ type: "adjustment_in", quantity: "5" })
       .success,
@@ -380,7 +431,8 @@ test("adjust stock requires a positive quantity", async () => {
 });
 
 test("invoice schema validates line items, dates and payments", async () => {
-  const { invoiceSchema } = await import("../../validations/shop.ts");
+  const t = await getEnT();
+  const invoiceSchema = createInvoiceSchema(t as any);
 
   const base = {
     party_id: "p1",
@@ -456,7 +508,9 @@ test("invoice schema validates line items, dates and payments", async () => {
 });
 
 test("payment schema is bounded by the outstanding balance", async () => {
-  const { createPaymentSchema } = await import("../../validations/shop.ts");
+  const t = await getEnT();
+  const createPaymentSchema = (max: number) =>
+    createBoundedPaymentSchema(t as any, max);
   assert.equal(
     createPaymentSchema(500).safeParse({ amount: "400", method: "cash" })
       .success,
@@ -474,7 +528,8 @@ test("payment schema is bounded by the outstanding balance", async () => {
 });
 
 test("organization schema restricts currency and business type", async () => {
-  const { organizationFormSchema } = await import("../../validations/shop.ts");
+  const t = await getEnT();
+  const organizationFormSchema = createOrganizationFormSchema(t as any);
   assert.equal(
     organizationFormSchema.safeParse({
       name: "My Shop",
@@ -576,7 +631,8 @@ test("transform maps invoice discount onto a negative adjustment", async () => {
 });
 
 test("invoice schema ignores blank placeholder rows but validates filled ones", async () => {
-  const { invoiceSchema } = await import("../../validations/shop.ts");
+  const t = await getEnT();
+  const invoiceSchema = createInvoiceSchema(t as any);
   const base = {
     party_id: "p1",
     date: "2026-09-12",
@@ -616,7 +672,8 @@ test("invoice schema ignores blank placeholder rows but validates filled ones", 
 });
 
 test("invoice schema rejects a fixed discount above the subtotal", async () => {
-  const { invoiceSchema } = await import("../../validations/shop.ts");
+  const t = await getEnT();
+  const invoiceSchema = createInvoiceSchema(t as any);
   const base = {
     party_id: "p1",
     date: "2026-09-12",
@@ -634,5 +691,203 @@ test("invoice schema rejects a fixed discount above the subtotal", async () => {
     false,
   );
 });
+
+// ── Localized validation messages ──────────────────────────────────────────
+
+test("validation messages follow the translator locale (en vs bn)", async () => {
+  const [enT, bnT] = await Promise.all([getT("en"), getT("bn")]);
+
+  const invalid = { ...productInput, name: "  " };
+
+  const enResult = createProductFormSchema(enT as any).safeParse(invalid);
+  assert.equal(enResult.success, false);
+  assert.ok(
+    messages(enResult).some((m) => /is required/i.test(m)),
+    `expected an English message, got ${JSON.stringify(messages(enResult))}`,
+  );
+
+  const bnResult = createProductFormSchema(bnT as any).safeParse(invalid);
+  assert.equal(bnResult.success, false);
+  // "আবশ্যক" = "is required"; the label is localized too, not just the suffix.
+  assert.ok(
+    messages(bnResult).some((m) => /আবশ্যক/.test(m)),
+    `expected a Bangla message, got ${JSON.stringify(messages(bnResult))}`,
+  );
+  assert.ok(messages(bnResult).some((m) => /পণ্যের নাম/.test(m)));
+
+  // Parameterised messages interpolate in both locales.
+  const bnNumber = createProductFormSchema(bnT as any).safeParse({
+    ...productInput,
+    tax_rate: "150",
+  });
+  assert.ok(
+    messages(bnNumber).some((m) => m.includes("১০০") || m.includes("100")),
+    `expected the max value to appear, got ${JSON.stringify(messages(bnNumber))}`,
+  );
+});
+
+test("every validation message key resolves in both locales", async () => {
+  const { translations } = await import("../../i18n/translations.ts");
+  const vKeys = Object.keys(translations.en).filter((k) => /^v[A-Z]/.test(k));
+  assert.ok(vKeys.length >= 20, `expected the v* key set, found ${vKeys.length}`);
+  for (const key of vKeys) {
+    const en: string = (translations.en as any)[key];
+    const bn: string = (translations.bn as any)[key];
+    assert.ok(en?.trim(), `${key} missing English`);
+    assert.ok(bn?.trim(), `${key} missing Bangla`);
+    // Both locales must expose the same placeholders, or interpolation breaks.
+    const placeholders = (s: string) => (s.match(/\{[a-z]+\}/g) ?? []).sort();
+    assert.deepEqual(
+      placeholders(bn),
+      placeholders(en),
+      `${key} placeholder mismatch`,
+    );
+  }
+});
+
+// ── Offline settings (settings-sync) ───────────────────────────────────────
+
+test("mergeSettings deep-merges objects but replaces scalars/arrays", async () => {
+  const { mergeSettings } = await import("../settings-pure.ts");
+
+  const base = {
+    name: "Shop",
+    settings: { currency_code: "USD", invoice_prefix: "INV" },
+    tags: ["a"],
+  };
+  const merged = mergeSettings(base, {
+    settings: { currency_code: "BDT" },
+    tags: ["b"],
+  });
+
+  // Untouched nested keys survive.
+  assert.equal(merged.settings.invoice_prefix, "INV");
+  assert.equal(merged.settings.currency_code, "BDT");
+  assert.equal(merged.name, "Shop");
+  // Arrays replace rather than merge.
+  assert.deepEqual(merged.tags, ["b"]);
+  // undefined patches never clobber a value.
+  assert.equal(
+    mergeSettings(base, { name: undefined }).name,
+    "Shop",
+  );
+});
+
+test("toServerProfilePayload normalizes currency and never sends login_pin", async () => {
+  const { toServerProfilePayload } = await import("../settings-pure.ts");
+
+  const fromSettings = toServerProfilePayload({
+    name: "Alamgir",
+    settings: { currency: "BDT", language: "bn" },
+  });
+  assert.deepEqual(fromSettings.profile_settings, {
+    currency_code: "BDT",
+    language: "bn",
+  });
+  assert.equal(fromSettings.name, "Alamgir");
+
+  // profile_settings wins and `currency` is dropped in favour of currency_code.
+  const fromProfileSettings = toServerProfilePayload({
+    profile_settings: { currency: "INR", currency_symbol: "₹" },
+  });
+  assert.deepEqual(fromProfileSettings.profile_settings, {
+    currency_code: "INR",
+    currency_symbol: "₹",
+  });
+
+  // A PIN smuggled into the patch must not survive into a merged payload.
+  const withPin = toServerProfilePayload({
+    name: "X",
+    login_pin: "12345",
+  });
+  assert.equal("login_pin" in withPin, false);
+});
+
+test("isValidQueuedPin only accepts empty or 5 digits", async () => {
+  const { isValidQueuedPin } = await import("../settings-pure.ts");
+  assert.equal(isValidQueuedPin(""), true);
+  assert.equal(isValidQueuedPin("12345"), true);
+  for (const bad of ["1234", "123456", "abcde", "12a45", null, undefined, 12345]) {
+    assert.equal(isValidQueuedPin(bad), false, `${String(bad)} should be invalid`);
+  }
+});
+
+test("isPermanentOpFailure only drops 4xx client errors", async () => {
+  const { isPermanentOpFailure } = await import("../settings-pure.ts");
+  for (const s of [400, 403, 404, 422]) {
+    assert.equal(isPermanentOpFailure(s), true, `${s} should be permanent`);
+  }
+  for (const s of [undefined, 401, 408, 429, 500, 503]) {
+    assert.equal(isPermanentOpFailure(s), false, `${s} should retry`);
+  }
+});
+
+test("applyProfilePatchToUser mirrors currency/language into both shapes", async () => {
+  const { applyProfilePatchToUser } = await import("../settings-pure.ts");
+
+  const user = {
+    name: "A",
+    settings: { currency: "USD", language: "en" },
+    profile_settings: { currency_code: "USD" },
+    security: { has_login_pin: true },
+  };
+
+  const patched = applyProfilePatchToUser(user, {
+    name: "B",
+    settings: { currency: "BDT", language: "bn" },
+  });
+  assert.equal(patched.name, "B");
+  // Both the legacy `settings` and `profile_settings` shapes stay in sync.
+  assert.equal(patched.settings.currency, "BDT");
+  assert.equal(patched.settings.language, "bn");
+  assert.equal(patched.profile_settings.currency_code, "BDT");
+  // Unrelated state is preserved and the original is not mutated.
+  assert.equal(patched.security.has_login_pin, true);
+  assert.equal(user.name, "A");
+
+  // Enabling a PIN, then removing it.
+  assert.equal(
+    applyProfilePatchToUser(user, {}, "12345").security.has_login_pin,
+    true,
+  );
+  assert.equal(
+    applyProfilePatchToUser(user, {}, "").security.has_login_pin,
+    false,
+  );
+});
+
+test("offline settings migration adds cache + outbox tables", () => {
+  // Read as source text: the migration module imports extensionless app paths
+  // that Node's type-stripping loader cannot resolve.
+  const migrations = readFileSync(
+    join(__dirname, "../../../db/migrations/index.ts"),
+    "utf8",
+  );
+  assert.match(
+    migrations,
+    /CREATE TABLE IF NOT EXISTS settings_cache/,
+  );
+  assert.match(migrations, /CREATE TABLE IF NOT EXISTS pending_ops/);
+  assert.match(migrations, /idx_pending_ops_created/);
+  assert.match(migrations, /005_offline_settings/);
+
+  // Schema version must stay in lockstep with the newest migration.
+  const types = readFileSync(join(__dirname, "../../../db/types.ts"), "utf8");
+  assert.match(types, /LOCAL_SCHEMA_VERSION = 5/);
+});
+
+test("settings writes never persist a PIN to SQLite", () => {
+  const src = readFileSync(join(__dirname, "../settings-sync.ts"), "utf8");
+  // The PIN goes to SecureStore only.
+  assert.match(src, /QUEUED_PIN_KEY/);
+  assert.match(src, /expo-secure-store/);
+  // saveLocalProfile must not forward a PIN into the SQLite/outbox payload.
+  const saveFn = src.slice(
+    src.indexOf("export async function saveLocalProfile"),
+    src.indexOf("export async function saveLocalPreferences"),
+  );
+  assert.doesNotMatch(saveFn, /login_pin/);
+});
+
 
 

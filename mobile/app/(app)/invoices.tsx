@@ -185,7 +185,7 @@ export default function InvoicesScreen() {
           <TextInput
             className="flex-1 ml-2 text-base"
             style={{ color: colors.text.primary }}
-            placeholder="Search invoice # or party…"
+            placeholder={t("searchInvoicesPlaceholder")}
             value={searchQuery}
             onChangeText={setSearchQuery}
             placeholderTextColor={colors.text.tertiary}
@@ -557,7 +557,7 @@ export default function InvoicesScreen() {
             className="text-sm mb-6"
             style={{ color: colors.text.secondary }}
           >
-            Choose the type of invoice to create
+            {t("chooseInvoiceType")}
           </Text>
 
           <TouchableOpacity

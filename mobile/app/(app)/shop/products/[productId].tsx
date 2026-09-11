@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -30,8 +30,8 @@ import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   PRODUCT_UNIT_VALUES,
-  adjustStockSchema,
-  productEditSchema,
+  createAdjustStockSchema,
+  createProductEditSchema,
   type AdjustStockFormData,
   type ProductEditFormData,
 } from "@/lib/validations/shop";
@@ -45,13 +45,17 @@ type Tab = "details" | "stock";
 export default function ProductDetailScreen() {
   const { productId } = useLocalSearchParams<{ productId: string }>();
   const { colors } = useTheme();
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
   const router = useRouter();
 
   const [activeTab, setActiveTab] = useState<Tab>("details");
   const [editing, setEditing] = useState(false);
   const [scannerVisible, setScannerVisible] = useState(false);
   const [adjustModalVisible, setAdjustModalVisible] = useState(false);
+
+  // Schema factories keyed on the language so messages follow the locale.
+  const editSchema = useMemo(() => createProductEditSchema(t), [language]);
+  const adjustSchema = useMemo(() => createAdjustStockSchema(t), [language]);
 
   // ── Edit form (Zod-validated) ──────────────────────────────────────────
   const {
@@ -62,7 +66,7 @@ export default function ProductDetailScreen() {
     watch,
     formState: { errors },
   } = useForm<ProductEditFormData>({
-    resolver: zodResolver(productEditSchema),
+    resolver: zodResolver(editSchema),
     defaultValues: {
       name: "",
       sku: "",
@@ -92,7 +96,7 @@ export default function ProductDetailScreen() {
     watch: watchAdjust,
     formState: { errors: adjustErrors },
   } = useForm<AdjustStockFormData>({
-    resolver: zodResolver(adjustStockSchema),
+    resolver: zodResolver(adjustSchema),
     defaultValues: {
       type: "adjustment_in",
       quantity: "",
@@ -219,7 +223,7 @@ export default function ProductDetailScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <ScreenHeader
-        title={editing ? "Edit Product" : product.name}
+        title={editing ? t("editProduct") : product.name}
         showBack
         rightAction={
           editing ? (
@@ -317,7 +321,7 @@ export default function ProductDetailScreen() {
                 marginTop: 2,
               }}
             >
-              Cost: {product.purchase_price.toLocaleString()}
+              {t("costLabel")}: {product.purchase_price.toLocaleString()}
             </Text>
           </View>
           <TouchableOpacity

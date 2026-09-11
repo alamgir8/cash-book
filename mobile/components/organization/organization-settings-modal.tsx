@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -17,11 +17,12 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/hooks/use-theme";
+import { useTranslation } from "@/hooks/use-translation";
 import type { Organization } from "@/services/organizations";
 import {
   CURRENCY_VALUES,
   ORGANIZATION_STATUS_VALUES,
-  organizationSettingsSchema,
+  createOrganizationSettingsSchema,
   type OrganizationSettingsFormData,
 } from "@/lib/validations/shop";
 
@@ -36,17 +37,17 @@ const CURRENCIES = [
 const STATUS_OPTIONS = [
   {
     value: "active",
-    label: "Active",
+    labelKey: "active",
     color: "#10b981",
     icon: "checkmark-circle",
   },
   {
     value: "suspended",
-    label: "Suspended",
+    labelKey: "orgStatusSuspended",
     color: "#f59e0b",
     icon: "pause-circle",
   },
-  { value: "archived", label: "Archived", color: "#f43f5e", icon: "archive" },
+  { value: "archived", labelKey: "orgStatusArchived", color: "#f43f5e", icon: "archive" },
 ] as const;
 
 /** Keep an out-of-list stored currency from making the form unsaveable. */
@@ -82,10 +83,16 @@ export function OrganizationSettingsModal({
   isLoading = false,
 }: OrganizationSettingsModalProps) {
   const { colors } = useTheme();
+  const { t, language } = useTranslation();
   const insets = useSafeAreaInsets();
+  const schema = useMemo(
+    () => createOrganizationSettingsSchema(t),
+    [t, language],
+  );
+
   const { control, handleSubmit, reset, watch } =
     useForm<OrganizationSettingsFormData>({
-      resolver: zodResolver(organizationSettingsSchema),
+      resolver: zodResolver(schema),
       defaultValues: {
         currency: "USD",
         status: "active",
@@ -172,7 +179,7 @@ export function OrganizationSettingsModal({
                   className="text-xl font-bold"
                   style={{ color: colors.text.primary }}
                 >
-                  Organization Settings
+                  {t("shopSettings")}
                 </Text>
                 <Text
                   className="text-sm"
@@ -207,7 +214,7 @@ export function OrganizationSettingsModal({
                     className="mb-3 text-sm font-semibold"
                     style={{ color: colors.text.primary }}
                   >
-                    Currency
+                    {t("currency")}
                   </Text>
                   <Controller
                     control={control}
@@ -314,7 +321,7 @@ export function OrganizationSettingsModal({
                                     : colors.text.secondary,
                               }}
                             >
-                              {status.label}
+                              {t(status.labelKey)}
                             </Text>
                           </TouchableOpacity>
                         ))}
@@ -367,7 +374,7 @@ export function OrganizationSettingsModal({
                   <>
                     <Ionicons name="save" size={20} color="white" />
                     <Text className="text-white text-base font-semibold ml-2">
-                      Save Changes
+                      {t("saveShop")}
                     </Text>
                   </>
                 )}

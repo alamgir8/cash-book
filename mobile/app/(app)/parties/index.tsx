@@ -187,7 +187,7 @@ export default function PartiesScreen() {
       setMergeSearchInput("");
       setMergeSearch("");
       toast.success(
-        "Merge complete",
+        t("mergeComplete"),
         result.message ||
           "Links moved. Source party was kept — delete it if you no longer need it.",
       );
@@ -481,7 +481,7 @@ export default function PartiesScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg.primary }}>
       <ScreenHeader
-        title="Customers & Suppliers"
+        title={t("customersAndSuppliers")}
         showBack
         onBack={goBackToSettings}
         rightAction={

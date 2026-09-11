@@ -127,7 +127,7 @@ export default function AccountDetailScreen() {
       await refreshTransactionData(queryClient);
       setModalVisible(false);
       setEditingTransaction(null);
-      Toast.show({ type: "success", text1: "Transaction updated" });
+      Toast.show({ type: "success", text1: t("transactionUpdated") });
     },
     onError: () =>
       Toast.show({
@@ -142,7 +142,7 @@ export default function AccountDetailScreen() {
     onSuccess: async () => {
       resetToPageOne();
       await refreshTransactionData(queryClient);
-      Toast.show({ type: "success", text1: "Transaction deleted" });
+      Toast.show({ type: "success", text1: t("transactionDeleted") });
     },
     onError: () =>
       Toast.show({
@@ -241,7 +241,7 @@ export default function AccountDetailScreen() {
           break;
       }
 
-      Toast.show({ type: "success", text1: "PDF exported successfully" });
+      Toast.show({ type: "success", text1: t("pdfExported") });
       setExportModalVisible(false);
     } catch {
       Toast.show({ type: "error", text1: t("exportFailed") });

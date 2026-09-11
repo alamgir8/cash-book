@@ -97,7 +97,7 @@ export function ProductSearchModal({
               color: colors.text.primary,
             }}
           >
-            Select Product
+            {t("selectProduct")}
           </Text>
           <TouchableOpacity onPress={onClose} style={{ padding: 4 }}>
             <Ionicons name="close" size={26} color={colors.text.primary} />

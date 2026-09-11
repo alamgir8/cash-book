@@ -3,7 +3,7 @@ import { View, Text, TextInput, TouchableOpacity } from "react-native";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  createPaymentSchema,
+  createBoundedPaymentSchema,
   type PaymentFormData,
 } from "@/lib/validations/shop";
 import type { PaymentMethod } from "@/types/invoice";
@@ -39,7 +39,7 @@ export function PaymentModal({
   maxAmount,
 }: PaymentModalProps) {
   const { colors } = useTheme();
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
 
   const methodLabel = (value: PaymentMethod) => {
     switch (value) {
@@ -59,8 +59,9 @@ export function PaymentModal({
   // The resolver is rebuilt whenever the outstanding balance changes so the
   // user can never record more than is owed.
   const resolver = useMemo(
-    () => zodResolver(createPaymentSchema(maxAmount)),
-    [maxAmount],
+    () => zodResolver(createBoundedPaymentSchema(t, maxAmount)),
+    // `t` is derived from the language, so keying on both is correct.
+    [t, language, maxAmount],
   );
 
   const {

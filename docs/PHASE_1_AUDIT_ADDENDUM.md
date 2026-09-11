@@ -587,6 +587,233 @@ Verified with the real UI + repo formulas: no tax/10% off → 180 = 180; 5% tax/
 - Line-level discount fields exist in the schema and repository but the line-item UI does not collect them yet.
 - `add-member-modal` keeps its local Zod schema rather than moving to `shop.ts` (member fields are not shop-entity fields).
 
+---
+
+## 18. Offline settings — "settings don't save offline" (fixed 2026-09-12)
+
+### 18.1 Why it failed
+
+Settings are **not sync entities**. The sync engine only carries
+`account | category | party | transaction | transfer`, and every settings write
+went straight to the backend:
+
+| Write path | Before | Offline behavior |
+|---|---|---|
+| Profile / preferences (`updateProfile`) | `authService.updateProfile` (PUT `/auth/profile`) | threw, error toast, change lost |
+| Preferences (`usePreferences.updatePreferences`) | re-threw the profile error | silently failed after an optimistic UI flash |
+| Shop create/edit (`organization-form-modal`) | `organizationsApi.create/update` | threw, error toast |
+| Shop settings (`organization-settings-modal`) | `organizationsApi.update` | threw, error toast |
+| Organization list / detail | `organizationsApi.list/get` | screen showed empty / error |
+| PIN toggle | bundled into the same PUT | lost |
+
+The local-mirror table added in Phase 2 (`organizations`) was only written on a
+successful online fetch, so it was empty offline and never used as a fallback.
+
+### 18.2 Fix — local mirror + outbox, flushed opportunistically
+
+New migration `005_offline_settings` (`LOCAL_SCHEMA_VERSION` 4 → 5):
+
+- `settings_cache` — key/value mirror of server-owned settings (`profile`,
+  `preferences`) with a `dirty` flag, so Settings renders and saves offline.
+- `pending_ops` — an outbox for writes the sync entity enum cannot carry
+  (`profile`, `organization`). Re-enqueuing the same entity merges payloads, so
+  rapid edits collapse into one op.
+
+Flow: **UI → SQLite (instant) → optimistic in-memory user → outbox → best-effort
+flush**. An unreachable backend is no longer an error; the op stays queued and is
+flushed by the next sync run or org fetch.
+
+Wired in:
+
+- `lib/local-first/settings-sync.ts` — save/load mirrors, PIN queue, outbox flush.
+- `hooks/use-auth.tsx` `updateProfile` — local-first, optimistic, returns
+  `{ synced }` instead of throwing; the login PIN goes to **SecureStore**, never
+  SQLite.
+- `hooks/use-preferences.tsx` — settings update never depends on the network.
+- `components/profile-edit-modal.tsx` — shows "Saved on this device — will sync"
+  when the push did not complete.
+- `data/organizations.ts` — server-first reads with a cached fallback; offline
+  org update mirrors + queues; `data/organizations.ts` `dalUpdateOrganization`.
+- `app/(app)/organizations.tsx` / `[organizationId].tsx` and both org modals —
+  routed through the DAL, with an explicit offline banner.
+- `sync/engine.ts` — flushes the settings outbox on every sync cycle.
+
+### 18.3 Deliberate exceptions (documented, not silent failures)
+
+- **Shop create** needs the backend once: the server owns the org `_id` used by
+  every org-scoped ledger/shop row, so an offline create cannot be reconciled.
+  The UI says so explicitly instead of failing generically.
+- **Shop delete** needs the backend (destructive, cascades server-side).
+- **Migrate from cloud / sync now / Drive** inherently need the network.
+
+### 18.4 Correctness details
+
+- The login PIN is **never written to SQLite**; it is held in SecureStore and
+  cleared **only after** the server accepts it (an earlier version consumed it
+  before the request, which would have lost the PIN on a network failure —
+  fixed and covered by a test).
+- `4xx` client errors (400/403/404/422) drop the op and record the reason rather
+  than retrying forever; network/5xx errors keep it queued.
+- A dirty local profile is never overwritten by a server cache write.
+- Pure helpers live in `lib/local-first/settings-pure.ts` (dependency-free) so
+  they are unit-testable.
+
+### 18.5 Verified
+
+- `npm run test:local-first` → **42/42 pass** (7 new tests: deep-merge,
+  payload normalization/PIN exclusion, queued-PIN validation, permanent-failure
+  classification, optimistic user patch, migration presence, "no PIN in SQLite").
+- `npx tsc --noEmit` → 26 errors, unchanged (all pre-existing/unrelated).
+
+---
+
+## 19. Bangla (bn) localization — shop, POS, invoices, transactions (2026-09-12)
+
+### 19.1 The gap
+
+The i18n system already existed (`lib/i18n/translations.ts`, `useTranslation`,
+`bn` locale in the language picker), and the ledger was largely translated. But:
+
+- **The entire shop area had zero `t()` calls** — dashboard, products, POS,
+  invoices, shop settings and the org screens were hardcoded English.
+- The **Shop tab-bar label was the only untranslated tab**.
+- `<AppTranslations>` forces a locale to implement every key, so a missing key
+  fails the build — the dictionary was complete, but the *screens* were not
+  wired to it.
+
+### 19.2 Dictionary
+
+Added **209 new keys with Bangla values** across shop/POS/products/invoices/
+organizations/status labels, in three blocks (type, `en`, `bn`).
+
+Verified programmatically: **696 keys in both `en` and `bn`, zero missing, zero
+empty**. The only English leftovers are the two placeholder glyph strings
+(`emailPlaceholder`, `passwordPlaceholder`) which are identical by design.
+
+Notable Bangla decisions:
+
+- `adjustmentIn` → "মজুদ বৃদ্ধি" and `adjustmentOut` → "মজুদ হ্রাস" (not literal
+  "সমন্বয় ইন/আউট").
+- `dueAmountLeft` was added specifically so a due amount reads naturally
+  ("৫০০ বাকি") instead of the composed "বাকি · 500 বাকি" that a naive
+  `t("due") + t("left")` produced.
+- `mobileWallet` → "মোবাইল ব্যাংকিং" rather than the English abbreviation.
+
+### 19.3 Screens wired
+
+| Area | Files | `t()` calls |
+|---|---|---|
+| Shop dashboard + POS | `shop/index.tsx`, `shop/pos.tsx` | 19 + 24 |
+| Products | `shop/products.tsx`, `create.tsx`, `[productId].tsx` | 13 + 21 + 47 |
+| Invoices | `invoices.tsx`, `create.tsx`, `[invoiceId].tsx` | 26 + 48 + 24 |
+| Invoice components | `payment-modal`, `line-item-fields`, `quick-create-product-modal`, `product-search-modal`, `invoice-status-badge` | 41 |
+| Organizations | `organizations.tsx`, `[organizationId].tsx`, both org modals, `member-list` | 30 |
+| Transactions | `transactions.tsx`, `accounts/[accountId].tsx`, `parties/index.tsx`, `transaction-card.tsx`, `transaction-modal.tsx`, filter section, filtered list | 50 |
+| Settings | `business-management-section.tsx` | 3 |
+
+Status/type/enum values (`sale`, `paid`, `adjustment_in`, `retail_shop`, …) stay
+English in logic and are translated only at the display layer, so no behavior
+changed. Module-scope label arrays (product units, status pickers) were converted
+to `labelKey` and translated at render, since `t()` cannot run at module scope.
+
+### 19.4 Automated guards
+
+- `tsc` enforces that both locales implement every key (via the
+  `AppTranslations` type).
+- A key-usage check across `app/` + `components/` confirms **every `t("…")` key
+  used in the codebase exists** in the dictionary. It reports only 3 unknown keys
+  — `updateSchemeDetails`, `createSchemeSubtitle` (schemes screen) and `date`
+  (loan-return modal) — all **pre-existing** and unrelated to this work. They
+  render their raw key text today; worth a follow-up.
+
+### 19.5 Zod validation messages — resolved in §20
+
+Field-level validation text was English at the time of §19 because the schemas
+are pure modules with no access to `t()`. That is fixed in §20 below by
+converting every shop schema into a factory that takes a translator.
+
+### 19.6 Verified
+
+- `npm run test:local-first` → **42/42 pass** (at the time of §19).
+- `npx tsc --noEmit` → **26 errors, unchanged** (identical to the pre-i18n
+  baseline; the 3 invoice `create.tsx` react-hook-form errors and the
+  `absoluteFillObject` errors pre-date this work).
+- Key-parity and key-usage scripts both clean.
+
+---
+
+## 20. Localized Zod validation messages (2026-09-12)
+
+### 20.1 Approach
+
+Every message-bearing schema in `lib/validations/shop.ts` became a **factory
+that takes a translator**, so validation text follows the user's language:
+
+```ts
+export type TranslateFn = (key: keyof AppTranslations, vars?: Record<string, string>) => string;
+export function createInvoiceSchema(t: TranslateFn) { ... }
+```
+
+Label keys are reused from the UI dictionary (`productName`, `quantity`,
+`unitPrice`, …), so a Bangla error reads as a complete Bangla sentence rather
+than an English label with a Bangla suffix.
+
+The module stays dependency-free apart from a **type-only** import of
+`AppTranslations` (erased at runtime), so the pure test suite can still load it
+through Node's `--experimental-strip-types`.
+
+### 20.2 Message keys
+
+26 new keys (`vRequired`, `vTooLong`, `vInvalidNumber`, `vNotNegative`,
+`vAtMost`, `vGreaterThanZero`, `vInvalidDate`, `vDiscountMax`,
+`vDiscountExceedsSubtotal`, `vDueBeforeInvoice`, `vSelectAccountForPayment`,
+`vSelectCustomerForCredit`, `vPaymentExceedsOutstanding`, …) plus the two
+missing labels `phoneLabel` and `address`.
+
+All are parameterised (`{label}`, `{max}`, `{min}`, `{n}`) and translated in both
+locales — e.g. `vRequired` → "{label} আবশ্যক" / "{label} is required".
+
+### 20.3 Consumers
+
+Components build the schema with `useMemo`, keyed on `language` (the translator
+is derived from the language), then hand it to `zodResolver`:
+
+```ts
+const { t, language } = useTranslation();
+const schema = useMemo(() => createInvoiceSchema(t), [language]);
+useForm<InvoiceFormData>({ resolver: zodResolver(schema), ... });
+```
+
+Updated: product create/edit, adjust stock, quick-create, invoice create, payment
+modal (`createBoundedPaymentSchema(t, maxAmount)`), POS cart + sale,
+organization form, organization settings.
+
+React Hook Form merges props on every render (verified by reading its internals),
+so switching language re-resolves with the new messages without remounting.
+
+### 20.4 Verification
+
+- New test **"validation messages follow the translator locale (en vs bn)"**
+  asserts the same invalid input yields "Product Name is required" in English and
+  "পণ্যের নাম আবশ্যক" in Bangla — proving labels *and* messages localize.
+- New test **"every validation message key resolves in both locales"** asserts
+  every `v*` key is non-empty in both locales **and exposes the same
+  `{placeholders}`**, so a missing interpolation placeholder can never ship.
+- `npm run test:local-first` → **44/44 pass**.
+- `npx tsc --noEmit` → **26 errors, unchanged**.
+
+### 20.5 Still English (by design)
+
+- **Server/network error text** (`getApiErrorMessage`) comes from the backend or
+  axios, so it is not translated. The UI labels around it are.
+- The 3 pre-existing unknown keys in `app/(app)/schemes/index.tsx`
+  (`updateSchemeDetails`, `createSchemeSubtitle`) and
+  `components/modals/loan-return-modal.tsx` (`date`) still render raw key text.
+  These pre-date this work and are unrelated to the shop/ledger work.
+
+
+
+
 
 
 

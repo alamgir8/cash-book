@@ -23,8 +23,8 @@ import { dalFetchAccounts } from "@/data/accounts";
 import { dalFetchParties } from "@/data/parties";
 import {
   collectIssueMessages,
-  posCartSchema,
-  posSaleSchema,
+  createPosCartSchema,
+  createPosSaleSchema,
 } from "@/lib/validations/shop";
 import { isMongoObjectId } from "@/lib/invoice-utils";
 import { normalizeAmountInput, parseAmountInput, amountInputProps } from "@/lib/amount-input";
@@ -64,7 +64,7 @@ const lineKey = (product: Product): string =>
 
 export default function PosScreen() {
   const { colors } = useTheme();
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
   const router = useRouter();
   const queryClient = useQueryClient();
   const organizationId = useActiveOrgId();
@@ -230,6 +230,10 @@ export default function PosScreen() {
   );
 
   // ── Charge ──────────────────────────────────────────────────────────────
+  // Schema factories keyed on the language so messages follow the locale.
+  const cartSchema = useMemo(() => createPosCartSchema(t), [language]);
+  const saleSchema = useMemo(() => createPosSaleSchema(t), [language]);
+
   const cartInput = useMemo(
     () =>
       cart.map((l) => ({
@@ -242,8 +246,8 @@ export default function PosScreen() {
   );
 
   const handleCharge = useCallback(() => {
-    const cartResult = posCartSchema.safeParse({ items: cartInput });
-    const saleResult = posSaleSchema.safeParse({
+    const cartResult = cartSchema.safeParse({ items: cartInput });
+    const saleResult = saleSchema.safeParse({
       customer_id: customerId || undefined,
       payment_mode: paymentMode,
       account_id: accountId || undefined,
@@ -398,12 +402,14 @@ export default function PosScreen() {
               <Text
                 style={{ fontWeight: "700", color: colors.text.primary }}
               >
-                Sale completed · {money(lastSale.total)}
+                {t("saleCompleted")} · {money(lastSale.total)}
               </Text>
               <Text style={{ fontSize: 12, color: colors.text.secondary }}>
                 {lastSale.invoice_number}
-                {lastSale.paid < lastSale.total ? " · credit" : ""} · tap for
-                receipt
+                {lastSale.paid < lastSale.total
+                  ? ` · ${t("credit")}`
+                  : ""}{" "}
+                · {t("tapForReceipt")}
               </Text>
             </View>
             <Ionicons
@@ -425,10 +431,10 @@ export default function PosScreen() {
                 fontWeight: "600",
               }}
             >
-              Cart is empty
+              {t("cartEmpty")}
             </Text>
             <Text style={{ color: colors.text.tertiary, marginTop: 4 }}>
-              Scan a barcode or tap Find to add items
+              {t("cartEmptyHint")}
             </Text>
           </View>
         ) : (
@@ -466,7 +472,9 @@ export default function PosScreen() {
                       </Text>
                       <Text style={{ fontSize: 11, color: colors.text.tertiary }}>
                         {l.unit}
-                        {l.stock !== undefined ? ` · stock ${l.stock}` : ""}
+                        {l.stock !== undefined
+                          ? ` · ${t("currentStock")} ${l.stock}`
+                          : ""}
                       </Text>
                     </View>
                     <TouchableOpacity onPress={() => removeLine(l.key)} hitSlop={8}>
@@ -550,8 +558,7 @@ export default function PosScreen() {
                     <Text
                       style={{ fontSize: 11, color: colors.warning, marginTop: 6 }}
                     >
-                      Only {l.stock} in stock — the sale will be rejected if it
-                      exceeds stock.
+                      {t("restockRequired", { n: String(l.stock) })}
                     </Text>
                   ) : null}
                   {lineError ? (
@@ -585,7 +592,7 @@ export default function PosScreen() {
                 letterSpacing: 0.5,
               }}
             >
-              Payment
+              {t("paymentMode")}
             </Text>
 
             <View style={{ flexDirection: "row", gap: 8 }}>
@@ -622,7 +629,7 @@ export default function PosScreen() {
                         paymentMode === m.value ? colors.info : colors.text.secondary,
                     }}
                   >
-                    {m.label}
+                    {t(m.labelKey)}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -630,8 +637,8 @@ export default function PosScreen() {
 
             <View>
               <SearchableSelect
-                label={paymentMode === "due" ? "Customer *" : "Customer"}
-                placeholder="Walk-in customer"
+                label={paymentMode === "due" ? `${t("customer")} *` : t("customer")}
+                placeholder={t("walkInCustomer")}
                 value={customerId}
                 options={customerOptions}
                 onSelect={setCustomerId}
@@ -659,8 +666,8 @@ export default function PosScreen() {
             {paymentMode !== "due" ? (
               <View>
                 <SearchableSelect
-                  label="Deposit to Account *"
-                  placeholder="Select account..."
+                  label={`${t("depositToAccount")} *`}
+                  placeholder={t("selectAccountPlaceholder")}
                   value={accountId}
                   options={accountOptions}
                   onSelect={setAccountId}
@@ -673,8 +680,7 @@ export default function PosScreen() {
               </View>
             ) : (
               <Text style={{ fontSize: 12, color: colors.warning }}>
-                Credit sale: the amount stays due. Record the payment later from
-                the invoice.
+                {t("creditSaleNote")}
               </Text>
             )}
 
@@ -688,7 +694,7 @@ export default function PosScreen() {
                     marginBottom: 6,
                   }}
                 >
-                  Amount received
+                  {t("amountReceived")}
                 </Text>
                 <TextInput
                   value={amountReceived}
@@ -717,8 +723,7 @@ export default function PosScreen() {
             <TextInput
               value={note}
               onChangeText={setNote}
-              placeholder="Note (optional)"
-              placeholderTextColor={colors.text.tertiary}
+              placeholder={t("notesOptional")}              placeholderTextColor={colors.text.tertiary}
               style={{
                 borderWidth: 1,
                 borderColor: colors.border,
@@ -750,7 +755,7 @@ export default function PosScreen() {
             }}
           >
             <Text style={{ color: colors.text.secondary, fontSize: 13 }}>
-              Subtotal
+              {t("subTotal")}
             </Text>
             <Text style={{ color: colors.text.secondary, fontSize: 13 }}>
               {money(totals.subtotal)}
@@ -765,7 +770,7 @@ export default function PosScreen() {
               }}
             >
               <Text style={{ color: colors.text.secondary, fontSize: 13 }}>
-                Tax
+                {t("taxRate")}
               </Text>
               <Text style={{ color: colors.text.secondary, fontSize: 13 }}>
                 {money(totals.tax)}
@@ -782,7 +787,7 @@ export default function PosScreen() {
             <Text
               style={{ color: colors.text.primary, fontWeight: "700", fontSize: 16 }}
             >
-              Total
+              {t("grandTotal")}
             </Text>
             <Text
               style={{ color: colors.text.primary, fontWeight: "800", fontSize: 18 }}
@@ -807,8 +812,8 @@ export default function PosScreen() {
             ) : (
               <Text style={{ color: "#fff", fontWeight: "800", fontSize: 16 }}>
                 {paymentMode === "due"
-                  ? `Complete sale · ${money(totals.total)} on credit`
-                  : `Charge ${money(paidNow)}`}
+                  ? `${t("completeSale")} · ${money(totals.total)} · ${t("credit")}`
+                  : `${t("charge")} ${money(paidNow)}`}
               </Text>
             )}
           </TouchableOpacity>
@@ -819,7 +824,7 @@ export default function PosScreen() {
         visible={scannerVisible}
         onClose={() => setScannerVisible(false)}
         onScan={handleScan}
-        title="Scan Item"
+        title={t("scanItem")}
       />
       <ProductSearchModal
         visible={searchVisible}

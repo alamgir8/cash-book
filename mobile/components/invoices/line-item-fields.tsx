@@ -301,7 +301,7 @@ export function LineItemFields({
             className="text-xs mb-1.5"
             style={{ color: colors.text.secondary }}
           >
-            Unit Price
+            {t("unitPrice")}
           </Text>
           <Controller
             control={control}
@@ -393,7 +393,7 @@ export function LineItemFields({
                 className="text-sm"
                 style={{ color: colors.text.secondary }}
               >
-                Line Total
+                {t("lineTotal")}
               </Text>
               <Text
                 className="text-base font-bold"

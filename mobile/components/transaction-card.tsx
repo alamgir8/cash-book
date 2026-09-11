@@ -282,7 +282,7 @@ const TransactionCardComponent = ({
               >
                 {isSettled
                   ? t("settled")
-                  : `${t("due")} · ${formatAmount(remaining)} ${t("left")}`}
+                  : `${t("due")} · ${t("dueAmountLeft", { n: formatAmount(remaining) })}`}
               </Text>
             </View>
           )}
@@ -516,7 +516,7 @@ const TransactionCardComponent = ({
               className="text-xs font-semibold"
             >
               {paymentShowsParentDue
-                ? `${t("due")} · ${formatAmount(parentRemaining)} ${t("left")}`
+                ? `${t("due")} · ${t("dueAmountLeft", { n: formatAmount(parentRemaining) })}`
                 : transaction.payment_status === "due"
                   ? t("due")
                   : t("paid")}

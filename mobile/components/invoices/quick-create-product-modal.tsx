@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect } from "react";
+import React, { useCallback, useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -19,7 +19,7 @@ import { getApiErrorMessage } from "@/lib/api";
 import { amountInputProps, normalizeAmountInput, parseAmountInput } from "@/lib/amount-input";
 import {
   PRODUCT_UNIT_VALUES,
-  quickProductSchema,
+  createQuickProductSchema,
   type QuickProductFormData,
 } from "@/lib/validations/shop";
 import type { Product } from "@/types/product";
@@ -48,7 +48,9 @@ export function QuickCreateProductModal({
   onCreated,
 }: QuickCreateProductModalProps) {
   const { colors } = useTheme();
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
+
+  const schema = useMemo(() => createQuickProductSchema(t), [language]);
 
   const {
     control,
@@ -58,7 +60,7 @@ export function QuickCreateProductModal({
     watch,
     formState: { errors, isSubmitting },
   } = useForm<QuickProductFormData>({
-    resolver: zodResolver(quickProductSchema),
+    resolver: zodResolver(schema),
     defaultValues: { name: "", price: "", unit: "pcs" },
   });
 

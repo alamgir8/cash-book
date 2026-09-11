@@ -719,6 +719,57 @@ export type AppTranslations = {
   salesInvoices: string;
   purchaseInvoices: string;
   partiesSuppliers: string;
+  unitPrice: string;
+  lineTotal: string;
+  selectProduct: string;
+  camera: string;
+  markAsPaid: string;
+  searchInvoicesPlaceholder: string;
+  chooseInvoiceType: string;
+  deleteTransactionTitle: string;
+  deleteTransactionMessage: string;
+  transactionUpdated: string;
+  transactionDeleted: string;
+  pdfExported: string;
+  customersAndSuppliers: string;
+  mergeComplete: string;
+  accountTransactions: string;
+  members: string;
+  editProduct: string;
+  newOrganization: string;
+  deleteOrganizationTitle: string;
+  orgStatusSuspended: string;
+  orgStatusArchived: string;
+  dueAmountLeft: string;
+  costLabel: string;
+  adjust: string;
+  // ── Validation messages (Zod) ─────────────────────────────────────────────
+  phoneLabel: string;
+  address: string;
+  vRequired: string;
+  vTooLong: string;
+  vTooShort: string;
+  vInvalidNumber: string;
+  vNotNegative: string;
+  vAtLeast: string;
+  vAtMost: string;
+  vGreaterThanZero: string;
+  vWholeNumber: string;
+  vInvalidDate: string;
+  vInvalidEmail: string;
+  vInvalidPhone: string;
+  vBarcodeNoSpaces: string;
+  vSelectParty: string;
+  vAtLeastOneItem: string;
+  vDueBeforeInvoice: string;
+  vDiscountMax: string;
+  vDiscountExceedsSubtotal: string;
+  vSelectAccountForPayment: string;
+  vSelectAccountReceiving: string;
+  vEnterAmountReceived: string;
+  vSelectCustomerForCredit: string;
+  vPaymentExceedsOutstanding: string;
+  vInvoiceTotalNegative: string;
 };
 
 // ── English ───────────────────────────────────────────────────────────────────
@@ -1451,6 +1502,58 @@ const en: AppTranslations = {
   salesInvoices: "Sales Invoices",
   purchaseInvoices: "Purchase Invoices",
   partiesSuppliers: "Parties / Suppliers",
+  unitPrice: "Unit Price",
+  lineTotal: "Line Total",
+  selectProduct: "Select Product",
+  camera: "Camera",
+  markAsPaid: "Mark as Paid",
+  searchInvoicesPlaceholder: "Search invoice # or party…",
+  chooseInvoiceType: "Choose the type of invoice to create",
+  deleteTransactionTitle: "Delete Transaction?",
+  deleteTransactionMessage:
+    "This will remove the transaction from your ledger.",
+  transactionUpdated: "Transaction updated",
+  transactionDeleted: "Transaction deleted",
+  pdfExported: "PDF exported successfully",
+  customersAndSuppliers: "Customers & Suppliers",
+  mergeComplete: "Merge complete",
+  accountTransactions: "Account transactions",
+  members: "Members",
+  editProduct: "Edit Product",
+  newOrganization: "New Organization",
+  deleteOrganizationTitle: "Delete Organization",
+  orgStatusSuspended: "Suspended",
+  orgStatusArchived: "Archived",
+  // Composed so Bangla reads naturally instead of "বাকি · 500 বাকি".
+  dueAmountLeft: "{n} left",
+  costLabel: "Cost",
+  adjust: "Adjust",
+  phoneLabel: "Phone",
+  address: "Address",
+  vRequired: "{label} is required",
+  vTooLong: "{label} must be under {max} characters",
+  vTooShort: "{label} must be at least {n} characters",
+  vInvalidNumber: "{label} must be a valid number",
+  vNotNegative: "{label} cannot be negative",
+  vAtLeast: "{label} must be at least {min}",
+  vAtMost: "{label} must be at most {max}",
+  vGreaterThanZero: "{label} must be greater than 0",
+  vWholeNumber: "{label} must be a whole number",
+  vInvalidDate: "{label} must be a valid date",
+  vInvalidEmail: "Enter a valid email address",
+  vInvalidPhone: "Enter a valid phone number",
+  vBarcodeNoSpaces: "Barcode cannot contain spaces",
+  vSelectParty: "Please select a party",
+  vAtLeastOneItem: "Add at least one item with a description and price",
+  vDueBeforeInvoice: "Due date cannot be before the invoice date",
+  vDiscountMax: "Discount % cannot exceed 100",
+  vDiscountExceedsSubtotal: "Discount cannot exceed the line subtotal",
+  vSelectAccountForPayment: "Select the account for this payment",
+  vSelectAccountReceiving: "Select the account that receives the money",
+  vEnterAmountReceived: "Enter the amount received",
+  vSelectCustomerForCredit: "Select a customer for a credit sale",
+  vPaymentExceedsOutstanding: "Amount cannot exceed the outstanding {n}",
+  vInvoiceTotalNegative: "Invoice total cannot be negative",
 };
 
 // ── Bengali (বাংলা) ────────────────────────────────────────────────────────────
@@ -2185,6 +2288,56 @@ const bn: AppTranslations = {
   salesInvoices: "বিক্রয় ইনভয়েস",
   purchaseInvoices: "ক্রয় ইনভয়েস",
   partiesSuppliers: "পক্ষ / সরবরাহকারী",
+  unitPrice: "একক মূল্য",
+  lineTotal: "সারির মোট",
+  selectProduct: "পণ্য নির্বাচন করুন",
+  camera: "ক্যামেরা",
+  markAsPaid: "পরিশোধিত হিসেবে চিহ্নিত করুন",
+  searchInvoicesPlaceholder: "ইনভয়েস নম্বর বা পক্ষ দিয়ে খুঁজুন…",
+  chooseInvoiceType: "যে ধরনের ইনভয়েস তৈরি করবেন তা নির্বাচন করুন",
+  deleteTransactionTitle: "লেনদেন মুছবেন?",
+  deleteTransactionMessage: "এটি আপনার খাতা থেকে লেনদেনটি মুছে ফেলবে।",
+  transactionUpdated: "লেনদেন হালনাগাদ হয়েছে",
+  transactionDeleted: "লেনদেন মুছে ফেলা হয়েছে",
+  pdfExported: "পিডিএফ সফলভাবে এক্সপোর্ট হয়েছে",
+  customersAndSuppliers: "ক্রেতা ও সরবরাহকারী",
+  mergeComplete: "একত্রীকরণ সম্পন্ন",
+  accountTransactions: "অ্যাকাউন্টের লেনদেন",
+  members: "সদস্য",
+  editProduct: "পণ্য সম্পাদনা",
+  newOrganization: "নতুন প্রতিষ্ঠান",
+  deleteOrganizationTitle: "প্রতিষ্ঠান মুছুন",
+  orgStatusSuspended: "স্থগিত",
+  orgStatusArchived: "সংরক্ষিত",
+  dueAmountLeft: "{n} বাকি",
+  costLabel: "খরচ",
+  adjust: "সমন্বয়",
+  phoneLabel: "ফোন",
+  address: "ঠিকানা",
+  vRequired: "{label} আবশ্যক",
+  vTooLong: "{label} {max} অক্ষরের কম হতে হবে",
+  vTooShort: "{label} কমপক্ষে {n} অক্ষর হতে হবে",
+  vInvalidNumber: "{label} একটি বৈধ সংখ্যা হতে হবে",
+  vNotNegative: "{label} ঋণাত্মক হতে পারবে না",
+  vAtLeast: "{label} কমপক্ষে {min} হতে হবে",
+  vAtMost: "{label} সর্বোচ্চ {max} হতে পারে",
+  vGreaterThanZero: "{label} ০ এর বেশি হতে হবে",
+  vWholeNumber: "{label} পূর্ণসংখ্যা হতে হবে",
+  vInvalidDate: "{label} একটি বৈধ তারিখ হতে হবে",
+  vInvalidEmail: "একটি বৈধ ইমেইল ঠিকানা লিখুন",
+  vInvalidPhone: "একটি বৈধ ফোন নম্বর লিখুন",
+  vBarcodeNoSpaces: "বারকোডে স্পেস থাকতে পারে না",
+  vSelectParty: "একটি পক্ষ নির্বাচন করুন",
+  vAtLeastOneItem: "বিবরণ ও মূল্যসহ অন্তত একটি আইটেম যোগ করুন",
+  vDueBeforeInvoice: "পরিশোধের তারিখ ইনভয়েসের তারিখের আগে হতে পারে না",
+  vDiscountMax: "ছাড় ১০০% এর বেশি হতে পারে না",
+  vDiscountExceedsSubtotal: "ছাড় সারির মোটের চেয়ে বেশি হতে পারে না",
+  vSelectAccountForPayment: "এই পরিশোধের জন্য অ্যাকাউন্ট নির্বাচন করুন",
+  vSelectAccountReceiving: "যে অ্যাকাউন্টে টাকা আসবে তা নির্বাচন করুন",
+  vEnterAmountReceived: "প্রাপ্ত পরিমাণ লিখুন",
+  vSelectCustomerForCredit: "বাকি বিক্রয়ের জন্য একজন ক্রেতা নির্বাচন করুন",
+  vPaymentExceedsOutstanding: "পরিমাণ বাকি {n} এর বেশি হতে পারে না",
+  vInvoiceTotalNegative: "ইনভয়েসের মোট ঋণাত্মক হতে পারে না",
 };
 
 export const translations: Record<string, AppTranslations> = { en, bn };

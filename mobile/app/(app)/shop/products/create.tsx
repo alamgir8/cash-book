@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -20,7 +20,7 @@ import { BarcodeScannerModal } from "@/components/invoices/barcode-scanner-modal
 import { ScreenHeader } from "@/components/screen-header";
 import {
   PRODUCT_UNIT_VALUES,
-  productFormSchema,
+  createProductFormSchema,
   type ProductFormData,
 } from "@/lib/validations/shop";
 import {
@@ -33,11 +33,14 @@ import { useTranslation } from "@/hooks/use-translation";
 
 export default function CreateProductScreen() {
   const { colors } = useTheme();
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
   const { footerContainerStyle, scrollProps } = useKeyboardFooterLift();
   const router = useRouter();
   const organizationId = useActiveOrgId();
   const [scannerVisible, setScannerVisible] = useState(false);
+
+  // Schema factory is keyed on the language so messages follow the locale.
+  const schema = useMemo(() => createProductFormSchema(t), [language]);
 
   const {
     control,
@@ -46,7 +49,7 @@ export default function CreateProductScreen() {
     watch,
     formState: { errors },
   } = useForm<ProductFormData>({
-    resolver: zodResolver(productFormSchema),
+    resolver: zodResolver(schema),
     defaultValues: {
       name: "",
       sku: "",

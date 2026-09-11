@@ -66,7 +66,7 @@ export default function OrganizationsScreen() {
   const handleDelete = useCallback(
     (org: Organization) => {
       Alert.alert(
-        "Delete Organization",
+        t("deleteOrganizationTitle"),
         `Are you sure you want to delete "${org.name}"? This action cannot be undone.`,
         [
           { text: t("cancel"), style: "cancel" },

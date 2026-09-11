@@ -2,6 +2,7 @@ import React, { useCallback } from "react";
 import { View, Text, TouchableOpacity, Alert, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/use-theme";
+import { useTranslation } from "@/hooks/use-translation";
 import type { OrganizationMember } from "@/services/organizations";
 
 const ROLES = [
@@ -39,6 +40,7 @@ export function MemberCard({
   onRemove,
 }: MemberCardProps) {
   const { colors } = useTheme();
+  const { t } = useTranslation();
 
   const getRoleColor = (role: string) => {
     switch (role) {
@@ -78,7 +80,7 @@ export function MemberCard({
             <Text
               style={[styles.memberStatus, { color: colors.text.secondary }]}
             >
-              {member.status === "pending" ? "Invitation pending" : "Active"}
+              {member.status === "pending" ? "Invitation pending" : t("active")}
             </Text>
           </View>
         </View>
@@ -144,6 +146,7 @@ export function MemberList({
   onAddMember,
 }: MemberListProps) {
   const { colors } = useTheme();
+  const { t } = useTranslation();
 
   const handleChangeRole = useCallback(
     (member: OrganizationMember) => {
@@ -155,7 +158,7 @@ export function MemberList({
             text: role.label,
             onPress: () => onChangeRole(member, role.value),
           }))
-          .concat([{ text: "Cancel", style: "cancel" }] as any),
+          .concat([{ text: t("cancel"), style: "cancel" }] as any),
       );
     },
     [onChangeRole],
@@ -169,7 +172,7 @@ export function MemberList({
           member.display_name || "this member"
         }?`,
         [
-          { text: "Cancel", style: "cancel" },
+          { text: t("cancel"), style: "cancel" },
           {
             text: "Remove",
             style: "destructive",

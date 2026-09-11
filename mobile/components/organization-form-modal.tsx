@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -21,7 +21,7 @@ import { useTranslation } from "../hooks/use-translation";
 import {
   CURRENCY_VALUES,
   ORGANIZATION_STATUS_VALUES,
-  organizationFormSchema,
+  createOrganizationFormSchema,
   type OrganizationFormData,
 } from "../lib/validations/shop";
 
@@ -43,9 +43,9 @@ const CURRENCIES = [
 ] as const;
 
 const STATUS_OPTIONS = [
-  { value: "active", label: "Active", color: "#10b981" },
-  { value: "suspended", label: "Suspended", color: "#f59e0b" },
-  { value: "archived", label: "Archived", color: "#f43f5e" },
+  { value: "active", labelKey: "active", color: "#10b981" },
+  { value: "suspended", labelKey: "orgStatusSuspended", color: "#f59e0b" },
+  { value: "archived", labelKey: "orgStatusArchived", color: "#f43f5e" },
 ] as const;
 
 /**
@@ -88,8 +88,10 @@ export function OrganizationFormModal({
   onSuccess,
 }: OrganizationFormModalProps) {
   const isEditing = !!organization;
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
   const [isLoading, setIsLoading] = React.useState(false);
+  const schema = useMemo(() => createOrganizationFormSchema(t), [language]);
+
   const {
     control,
     handleSubmit,
@@ -98,7 +100,7 @@ export function OrganizationFormModal({
     reset,
     formState: { errors },
   } = useForm<OrganizationFormData>({
-    resolver: zodResolver(organizationFormSchema),
+    resolver: zodResolver(schema),
     defaultValues: {
       name: "",
       description: "",
@@ -170,16 +172,14 @@ export function OrganizationFormModal({
       if (isEditing && organization) {
         // Offline-first: mirrors locally and queues the server update.
         result = await dalUpdateOrganization(organization._id, params);
-        toast.success("Shop saved");
+        toast.success(t("shopSaved"));
       } else {
         // Create needs the backend: it owns the id used by every shop row.
         try {
           result = await dalCreateOrganization(params);
         } catch (e: any) {
           if (!e?.response) {
-            toast.error(
-              "Creating a shop needs a connection once. Other settings save offline.",
-            );
+            toast.error(t("createShopNeedsConnection"));
             return;
           }
           throw e;
@@ -201,17 +201,17 @@ export function OrganizationFormModal({
     <FormSheetModal
       visible={visible}
       onClose={onClose}
-      title={isEditing ? "Edit Organization" : "New Organization"}
+      title={isEditing ? t("editOrganization") : t("newOrganization")}
       subtitle={
         isEditing
           ? "Update organization details"
           : "Create a new organization"
       }
-      submitLabel={isEditing ? "Save Changes" : "Create Organization"}
+      submitLabel={isEditing ? t("saveShop") : t("createOrganization")}
       submitIcon={isEditing ? "checkmark-circle" : "add-circle"}
       onSubmit={handleSubmit(onSubmit)}
       isSubmitting={isLoading}
-      submittingLabel="Saving…"
+      submittingLabel={t("saving")}
     >
       <View className="gap-5">
               {/* Business Name */}
@@ -220,7 +220,7 @@ export function OrganizationFormModal({
                 name="name"
                 render={({ field: { onChange, onBlur, value } }) => (
                   <CustomInput
-                    label="Business Name *"
+                    label={`${t("businessName")} *`}
                     value={value}
                     onChangeText={onChange}
                     onBlur={onBlur}
@@ -238,7 +238,7 @@ export function OrganizationFormModal({
                   className="mb-3 text-base font-medium"
                   style={{ color: colors.text.primary }}
                 >
-                  Business Type
+                  {t("businessType")}
                 </Text>
                 <View className="flex-row flex-wrap gap-2">
                   {BUSINESS_TYPES.map((type) => (
@@ -287,7 +287,7 @@ export function OrganizationFormModal({
                 name="description"
                 render={({ field: { onChange, onBlur, value } }) => (
                   <CustomInput
-                    label="Description"
+                    label={t("description")}
                     value={value}
                     onChangeText={onChange}
                     onBlur={onBlur}
@@ -377,7 +377,7 @@ export function OrganizationFormModal({
                     className="mb-2 text-sm font-medium"
                     style={{ color: colors.text.primary }}
                   >
-                    Currency
+                    {t("currency")}
                   </Text>
                   <View className="flex-row flex-wrap gap-2">
                     {CURRENCIES.map((curr) => (
@@ -430,7 +430,7 @@ export function OrganizationFormModal({
                       className="mb-2 text-sm font-medium"
                       style={{ color: colors.text.primary }}
                     >
-                      Status
+                      {t("status")}
                     </Text>
                     <View className="flex-row flex-wrap gap-2">
                       {STATUS_OPTIONS.map((status) => (
@@ -475,7 +475,7 @@ export function OrganizationFormModal({
                                   : colors.text.secondary,
                             }}
                           >
-                            {status.label}
+                            {t(status.labelKey)}
                           </Text>
                         </TouchableOpacity>
                       ))}

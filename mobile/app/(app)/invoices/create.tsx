@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -30,7 +30,10 @@ import {
 } from "@/data/parties";
 import { dalFetchAccounts } from "@/data/accounts";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { invoiceSchema, type InvoiceFormData } from "@/lib/validations/shop";
+import {
+  createInvoiceSchema,
+  type InvoiceFormData,
+} from "@/lib/validations/shop";
 import { findFirstErrorMessage } from "@/lib/invoice-utils";
 import { LineItemFields, InvoiceTotalsSummary } from "@/components/invoices";
 import {
@@ -65,7 +68,7 @@ export default function CreateInvoiceScreen() {
   }>();
   const organizationId = useActiveOrgId();
   const { colors } = useTheme();
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
   const { footerContainerStyle, scrollProps } = useKeyboardFooterLift();
 
   const paymentModeLabels: Record<string, string> = {
@@ -97,6 +100,9 @@ export default function CreateInvoiceScreen() {
     onSuccess: () => router.back(),
   });
 
+  // Schema factory is keyed on the language so messages follow the locale.
+  const schema = useMemo(() => createInvoiceSchema(t), [language]);
+
   const {
     control,
     handleSubmit,
@@ -105,7 +111,7 @@ export default function CreateInvoiceScreen() {
     getValues,
     formState: { errors },
   } = useForm<InvoiceFormData>({
-    resolver: zodResolver(invoiceSchema),
+    resolver: zodResolver(schema),
     defaultValues: {
       party_id: "",
       date: new Date().toISOString().split("T")[0],
