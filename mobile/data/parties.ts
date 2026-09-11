@@ -9,6 +9,12 @@ import {
   isLocalFirstEnabled,
 } from "@/lib/local-first/flags";
 import { shouldUseLocalPersonalLedger } from "@/lib/local-first/ledger-scope";
+import { notifyLocalLedgerMutation } from "@/lib/local-first/notify-mutation";
+
+async function afterLocalWrite<T>(result: T): Promise<T> {
+  void notifyLocalLedgerMutation();
+  return result;
+}
 
 export async function dalFetchParties(
   params?: ListPartiesParams,
@@ -37,7 +43,7 @@ export async function dalCreateParty(payload: CreatePartyParams) {
     return partiesApi.create(payload);
   }
   const local = await import("./parties.local");
-  return local.createLocalParty(payload);
+  return afterLocalWrite(await local.createLocalParty(payload));
 }
 
 export async function dalUpdateParty(
@@ -49,7 +55,7 @@ export async function dalUpdateParty(
     return partiesApi.update(partyId, payload);
   }
   const local = await import("./parties.local");
-  return local.updateLocalParty(partyId, payload);
+  return afterLocalWrite(await local.updateLocalParty(partyId, payload));
 }
 
 export async function dalArchiveParty(partyId: string, archived: boolean) {
@@ -58,7 +64,7 @@ export async function dalArchiveParty(partyId: string, archived: boolean) {
     return partiesApi.archive(partyId, archived);
   }
   const local = await import("./parties.local");
-  return local.archiveLocalParty(partyId, archived);
+  return afterLocalWrite(await local.archiveLocalParty(partyId, archived));
 }
 
 export async function dalDeleteParty(partyId: string) {
@@ -67,7 +73,7 @@ export async function dalDeleteParty(partyId: string) {
     return partiesApi.delete(partyId);
   }
   const local = await import("./parties.local");
-  return local.deleteLocalParty(partyId);
+  return afterLocalWrite(await local.deleteLocalParty(partyId));
 }
 
 export async function dalMergeParties(
@@ -79,7 +85,9 @@ export async function dalMergeParties(
     return partiesApi.merge(sourcePartyId, targetPartyId);
   }
   const local = await import("./parties.local");
-  return local.mergeLocalParties(sourcePartyId, targetPartyId);
+  return afterLocalWrite(
+    await local.mergeLocalParties(sourcePartyId, targetPartyId),
+  );
 }
 
 export async function dalFetchPartyLedger(

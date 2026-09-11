@@ -10,6 +10,9 @@ export const PREFERENCES_STORAGE_KEY = "user_preferences";
  * Clears in-memory React Query cache and device storage that belongs to the
  * signed-in user. Call on sign-out / switch-account so the next login cannot
  * see the previous user's ledger, org, or preference data.
+ *
+ * Also wipes the local SQLite ledger + on-device attachments when present.
+ * Local-first feature flags (`@lf_*`) are intentionally kept as device prefs.
  */
 export async function clearUserScopedData() {
   clearQueryCache();
@@ -20,5 +23,14 @@ export async function clearUserScopedData() {
     ]);
   } catch (error) {
     console.warn("Failed to clear user-scoped storage", error);
+  }
+
+  try {
+    const { resetLocalLedgerForUserChange } = await import(
+      "@/lib/local-first/owner"
+    );
+    await resetLocalLedgerForUserChange();
+  } catch (error) {
+    console.warn("Failed to reset local ledger on user change", error);
   }
 }

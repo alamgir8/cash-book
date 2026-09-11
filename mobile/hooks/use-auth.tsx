@@ -398,6 +398,27 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     };
   }, [startRefreshTimer, state.status, stopRefreshTimer]);
 
+  // Bind (or wipe+rebind) the local SQLite ledger to the signed-in admin.
+  useEffect(() => {
+    if (state.status !== "authenticated" || !state.user?._id) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const { ensureLocalLedgerOwner } = await import(
+          "@/lib/local-first/owner"
+        );
+        if (!cancelled) {
+          await ensureLocalLedgerOwner(state.user._id);
+        }
+      } catch (error) {
+        console.warn("[auth] ensureLocalLedgerOwner failed", error);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [state.status, state.status === "authenticated" ? state.user._id : null]);
+
   const signIn = useCallback(
     async ({ identifier, password, pin }: LoginRequest) => {
       try {

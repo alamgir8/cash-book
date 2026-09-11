@@ -32,8 +32,8 @@ import {
   useRemoveSchemeMember,
   useUpdateSchemeMember,
 } from "@/hooks/use-schemes";
-import { partiesApi } from "@/services/parties";
-import { fetchAccounts } from "@/services/accounts";
+import { dalFetchParties, dalCreateParty } from "@/data/parties";
+import { dalFetchAccounts } from "@/data/accounts";
 import { QUERY_KEYS } from "@/lib/queryKeys";
 import {
   amountInputProps,
@@ -110,7 +110,7 @@ export default function SchemeDetailScreen() {
   const { data: partiesPage } = useQuery({
     queryKey: [...QUERY_KEYS.parties, "scheme-enroll", orgId ?? "personal"],
     queryFn: () =>
-      partiesApi.list({
+      dalFetchParties({
         organization: orgId || undefined,
         limit: 200,
         archived: false,
@@ -118,8 +118,8 @@ export default function SchemeDetailScreen() {
   });
 
   const { data: accounts = [] } = useQuery({
-    queryKey: QUERY_KEYS.accounts,
-    queryFn: fetchAccounts,
+    queryKey: [...QUERY_KEYS.accounts, orgId ?? "personal"],
+    queryFn: () => dalFetchAccounts(orgId),
   });
 
   const partyOptions = useMemo(() => {
@@ -160,7 +160,7 @@ export default function SchemeDetailScreen() {
     const trimmed = name.trim();
     if (!trimmed) return null;
     try {
-      const party = await partiesApi.create({
+      const party = await dalCreateParty({
         organization: orgId || undefined,
         name: trimmed,
         type: "both",

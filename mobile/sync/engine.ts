@@ -156,12 +156,17 @@ async function markClean(
             : "transfers";
   if (serverId) {
     await db.runAsync(
-      `UPDATE ${table} SET dirty = 0, server_id = ? WHERE id = ?`,
+      `UPDATE ${table} SET dirty = 0, sync_status = 'synced',
+        retry_count = 0, last_sync_error = NULL, server_id = ? WHERE id = ?`,
       serverId,
       id,
     );
   } else {
-    await db.runAsync(`UPDATE ${table} SET dirty = 0 WHERE id = ?`, id);
+    await db.runAsync(
+      `UPDATE ${table} SET dirty = 0, sync_status = 'synced',
+        retry_count = 0, last_sync_error = NULL WHERE id = ?`,
+      id,
+    );
   }
 }
 
@@ -246,6 +251,11 @@ async function applyIncoming(change: SyncChange) {
     await transactionsRepo.upsertTransactionFromSync(db, row);
   if (change.entity === "transfer")
     await transfersRepo.upsertTransferFromSync(db, row);
+
+  // Ensure pull-applied rows are marked synced (INSERT defaults are pending_*).
+  if (localId) {
+    await markClean(change.entity, localId, change.server_id ?? null);
+  }
 }
 
 export type SyncResult = {
@@ -313,7 +323,7 @@ export async function runSync(): Promise<SyncResult> {
       if (match) await markClean(match.entity, a.id, a.server_id ?? null);
     }
 
-    // Rejected rows stay dirty for retry; surface a concise reason.
+    // Rejected rows stay dirty for retry; mark failed + surface reason.
     if (rejected.length) {
       const sample = rejected
         .slice(0, 3)
@@ -324,6 +334,28 @@ export async function runSync(): Promise<SyncResult> {
         META_KEYS.LAST_SYNC_ERROR,
         `${rejected.length} push rejected — ${sample}`,
       );
+      for (const r of rejected) {
+        const match = changes.find((c) => c.id === r.id);
+        if (!match) continue;
+        const table =
+          match.entity === "account"
+            ? "accounts"
+            : match.entity === "category"
+              ? "categories"
+              : match.entity === "party"
+                ? "parties"
+                : match.entity === "transaction"
+                  ? "transactions"
+                  : "transfers";
+        await db.runAsync(
+          `UPDATE ${table} SET sync_status = 'failed',
+            retry_count = retry_count + 1,
+            last_sync_error = ?
+           WHERE id = ?`,
+          r.reason || "rejected",
+          r.id,
+        );
+      }
     }
 
     await setMeta(db, META_KEYS.SYNC_STAGE, "pull");

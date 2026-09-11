@@ -61,6 +61,7 @@ export function LocalFirstSection() {
   const [lastDriveAt, setLastDriveAt] = useState<string | null>(null);
   const [lastDrivePath, setLastDrivePath] = useState<string | null>(null);
   const [lastDriveError, setLastDriveError] = useState<string | null>(null);
+  const [storageHint, setStorageHint] = useState<string | null>(null);
   const oauthReady = hasGoogleOAuthConfigured();
 
   useEffect(() => {
@@ -80,6 +81,21 @@ export function LocalFirstSection() {
       setLastDriveAt(await getMeta(db, META_KEYS.LAST_DRIVE_BACKUP_AT));
       setLastDrivePath(await getMeta(db, META_KEYS.LAST_DRIVE_PATH));
       setLastDriveError(await getMeta(db, META_KEYS.LAST_DRIVE_ERROR));
+      try {
+        const { getLocalStorageReport } = await import(
+          "@/lib/local-first/storage-monitor"
+        );
+        const report = await getLocalStorageReport();
+        setStorageHint(
+          report.level === "ok"
+            ? report.estimatedDbBytes != null
+              ? `Local DB ~${Math.max(1, Math.round(report.estimatedDbBytes / (1024 * 1024)))} MB`
+              : null
+            : report.message,
+        );
+      } catch {
+        setStorageHint(null);
+      }
     } catch {
       /* db may not be ready */
     }
@@ -436,6 +452,12 @@ export function LocalFirstSection() {
           </Text>
         </View>
       </View>
+
+      {flags.localFirstEnabled && storageHint ? (
+        <Text className="text-xs mb-3" style={{ color: colors.text.secondary }}>
+          {storageHint}
+        </Text>
+      ) : null}
 
       <Row
         label="Use on-device database"

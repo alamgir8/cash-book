@@ -7,7 +7,8 @@ import {
   type TransactionFilters,
 } from "./transactions";
 import { dalFetchTransactions } from "@/data/transactions";
-import { fetchAccountDetail } from "./accounts";
+import { dalFetchAccountDetail } from "@/data/accounts";
+import { dalFetchPartyLedger } from "@/data/parties";
 
 /** Page size for PDF/export walks. Backend list allows up to 5000. */
 const EXPORT_PAGE_SIZE = 500;
@@ -992,7 +993,7 @@ export const exportTransactionsPdf = async (
 
   if (filters.accountId) {
     try {
-      const detail = await fetchAccountDetail(filters.accountId);
+      const detail = await dalFetchAccountDetail(filters.accountId);
       accountName = detail.account?.name;
       currencySymbol = detail.account?.currency_symbol;
       display.accountName = accountName ?? display.accountName;
@@ -1374,7 +1375,7 @@ export const exportTransactionsByCategoryPdf = async (
 
   if (filters.accountId) {
     try {
-      const detail = await fetchAccountDetail(filters.accountId);
+      const detail = await dalFetchAccountDetail(filters.accountId);
       accountName = detail.account?.name;
       currencySymbol = detail.account?.currency_symbol;
       display.accountName = accountName ?? display.accountName;
@@ -1434,7 +1435,7 @@ export const exportTransactionsByCounterpartyPdf = async (
 
   if (filters.accountId) {
     try {
-      const detail = await fetchAccountDetail(filters.accountId);
+      const detail = await dalFetchAccountDetail(filters.accountId);
       accountName = detail.account?.name;
       currencySymbol = detail.account?.currency_symbol;
       display.accountName = accountName ?? display.accountName;
@@ -1493,7 +1494,7 @@ export const exportTransactionsByAccountPdf = async (
 
   if (filters.accountId) {
     try {
-      const detail = await fetchAccountDetail(filters.accountId);
+      const detail = await dalFetchAccountDetail(filters.accountId);
       currencySymbol = detail.account?.currency_symbol;
     } catch (error) {
       console.warn("Failed to load account detail for report:", error);
@@ -1544,10 +1545,7 @@ export const exportPartyLedgerPdf = async (
   partyName: string,
 ): Promise<string> => {
   try {
-    const { partiesApi } = await import("./parties");
-
-    // Fetch ledger entries for PDF (backend allows up to 5000)
-    const ledgerData = await partiesApi.getLedger(partyId, {
+    const ledgerData = await dalFetchPartyLedger(partyId, {
       page: 1,
       limit: 5000,
     });

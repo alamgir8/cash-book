@@ -94,7 +94,9 @@ export async function updateCategory(
     `UPDATE categories SET
       type = ?, flow = ?, name = ?, description = ?, color = ?,
       archived = ?, archived_at = ?,
-      updated_at = ?, dirty = 1, device_id = ?, sync_version = sync_version + 1
+      updated_at = ?, dirty = 1, sync_status = 'pending_update',
+      retry_count = 0, last_sync_error = NULL,
+      device_id = ?, sync_version = sync_version + 1
      WHERE id = ?`,
     patch.type ?? existing.type,
     patch.flow ?? existing.flow,
@@ -119,7 +121,9 @@ export async function softDeleteCategory(
 ): Promise<void> {
   const ts = nowIso();
   await db.runAsync(
-    `UPDATE categories SET deleted_at = ?, updated_at = ?, dirty = 1, device_id = ?, sync_version = sync_version + 1 WHERE id = ?`,
+    `UPDATE categories SET deleted_at = ?, updated_at = ?, dirty = 1,
+      sync_status = 'pending_delete', retry_count = 0, last_sync_error = NULL,
+      device_id = ?, sync_version = sync_version + 1 WHERE id = ?`,
     ts,
     ts,
     device_id,
@@ -150,6 +154,9 @@ export async function upsertCategoryFromSync(
       updated_at = excluded.updated_at,
       deleted_at = excluded.deleted_at,
       dirty = excluded.dirty,
+      sync_status = CASE WHEN excluded.dirty = 0 THEN 'synced' ELSE COALESCE(excluded.sync_status, 'pending_update') END,
+      retry_count = CASE WHEN excluded.dirty = 0 THEN 0 ELSE categories.retry_count END,
+      last_sync_error = CASE WHEN excluded.dirty = 0 THEN NULL ELSE categories.last_sync_error END,
       sync_version = excluded.sync_version,
       client_request_id = excluded.client_request_id,
       device_id = excluded.device_id`,

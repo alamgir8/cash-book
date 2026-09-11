@@ -15,7 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/hooks/use-theme";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useOrganization } from "@/hooks/use-organization";
-import { createAccount } from "@/services/accounts";
+import { dalCreateAccount } from "@/data/accounts";
 import { queryKeys } from "@/lib/queryKeys";
 import { refreshAppData } from "@/lib/refresh-app-data";
 import { useQueryClient } from "@tanstack/react-query";
@@ -1342,7 +1342,7 @@ export default function ImportScreen() {
         }
 
         try {
-          const newAccount = await createAccount({
+          const newAccount = await dalCreateAccount({
             name: colName,
             kind: "cash",
           });
