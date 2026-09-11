@@ -128,6 +128,24 @@ test("computeUseLocalPersonalLedger is offline-first when LF on", () => {
   assert.equal(computeUseLocalPersonalLedger(true, true, null), true);
 });
 
+test("local-first defaults are on-device + cloud sync", () => {
+  const src = readFileSync(
+    join(__dirname, "../flags.ts"),
+    "utf8",
+  );
+  assert.match(src, /localFirstEnabled:\s*true/);
+  assert.match(src, /cloudSyncEnabled:\s*true/);
+});
+
+test("login mode defaults to single", () => {
+  const src = readFileSync(
+    join(__dirname, "../../auth/login-mode.ts"),
+    "utf8",
+  );
+  assert.match(src, /DEFAULT_MODE:\s*LoginMode\s*=\s*"single"/);
+  assert.match(src, /every_time/);
+});
+
 test("localDayKey formats YYYY-MM-DD", () => {
   assert.equal(localDayKey(new Date(2026, 7, 3, 23, 30, 0)), "2026-08-03");
 });

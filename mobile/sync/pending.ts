@@ -61,6 +61,7 @@ export async function resolveSyncUiState(opts: {
   if (opts.syncing) {
     return { state: "syncing", pending, lastError };
   }
+  // lastError is cleared on successful ack — if present, sync has not recovered yet.
   if (lastError && opts.cloudSync) {
     return { state: "failed", pending, lastError };
   }
@@ -70,6 +71,5 @@ export async function resolveSyncUiState(opts: {
   if (opts.cloudSync) {
     return { state: "synced", pending: 0, lastError: null };
   }
-  // Local-first without cloud sync: only show offline / hide when online.
   return { state: "hidden", pending, lastError };
 }

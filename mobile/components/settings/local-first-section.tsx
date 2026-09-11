@@ -188,6 +188,32 @@ export function LocalFirstSection() {
     if (key === "localFirstEnabled" && !value) {
       await refreshLocalQueries();
     }
+    if (key === "cloudSyncEnabled" && value) {
+      // Kick an immediate sync so the toggle doesn't leave a stale Network Error.
+      void (async () => {
+        try {
+          const result = await runSync();
+          await refreshStatus();
+          if (result.ok) {
+            await refreshLocalQueries();
+            Toast.show({
+              type: "success",
+              text1: "Cloud sync on",
+              text2: `↑${result.pushed} ↓${result.pulled}`,
+            });
+          } else if (result.error && result.error !== "Sync already running") {
+            Toast.show({
+              type: "error",
+              text1: "Sync failed",
+              text2: result.error.slice(0, 160),
+              visibilityTime: 6000,
+            });
+          }
+        } catch {
+          /* status refresh still runs below paths */
+        }
+      })();
+    }
   };
 
   const onMigrate = () => {
@@ -447,8 +473,8 @@ export function LocalFirstSection() {
             className="text-sm mt-1"
             style={{ color: colors.text.secondary }}
           >
-            Offline-first on this phone. Cloud sync and Drive are optional
-            backups — lists always read SQLite when this is on.
+            Offline-first by default. Your cash book stays on this phone; cloud
+            sync runs daily when the server is available.
           </Text>
         </View>
       </View>
@@ -479,8 +505,9 @@ export function LocalFirstSection() {
       {flags.localFirstEnabled &&
       (flags.cloudSyncEnabled || flags.driveBackupEnabled) ? (
         <Text className="text-xs mb-2" style={{ color: colors.text.secondary }}>
-          Auto: once per local day (after midnight) when you open the app —
-          Mongo sync and/or Drive backup, depending on toggles above.
+          Auto: once per local day when you open the app — tries Mongo sync
+          and/or Drive backup. If the server is down, work continues offline
+          until the next daily attempt.
         </Text>
       ) : null}
       <Row
@@ -551,7 +578,8 @@ export function LocalFirstSection() {
       ) : null}
       <Text className="text-xs mb-4" style={{ color: colors.text.secondary }}>
         Look in My Drive → HisabBoi → backups. JSON on-phone files are under
-        “Device backups” above. Org books stay on cloud in v1.
+        “Device backups” above. Cloud sync covers personal and organization
+        books; shop/invoices stay online-only.
       </Text>
 
       <View className="gap-3">

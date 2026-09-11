@@ -28,6 +28,7 @@ import {
   startDriveBackupScheduler,
 } from "../services/drive-scheduler";
 import { OfflineBanner } from "../components/offline-banner";
+import { SessionLockGate } from "../components/session-lock-gate";
 import { useInvalidateOnLocalFirstFlags } from "../hooks/use-invalidate-on-local-first";
 import "../global.css";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -204,7 +205,9 @@ const RootContent = () => {
         backgroundColor={colors.bg.primary}
       />
       <OfflineBanner />
-      <Stack screenOptions={{ headerShown: false }} />
+      <SessionLockGate>
+        <Stack screenOptions={{ headerShown: false }} />
+      </SessionLockGate>
       <Toast position="top" topOffset={56} visibilityTime={3000} />
     </SafeAreaView>
   );

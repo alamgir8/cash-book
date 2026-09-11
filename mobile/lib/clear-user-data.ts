@@ -6,15 +6,23 @@ export const ACTIVE_ORG_STORAGE_KEY = "@active_organization";
 /** Keep in sync with `hooks/use-preferences.tsx`. */
 export const PREFERENCES_STORAGE_KEY = "user_preferences";
 
+export type ClearUserScopedOptions = {
+  /**
+   * When true (explicit Sign out / Switch account), wipe the local SQLite
+   * ledger so the next account cannot see this user's cash book.
+   * When false (token expiry while staying on-device), keep the ledger.
+   */
+  wipeLedger?: boolean;
+};
+
 /**
- * Clears in-memory React Query cache and device storage that belongs to the
- * signed-in user. Call on sign-out / switch-account so the next login cannot
- * see the previous user's ledger, org, or preference data.
- *
- * Also wipes the local SQLite ledger + on-device attachments when present.
- * Local-first feature flags (`@lf_*`) are intentionally kept as device prefs.
+ * Clears in-memory React Query cache and org/prefs storage.
+ * Ledger wipe is opt-in — never wipe on soft/session expiry.
  */
-export async function clearUserScopedData() {
+export async function clearUserScopedData(
+  options: ClearUserScopedOptions = {},
+) {
+  const { wipeLedger = false } = options;
   clearQueryCache();
   try {
     await AsyncStorage.multiRemove([
@@ -24,6 +32,8 @@ export async function clearUserScopedData() {
   } catch (error) {
     console.warn("Failed to clear user-scoped storage", error);
   }
+
+  if (!wipeLedger) return;
 
   try {
     const { resetLocalLedgerForUserChange } = await import(

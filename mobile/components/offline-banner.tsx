@@ -50,6 +50,7 @@ export function OfflineBanner() {
   const [backendOk, setBackendOk] = useState<boolean | null>(null);
   const [state, setState] = useState<SyncUiState>("hidden");
   const [pending, setPending] = useState(0);
+  const [storageMessage, setStorageMessage] = useState<string | null>(null);
 
   useEffect(() => {
     return subscribeLocalFirstFlags((flags) => {
@@ -91,6 +92,22 @@ export function OfflineBanner() {
       if (cancelled) return;
       setState(resolved.state);
       setPending(resolved.pending);
+
+      try {
+        const { getLocalStorageReport } = await import(
+          "@/lib/local-first/storage-monitor"
+        );
+        const report = await getLocalStorageReport();
+        if (!cancelled) {
+          setStorageMessage(
+            report.stalledSync || report.level === "strong" || report.level === "critical"
+              ? report.message
+              : null,
+          );
+        }
+      } catch {
+        if (!cancelled) setStorageMessage(null);
+      }
     };
 
     void refresh();
@@ -103,11 +120,13 @@ export function OfflineBanner() {
     };
   }, [localFirst, cloudSync, deviceOnline]);
 
-  const text = messageFor(state, pending);
+  const syncText = messageFor(state, pending);
+  const text = syncText || storageMessage;
   if (!text) return null;
 
+  const storageOnly = !syncText && Boolean(storageMessage);
   const bg =
-    state === "failed" || state === "server_unavailable"
+    state === "failed" || state === "server_unavailable" || storageOnly
       ? colors.error
       : state === "syncing" || state === "pending"
         ? colors.primary
@@ -116,7 +135,8 @@ export function OfflineBanner() {
     state === "failed" ||
     state === "server_unavailable" ||
     state === "syncing" ||
-    state === "pending"
+    state === "pending" ||
+    storageOnly
       ? "#fff"
       : "#111827";
 

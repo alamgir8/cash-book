@@ -82,12 +82,9 @@ export async function runDailyLocalFirstJobs(
       }
     }
 
-    // Retry later today if an enabled path failed (token/network/deploy).
-    const needSync = isCloudSyncEnabled();
-    const needDrive = isDriveBackupEnabled();
-    if ((!needSync || synced) && (!needDrive || drove)) {
-      await markDailyJobDone();
-    }
+    // One attempt per local day — success or not. Next try is tomorrow.
+    // Manual "Sync now" remains available anytime.
+    await markDailyJobDone();
 
     return { ran: true, sync: synced, drive: drove };
   } finally {

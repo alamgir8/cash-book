@@ -13,6 +13,16 @@ const personalScope = (adminId) => ({
   $or: [{ organization: { $exists: false } }, { organization: null }],
 });
 
+/** All books owned by this admin (personal + organizations). */
+const adminScope = (adminId) => ({ admin: adminId });
+
+const orgIdFromPayload = (payload) => {
+  const raw =
+    payload?.organization_id ?? payload?.organization ?? payload?.organizationId;
+  if (!raw) return null;
+  if (isValidObjectId(String(raw))) return toObjectId(String(raw));
+  return null;
+};
 const isValidObjectId = (value) => {
   if (!value || typeof value !== "string") return false;
   return (
@@ -75,14 +85,12 @@ const findByServerOrClientId = async (Model, adminId, serverId, clientId) => {
     const doc = await Model.findOne({
       _id: toObjectId(serverId),
       admin: adminId,
-      ...personalScope(adminId),
     });
     if (doc) return doc;
   }
   if (clientId) {
     return Model.findOne({
       admin: adminId,
-      ...personalScope(adminId),
       "meta_data.client_id": clientId,
     });
   }
@@ -97,7 +105,6 @@ const resolveRefId = async (Model, adminId, refValue, serverIdHint, idMap) => {
     const doc = await Model.findOne({
       _id: toObjectId(serverIdHint),
       admin: adminId,
-      ...personalScope(adminId),
     }).select("_id");
     if (doc) return doc._id;
   }
@@ -105,14 +112,12 @@ const resolveRefId = async (Model, adminId, refValue, serverIdHint, idMap) => {
     const doc = await Model.findOne({
       _id: toObjectId(refValue),
       admin: adminId,
-      ...personalScope(adminId),
     }).select("_id");
     if (doc) return doc._id;
   }
   if (refValue) {
     const doc = await Model.findOne({
       admin: adminId,
-      ...personalScope(adminId),
       "meta_data.client_id": String(refValue),
     }).select("_id");
     if (doc) return doc._id;
@@ -191,6 +196,10 @@ const mapAccountPayload = async (adminId, change, idMap) => {
     doc = new Account({ admin: adminId });
   }
 
+  const orgRef = orgIdFromPayload(payload);
+  if (orgRef) doc.organization = orgRef;
+  else if (isNew) doc.organization = undefined;
+
   if (payload.name !== undefined) doc.name = payload.name;
   if (payload.description !== undefined) doc.description = payload.description;
   if (payload.kind !== undefined) doc.kind = payload.kind;
@@ -262,6 +271,10 @@ const mapCategoryPayload = async (adminId, change, idMap) => {
     doc = new Category({ admin: adminId });
   }
 
+  const orgRef = orgIdFromPayload(payload);
+  if (orgRef) doc.organization = orgRef;
+  else if (isNew) doc.organization = undefined;
+
   if (payload.type !== undefined) doc.type = payload.type;
   if (payload.flow !== undefined) doc.flow = payload.flow;
   if (payload.name !== undefined) doc.name = payload.name;
@@ -311,6 +324,9 @@ const mapPartyPayload = async (adminId, change, idMap) => {
   if (isNew) {
     doc = new Party({ admin: adminId, type: "customer" });
   }
+
+  const orgRef = orgIdFromPayload(payload);
+  if (orgRef) doc.organization = orgRef;
 
   if (payload.type !== undefined) doc.type = payload.type;
   if (payload.name !== undefined) doc.name = payload.name;
@@ -372,7 +388,6 @@ const mapTransactionPayload = async (adminId, change, idMap) => {
       admin: adminId,
       client_request_id: clientRequestId,
       is_deleted: { $ne: true },
-      ...personalScope(adminId),
     });
   }
   if (!doc) {
@@ -484,6 +499,9 @@ const mapTransactionPayload = async (adminId, change, idMap) => {
   if (isNew) {
     doc = new Transaction({ admin: adminId, account: accountId });
   }
+
+  const orgRef = orgIdFromPayload(payload);
+  if (orgRef) doc.organization = orgRef;
 
   doc.account = accountId;
   doc.category_id = categoryId || undefined;
@@ -669,7 +687,6 @@ const mapTransferPayload = async (adminId, change, idMap) => {
     doc = await Transfer.findOne({
       admin: adminId,
       client_request_id: clientRequestId,
-      ...personalScope(adminId),
     });
   }
   if (!doc) {
@@ -790,6 +807,9 @@ const mapTransferPayload = async (adminId, change, idMap) => {
     });
   }
 
+  const orgRef = orgIdFromPayload(payload);
+  if (orgRef) doc.organization = orgRef;
+
   doc.from_account = fromAccountId;
   doc.to_account = toAccountId;
   doc.debit_transaction = debitTxId;
@@ -875,7 +895,7 @@ const toSyncChange = (entity, doc, opts = {}) => {
 const accountToPayload = (doc) => ({
   id: clientIdFromDoc(doc) || doc._id.toString(),
   server_id: doc._id.toString(),
-  organization_id: null,
+  organization_id: doc.organization ? String(doc.organization) : null,
   name: doc.name,
   description: doc.description ?? null,
   kind: doc.kind,
@@ -898,7 +918,7 @@ const accountToPayload = (doc) => ({
 const categoryToPayload = (doc) => ({
   id: clientIdFromDoc(doc) || doc._id.toString(),
   server_id: doc._id.toString(),
-  organization_id: null,
+  organization_id: doc.organization ? String(doc.organization) : null,
   type: doc.type,
   flow: doc.flow,
   name: doc.name,
@@ -919,7 +939,7 @@ const categoryToPayload = (doc) => ({
 const partyToPayload = (doc) => ({
   id: doc._id.toString(),
   server_id: doc._id.toString(),
-  organization_id: null,
+  organization_id: doc.organization ? String(doc.organization) : null,
   type: doc.type,
   name: doc.name,
   code: doc.code ?? null,
@@ -944,7 +964,7 @@ const partyToPayload = (doc) => ({
 const transactionToPayload = (doc) => ({
   id: doc._id.toString(),
   server_id: doc._id.toString(),
-  organization_id: null,
+  organization_id: doc.organization ? String(doc.organization) : null,
   account_id: doc.account?.toString() ?? null,
   category_id: doc.category_id?.toString() ?? null,
   party_id: doc.party?.toString() ?? null,
@@ -980,7 +1000,7 @@ const transactionToPayload = (doc) => ({
 const transferToPayload = (doc) => ({
   id: clientIdFromDoc(doc) || doc._id.toString(),
   server_id: doc._id.toString(),
-  organization_id: null,
+  organization_id: doc.organization ? String(doc.organization) : null,
   from_account_id: doc.from_account?.toString() ?? null,
   to_account_id: doc.to_account?.toString() ?? null,
   amount: doc.amount,
@@ -1081,7 +1101,7 @@ export const pull = async (req, res, next) => {
     const filter =
       scope === "personal"
         ? { ...personalScope(adminId), updatedAt: { $gt: since } }
-        : { admin: adminId, updatedAt: { $gt: since } };
+        : { ...adminScope(adminId), updatedAt: { $gt: since } };
 
     const [accounts, categories, parties, transactions, transfers] =
       await Promise.all([
