@@ -902,6 +902,91 @@ substring → token-overlap scoring.
 3. **Number-word coverage** is common words + digits; long compounds like
    "পঁয়তাল্লিশ" are not enumerated (speech usually yields digits).
 
+---
+
+## 22. Phase 13 — shop sync (implemented 2026-09-12)
+
+### 22.1 The gap this closes
+
+Before this, `SyncChange` carried only the five ledger entities, so products,
+invoices and stock movements created offline **never reached the server** and were
+lost on reinstall. This was the single biggest risk in the shop work.
+
+### 22.2 Backend
+
+- **`routes/sync.routes.js`** — entity enum extended with `product`, `invoice`,
+  `stock_movement`.
+- **`models/StockMovement.js`** — added `client_request_id` + a partial unique
+  index `{ admin, client_request_id }`, so a retried movement can never
+  double-count stock.
+- **`models/Product.js`** — added `client_request_id` (idempotency) and the
+  existing `meta_data` now carries `client_id` (already used by the mappers) so
+  stock movements can resolve their product by client UUID.
+- **`controllers/sync.controller.js`** — added `mapProductPayload`,
+  `mapInvoicePayload`, `mapStockMovementPayload`, their `toPayload` counterparts,
+  and included all three in `pull`.
+
+### 22.3 Design decision: invoice push is side-effect free
+
+`POST /products` and the invoice controller both mutate stock and balances. The
+sync mapper for invoices deliberately does **not**: the client already pushes
+`stock_movement` rows (the single atomic writer) and ledger `transaction` rows
+(the account/party `$inc` path). Replicating those effects on invoice push would
+double-count on every sync. A test asserts the invoice mapper contains no
+`applyAccountInc`, `applyPartyInc`, `StockMovement.create` or `current_stock`
+reference, while it **does** persist `unit_cost_at_sale`.
+
+The local ledger's financial-safety rule (server applies `$inc`, never trusts
+client balances) is unchanged.
+
+### 22.4 Client
+
+- `SyncChange` entity union + a single `TABLE_FOR_ENTITY` map (replacing three
+  duplicated ternaries that would have silently mis-routed shop rows).
+- `collectDirtyChanges` pushes **parents first**: products → invoices (with items
+  and payments embedded, and each item's `product_server_id` resolved) →
+  movements. The server processes a batch in order, so references resolve within
+  one push.
+- `applyIncoming` writes pulled shop rows locally: products and movements via
+  their upsert helpers, invoices with a **delete-then-insert of child rows** so a
+  re-pull cannot duplicate items/payments.
+- **Sync badge now counts shop rows** (`sync/pending.ts` gained the three tables).
+- **Shop writes nudge the scheduler** (`requestSyncSoon`) after every product and
+  invoice mutation — previously nothing triggered a push.
+- **Data isolation fixed:** `wipeAllLedgerData` and `wipeLedgerData` now clear
+  products, invoices, items, payments, movements, `settings_cache`, `pending_ops`
+  and the organizations cache. Without this, logging out (or a partial restore)
+  could leave another user's shop data readable — and a restore would leave stale
+  shop rows behind.
+
+### 22.5 Invoice number collisions
+
+A local invoice number can collide with the org counter. `mapInvoicePayload`
+catches the duplicate-key error on `invoice_number` and retries with a short
+`<number>-<id5>` suffix rather than failing the push, so the sale is never lost.
+
+### 22.6 Verified
+
+- `npm run test:local-first` → **58/58 pass**, including 8 new contract tests:
+  entity enum present on **both** client and server, parents-before-children
+  ordering, embedded items/payments, invoice push side-effect freedom,
+  movement idempotency (mapper **and** model index), wipe clears every shop
+  table, badge counts shop rows, and shop writes nudge sync.
+- `npx tsc --noEmit` → **26 errors, unchanged**.
+- `node --check` on all changed backend files → OK.
+- Bangla keys 734/734.
+
+### 22.7 Not verified / still open
+
+- **No end-to-end sync run** against a live backend (the user's API was
+  unreachable during this work). The contract is asserted statically and by unit
+  tests; a real push/pull round-trip on device is still required.
+- **No conflict UX** for two devices editing the same product/invoice beyond the
+  existing last-write-wins + `sync_conflicts` log.
+- **Phase 14 (backup) still outstanding** — shop entities are still absent from
+  the backup body, so "Backup Now" does not yet protect them.
+
+
 
 
 
