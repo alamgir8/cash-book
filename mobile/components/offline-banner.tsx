@@ -182,8 +182,8 @@ export function OfflineBanner() {
   }, [localFirst, refresh]);
 
   /**
-   * Manual retry from the banner. Verifies reachability first so the user gets
-   * a precise reason instead of a silent no-op, and surfaces the sync result.
+   * Force sync now. Independent of the daily 08/14/20 schedule — never skips
+   * or delays tomorrow's automatic attempts. App keeps working offline either way.
    */
   const handleRetry = useCallback(async () => {
     if (retrying) return;

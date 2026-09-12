@@ -46,6 +46,7 @@ type SyncReason =
   | "foreground"
   | "interval"
   | "pending"
+  | "daily"
   | "mutation"
   | "reconnect"
   | "flags-enabled"
@@ -131,7 +132,8 @@ async function maybeSync(reason: SyncReason): Promise<SyncResult> {
   }
 
   // Interval/foreground respect the 6h safety window unless never synced
-  // or there is still pending dirty work.
+  // or there is still pending dirty work. "daily" always runs when asked —
+  // the daily job owns once-per-slot bookkeeping separately.
   if (reason === "interval" || reason === "foreground") {
     try {
       const status = await getSyncStatus();
@@ -224,12 +226,22 @@ export function requestSyncSoon(reason: SyncReason = "mutation"): void {
 /**
  * Manual Sync Now (banner / settings). Always attempts when online+cloud on;
  * returns the engine result so UI can show success or the real error.
+ *
+ * Does NOT touch daily slot bookkeeping — tomorrow's 08/14/20 attempts still run.
  */
 export function requestSyncNow(): Promise<SyncResult> {
   failStreak = 0;
   lastHardFailAt = 0;
   clearBackoffTimer();
   return maybeSync("manual");
+}
+
+/**
+ * Scheduled daily-slot sync. Shares in-flight with manual Sync (waits, never
+ * cancels it) but does not reset hard-fail / streak like a user tap does.
+ */
+export function requestDailySync(): Promise<SyncResult> {
+  return maybeSync("daily");
 }
 
 function onAppState(next: AppStateStatus) {

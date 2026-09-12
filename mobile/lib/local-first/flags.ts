@@ -3,7 +3,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 /**
  * Local-first feature flags.
  * Defaults: on-device storage + cloud sync ON so the cash book works offline
- * and retries sync daily when the backend is available.
+ * always. Cloud sync is best-effort on a daily schedule when the backend is up;
+ * turning local-first off in Settings is the only way to disable that mode.
  */
 
 export const FLAG_KEYS = {
