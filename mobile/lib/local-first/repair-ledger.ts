@@ -1,9 +1,17 @@
 import type { Db } from "@/db/client";
-import { recalculateBalances } from "@/db/balances";
+import {
+  recalculateBalances,
+  recalculateCashBalancesOnly,
+} from "@/db/balances";
 import { getMeta, META_KEYS, setMeta } from "@/db/meta";
 
 /** Bump when repair SQL/rules change so existing devices re-apply. */
-export const LEDGER_REPAIR_VERSION = "10";
+export const LEDGER_REPAIR_VERSION = "12";
+
+/** Soft deadline for optional cloud overlay — never block Home paint. */
+const CLOUD_RECONCILE_MS = 8_000;
+
+let repairInFlight: Promise<void> | null = null;
 
 /**
  * Rewrite FK columns that still hold Mongo server_ids to the local UUID.
@@ -101,13 +109,77 @@ async function stampOrganizationFromAccount(db: Db): Promise<number> {
   return Number(result.changes ?? 0);
 }
 
+async function countLocalTransactions(db: Db): Promise<number> {
+  const row = await db.getFirstAsync<{ n: number }>(
+    `SELECT COUNT(*) as n FROM transactions WHERE deleted_at IS NULL`,
+  );
+  return Number(row?.n ?? 0);
+}
+
+async function withTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  label: string,
+): Promise<T | null> {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<null>((resolve) => {
+        timer = setTimeout(() => {
+          console.warn(`[repair] ${label} timed out after ${ms}ms`);
+          resolve(null);
+        }, ms);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 /**
- * Fix common migrate/restore damage:
- * - FK columns stored as Mongo server_ids (breaks cards / filters / loans)
- * - Orphan NULL organization_id rows (cloud vs local count drift)
- * - Payment status damage from earlier repair versions
- * - Loan categories with wrong/missing type
- * Then recalc account cash balances (paid only).
+ * Optional cloud overlay + full chronological trails. Never awaited on the
+ * Home query path — runs after cash balances are already correct.
+ */
+async function finishRepairEnrichment(db: Db): Promise<void> {
+  const localCount = await countLocalTransactions(db);
+  if (localCount > 0) {
+    try {
+      const { reconcileLocalTxnDetailsFromCloud } = await import(
+        "./reconcile-from-cloud"
+      );
+      const result = await withTimeout(
+        reconcileLocalTxnDetailsFromCloud(db),
+        CLOUD_RECONCILE_MS,
+        "cloud reconcile",
+      );
+      if (result && result.updated > 0) {
+        await normalizeForeignKeys(db);
+        await stampOrganizationFromAccount(db);
+        await recalculateCashBalancesOnly(db, { allOrganizations: true });
+      }
+    } catch (e) {
+      console.warn("[repair] cloud reconcile skipped", e);
+    }
+  }
+
+  try {
+    await recalculateBalances(db, { allOrganizations: true });
+  } catch (e) {
+    console.warn("[repair] trail rewrite skipped", e);
+  }
+
+  try {
+    const { queryClient } = await import("@/lib/queryClient");
+    await queryClient.invalidateQueries({ refetchType: "active" });
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Fix common migrate/restore damage (local SQL only + cash balances).
+ * Cloud overlay and Balance-after trails finish in the background.
  */
 export async function repairLocalLedgerSemantics(db: Db): Promise<{
   duesFixed: number;
@@ -215,29 +287,14 @@ export async function repairLocalLedgerSemantics(db: Db): Promise<{
     categoriesFixed += Number(r.changes ?? 0);
   }
 
-  // Pull party/keyword/payment_status from cloud onto existing local rows so
-  // cards / filters / balances match the cloud UI (best-effort when online).
-  try {
-    const { reconcileLocalTxnDetailsFromCloud } = await import(
-      "./reconcile-from-cloud"
-    );
-    const { updated } = await reconcileLocalTxnDetailsFromCloud(db);
-    if (updated > 0) {
-      // Re-normalize FKs / org after cloud overlay wrote Mongo ids.
-      await normalizeForeignKeys(db);
-      await stampOrganizationFromAccount(db);
-    }
-  } catch (e) {
-    console.warn("[repair] cloud reconcile skipped", e);
-  }
-
   const duesFixed = Number(dueFix.changes ?? 0);
   const revertedToPaid =
     Number(revertSettled.changes ?? 0) +
     Number(revertZero.changes ?? 0) +
     Number(revertPayments.changes ?? 0);
 
-  await recalculateBalances(db, { allOrganizations: true });
+  // Cash first so Accounts/Dashboard can paint; trails finish in background.
+  await recalculateCashBalancesOnly(db, { allOrganizations: true });
 
   return {
     duesFixed,
@@ -248,10 +305,38 @@ export async function repairLocalLedgerSemantics(db: Db): Promise<{
   };
 }
 
-/** Idempotent gate — runs repair once per LEDGER_REPAIR_VERSION. */
+/**
+ * Idempotent gate — runs repair once per LEDGER_REPAIR_VERSION.
+ * Single-flight: concurrent Home queries share one promise.
+ */
 export async function ensureLocalLedgerRepaired(db: Db): Promise<void> {
   const done = await getMeta(db, META_KEYS.LEDGER_REPAIR_VERSION);
   if (done === LEDGER_REPAIR_VERSION) return;
-  await repairLocalLedgerSemantics(db);
-  await setMeta(db, META_KEYS.LEDGER_REPAIR_VERSION, LEDGER_REPAIR_VERSION);
+
+  if (!repairInFlight) {
+    repairInFlight = (async () => {
+      try {
+        await repairLocalLedgerSemantics(db);
+        await setMeta(db, META_KEYS.LEDGER_REPAIR_VERSION, LEDGER_REPAIR_VERSION);
+        // Cloud overlay + Balance-after trails — never block readers.
+        void finishRepairEnrichment(db).catch((e) =>
+          console.warn("[repair] enrichment failed", e),
+        );
+      } finally {
+        repairInFlight = null;
+      }
+    })();
+  }
+
+  await repairInFlight;
+}
+
+/**
+ * Kick repair without blocking the caller (Home/Accounts first paint).
+ * After enrichment finishes, active queries are invalidated.
+ */
+export function scheduleLocalLedgerRepair(db: Db): void {
+  void ensureLocalLedgerRepaired(db).catch((e) =>
+    console.warn("[repair] background failed", e),
+  );
 }

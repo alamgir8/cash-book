@@ -81,13 +81,15 @@ export async function fetchLocalAccounts(
   organizationId?: string | null,
 ): Promise<AccountOverview[]> {
   const db = await getDb();
+  // Never await repair on the read path — that blocked Dashboard skeletons
+  // for minutes (cloud reconcile + trail rewrite). Schedule in background.
   try {
-    const { ensureLocalLedgerRepaired } = await import(
+    const { scheduleLocalLedgerRepair } = await import(
       "@/lib/local-first/repair-ledger"
     );
-    await ensureLocalLedgerRepaired(db);
+    scheduleLocalLedgerRepair(db);
   } catch (e) {
-    console.warn("[local-accounts] repair skipped", e);
+    console.warn("[local-accounts] repair schedule skipped", e);
   }
   let orgId = organizationId ?? null;
   let rows = await accountsRepo.listAccounts(db, { organizationId: orgId });
@@ -113,8 +115,9 @@ export async function fetchLocalAccounts(
     const paidDebit = Number(sum?.paid_debit ?? 0);
     const paidCredit = Number(sum?.paid_credit ?? 0);
     // Cash balance = opening + paid credits − paid debits (same as Mongo).
-    const balance =
-      Number(row.opening_balance) + paidCredit - paidDebit;
+    const opening = Number(row.opening_balance) || 0;
+    const paidNet = paidCredit - paidDebit;
+    const balance = opening + paidNet;
     // Keep SQLite current_balance in sync so other screens stay correct.
     if (Math.abs(balance - Number(row.current_balance)) > 0.0001) {
       await db.runAsync(
@@ -131,9 +134,9 @@ export async function fetchLocalAccounts(
         totalTransactions: Number(sum?.total_transactions ?? 0),
         totalDebit: Number(sum?.total_debit ?? paidDebit),
         totalCredit: Number(sum?.total_credit ?? paidCredit),
-        net:
-          Number(sum?.total_credit ?? paidCredit) -
-          Number(sum?.total_debit ?? paidDebit),
+        // Paid cash net — so Balance = Opening + this net (clear on the card).
+        net: paidNet,
+        openingBalance: opening,
         lastTransactionDate: sum?.last_transaction_date ?? null,
       },
     });
@@ -169,7 +172,9 @@ export async function fetchLocalAccountDetail(accountId: string) {
   // Account summary cards show ALL txs (paid + due), not paid-only cash flow.
   const totalDebit = Number(sum?.total_debit ?? paidDebit);
   const totalCredit = Number(sum?.total_credit ?? paidCredit);
-  const balance = Number(row.opening_balance) + paidCredit - paidDebit;
+  const opening = Number(row.opening_balance) || 0;
+  const paidNet = paidCredit - paidDebit;
+  const balance = opening + paidNet;
   if (Math.abs(balance - Number(row.current_balance)) > 0.0001) {
     await db.runAsync(
       `UPDATE accounts SET current_balance = ? WHERE id = ?`,
@@ -184,7 +189,8 @@ export async function fetchLocalAccountDetail(accountId: string) {
       totalTransactions: Number(sum?.total_transactions ?? 0),
       totalDebit,
       totalCredit,
-      net: totalCredit - totalDebit,
+      net: paidNet,
+      openingBalance: opening,
       lastTransactionDate: sum?.last_transaction_date ?? null,
     },
     recentTransactions,

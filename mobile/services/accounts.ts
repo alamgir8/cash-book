@@ -18,7 +18,9 @@ export type AccountSummary = {
   totalTransactions: number;
   totalDebit: number;
   totalCredit: number;
+  /** Paid cash net (credits − debits). Balance = opening + net. */
   net: number;
+  openingBalance?: number;
   lastTransactionDate: string | null;
 };
 
@@ -60,6 +62,10 @@ const normalizeAccountSummary = (summary: Record<string, any>): AccountSummary =
     totalDebit,
     totalCredit,
     net: netValue,
+    openingBalance:
+      summary?.openingBalance != null || summary?.opening_balance != null
+        ? Number(summary.openingBalance ?? summary.opening_balance)
+        : undefined,
     lastTransactionDate:
       summary?.last_transaction_date ?? summary?.lastTransactionDate ?? null,
   };

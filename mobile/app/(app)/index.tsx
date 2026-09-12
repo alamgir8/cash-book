@@ -92,7 +92,10 @@ export default function DashboardScreen() {
         <IncompleteLedgerBanner
           localTransactionCount={totalTransactionCount}
         />
-        {accountsQuery.isLoading || transactionsQuery.isLoading ? (
+        {((accountsQuery.isLoading && !accountsQuery.isError) ||
+          (transactionsQuery.isLoading && !transactionsQuery.isError)) &&
+        !accountsQuery.data &&
+        !transactionsQuery.data ? (
           <StatsCardsSkeleton />
         ) : (
           <StatsCards
@@ -104,7 +107,7 @@ export default function DashboardScreen() {
           />
         )}
 
-        {accountsQuery.isLoading ? (
+        {accountsQuery.isLoading && !accountsQuery.isError && !accountsQuery.data ? (
           <QuickFeaturesSkeleton />
         ) : (
           <HomeQuickFeatures
@@ -118,8 +121,11 @@ export default function DashboardScreen() {
     ),
     [
       accountsQuery.isLoading,
+      accountsQuery.isError,
       accountsQuery.data,
       transactionsQuery.isLoading,
+      transactionsQuery.isError,
+      transactionsQuery.data,
       totals,
       totalTransactionCount,
       setModalVisible,

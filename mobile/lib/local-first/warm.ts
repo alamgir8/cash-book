@@ -30,6 +30,11 @@ export async function warmLocalFirstRuntime(): Promise<void> {
     }),
   ]);
 
+  // Ledger repair (FK / dues / cash) — background only so splash stays fast.
+  void import("./repair-ledger")
+    .then((m) => m.scheduleLocalLedgerRepair(db))
+    .catch(() => {});
+
   // Shop stock cache is rebuildable from movements — reconcile once, don't block.
   void import("@/db/stock")
     .then((m) => m.ensureProductStockReconciled(db))

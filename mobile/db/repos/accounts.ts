@@ -98,6 +98,11 @@ export async function updateAccount(
         ? ts
         : null;
 
+  const nextOpening =
+    patch.opening_balance !== undefined
+      ? Number(patch.opening_balance)
+      : existing.opening_balance;
+
   await db.runAsync(
     `UPDATE accounts SET
       name = ?, description = ?, kind = ?,
@@ -110,9 +115,7 @@ export async function updateAccount(
     patch.name?.trim() ?? existing.name,
     patch.description !== undefined ? patch.description : existing.description,
     patch.kind ?? existing.kind,
-    patch.opening_balance !== undefined
-      ? Number(patch.opening_balance)
-      : existing.opening_balance,
+    nextOpening,
     patch.currency_code !== undefined
       ? patch.currency_code
       : existing.currency_code,
@@ -125,6 +128,16 @@ export async function updateAccount(
     patch.device_id,
     id,
   );
+
+  // Opening change moves every Balance after + cash — rewrite this account only.
+  if (
+    patch.opening_balance !== undefined &&
+    Math.abs(Number(nextOpening) - Number(existing.opening_balance)) > 0.0001
+  ) {
+    const { recalculateAccountRunningBalances } = await import("../balances");
+    await recalculateAccountRunningBalances(db, id);
+  }
+
   const row = await getAccountById(db, id);
   if (!row) throw new Error("Failed to update account");
   return row;

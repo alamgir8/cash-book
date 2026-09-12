@@ -134,16 +134,32 @@ async function enrichTransferPayload(
   return payload;
 }
 
+/**
+ * Collect dirty rows only (not the whole DB). Cap the *total* batch at
+ * `limit` so we never exceed the server's MAX_PUSH_CHANGES (500).
+ * Parent entities first so FKs resolve inside one push.
+ */
 async function collectDirtyChanges(limit = 500): Promise<SyncChange[]> {
   const db = await getDb();
   const changes: SyncChange[] = [];
+  let remaining = Math.max(0, limit);
 
-  const accounts = await db.getAllAsync<LocalAccount>(
+  const takeRows = async <T>(
+    sql: string,
+    map: (row: T) => SyncChange | Promise<SyncChange>,
+  ) => {
+    if (remaining <= 0) return;
+    const rows = await db.getAllAsync<T>(sql, remaining);
+    for (const row of rows) {
+      if (remaining <= 0) break;
+      changes.push(await map(row));
+      remaining -= 1;
+    }
+  };
+
+  await takeRows<LocalAccount>(
     `SELECT * FROM accounts WHERE dirty = 1 ORDER BY updated_at ASC LIMIT ?`,
-    limit,
-  );
-  for (const row of accounts) {
-    changes.push({
+    (row) => ({
       entity: "account",
       id: row.id,
       server_id: row.server_id,
@@ -153,15 +169,12 @@ async function collectDirtyChanges(limit = 500): Promise<SyncChange[]> {
       device_id: row.device_id,
       client_request_id: row.client_request_id,
       payload: row as unknown as Record<string, unknown>,
-    });
-  }
-
-  const categories = await db.getAllAsync<LocalCategory>(
-    `SELECT * FROM categories WHERE dirty = 1 ORDER BY updated_at ASC LIMIT ?`,
-    limit,
+    }),
   );
-  for (const row of categories) {
-    changes.push({
+
+  await takeRows<LocalCategory>(
+    `SELECT * FROM categories WHERE dirty = 1 ORDER BY updated_at ASC LIMIT ?`,
+    (row) => ({
       entity: "category",
       id: row.id,
       server_id: row.server_id,
@@ -171,15 +184,12 @@ async function collectDirtyChanges(limit = 500): Promise<SyncChange[]> {
       device_id: row.device_id,
       client_request_id: row.client_request_id,
       payload: row as unknown as Record<string, unknown>,
-    });
-  }
-
-  const parties = await db.getAllAsync<LocalParty>(
-    `SELECT * FROM parties WHERE dirty = 1 ORDER BY updated_at ASC LIMIT ?`,
-    limit,
+    }),
   );
-  for (const row of parties) {
-    changes.push({
+
+  await takeRows<LocalParty>(
+    `SELECT * FROM parties WHERE dirty = 1 ORDER BY updated_at ASC LIMIT ?`,
+    (row) => ({
       entity: "party",
       id: row.id,
       server_id: row.server_id,
@@ -189,30 +199,31 @@ async function collectDirtyChanges(limit = 500): Promise<SyncChange[]> {
       device_id: row.device_id,
       client_request_id: row.client_request_id,
       payload: row as unknown as Record<string, unknown>,
-    });
-  }
-
-  const txns = await transactionsRepo.listDirtyTransactions(db, limit);
-  for (const row of txns) {
-    changes.push({
-      entity: "transaction",
-      id: row.id,
-      server_id: row.server_id,
-      op: row.deleted_at ? "delete" : "upsert",
-      updated_at: row.updated_at,
-      deleted_at: row.deleted_at,
-      device_id: row.device_id,
-      client_request_id: row.client_request_id,
-      payload: await enrichTransactionPayload(db, row),
-    });
-  }
-
-  const transfers = await db.getAllAsync<LocalTransfer>(
-    `SELECT * FROM transfers WHERE dirty = 1 ORDER BY updated_at ASC LIMIT ?`,
-    limit,
+    }),
   );
-  for (const row of transfers) {
-    changes.push({
+
+  if (remaining > 0) {
+    const txns = await transactionsRepo.listDirtyTransactions(db, remaining);
+    for (const row of txns) {
+      if (remaining <= 0) break;
+      changes.push({
+        entity: "transaction",
+        id: row.id,
+        server_id: row.server_id,
+        op: row.deleted_at ? "delete" : "upsert",
+        updated_at: row.updated_at,
+        deleted_at: row.deleted_at,
+        device_id: row.device_id,
+        client_request_id: row.client_request_id,
+        payload: await enrichTransactionPayload(db, row),
+      });
+      remaining -= 1;
+    }
+  }
+
+  await takeRows<LocalTransfer>(
+    `SELECT * FROM transfers WHERE dirty = 1 ORDER BY updated_at ASC LIMIT ?`,
+    async (row) => ({
       entity: "transfer",
       id: row.id,
       server_id: row.server_id,
@@ -222,20 +233,17 @@ async function collectDirtyChanges(limit = 500): Promise<SyncChange[]> {
       device_id: row.device_id,
       client_request_id: row.client_request_id,
       payload: await enrichTransferPayload(db, row),
-    });
-  }
+    }),
+  );
 
   // ── Shop entities (Phase 13) ─────────────────────────────────────────────
   // Order matters: products before invoices/movements so the server can resolve
   // references inside a single batch. The backend treats an invoice push as
   // side-effect free, so stock/cash are never double-counted.
 
-  const products = await db.getAllAsync<LocalProduct>(
+  await takeRows<LocalProduct>(
     `SELECT * FROM products WHERE dirty = 1 ORDER BY updated_at ASC LIMIT ?`,
-    limit,
-  );
-  for (const row of products) {
-    changes.push({
+    (row) => ({
       entity: "product",
       id: row.id,
       server_id: row.server_id,
@@ -245,60 +253,59 @@ async function collectDirtyChanges(limit = 500): Promise<SyncChange[]> {
       device_id: row.device_id,
       client_request_id: row.client_request_id,
       payload: row as unknown as Record<string, unknown>,
-    });
-  }
-
-  const invoices = await db.getAllAsync<LocalInvoice>(
-    `SELECT * FROM invoices WHERE dirty = 1 ORDER BY updated_at ASC LIMIT ?`,
-    limit,
+    }),
   );
-  for (const row of invoices) {
-    // Items and payments are embedded on the server model, so attach them here.
-    const items = await db.getAllAsync<any>(
-      `SELECT * FROM invoice_items WHERE invoice_id = ? ORDER BY rowid ASC`,
-      row.id,
+
+  if (remaining > 0) {
+    const invoices = await db.getAllAsync<LocalInvoice>(
+      `SELECT * FROM invoices WHERE dirty = 1 ORDER BY updated_at ASC LIMIT ?`,
+      remaining,
     );
-    const payments = await db.getAllAsync<any>(
-      `SELECT * FROM invoice_payments WHERE invoice_id = ? ORDER BY rowid ASC`,
-      row.id,
-    );
-    // Link to the catalog via the product's server id when one exists.
-    const enrichedItems = [];
-    for (const item of items) {
-      let productServerId: string | null = null;
-      if (item.product_id) {
-        const p = await db.getFirstAsync<{ server_id: string | null }>(
-          `SELECT server_id FROM products WHERE id = ?`,
-          item.product_id,
-        );
-        productServerId = p?.server_id ?? null;
+    for (const row of invoices) {
+      if (remaining <= 0) break;
+      const items = await db.getAllAsync<any>(
+        `SELECT * FROM invoice_items WHERE invoice_id = ? ORDER BY rowid ASC`,
+        row.id,
+      );
+      const payments = await db.getAllAsync<any>(
+        `SELECT * FROM invoice_payments WHERE invoice_id = ? ORDER BY rowid ASC`,
+        row.id,
+      );
+      const enrichedItems = [];
+      for (const item of items) {
+        let productServerId: string | null = null;
+        if (item.product_id) {
+          const p = await db.getFirstAsync<{ server_id: string | null }>(
+            `SELECT server_id FROM products WHERE id = ?`,
+            item.product_id,
+          );
+          productServerId = p?.server_id ?? null;
+        }
+        enrichedItems.push({ ...item, product_server_id: productServerId });
       }
-      enrichedItems.push({ ...item, product_server_id: productServerId });
-    }
 
-    changes.push({
-      entity: "invoice",
-      id: row.id,
-      server_id: row.server_id,
-      op: row.deleted_at ? "delete" : "upsert",
-      updated_at: row.updated_at,
-      deleted_at: row.deleted_at,
-      device_id: row.device_id,
-      client_request_id: row.client_request_id,
-      payload: {
-        ...(row as unknown as Record<string, unknown>),
-        items: enrichedItems,
-        payments,
-      },
-    });
+      changes.push({
+        entity: "invoice",
+        id: row.id,
+        server_id: row.server_id,
+        op: row.deleted_at ? "delete" : "upsert",
+        updated_at: row.updated_at,
+        deleted_at: row.deleted_at,
+        device_id: row.device_id,
+        client_request_id: row.client_request_id,
+        payload: {
+          ...(row as unknown as Record<string, unknown>),
+          items: enrichedItems,
+          payments,
+        },
+      });
+      remaining -= 1;
+    }
   }
 
-  const movements = await db.getAllAsync<LocalStockMovement>(
+  await takeRows<LocalStockMovement>(
     `SELECT * FROM inventory_movements WHERE dirty = 1 ORDER BY created_at ASC LIMIT ?`,
-    limit,
-  );
-  for (const row of movements) {
-    changes.push({
+    (row) => ({
       entity: "stock_movement",
       id: row.id,
       server_id: row.server_id,
@@ -308,11 +315,16 @@ async function collectDirtyChanges(limit = 500): Promise<SyncChange[]> {
       device_id: row.device_id,
       client_request_id: row.client_request_id,
       payload: row as unknown as Record<string, unknown>,
-    });
-  }
+    }),
+  );
 
   return changes;
 }
+
+/** Server MAX_PUSH_CHANGES — keep client batches at or under this. */
+const MAX_PUSH_BATCH = 500;
+/** Cap rounds so a huge dirty flood cannot loop forever in one cycle. */
+const MAX_PUSH_ROUNDS = 40;
 
 async function markClean(
   entity: SyncChange["entity"],
@@ -549,55 +561,76 @@ export async function runSync(): Promise<SyncResult> {
     await setMeta(db, META_KEYS.CLOCK_OFFSET_MS, String(offsetMs));
 
     await setMeta(db, META_KEYS.SYNC_STAGE, "push");
-    const dirty = await collectDirtyChanges();
-    const changes = dirty.map((c) => ({
-      ...c,
-      updated_at: clampUpdatedAt(c.updated_at, handshake.serverTime),
-      deleted_at: c.deleted_at
-        ? clampUpdatedAt(c.deleted_at, handshake.serverTime)
-        : null,
-    }));
-    const { data: pushResult } = await api.post<{
-      accepted: Array<{ id: string; server_id?: string }>;
-      rejected: Array<{ id: string; reason: string }>;
-    }>(
-      "/sync/push",
-      { changes, device_id },
-      { timeout: 60000 },
-    );
+    // Dirty rows only — push in ≤500 batches until the outbox is drained
+    // (or we hit the round cap). Never uploads the whole SQLite file.
+    let acceptedTotal = 0;
+    const rejectedAll: Array<{ id: string; reason: string }> = [];
+    for (let round = 0; round < MAX_PUSH_ROUNDS; round++) {
+      const dirty = await collectDirtyChanges(MAX_PUSH_BATCH);
+      if (!dirty.length) break;
 
-    const accepted = pushResult.accepted ?? [];
-    const rejected = pushResult.rejected ?? [];
+      const changes = dirty.map((c) => ({
+        ...c,
+        updated_at: clampUpdatedAt(c.updated_at, handshake.serverTime),
+        deleted_at: c.deleted_at
+          ? clampUpdatedAt(c.deleted_at, handshake.serverTime)
+          : null,
+      }));
+      const { data: pushResult } = await api.post<{
+        accepted: Array<{ id: string; server_id?: string }>;
+        rejected: Array<{ id: string; reason: string }>;
+      }>(
+        "/sync/push",
+        { changes, device_id },
+        { timeout: 60000 },
+      );
 
-    for (const a of accepted) {
-      const match = changes.find((c) => c.id === a.id);
-      if (match) await markClean(match.entity, a.id, a.server_id ?? null);
+      const accepted = pushResult.accepted ?? [];
+      const rejected = pushResult.rejected ?? [];
+      acceptedTotal += accepted.length;
+
+      for (const a of accepted) {
+        const match = changes.find((c) => c.id === a.id);
+        if (match) await markClean(match.entity, a.id, a.server_id ?? null);
+      }
+
+      if (rejected.length) {
+        rejectedAll.push(...rejected);
+        for (const r of rejected) {
+          const match = changes.find((c) => c.id === r.id);
+          if (!match) continue;
+          const table = tableForEntity(match.entity);
+          await db.runAsync(
+            `UPDATE ${table} SET sync_status = 'failed',
+              retry_count = retry_count + 1,
+              last_sync_error = ?
+             WHERE id = ?`,
+            r.reason || "rejected",
+            r.id,
+          );
+        }
+      }
+
+      // No progress this round — stop to avoid spinning on permanent rejects.
+      if (accepted.length === 0) break;
+      // Partial batch means more dirty may remain; continue looping.
+      if (dirty.length < MAX_PUSH_BATCH && rejected.length === 0) break;
     }
 
-    if (rejected.length) {
-      const sample = rejected
+    if (rejectedAll.length) {
+      const sample = rejectedAll
         .slice(0, 3)
         .map((r) => `${r.id}: ${r.reason}`)
         .join("; ");
       await setMeta(
         db,
         META_KEYS.LAST_SYNC_ERROR,
-        `${rejected.length} push rejected — ${sample}`,
+        `${rejectedAll.length} push rejected — ${sample}`,
       );
-      for (const r of rejected) {
-        const match = changes.find((c) => c.id === r.id);
-        if (!match) continue;
-        const table = tableForEntity(match.entity);
-        await db.runAsync(
-          `UPDATE ${table} SET sync_status = 'failed',
-            retry_count = retry_count + 1,
-            last_sync_error = ?
-           WHERE id = ?`,
-          r.reason || "rejected",
-          r.id,
-        );
-      }
     }
+
+    const rejected = rejectedAll;
+    const pushedCount = acceptedTotal;
 
     await setMeta(db, META_KEYS.SYNC_STAGE, "pull");
     // Scope v2: personal + organization books. Reset cursor once so org rows
@@ -640,7 +673,15 @@ export async function runSync(): Promise<SyncResult> {
     }
     await setMeta(db, META_KEYS.SYNC_STAGE, "done");
 
-    await recalculateBalances(db, { allOrganizations: true });
+    // Local cash + Balance-after trails (linear). Only when this cycle
+    // changed ledger rows — never re-uploads anything.
+    if (pushedCount > 0 || (pull.changes?.length ?? 0) > 0) {
+      try {
+        await recalculateBalances(db, { allOrganizations: true });
+      } catch (e) {
+        console.warn("[sync] balance recalc skipped", e);
+      }
+    }
 
     // Settings/profile writes live outside the sync entity enum — push them
     // on the same cycle so an offline save lands as soon as we're reachable.
@@ -661,7 +702,7 @@ export async function runSync(): Promise<SyncResult> {
       if (__DEV__) console.warn("[sync] product stock reconcile skipped", e);
     }
 
-    const pushed = accepted.length;
+    const pushed = pushedCount;
     const pulled = pull.changes?.length ?? 0;
 
     if (rejected.length) {
