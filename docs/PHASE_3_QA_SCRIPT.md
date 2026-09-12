@@ -312,6 +312,18 @@ no longer opens a huge empty gap under the bar.
 - [ ] **87.** **Install Bangla (iPhone):** Settings → General → Keyboard → Keyboards →
       Add New Keyboard → **বাংলা**. Then Keyboard → **Enable Dictation** On, and add
       বাংলা under Dictation Languages if listed. Reopen the app → orange caveat gone.
+      *(Note: Apple often does **not** list Bangla under Dictation Languages at all —
+      that is an OS limit. Use typing + the in-app lexicon instead.)*
+
+## 16. Section N — Bangla lexicon / phrase match (new)
+
+- [ ] **88.** Add Product → type `soap` or `সাব` → suggestion chips include **সাবান** (lexicon).
+- [ ] **89.** Type `chal` or `rice` → chips include **চাল**.
+- [ ] **90.** Type `lux` → chips include a সাবান / লাক্স-related entry.
+- [ ] **91.** Tap a lexicon chip → the smart bar fills the canonical Bangla name (qty/price kept if present).
+- [ ] **92.** POS: type a catalog product name → green chip (catalog) + blue chips (lexicon) can both appear; catalog pick adds to cart.
+- [ ] **93.** Type a nickname, tap a chip to correct it → next time the nickname suggests the same name (learned alias, local SQLite).
+
 
 ---
 

@@ -1278,6 +1278,43 @@ Voice → download বাংলা**.
 - `npm run test:local-first` → **73/73** (plist guard added)
 - Touched files typecheck clean against the project baseline
 
+---
+
+## 27. Bangla shop lexicon + phrase aliases (2026-09-12)
+
+### 27.1 Why
+
+iOS does not expose Bangla as a Dictation language, so English (or messy)
+transcripts are common. A local phrase dictionary is the production path:
+match spoken/typed text against a large offline vocabulary, then the shop's
+catalog and custom aliases.
+
+### 27.2 Format (optimized for thousands of words)
+
+Pipe-delimited seed packs under `mobile/lib/voice/lexicon/seed/*.ts`:
+
+```
+# category:staples
+চাল|rice|chal|মোটা চাল
+সাবান|soap|sabun|lux|লাক্স
+```
+
+- One line per product family; first field = canonical Bangla display name.
+- Rest = aliases (Bangla / English / romanized). Append-only, no JSON commas.
+- Parsed once into Maps (~345 entries / ~1300 aliases / ~22KB today).
+- Add more packs and register them in `seed/index.ts`.
+
+### 27.3 Runtime
+
+- `lexicon/lookup.ts` — exact + fuzzy match; unified ranker (user alias → catalog → lexicon).
+- `SmartAddBar` shows suggestion chips from all three; picking a chip can
+  **learn** a custom phrase → name/product in SQLite `phrase_aliases` (migration 006).
+- Schema version **v6**. Local-only aliases (not synced in v1).
+
+### 27.4 Verified
+
+- `npm run test:local-first` → **74/74**
+
 
 
 

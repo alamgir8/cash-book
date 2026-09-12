@@ -19,11 +19,19 @@ import { useTranslation } from "@/hooks/use-translation";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { toast } from "@/lib/toast";
 import { dalFetchProducts } from "@/data/products";
+import { dalListPhraseAliases, dalSavePhraseAlias } from "@/data/phrase-aliases";
 import {
+  normalizeForMatch,
   parseBanglaItems,
   rankByName,
+  scoreNameMatch,
   type ParsedItem,
 } from "@/lib/voice/bangla-nlp";
+import {
+  canonicalNameFromLexicon,
+  rankUnifiedSuggestions,
+  type UnifiedSuggestion,
+} from "@/lib/voice/lexicon";
 import {
   describeSpeechSupport,
   startListening,
@@ -159,6 +167,9 @@ function SmartAddBarInner({
   const [speech, setSpeech] = useState<SpeechSupport | null>(null);
   const [banglaCaveat, setBanglaCaveat] = useState(false);
   const [catalog, setCatalog] = useState<Product[]>([]);
+  const [userAliases, setUserAliases] = useState<
+    Array<{ phrase: string; name: string; productId?: string | null }>
+  >([]);
   const sessionRef = useRef<ListenSession | null>(null);
   const inputRef = useRef<TextInput>(null);
   const listenLockRef = useRef(false);
@@ -175,6 +186,15 @@ function SmartAddBarInner({
         if (!cancelled) setCatalog(res?.products ?? []);
       } catch {
         /* catalog optional — matching just won't suggest */
+      }
+      try {
+        const aliases = await dalListPhraseAliases({
+          organizationId,
+          limit: 400,
+        });
+        if (!cancelled) setUserAliases(aliases);
+      } catch {
+        /* aliases optional */
       }
     })();
     return () => {
@@ -221,12 +241,33 @@ function SmartAddBarInner({
     }
   }, [text]);
 
-  /** Resolve a parsed phrase against the catalog and the current mode. */
+  /** Resolve a parsed phrase against catalog + bundled lexicon + user aliases. */
   const resolve = useCallback(
     (p: ParsedItem): SmartAddItem => {
-      const matched = rankByName(p.name, catalog, 45)[0];
-      // Price precedence: an explicit spoken cost/sale, else the catalog price
-      // for this context, else the single spoken price.
+      // Prefer a real catalog product; fall back to lexicon canonical name.
+      let matched = rankByName(p.name, catalog, 45)[0];
+      let name = p.name;
+
+      if (!matched) {
+        // User alias may point at a product id.
+        const alias = userAliases.find(
+          (a) =>
+            scoreNameMatch(p.name, a.phrase) >= 70 ||
+            scoreNameMatch(p.name, a.name) >= 70,
+        );
+        if (alias?.productId) {
+          matched = catalog.find((c) => c._id === alias.productId);
+        }
+        if (alias && !matched) {
+          name = alias.name;
+        } else if (!matched) {
+          const { name: canon } = canonicalNameFromLexicon(p.name, {
+            minScore: 70,
+          });
+          name = canon;
+        }
+      }
+
       let price: number | null = null;
       let cost: number | null = null;
 
@@ -245,7 +286,6 @@ function SmartAddBarInner({
           p.purchase_price ??
           (matched ? Number(matched.cost_price ?? matched.purchase_price) : null);
       } else {
-        // Adding a product to the catalog: cost and sale are both meaningful.
         price = p.unit_price ?? (matched ? Number(matched.sale_price) : null);
         cost =
           p.purchase_price ??
@@ -254,22 +294,84 @@ function SmartAddBarInner({
 
       return {
         ...p,
+        name,
         matched,
         price,
         cost: cost ?? null,
       };
     },
-    [catalog, mode],
+    [catalog, mode, userAliases],
   );
 
   const resolved = useMemo(() => parsed.map(resolve), [parsed, resolve]);
 
-  const suggestions = useMemo(() => {
+  const suggestions = useMemo((): UnifiedSuggestion[] => {
     if (!text.trim()) return [];
     const q = parsed[0]?.name ?? text;
     if (!q.trim()) return [];
-    return rankByName(q, catalog, 40).slice(0, 4);
-  }, [text, parsed, catalog]);
+    try {
+      return rankUnifiedSuggestions(q, catalog, {
+        limit: 6,
+        minScore: 35,
+        userAliases,
+      });
+    } catch {
+      return [];
+    }
+  }, [text, parsed, catalog, userAliases]);
+
+  const applySuggestion = useCallback(
+    (s: UnifiedSuggestion) => {
+      const spoken = parsed[0];
+      // Learn: if the typed/spoken name differs, remember it for next time.
+      if (
+        spoken?.name &&
+        normalizeForMatch(spoken.name) !== normalizeForMatch(s.name)
+      ) {
+        void dalSavePhraseAlias({
+          phrase: spoken.name,
+          name: s.name,
+          productId: s.productId ?? null,
+          organizationId,
+        }).then((row) => {
+          if (!row) return;
+          setUserAliases((prev) => {
+            const rest = prev.filter(
+              (a) => normalizeForMatch(a.phrase) !== normalizeForMatch(row.phrase),
+            );
+            return [
+              { phrase: row.phrase, name: row.name, productId: row.product_id },
+              ...rest,
+            ];
+          });
+        });
+      }
+
+      if (s.productId && onPickExisting) {
+        const product = catalog.find((c) => c._id === s.productId);
+        if (product) {
+          onPickExisting(product);
+          setText("");
+          return;
+        }
+      }
+
+      // Fill the bar with the canonical name, keep qty/price if we had them.
+      const parts: string[] = [s.name];
+      if (spoken?.quantity != null) {
+        parts.push(
+          spoken.unit
+            ? `${spoken.quantity} ${spoken.unit}`
+            : `${spoken.quantity}টা`,
+        );
+      }
+      const price =
+        spoken?.unit_price ?? spoken?.sale_price ?? spoken?.purchase_price;
+      if (price != null) parts.push(`${price} টাকা`);
+      setText(parts.join(" "));
+    },
+    [parsed, catalog, onPickExisting, organizationId],
+  );
 
   const handleAdd = useCallback(() => {
     if (resolved.length === 0) {
@@ -524,8 +626,8 @@ function SmartAddBarInner({
         </View>
       ) : null}
 
-      {/* Existing-product suggestions (pick instead of re-typing) */}
-      {suggestions.length > 0 && onPickExisting ? (
+      {/* Catalog + lexicon + saved-phrase suggestions */}
+      {suggestions.length > 0 ? (
         <View style={{ marginTop: 8 }}>
           <Text
             style={{
@@ -537,27 +639,36 @@ function SmartAddBarInner({
             {t("pickExisting")}
           </Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-            {suggestions.map((p) => (
-              <TouchableOpacity
-                key={p._id}
-                onPress={() => {
-                  onPickExisting(p);
-                  setText("");
-                }}
-                style={{
-                  paddingHorizontal: 10,
-                  paddingVertical: 6,
-                  borderRadius: 20,
-                  backgroundColor: colors.success + "15",
-                  borderWidth: 1,
-                  borderColor: colors.success + "40",
-                }}
-              >
-                <Text style={{ fontSize: 12, color: colors.success }}>
-                  {p.name}
-                </Text>
-              </TouchableOpacity>
-            ))}
+            {suggestions.map((s) => {
+              const isCatalog = s.source === "catalog" || !!s.productId;
+              return (
+                <TouchableOpacity
+                  key={`${s.source}:${s.name}:${s.productId ?? ""}`}
+                  onPress={() => applySuggestion(s)}
+                  style={{
+                    paddingHorizontal: 10,
+                    paddingVertical: 6,
+                    borderRadius: 20,
+                    backgroundColor: isCatalog
+                      ? colors.success + "15"
+                      : colors.info + "12",
+                    borderWidth: 1,
+                    borderColor: isCatalog
+                      ? colors.success + "40"
+                      : colors.info + "35",
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      color: isCatalog ? colors.success : colors.info,
+                    }}
+                  >
+                    {s.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
       ) : null}

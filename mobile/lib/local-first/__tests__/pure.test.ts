@@ -1001,10 +1001,12 @@ test("offline settings migration adds cache + outbox tables", () => {
   assert.match(migrations, /CREATE TABLE IF NOT EXISTS pending_ops/);
   assert.match(migrations, /idx_pending_ops_created/);
   assert.match(migrations, /005_offline_settings/);
+  assert.match(migrations, /006_phrase_aliases/);
+  assert.match(migrations, /CREATE TABLE IF NOT EXISTS phrase_aliases/);
 
   // Schema version must stay in lockstep with the newest migration.
   const types = readFileSync(join(__dirname, "../../../db/types.ts"), "utf8");
-  assert.match(types, /LOCAL_SCHEMA_VERSION = 5/);
+  assert.match(types, /LOCAL_SCHEMA_VERSION = 6/);
 });
 
 test("settings writes never persist a PIN to SQLite", () => {
@@ -1121,6 +1123,7 @@ test("local wipe clears shop data so logout cannot leak it", () => {
     "inventory_movements",
     "settings_cache",
     "pending_ops",
+    "phrase_aliases",
     "organizations",
   ]) {
     assert.match(
@@ -1491,5 +1494,68 @@ test("iOS Info.plist declares speech recognition usage (missing key = native cra
     appJson.expo.ios?.infoPlist?.NSSpeechRecognitionUsageDescription,
     "app.json must keep the key so prebuild does not drop it",
   );
+});
+
+test("Bangla lexicon seed is compact pipe-format and indexes cleanly", async () => {
+  // format.ts is dependency-free — safe under Node's type-stripped loader.
+  const { parseLexiconBlob, blobByteLength } = await import(
+    "../../voice/lexicon/format.ts"
+  );
+
+  const seedDir = join(__dirname, "../../voice/lexicon/seed");
+  const blob = ["staples.ts", "produce.ts", "goods.ts", "brands.ts"]
+    .map((f) => {
+      const src = readFileSync(join(seedDir, f), "utf8");
+      const start = src.indexOf("`");
+      const end = src.lastIndexOf("`");
+      assert.ok(start >= 0 && end > start, `${f} must export a template string`);
+      return src.slice(start + 1, end);
+    })
+    .join("\n");
+
+  assert.doesNotMatch(blob.trimStart(), /^\[/);
+  assert.match(blob, /# category:/);
+  assert.match(blob, /সাবান\|/);
+  assert.match(blob, /চাল\|/);
+  assert.match(blob, /soap/i);
+  assert.match(blob, /chal/i);
+
+  const entries = parseLexiconBlob(blob);
+  assert.ok(
+    entries.length >= 150,
+    `expected ≥150 entries, got ${entries.length}`,
+  );
+  assert.ok(
+    blobByteLength(blob) < 80_000,
+    "seed blob should stay under ~80KB for fast startup",
+  );
+
+  // Exact alias index (same structure production builds) — soap → সাবান.
+  const byAlias = new Map<string, string>();
+  for (const e of entries) {
+    for (const a of e.aliases) {
+      const k = a.toLowerCase().replace(/\s+/g, " ").trim();
+      if (k && !byAlias.has(k)) byAlias.set(k, e.canonical);
+    }
+  }
+  assert.ok(byAlias.get("soap")?.includes("সাবান"));
+  assert.ok(byAlias.get("chal")?.includes("চাল") || byAlias.get("rice")?.includes("চাল"));
+  assert.ok(byAlias.has("lux") || [...byAlias.keys()].some((k) => k.includes("lux")));
+
+  // App wiring.
+  const bar = readFileSync(
+    join(__dirname, "../../../components/shop/smart-add-bar.tsx"),
+    "utf8",
+  );
+  assert.match(bar, /rankUnifiedSuggestions/);
+  assert.match(bar, /canonicalNameFromLexicon/);
+  assert.match(bar, /dalSavePhraseAlias/);
+
+  const lookup = readFileSync(
+    join(__dirname, "../../voice/lexicon/lookup.ts"),
+    "utf8",
+  );
+  assert.match(lookup, /function matchLexicon/);
+  assert.match(lookup, /rankUnifiedSuggestions/);
 });
 

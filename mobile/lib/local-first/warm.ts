@@ -25,6 +25,9 @@ export async function warmLocalFirstRuntime(): Promise<void> {
     import("@/data/transactions.local"),
     import("@/data/parties.local"),
     import("@/data/products.local"),
+    import("@/lib/voice/lexicon").then((m) => {
+      m.warmLexicon();
+    }),
   ]);
 
   // Shop stock cache is rebuildable from movements — reconcile once, don't block.

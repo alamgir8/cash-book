@@ -491,6 +491,30 @@ CREATE INDEX IF NOT EXISTS idx_pending_ops_entity ON pending_ops(entity, entity_
 CREATE INDEX IF NOT EXISTS idx_pending_ops_created ON pending_ops(created_at);
 `;
 
+/**
+ * Migration 006 — phrase aliases for Bangla voice/type matching.
+ * Local-only shortcuts: shopkeeper phrases map to a display name and optional
+ * product. Bundled lexicon stays in JS; this table is for *custom* vocabulary.
+ */
+export const MIGRATION_006_SQL = `
+CREATE TABLE IF NOT EXISTS phrase_aliases (
+  id TEXT PRIMARY KEY NOT NULL,
+  organization_id TEXT,
+  phrase TEXT NOT NULL,
+  phrase_norm TEXT NOT NULL,
+  name TEXT NOT NULL,
+  product_id TEXT,
+  use_count INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_phrase_aliases_org_norm
+  ON phrase_aliases(organization_id, phrase_norm);
+CREATE INDEX IF NOT EXISTS idx_phrase_aliases_norm ON phrase_aliases(phrase_norm);
+CREATE INDEX IF NOT EXISTS idx_phrase_aliases_product ON phrase_aliases(product_id);
+`;
+
 export const MIGRATIONS: Migration[] = [
   {
     version: 1,
@@ -516,6 +540,11 @@ export const MIGRATIONS: Migration[] = [
     version: 5,
     name: "005_offline_settings",
     sql: MIGRATION_005_SQL,
+  },
+  {
+    version: 6,
+    name: "006_phrase_aliases",
+    sql: MIGRATION_006_SQL,
   },
 ];
 
