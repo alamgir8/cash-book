@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { resolveLastWriteWins } from "../conflicts.ts";
@@ -1023,6 +1023,7 @@ test("settings writes never persist a PIN to SQLite", () => {
 // ── Shop sync contract (Phase 13) ──────────────────────────────────────────
 
 const repoRoot = join(__dirname, "../../../..");
+const mobileRoot = join(__dirname, "../../..");
 
 test("sync entity enum includes shop entities on both client and server", () => {
   const engine = readFileSync(join(__dirname, "../../../sync/engine.ts"), "utf8");
@@ -1142,6 +1143,283 @@ test("shop writes trigger a sync nudge", () => {
     const src = readFileSync(join(__dirname, "../../../data", file), "utf8");
     assert.match(src, /requestSyncSoon/, `${file} must nudge sync`);
   }
+});
+
+// ── Regression guards for the on-device crash + sync failure ────────────────
+
+/** Strip block + line comments so guards test code, not prose. */
+function codeOnly(source: string): string {
+  return source
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/(^|\s)\/\/[^\n]*/g, "$1");
+}
+
+test("voice modules avoid Metro-hostile dynamic imports and regex", () => {
+  for (const file of ["speech.ts", "bangla-nlp.ts"]) {
+    const code = codeOnly(
+      readFileSync(join(__dirname, "../../voice", file), "utf8"),
+    );
+    // Metro needs static string literals in import(); a variable specifier
+    // fails the route bundle and crashes the screen when the route loads.
+    assert.doesNotMatch(
+      code,
+      /import\(\s*[A-Za-z_$][A-Za-z0-9_$]*\s*\)/,
+      `${file} must not use a variable dynamic import`,
+    );
+    // Hermes support for \p{...} is inconsistent; a throw here runs in render.
+    assert.doesNotMatch(code, /\\p\{/, `${file} must not use \\p{...} regex`);
+  }
+});
+
+test("react-native core is never dynamically imported", () => {
+  /**
+   * Regression: `await import("react-native")` inside speech.ts went through
+   * expo's async-require `importAll`, which enumerates every RN export and hits
+   * the lazy getters — including `get__PushNotificationIOS`, which throws
+   * "tried to access a native module that doesn't exist" in Expo Go.
+   * `Platform` must be a static import.
+   */
+  const roots = ["app", "components", "lib", "hooks", "data", "db", "sync", "services"];
+  const offenders: string[] = [];
+
+  const walk = (dir: string) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const p = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (/node_modules|ios|android|\.expo/.test(p)) continue;
+        walk(p);
+      } else if (/\.(ts|tsx)$/.test(entry.name)) {
+        const code = codeOnly(readFileSync(p, "utf8"));
+        if (/import\(\s*["'`]react-native["'`]\s*\)/.test(code)) {
+          offenders.push(p.replace(`${mobileRoot}/`, ""));
+        }
+      }
+    }
+  };
+  for (const root of roots) {
+    try {
+      walk(join(__dirname, "../../../", root));
+    } catch {
+      /* root may not exist */
+    }
+  }
+  assert.deepEqual(offenders, [], "static-import react-native instead");
+});
+
+// ── Dev API host self-heal ─────────────────────────────────────────────────
+
+test("LAN autofix is opt-in and only then follows Metro's host", async () => {
+  const { resolveApiHost } = await import("../api-host.ts");
+
+  const configured = "http://192.168.0.214:5050/api";
+  const metroHost = "192.168.0.249:8081";
+
+  // DEFAULT OFF. Metro was observed advertising an address that was not on the
+  // machine, so rewriting a configured URL without an explicit opt-in could turn
+  // a working URL into a dead one.
+  const byDefault = resolveApiHost({ configuredUrl: configured, metroHost, isDev: true });
+  assert.equal(byDefault.changed, false);
+  assert.equal(byDefault.reason, "disabled");
+  assert.equal(byDefault.url, configured);
+
+  // Explicit opt-in → rewrite, preserving port/path/protocol.
+  const opted = resolveApiHost({
+    configuredUrl: configured,
+    metroHost,
+    isDev: true,
+    autofixEnabled: true,
+  });
+  assert.equal(opted.changed, true);
+  assert.equal(opted.reason, "applied");
+  assert.equal(opted.url, "http://192.168.0.249:5050/api");
+
+  // Already correct → untouched even when enabled.
+  assert.equal(
+    resolveApiHost({
+      configuredUrl: "http://192.168.0.249:5050/api",
+      metroHost,
+      isDev: true,
+      autofixEnabled: true,
+    }).changed,
+    false,
+  );
+});
+
+test("API host autofix never touches production, public or loopback hosts", async () => {
+  const { resolveApiHost } = await import("../api-host.ts");
+
+  // Production builds are never rewritten.
+  assert.equal(
+    resolveApiHost({
+      configuredUrl: "http://192.168.0.214:5050/api",
+      metroHost: "192.168.0.249:8081",
+      isDev: false,
+    }).changed,
+    false,
+  );
+
+  // Explicit opt-out.
+  assert.equal(
+    resolveApiHost({
+      configuredUrl: "http://192.168.0.214:5050/api",
+      metroHost: "192.168.0.249:8081",
+      isDev: true,
+      autofixEnabled: false,
+    }).changed,
+    false,
+  );
+
+  // A remote (public) API must be respected, even in dev.
+  assert.equal(
+    resolveApiHost({
+      configuredUrl: "https://cash-book-seven.vercel.app/api",
+      metroHost: "192.168.0.249:8081",
+      isDev: true,
+    }).changed,
+    false,
+  );
+
+  // Loopback is deliberate, not a stale lease.
+  assert.equal(
+    resolveApiHost({
+      configuredUrl: "http://127.0.0.1:5050/api",
+      metroHost: "192.168.0.249:8081",
+      isDev: true,
+    }).changed,
+    false,
+  );
+
+  // No Metro host available → leave it alone even with opt-in.
+  assert.equal(
+    resolveApiHost({
+      configuredUrl: "http://192.168.0.214:5050/api",
+      metroHost: null,
+      isDev: true,
+      autofixEnabled: true,
+    }).changed,
+    false,
+  );
+
+  // A public API is respected even with opt-in.
+  assert.equal(
+    resolveApiHost({
+      configuredUrl: "https://cash-book-seven.vercel.app/api",
+      metroHost: "192.168.0.249:8081",
+      isDev: true,
+      autofixEnabled: true,
+    }).changed,
+    false,
+  );
+});
+
+test("private-LAN detection and the https-on-LAN warning", async () => {
+  const { isPrivateLanHost, looksLikeHttpsLanMistake, hostnameOf } =
+    await import("../api-host.ts");
+
+  assert.equal(isPrivateLanHost("192.168.1.5"), true);
+  assert.equal(isPrivateLanHost("10.0.0.7"), true);
+  assert.equal(isPrivateLanHost("172.16.4.9"), true);
+  assert.equal(isPrivateLanHost("172.32.4.9"), false);
+  assert.equal(isPrivateLanHost("localhost"), false);
+  assert.equal(isPrivateLanHost("127.0.0.1"), false);
+  assert.equal(isPrivateLanHost("8.8.8.8"), false);
+
+  assert.equal(hostnameOf("192.168.0.249:8081"), "192.168.0.249");
+  assert.equal(hostnameOf("http://192.168.0.249:5050/api"), "192.168.0.249");
+
+  // The protocol mistake that produced "Network Error" on the LAN.
+  assert.equal(looksLikeHttpsLanMistake("https://192.168.0.249:5050/api"), true);
+  assert.equal(looksLikeHttpsLanMistake("http://192.168.0.249:5050/api"), false);
+  assert.equal(looksLikeHttpsLanMistake("https://x.vercel.app/api"), false);
+});
+
+test("optional native STT package is never referenced until installed", () => {
+  // Referencing an uninstalled native module breaks the Metro bundle, which is
+  // what crashed the Shop screens. Naming it in a message is fine; importing or
+  // requiring it is not.
+  const code = codeOnly(
+    readFileSync(join(__dirname, "../../voice/speech.ts"), "utf8"),
+  );
+  assert.doesNotMatch(
+    code,
+    /(?:import|require)\s*\(\s*["'`]expo-speech-recognition/,
+    "must not dynamically import the uninstalled module",
+  );
+  assert.doesNotMatch(
+    code,
+    /from\s+["'`]expo-speech-recognition["'`]/,
+    "must not statically import the uninstalled module",
+  );
+  assert.doesNotMatch(
+    code,
+    /import\s*\{[^}]*\}\s*from\s+["'`]expo-speech-recognition/,
+    "must not import named bindings from the uninstalled module",
+  );
+});
+
+test("invoice pull payload carries created_at (NOT NULL locally)", () => {
+  const controller = readFileSync(
+    join(repoRoot, "backend/controllers/sync.controller.js"),
+    "utf8",
+  );
+  // Without these the client insert fails with
+  // "NOT NULL constraint failed: invoice_items.created_at".
+  assert.match(
+    controller,
+    /created_at: toIso\(doc\.createdAt\) \|\| new Date\(\)\.toISOString\(\),/,
+  );
+  assert.match(controller, /created_at: toIso\(p\.createdAt\)/);
+  assert.match(controller, /product_server_id: it\.product \? String\(it\.product\) : null/);
+});
+
+test("invoice upserts default NOT NULL columns instead of throwing", () => {
+  const repo = readFileSync(
+    join(__dirname, "../../../db/repos/invoices.ts"),
+    "utf8",
+  );
+  const items = repo.slice(
+    repo.indexOf("export async function upsertInvoiceItemFromSync"),
+    repo.indexOf("export async function upsertInvoicePaymentFromSync"),
+  );
+  assert.match(items, /created_at: row\.created_at \?\? nowIso\(\)/);
+  assert.match(items, /description: row\.description \?\? ""/);
+
+  const payments = repo.slice(
+    repo.indexOf("export async function upsertInvoicePaymentFromSync"),
+  );
+  assert.match(payments, /created_at: row\.created_at \?\? nowIso\(\)/);
+});
+
+test("pulled invoice items map the server product id to the local id", () => {
+  const engine = readFileSync(join(__dirname, "../../../sync/engine.ts"), "utf8");
+  const slice = engine.slice(engine.indexOf("if (change.entity === \"invoice\")"));
+  assert.match(slice, /SELECT id FROM products WHERE server_id = \?/);
+  assert.match(slice, /product_id: localProductId/);
+});
+
+test("offline banner exposes a manual retry action", () => {
+  const banner = readFileSync(
+    join(__dirname, "../../../components/offline-banner.tsx"),
+    "utf8",
+  );
+  assert.match(banner, /requestSyncNow/);
+  assert.match(banner, /probeBackendAvailable/);
+  // Offline must be explained, not silently ignored.
+  assert.match(banner, /deviceOfflineKeepWorking/);
+  assert.match(banner, /backendDownKeepWorking/);
+  // The button is hidden while syncing (nothing to retry).
+  assert.match(banner, /RETRYABLE/);
+});
+
+test("smart add bar is protected by an error boundary with a fallback", () => {
+  const bar = readFileSync(
+    join(__dirname, "../../../components/shop/smart-add-bar.tsx"),
+    "utf8",
+  );
+  // A convenience feature must never take down the counter screen.
+  assert.match(bar, /ErrorBoundary/);
+  assert.match(bar, /SmartAddFallback/);
+  assert.match(bar, /fallback=\{<SmartAddFallback/);
 });
 
 

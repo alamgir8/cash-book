@@ -783,6 +783,13 @@ export type AppTranslations = {
   pickExisting: string;
   addToCart: string;
   addToInvoice: string;
+  retrySync: string;
+  syncingNow: string;
+  syncStarted: string;
+  syncFailedKeepWorking: string;
+  deviceOfflineKeepWorking: string;
+  backendDownKeepWorking: string;
+  upToDate: string;
 };
 
 // ── English ───────────────────────────────────────────────────────────────────
@@ -1581,6 +1588,16 @@ const en: AppTranslations = {
   pickExisting: "Or pick an existing product",
   addToCart: "Add to cart",
   addToInvoice: "Add to invoice",
+  retrySync: "Sync",
+  syncingNow: "Syncing…",
+  syncStarted: "Syncing now…",
+  syncFailedKeepWorking:
+    "Sync failed. Please wait — your work is saved and will sync automatically later.",
+  deviceOfflineKeepWorking:
+    "Your device is offline. Keep working — sync will happen automatically later.",
+  backendDownKeepWorking:
+    "Backend is down or unreachable. Keep working — sync will happen automatically later.",
+  upToDate: "Everything is synced",
 };
 
 // ── Bengali (বাংলা) ────────────────────────────────────────────────────────────
@@ -2379,6 +2396,16 @@ const bn: AppTranslations = {
   pickExisting: "অথবা আগের পণ্য থেকে বেছে নিন",
   addToCart: "কার্টে যোগ করুন",
   addToInvoice: "ইনভয়েসে যোগ করুন",
+  retrySync: "সিঙ্ক",
+  syncingNow: "সিঙ্ক হচ্ছে…",
+  syncStarted: "এখন সিঙ্ক হচ্ছে…",
+  syncFailedKeepWorking:
+    "সিঙ্ক ব্যর্থ হয়েছে। অপেক্ষা করুন — আপনার কাজ সংরক্ষিত আছে, পরে স্বয়ংক্রিয়ভাবে সিঙ্ক হবে।",
+  deviceOfflineKeepWorking:
+    "আপনার ডিভাইস অফলাইনে আছে। কাজ চালিয়ে যান — পরে স্বয়ংক্রিয়ভাবে সিঙ্ক হবে।",
+  backendDownKeepWorking:
+    "সার্ভার বন্ধ বা পাওয়া যাচ্ছে না। কাজ চালিয়ে যান — পরে স্বয়ংক্রিয়ভাবে সিঙ্ক হবে।",
+  upToDate: "সবকিছু সিঙ্ক হয়েছে",
 };
 
 export const translations: Record<string, AppTranslations> = { en, bn };

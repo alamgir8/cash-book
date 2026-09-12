@@ -1,22 +1,30 @@
 /**
  * Speech-to-text abstraction (Bangla-first).
  *
- * IMPORTANT — current reality:
- * The app's original `VoiceInputButton` only worked on **web** (it returned
- * `null` on iOS/Android), so on a phone there was no voice input at all.
+ * CURRENT REALITY — read before changing:
+ * - **Web**: the browser's `webkitSpeechRecognition` works today, no native code.
+ * - **Native (iOS/Android)**: needs the free `expo-speech-recognition` module,
+ *   which is NOT installed. On-device voice reports "unavailable" and the UI
+ *   falls back to typing (the parser is text-based, so typing covers the same
+ *   workflow).
  *
- * This module provides one API with two providers:
- *  1. **Web** — the browser's `webkitSpeechRecognition` (works today, no build).
- *  2. **Native** — `expo-speech-recognition`, an optional free module that uses
- *     the OS recognizer (Apple Speech / Android SpeechRecognizer). It supports
- *     `bn-BD`, needs no API key and costs nothing, but requires a native rebuild.
+ * WHY THERE IS NO `import(variable)` HERE:
+ * Metro requires **static string literals** in `import()`. Referencing an
+ * uninstalled package — even dynamically, even inside try/catch — makes Metro
+ * either fail the bundle or throw at runtime ("Requiring unknown module"),
+ * which crashed the Shop screens on device. So we do not reference it at all.
  *
- * The module is imported lazily, so the app builds and runs normally whether or
- * not it is installed. `describeSpeechSupport()` tells the UI which case applies.
- *
- * Compliance: no paid AI APIs; the recognizer is the OS one. Typed input always
- * works regardless, because the parser is text-based.
+ * TO ENABLE on-device voice (a native rebuild, not an OTA change):
+ *   1. `npx expo install expo-speech-recognition`
+ *   2. Add the plugin to `app.json` (it declares the mic permission).
+ *   3. Rebuild: `npx expo run:ios --device`
+ *   4. Replace the `if (Platform.OS !== "web")` branch below with a static
+ *      `import { ExpoSpeechRecognitionModule } from "expo-speech-recognition"`
+ *      at the top of a small adapter file, and call its `start/stop`.
+ * Until step 4 is done, this module intentionally reports unavailable.
  */
+
+import { Platform } from "react-native";
 
 export type SpeechLang = "bn-BD" | "en-US";
 
@@ -38,62 +46,50 @@ export type SpeechSupport = {
   reason?: string;
 };
 
-const BN = "bn-BD" as const;
+const BN: SpeechLang = "bn-BD";
 
-let cachedNativeModule: any | null | undefined;
+const NATIVE_UNAVAILABLE_REASON =
+  "On-device voice needs the free expo-speech-recognition module (one rebuild). Typing works now.";
 
-/**
- * Try to load the optional native recognizer. Returns null when it is not
- * installed, which is the normal case until the app is rebuilt with it.
- */
-async function loadNativeModule(): Promise<any | null> {
-  if (cachedNativeModule !== undefined) return cachedNativeModule;
-  try {
-    // Non-literal specifier so bundlers do not fail when the package is absent.
-    const name = "expo-speech-recognition";
-    const mod = await import(/* @vite-ignore */ name);
-    cachedNativeModule = mod ?? null;
-  } catch {
-    cachedNativeModule = null;
-  }
-  return cachedNativeModule;
+function webSpeechCtor(): any | null {
+  const w = globalThis as any;
+  const Ctor = w?.webkitSpeechRecognition ?? w?.SpeechRecognition;
+  return typeof Ctor === "function" ? Ctor : null;
 }
 
-/** What voice input can do on this device right now. */
+/** What voice input can do on this device right now. Never throws. */
 export async function describeSpeechSupport(): Promise<SpeechSupport> {
-  const { Platform } = await import("react-native");
-
-  if (Platform.OS === "web") {
-    const anyWindow = globalThis as any;
-    const ok =
-      typeof anyWindow?.webkitSpeechRecognition === "function" ||
-      typeof anyWindow?.SpeechRecognition === "function";
-    return ok
-      ? { available: true, provider: "web", lang: BN }
-      : {
-          available: false,
-          provider: "none",
-          lang: BN,
-          reason: "This browser has no speech recognition.",
-        };
-  }
-
-  const native = await loadNativeModule();
-  if (!native) {
+  try {
+    // NOTE: `Platform` is imported statically on purpose. A previous version
+    // did `await import("react-native")`, which in Expo Go goes through
+    // expo's async-require `importAll`: that enumerates every RN export and
+    // triggers the lazy getters, including `get__PushNotificationIOS`, which
+    // throws "tried to access a native module that doesn't exist". A static
+    // import only touches `Platform`.
+    if (Platform.OS === "web") {
+      return webSpeechCtor()
+        ? { available: true, provider: "web", lang: BN }
+        : {
+            available: false,
+            provider: "none",
+            lang: BN,
+            reason: "This browser has no speech recognition.",
+          };
+    }
+    // Native: no module referenced (see header) — typing is the path.
     return {
       available: false,
       provider: "none",
       lang: BN,
-      reason:
-        "On-device voice needs the free expo-speech-recognition module (one rebuild). Typing works now.",
+      reason: NATIVE_UNAVAILABLE_REASON,
     };
-  }
-  try {
-    const available = await native.ExpoSpeechRecognitionModule?.getStateAsync?.();
-    void available;
-    return { available: true, provider: "native", lang: BN };
   } catch {
-    return { available: true, provider: "native", lang: BN };
+    return {
+      available: false,
+      provider: "none",
+      lang: BN,
+      reason: NATIVE_UNAVAILABLE_REASON,
+    };
   }
 }
 
@@ -110,14 +106,19 @@ export type ListenSession = {
 
 /**
  * Start listening. Resolves with a session handle, or `null` when speech is not
- * available — callers should then keep the text field usable and show a hint.
+ * available — callers keep the text field usable and show the reason.
  */
 export async function startListening(
   handlers: ListenHandlers,
 ): Promise<ListenSession | null> {
-  const support = await describeSpeechSupport();
+  let support: SpeechSupport;
+  try {
+    support = await describeSpeechSupport();
+  } catch {
+    handlers.onError?.(NATIVE_UNAVAILABLE_REASON);
+    return null;
+  }
 
-  // Availability is checked before any provider-specific work.
   if (!support.available) {
     handlers.onError?.(support.reason ?? "Voice input unavailable");
     return null;
@@ -125,102 +126,59 @@ export async function startListening(
 
   const lang = handlers.lang ?? support.lang ?? BN;
 
-  if (support.provider === "web") {
-    const anyWindow = globalThis as any;
-    const Ctor =
-      anyWindow.webkitSpeechRecognition ?? anyWindow.SpeechRecognition;
-    const recognition = new Ctor();
-    recognition.continuous = false;
-    recognition.interimResults = false;
-    recognition.lang = lang;
-
-    recognition.onresult = (event: any) => {
-      const res = event?.results?.[0]?.[0];
-      const transcript = String(res?.transcript ?? "").trim();
-      if (transcript) {
-        handlers.onResult({
-          transcript,
-          confidence: typeof res?.confidence === "number" ? res.confidence : undefined,
-        });
-      }
-    };
-    recognition.onerror = (event: any) =>
-      handlers.onError?.(String(event?.error ?? "Speech error"));
-    recognition.onend = () => handlers.onEnd?.();
-
-    try {
-      recognition.start();
-    } catch (e: any) {
-      handlers.onError?.(e?.message ?? "Could not start microphone");
-      return null;
-    }
-    return {
-      stop: async () => {
-        try {
-          recognition.stop();
-        } catch {
-          /* already stopped */
-        }
-      },
-    };
-  }
-
-  // ── Native path ────────────────────────────────────────────────────────
-  const native = await loadNativeModule();
-  const native_ = native?.ExpoSpeechRecognitionModule;
-  if (!native_) {
-    handlers.onError?.("Speech module unavailable");
+  // Only the web provider is reachable today.
+  const Ctor = webSpeechCtor();
+  if (!Ctor) {
+    handlers.onError?.("Speech recognition unavailable");
     return null;
   }
 
-  const subscriptions: any[] = [];
-  subscriptions.push(
-    native_.addListener?.("result", (event: any) => {
-      const transcript = String(event?.results?.[0]?.transcript ?? "").trim();
-      if (transcript) {
-        handlers.onResult({
-          transcript,
-          confidence: event?.results?.[0]?.confidence,
-        });
-      }
-    }),
-  );
-  subscriptions.push(
-    native_.addListener?.("error", (event: any) =>
-      handlers.onError?.(String(event?.message ?? event?.error ?? "Speech error")),
-    ),
-  );
-  subscriptions.push(
-    native_.addListener?.("end", () => handlers.onEnd?.()),
-  );
+  let recognition: any;
+  try {
+    recognition = new Ctor();
+  } catch {
+    handlers.onError?.("Could not start the microphone");
+    return null;
+  }
+
+  recognition.continuous = false;
+  recognition.interimResults = false;
+  recognition.lang = lang;
+
+  recognition.onresult = (event: any) => {
+    const res = event?.results?.[0]?.[0];
+    const transcript = String(res?.transcript ?? "").trim();
+    if (transcript) {
+      handlers.onResult({
+        transcript,
+        confidence:
+          typeof res?.confidence === "number" ? res.confidence : undefined,
+      });
+    }
+  };
+  recognition.onerror = (event: any) =>
+    handlers.onError?.(String(event?.error ?? "Speech error"));
+  recognition.onend = () => handlers.onEnd?.();
 
   try {
-    const perm = await native_.requestPermissionsAsync?.();
-    if (perm && perm.granted === false) {
-      handlers.onError?.("Microphone permission is required");
-      subscriptions.forEach((s) => s?.remove?.());
-      return null;
-    }
-    native_.start?.({ lang, interimResults: false, continuous: false });
+    recognition.start();
   } catch (e: any) {
     handlers.onError?.(e?.message ?? "Could not start microphone");
-    subscriptions.forEach((s) => s?.remove?.());
     return null;
   }
 
   return {
     stop: async () => {
       try {
-        native_.stop?.();
+        recognition.stop();
       } catch {
-        /* ignore */
+        /* already stopped */
       }
-      subscriptions.forEach((s) => s?.remove?.());
     },
   };
 }
 
-/** Bangla first: the shop floor speaks Bangla, but allow the OS to fall back. */
+/** Bangla first: the shop floor speaks Bangla, but allow an English fallback. */
 export function alternateLang(lang: SpeechLang): SpeechLang {
   return lang === "bn-BD" ? "en-US" : "bn-BD";
 }

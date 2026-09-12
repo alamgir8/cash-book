@@ -261,6 +261,25 @@ On the phone the mic needs a rebuild, but **typing works today** — test by typ
 - [ ] **73.** Offline, previously-opened shops still list (cached), with the offline banner; **creating** a shop offline shows the "needs a connection once" message rather than a generic failure.
 - [ ] **74.** Disable the PIN while offline → after sync, `has_login_pin` is false on the server.
 
+## 14. Section L — banner retry button (new)
+
+The banner is the coloured strip at the top when sync has work to do.
+
+- [ ] **75.** With pending changes, the banner shows a small **Sync** chip on the **right**.
+- [ ] **76.** **Airplane mode** → tap the chip → a message says your device is offline and to keep working (no crash, no silent no-op).
+- [ ] **77.** With the device online but the **backend stopped** → tap the chip → "Backend is down or unreachable… keep working".
+- [ ] **78.** Backend running, device online → tap the chip → it shows a spinner, then the pending count drops / banner disappears.
+- [ ] **79.** While a sync is in progress the chip is hidden (nothing to retry).
+
+## 15. Section M — Shop screen crash regression (new)
+
+Both screens below crashed on device before; they must now open normally.
+
+- [ ] **80.** Shop → **New Sale** opens the POS screen (no redbox). The "say or type" bar renders with a **plain text field** and a disabled-looking mic.
+- [ ] **81.** Shop → Products → **+ (Add Product)** opens and renders the bar at the top of the form.
+- [ ] **82.** Type a phrase in either bar → the preview appears (parser works on device).
+- [ ] **83.** Confirm the mic shows the "one rebuild" hint instead of doing nothing silently — and that typing still adds the item.
+
 ---
 
 ## 10. Failure report template

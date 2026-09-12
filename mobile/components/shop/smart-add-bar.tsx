@@ -15,6 +15,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/use-theme";
 import { useTranslation } from "@/hooks/use-translation";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { toast } from "@/lib/toast";
 import { dalFetchProducts } from "@/data/products";
 import {
@@ -58,7 +59,89 @@ type Props = {
  * preview chips (name · qty+unit · price, plus profit for sales) → add.
  * Everything runs offline; voice is optional and degrades to typing.
  */
-export function SmartAddBar({
+export function SmartAddBar(props: Props) {
+  /**
+   * A convenience bar must never take down the till. If anything inside it
+   * throws (parser, mic, catalog query), the screen keeps working and shows a
+   * plain text field instead.
+   */
+  return (
+    <ErrorBoundary fallback={<SmartAddFallback {...props} />}>
+      <SmartAddBarInner {...props} />
+    </ErrorBoundary>
+  );
+}
+
+/** Minimal always-works fallback: type a name, add it. */
+function SmartAddFallback({
+  onSubmit,
+  placeholder,
+  autoFocus,
+}: Props) {
+  const { colors } = useTheme();
+  const { t } = useTranslation();
+  const [value, setValue] = useState("");
+
+  const add = useCallback(() => {
+    const name = value.trim();
+    if (!name) return;
+    onSubmit([
+      {
+        raw: name,
+        name,
+        quantity: 1,
+        unit: null,
+        unit_price: null,
+        purchase_price: null,
+        sale_price: null,
+        pricingAmbiguous: false,
+        confidence: "low",
+        price: null,
+        cost: null,
+      },
+    ]);
+    setValue("");
+  }, [value, onSubmit]);
+
+  return (
+    <View style={{ flexDirection: "row", gap: 8, marginBottom: 12 }}>
+      <TextInput
+        value={value}
+        onChangeText={setValue}
+        autoFocus={autoFocus}
+        placeholder={placeholder ?? t("smartAddPlaceholder")}
+        placeholderTextColor={colors.text.tertiary}
+        style={{
+          flex: 1,
+          borderWidth: 1,
+          borderColor: colors.border,
+          borderRadius: 12,
+          paddingHorizontal: 14,
+          paddingVertical: 11,
+          fontSize: 15,
+          color: colors.text.primary,
+          backgroundColor: colors.bg.secondary,
+        }}
+      />
+      <TouchableOpacity
+        onPress={add}
+        disabled={!value.trim()}
+        style={{
+          width: 46,
+          height: 46,
+          borderRadius: 12,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: value.trim() ? colors.success : colors.bg.tertiary,
+        }}
+      >
+        <Ionicons name="add" size={24} color="#fff" />
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+function SmartAddBarInner({
   mode,
   organizationId,
   onSubmit,
@@ -84,7 +167,7 @@ export function SmartAddBar({
           organization: organizationId || undefined,
           limit: 500,
         });
-        if (!cancelled) setCatalog(res.products ?? []);
+        if (!cancelled) setCatalog(res?.products ?? []);
       } catch {
         /* catalog optional — matching just won't suggest */
       }
@@ -95,13 +178,31 @@ export function SmartAddBar({
   }, [organizationId]);
 
   useEffect(() => {
-    void describeSpeechSupport().then((s) => {
-      if (s.available) setSpeechReason(null);
-      else setSpeechReason(s.reason);
-    });
+    let cancelled = false;
+    // `.catch` matters: an unhandled rejection here could redbox the screen.
+    void describeSpeechSupport()
+      .then((s) => {
+        if (cancelled) return;
+        if (s.available) setSpeechReason(null);
+        else setSpeechReason(s.reason ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setSpeechReason(null);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const parsed = useMemo(() => parseBanglaItems(text), [text]);
+  // Guard the parser: a malformed phrase must not break rendering.
+  const parsed = useMemo(() => {
+    if (!text.trim()) return [];
+    try {
+      return parseBanglaItems(text);
+    } catch {
+      return [];
+    }
+  }, [text]);
 
   /** Resolve a parsed phrase against the catalog and the current mode. */
   const resolve = useCallback(

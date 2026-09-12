@@ -400,10 +400,22 @@ async function applyIncoming(change: SyncChange) {
       invoiceRow.id,
     );
     for (const it of items) {
+      // The server sends the Mongo product id; the local column must hold the
+      // LOCAL product id, or product links/stock lookups break after a pull.
+      let localProductId: string | null = null;
+      if (it.product_id || it.product_server_id) {
+        const local = await db.getFirstAsync<{ id: string }>(
+          `SELECT id FROM products WHERE server_id = ? OR id = ? LIMIT 1`,
+          it.product_server_id ?? it.product_id,
+          it.product_server_id ?? it.product_id,
+        );
+        localProductId = local?.id ?? null;
+      }
       await invoicesRepo.upsertInvoiceItemFromSync(db, {
         ...it,
         id: it.id ? String(it.id) : `${invoiceRow.id}:item:${items.indexOf(it)}`,
         invoice_id: invoiceRow.id,
+        product_id: localProductId,
       });
     }
     for (const p of payments) {

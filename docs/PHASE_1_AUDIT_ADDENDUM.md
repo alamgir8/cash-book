@@ -986,6 +986,162 @@ catches the duplicate-key error on `invoice_number` and retries with a short
 - **Phase 14 (backup) still outstanding** — shop entities are still absent from
   the backup body, so "Backup Now" does not yet protect them.
 
+---
+
+## 23. Device crash on Shop screens + manual retry sync (2026-09-12)
+
+### 23.1 A real sync failure, caught in the Metro log
+
+The device log showed the pull path crashing:
+
+```
+WARN  [sync] FunctionCallException: Calling the 'finalizeAsync' function has failed
+→ Caused by: SQLiteErrorException: Error code 19:
+   NOT NULL constraint failed: invoice_items.created_at
+```
+
+`invoice_items.created_at` is `NOT NULL`, but the server's `invoiceToPayload`
+did not send it, so **every inbound invoice pull aborted**. Two fixes:
+
+1. `invoiceToPayload` now emits `created_at` for items and payments, plus
+   `product_server_id` so the client can resolve the catalog link.
+2. Defence in depth: `upsertInvoiceItemFromSync` / `upsertInvoicePaymentFromSync`
+   now default every NOT NULL column (`created_at`, `description`, numerics) so a
+   thin payload can never abort a sync again.
+
+Also fixed: pulled items stored the **server** product id in the local
+`product_id` column, breaking product links and stock lookups. The engine now
+maps `product_server_id` → the local product id on pull.
+
+### 23.2 The Shop-screen crash
+
+"Crashes on tapping New Sale / Add Product" — both routes render the new
+`SmartAddBar`, so that was the prime suspect. Two patterns in its dependency
+graph are known to break Metro/Hermes and were removed:
+
+1. **Variable dynamic import.** `speech.ts` did
+   `const name = "expo-speech-recognition"; await import(name)`. Metro requires
+   **static string literals** in `import()`. A dynamic specifier either fails the
+   route bundle (which builds lazily exactly when you tap the button — matching
+   the symptom) or throws at runtime as "Requiring unknown module".
+   The module is deliberately **no longer referenced at all** until it is
+   installed; on-device voice reports "unavailable" and typing covers the same
+   workflow. `speech.ts`'s header documents the 4-step enable path.
+2. **`\p{L}` unicode property escapes** in `normalizeForMatch`. Hermes support is
+   inconsistent across versions, and that function runs **during render**, so a
+   throw would take down the screen. Replaced with an explicit
+   `[\u0980-\u09FFa-zA-Z0-9\s]` class — same behaviour for Bangla/Latin.
+
+Hardening so this class of bug cannot reach the user again:
+
+- `SmartAddBar` is wrapped in an **ErrorBoundary** with a plain text-field
+  fallback, so a convenience feature can never take down the till.
+- Its effects use `.catch()` (no unhandled rejections) and the parser call is
+  wrapped in try/catch.
+
+### 23.3 Verification — and its limits
+
+- **Production bundle now builds cleanly**: `npx expo export --platform ios`
+  succeeded with no `Unable to resolve` / `Invalid call` errors, which is the
+  check that catches this crash class. The bundle was decoded and confirmed to
+  contain the new modules (Hermes stores Bangla as UTF-16LE — searching for
+  `কেজি` / `সাবান` in UTF-8 falsely reports "missing").
+- **Honest limit:** the crash was not reproduced interactively. The removed
+  patterns are the standard causes of this exact symptom, and the bundle now
+  verifies — but if it still crashes, the redbox stack from Metro is needed to go
+  further.
+
+### 23.4 Manual retry on the offline banner
+
+`components/offline-banner.tsx` now shows a small **Sync** chip on the right for
+`offline | server_unavailable | pending | failed | synced`:
+
+- Device offline → "Your device is offline. Keep working — sync will happen
+  automatically later."
+- Backend unreachable → "Backend is down or unreachable. Keep working — …"
+- Otherwise it probes reachability, shows "Syncing now…", runs
+  `requestSyncNow()`, then refreshes the banner state.
+- Hidden while syncing, and hidden for storage-only messages (nothing to sync).
+- 7 new keys, Bangla + English (**741 keys, 0 missing, 0 empty**).
+
+### 23.5 Verified
+
+- `npm run test:local-first` → **65/65 pass** (7 new regression guards: no
+  variable dynamic import, no `\p{...}`, no import of the uninstalled STT
+  package, invoice payload `created_at`, defensive upserts, server→local product
+  id mapping, banner retry wiring, error-boundary fallback).
+- `npx tsc --noEmit` → **26 errors, unchanged**.
+- `node --check backend/controllers/sync.controller.js` → OK.
+- iOS production bundle export → success.
+
+---
+
+## 24. Expo Go crash: dynamic `react-native` import (2026-09-12)
+
+### 24.1 The error
+
+```
+ERROR [Invariant Violation: Your JavaScript code tried to access a native
+module that doesn't exist. …]
+Call Stack
+  NativeEventEmitter.js:57
+  PushNotificationIOS.js:67
+  module.exports.get__PushNotificationIOS (react-native/index.js:326)
+  importAll (expo/src/async-require/asyncRequireModule.ts:70)
+```
+
+Preceded by deprecation warnings for `ProgressBarAndroid`, `SafeAreaView`,
+`Clipboard`, `InteractionManager` — i.e. **react-native's lazy export getters
+were being enumerated**.
+
+### 24.2 Root cause (introduced by §23's fix)
+
+`lib/voice/speech.ts` did `const { Platform } = await import("react-native")`.
+Under Expo Go that routes through expo's async-require `importAll`, which walks
+**every** export of `react-native`, touching the lazy getters. `Platform` is
+harmless, but `get__PushNotificationIOS` throws the invariant violation because
+that native module does not exist in Expo Go.
+
+Fix: a plain top-level `import { Platform } from "react-native"` — the same
+pattern the rest of the app uses. Only `Platform` is touched.
+
+This was the **only** dynamic `react-native` import in the codebase (verified by
+scan), and a new test now enforces that none is ever added again across
+`app/ components/ lib/ hooks/ data/ db/ sync/ services/`.
+
+### 24.3 Also fixed: stale API host
+
+The device log showed requests going to `http://192.168.0.214:5050/api`, but
+`ipconfig getifaddr en0` reported `192.168.0.249` — the Mac's LAN IP had changed
+(DHCP) and `.env.local` held the old value, so every request timed out.
+
+`.env.local` is corrected to the current address, and the file now documents that
+the IP churns and must be re-checked after any network change.
+
+Additionally, `lib/local-first/api-host.ts` was added: a **dev-only, opt-in**
+helper (`EXPO_PUBLIC_API_AUTOFIX=on`) that can follow Metro's host when a
+configured LAN IP goes stale, preserving port/path/protocol; plus a
+`looksLikeHttpsLanMistake` warning for the `https://`-on-LAN protocol error.
+
+**It defaults OFF, deliberately.** While verifying, `192.168.0.214` (Metro's
+advertised host) turned out **not to be on the machine at all** — only `.249`
+was. Auto-following Metro would therefore have rewritten a working URL into a
+dead one. Metro's advertised host is a hint, not a source of truth, so the fix
+must be requested explicitly.
+
+### 24.4 Verified
+
+- `npm run test:local-first` → **69/69 pass** (4 new: no dynamic
+  `react-native` import anywhere; LAN autofix is opt-in and preserves the URL;
+  it never touches production/public/loopback/unknown-Metro cases; private-LAN
+  detection + https-on-LAN warning).
+- `npx tsc --noEmit` → **26 errors, unchanged**.
+- `npx expo export --platform ios` → success.
+- Reachability confirmed: `http://192.168.0.249:5050/health` → 200,
+  `/api/sync/handshake` → 401 (route live, auth required).
+
+
+
 
 
 
