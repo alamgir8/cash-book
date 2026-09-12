@@ -180,8 +180,15 @@ export async function upsertAccountFromSync(
       name = excluded.name,
       description = excluded.description,
       kind = excluded.kind,
-      opening_balance = excluded.opening_balance,
-      current_balance = excluded.current_balance,
+      -- Mongo often stores opening_balance=0 with a trusted current_balance.
+      -- Do not wipe a locally derived opening (cloud.current − paidNet) or
+      -- Accounts collapses back to paid-net-only (e.g. Cash 8,323 vs 16,343).
+      opening_balance = CASE
+        WHEN ABS(COALESCE(excluded.opening_balance, 0)) < 0.0001
+        THEN accounts.opening_balance
+        ELSE excluded.opening_balance
+      END,
+      current_balance = COALESCE(excluded.current_balance, accounts.current_balance),
       currency_code = excluded.currency_code,
       currency_symbol = excluded.currency_symbol,
       archived = excluded.archived,

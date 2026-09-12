@@ -114,11 +114,13 @@ export async function fetchLocalAccounts(
     });
     const paidDebit = Number(sum?.paid_debit ?? 0);
     const paidCredit = Number(sum?.paid_credit ?? 0);
-    // Cash balance = opening + paid credits − paid debits (same as Mongo).
-    const opening = Number(row.opening_balance) || 0;
+    const totalDebit = Number(sum?.total_debit ?? paidDebit);
+    const totalCredit = Number(sum?.total_credit ?? paidCredit);
+    // Wallet cash = opening + paid only (open dues excluded).
     const paidNet = paidCredit - paidDebit;
+    const allNet = totalCredit - totalDebit;
+    const opening = Number(row.opening_balance) || 0;
     const balance = opening + paidNet;
-    // Keep SQLite current_balance in sync so other screens stay correct.
     if (Math.abs(balance - Number(row.current_balance)) > 0.0001) {
       await db.runAsync(
         `UPDATE accounts SET current_balance = ? WHERE id = ?`,
@@ -127,15 +129,17 @@ export async function fetchLocalAccounts(
       );
     }
     out.push({
-      ...localAccountToOverview({ ...row, current_balance: balance }),
+      ...localAccountToOverview({
+        ...row,
+        current_balance: balance,
+        opening_balance: opening,
+      }),
       summary: {
-        // Match cloud account cards: count/sum every txn on the account.
-        // Cash `balance` above stays paid-only (opening + paid credit − paid debit).
         totalTransactions: Number(sum?.total_transactions ?? 0),
-        totalDebit: Number(sum?.total_debit ?? paidDebit),
-        totalCredit: Number(sum?.total_credit ?? paidCredit),
-        // Paid cash net — so Balance = Opening + this net (clear on the card).
+        totalDebit,
+        totalCredit,
         net: paidNet,
+        allNet,
         openingBalance: opening,
         lastTransactionDate: sum?.last_transaction_date ?? null,
       },
@@ -169,11 +173,11 @@ export async function fetchLocalAccountDetail(accountId: string) {
 
   const paidDebit = Number(sum?.paid_debit ?? 0);
   const paidCredit = Number(sum?.paid_credit ?? 0);
-  // Account summary cards show ALL txs (paid + due), not paid-only cash flow.
   const totalDebit = Number(sum?.total_debit ?? paidDebit);
   const totalCredit = Number(sum?.total_credit ?? paidCredit);
   const opening = Number(row.opening_balance) || 0;
   const paidNet = paidCredit - paidDebit;
+  const allNet = totalCredit - totalDebit;
   const balance = opening + paidNet;
   if (Math.abs(balance - Number(row.current_balance)) > 0.0001) {
     await db.runAsync(
@@ -184,12 +188,17 @@ export async function fetchLocalAccountDetail(accountId: string) {
   }
 
   return {
-    account: localAccountToApiLocalId({ ...row, current_balance: balance }),
+    account: localAccountToApiLocalId({
+      ...row,
+      current_balance: balance,
+      opening_balance: opening,
+    }),
     summary: {
       totalTransactions: Number(sum?.total_transactions ?? 0),
       totalDebit,
       totalCredit,
       net: paidNet,
+      allNet,
       openingBalance: opening,
       lastTransactionDate: sum?.last_transaction_date ?? null,
     },

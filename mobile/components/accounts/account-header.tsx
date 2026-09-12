@@ -52,7 +52,7 @@ export function AccountHeader({
             className="text-3xl font-bold"
             style={{ color: balancePositive ? colors.success : colors.error }}
           >
-            {formatAmount(Math.abs(account?.balance ?? 0))}
+            {formatAmount(account?.balance ?? 0)}
           </Text>
         </View>
       </View>

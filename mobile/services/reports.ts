@@ -397,7 +397,28 @@ const collectTransactions = async (
   }
 
   const startingBalances = new Map<string, number>();
+  // Prefer live account opening_balance over inferring from (possibly stale)
+  // balance_after_transaction — that undo math drifted Cash/bKash trails.
+  try {
+    const { getDb } = await import("@/db/client");
+    const db = await getDb();
+    const accountIds = [...accountSnapshots.keys()];
+    for (const accountId of accountIds) {
+      const row = await db.getFirstAsync<{ opening_balance: number }>(
+        `SELECT opening_balance FROM accounts
+         WHERE (id = ? OR server_id = ?) AND deleted_at IS NULL LIMIT 1`,
+        accountId,
+        accountId,
+      );
+      if (row) {
+        startingBalances.set(accountId, Number(row.opening_balance) || 0);
+      }
+    }
+  } catch {
+    /* fall through to snapshot undo */
+  }
   accountSnapshots.forEach((snapshot, accountId) => {
+    if (startingBalances.has(accountId)) return;
     let starting = snapshot.after;
     if (snapshot.type === "credit") {
       starting -= snapshot.amount;

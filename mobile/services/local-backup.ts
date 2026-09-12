@@ -278,7 +278,7 @@ export async function importLocalBackup(
   });
 
   // Fix dues/loans that arrived with wrong payment_status or category type,
-  // then recompute cash balances (paid only — dues excluded, like Mongo).
+  // then recompute account cash from the full ledger (all credits − all debits).
   await setMeta(db, META_KEYS.LEDGER_REPAIR_VERSION, null);
   const {
     repairLocalLedgerSemantics,

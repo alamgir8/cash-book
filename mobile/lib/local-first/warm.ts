@@ -35,6 +35,22 @@ export async function warmLocalFirstRuntime(): Promise<void> {
     .then((m) => m.scheduleLocalLedgerRepair(db))
     .catch(() => {});
 
+  // Always align openings to Mongo current (idempotent). Then rewrite
+  // Balance-after trails from opening + paid cash deltas.
+  void import("./reconcile-account-openings")
+    .then(async ({ reconcileAccountOpeningsFromCloud }) => {
+      await reconcileAccountOpeningsFromCloud(db);
+      const { recalculateBalances } = await import("@/db/balances");
+      await recalculateBalances(db, { allOrganizations: true });
+      try {
+        const { queryClient } = await import("@/lib/queryClient");
+        await queryClient.invalidateQueries({ refetchType: "active" });
+      } catch {
+        /* ignore */
+      }
+    })
+    .catch(() => {});
+
   // Shop stock cache is rebuildable from movements — reconcile once, don't block.
   void import("@/db/stock")
     .then((m) => m.ensureProductStockReconciled(db))

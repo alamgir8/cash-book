@@ -422,6 +422,22 @@ async function applyIncoming(change: SyncChange) {
     );
 
     if (decision.winner === "existing") {
+      // Still restore a missing opening from cloud — LWW must not leave
+      // opening_balance stuck at 0 while Mongo has the real opening.
+      if (
+        change.entity === "account" &&
+        payload?.opening_balance != null &&
+        Math.abs(Number(existing.opening_balance) || 0) < 0.0001 &&
+        Math.abs(Number(payload.opening_balance)) > 0.0001
+      ) {
+        // Opening only when Mongo has a real opening. Wallet cash is aligned
+        // afterward via reconcileAccountOpeningsFromCloud (current − paidNet).
+        await db.runAsync(
+          `UPDATE accounts SET opening_balance = ? WHERE id = ?`,
+          Number(payload.opening_balance),
+          existing.id,
+        );
+      }
       await db.runAsync(
         `INSERT INTO sync_conflicts (id, entity, entity_id, existing_json, incoming_json, decision, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -673,9 +689,17 @@ export async function runSync(): Promise<SyncResult> {
     }
     await setMeta(db, META_KEYS.SYNC_STAGE, "done");
 
-    // Local cash + Balance-after trails (linear). Only when this cycle
-    // changed ledger rows — never re-uploads anything.
+    // Restore openings then rewrite Balance-after (delta sync never uploads
+    // the whole DB — this is local math only).
     if (pushedCount > 0 || (pull.changes?.length ?? 0) > 0) {
+      try {
+        const { reconcileAccountOpeningsFromCloud } = await import(
+          "@/lib/local-first/reconcile-account-openings"
+        );
+        await reconcileAccountOpeningsFromCloud(db);
+      } catch (e) {
+        if (__DEV__) console.warn("[sync] opening reconcile skipped", e);
+      }
       try {
         await recalculateBalances(db, { allOrganizations: true });
       } catch (e) {

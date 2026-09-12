@@ -51,6 +51,7 @@ test("running balance after includes paid deltas and snapshots dues", async () =
   ]);
   assert.equal(rows[0].balance_after, 15_343);
 
+  // Open dues snapshot wallet cash without moving it (Mongo convention).
   const withDue = computeRunningBalances(10_000, [
     { id: "1", type: "debit", amount: 500, payment_status: "paid" },
     { id: "2", type: "debit", amount: 2000, payment_status: "due" },
@@ -61,15 +62,12 @@ test("running balance after includes paid deltas and snapshots dues", async () =
     [9500, 9500, 9600],
   );
 
-  // Offline create must rewrite the chronological trail (not trust drifted current_balance).
   const repo = readFileSync(
     join(__dirname, "../../../db/repos/transactions.ts"),
     "utf8",
   );
   assert.match(repo, /recalculateAccountRunningBalances/);
 
-  // Large ledgers: linear SELECT + batched CASE UPDATE (not N× prepareAsync,
-  // not O(n²) correlated SQL that freezes Home/sync).
   const balances = readFileSync(
     join(__dirname, "../../../db/balances.ts"),
     "utf8",
@@ -385,9 +383,21 @@ test("partyBalanceSumSql uses the party convention", () => {
 
 test("local repair re-runs party convention fix on existing devices", () => {
   const src = readFileSync(join(__dirname, "../repair-ledger.ts"), "utf8");
-  assert.match(src, /LEDGER_REPAIR_VERSION = "12"/);
+  assert.match(src, /LEDGER_REPAIR_VERSION = "16"/);
+  assert.match(src, /falseDueFix|due_date IS NULL OR due_date = ''/);
   assert.match(src, /scheduleLocalLedgerRepair/);
   assert.match(src, /recalculateCashBalancesOnly/);
+  assert.match(src, /reconcileAccountOpeningsFromCloud/);
+});
+
+test("account opening reconcile aligns wallet to Mongo current_balance", () => {
+  const src = readFileSync(
+    join(__dirname, "../reconcile-account-openings.ts"),
+    "utf8",
+  );
+  assert.match(src, /cloudCurrent - paidNet/);
+  assert.match(src, /current_balance = cloud\.current/);
+  assert.match(src, /recalculateAccountRunningBalances/);
 });
 
 // ── Shop form validation (Phase 5 follow-up) ────────────────────────────────

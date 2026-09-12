@@ -19,12 +19,12 @@ const paidClause = (alias = "") => {
   return `(${col} = 'paid' OR ${col} IS NULL OR ${col} = '')`;
 };
 
-/** How many balance_after rows to rewrite per UPDATE (avoids N× prepareAsync). */
 const TRAIL_UPDATE_BATCH = 80;
 
 /**
- * Fast cash balance: opening + paid credits − paid debits (Mongo convention).
- * One query + one UPDATE — safe after migrate/sync with thousands of rows.
+ * Wallet cash: opening + paid credits − paid debits.
+ * Open dues are excluded (obligation only) — matches Mongo and the pre-bug
+ * Cash ~16k / bKash ~5k / Bank ~612k figures.
  */
 export async function recalculateAccountCashBalance(
   db: Db,
@@ -70,14 +70,6 @@ export async function recalculateAccountCashBalance(
   return finalBalance;
 }
 
-/**
- * Rewrite every txn's balance_after_transaction in chronological order.
- *
- * Linear SELECT + computeRunningBalances + batched CASE UPDATEs.
- * Avoids both:
- * - N× prepareAsync (FunctionCallException on ~900+ txs)
- * - O(n²) correlated SQL that freezes Home/sync for minutes
- */
 export async function recalculateAccountRunningBalances(
   db: Db,
   accountId: string,
@@ -136,10 +128,6 @@ export async function recalculateAccountRunningBalances(
   return recalculateAccountCashBalance(db, account.id);
 }
 
-/**
- * Cash + party balances only (no per-txn trail). Use on repair/first paint
- * when trails can finish in the background.
- */
 export async function recalculateCashBalancesOnly(
   db: Db,
   scope?: ScopeFilter,
@@ -150,7 +138,6 @@ export async function recalculateCashBalancesOnly(
     `SELECT id FROM accounts WHERE ${sql} AND deleted_at IS NULL`,
     ...params,
   );
-
   for (const account of accounts) {
     await recalculateAccountCashBalance(db, account.id);
   }
@@ -188,10 +175,6 @@ export async function recalculateCashBalancesOnly(
   return { accounts: accounts.length, parties: parties.length };
 }
 
-/**
- * Recompute account + party cash balances. Also rewrites per-txn
- * balance_after with a linear batch UPDATE per account (no N-loop, no O(n²)).
- */
 export async function recalculateBalances(
   db: Db,
   scope?: ScopeFilter,
@@ -207,7 +190,6 @@ export async function recalculateBalances(
     try {
       await recalculateAccountRunningBalances(db, account.id);
     } catch (e) {
-      // Never abort the whole sync/repair on one account — fall back to cash only.
       console.warn(
         `[balances] trail rewrite failed for ${account.id}, cash-only fallback`,
         e,
