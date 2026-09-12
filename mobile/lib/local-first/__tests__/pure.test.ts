@@ -1476,3 +1476,20 @@ test("native voice start dismisses keyboard and aborts prior sessions", () => {
   assert.match(src, /requestMicrophonePermissionsAsync/);
 });
 
+test("iOS Info.plist declares speech recognition usage (missing key = native crash)", () => {
+  // iOS aborts the process if SFSpeechRecognizer is used without this key.
+  const plist = readFileSync(
+    join(__dirname, "../../../ios/HisabBoi/Info.plist"),
+    "utf8",
+  );
+  assert.match(plist, /NSSpeechRecognitionUsageDescription/);
+  assert.match(plist, /NSMicrophoneUsageDescription/);
+  const appJson = JSON.parse(
+    readFileSync(join(__dirname, "../../../app.json"), "utf8"),
+  );
+  assert.ok(
+    appJson.expo.ios?.infoPlist?.NSSpeechRecognitionUsageDescription,
+    "app.json must keep the key so prebuild does not drop it",
+  );
+});
+

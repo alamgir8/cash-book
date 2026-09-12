@@ -1244,21 +1244,38 @@ under the bar, leaving a large white void between the smart input and
 
 ### 26.2 Mic tap crash
 
-**Cause:** Starting native STT while a `TextInput` still held focus flips the iOS
-AVAudioSession category under an active keyboard — a known crash path for
-`expo-speech-recognition`. Unhandled promise / double-start made it worse.
+**Cause (confirmed):** `ios/HisabBoi/Info.plist` had `NSMicrophoneUsageDescription`
+but was **missing `NSSpeechRecognitionUsageDescription`**. On iOS, requesting
+speech recognition without that key aborts the process instantly (native crash,
+no JS redbox — which matches "tap mic → app dies" with a clean Metro log).
 
-**Fix (in `lib/voice/speech.ts` + `SmartAddBar`):**
-- Blur the input + `Keyboard.dismiss()` before `start()`
-- `abort()` any prior session; 120ms settle delay
-- Explicit `iosCategory` on start
-- Split mic / speech permission requests where available
-- Double-tap lock + catch-all so the UI never throws
-- Session cleanup on unmount
+**Fix:**
+- Added `NSSpeechRecognitionUsageDescription` to `Info.plist` and `app.json`
+  `ios.infoPlist` so prebuild keeps it.
+- Blur + dismiss keyboard, abort prior session, explicit `iosCategory`,
+  double-tap lock (JS hardening around the same path).
 
-### 26.3 Verified
+**Requires a native rebuild** — plist changes are not hot-reloaded:
 
-- `npm run test:local-first` → **71/71** (layout + mic-hardening guards added)
+```bash
+cd cash-book/mobile && npx expo run:ios --device
+```
+
+### 26.3 How to install Bangla voice (iPhone)
+
+1. **Settings → General → Keyboard → Keyboards → Add New Keyboard… → বাংলা**
+   (Bengali / বাংলা - phonetic or standard).
+2. **Settings → General → Keyboard → Enable Dictation** → On.
+3. If shown: **Dictation Languages** → add **বাংলা**.
+4. Back in Hisab Boi, reopen Add Product — the orange "Bangla missing" line
+   should clear after the next support check (or kill/reopen the app).
+
+Android: **Settings → System → Languages & input → On-device recognition /
+Voice → download বাংলা**.
+
+### 26.4 Verified
+
+- `npm run test:local-first` → **73/73** (plist guard added)
 - Touched files typecheck clean against the project baseline
 
 

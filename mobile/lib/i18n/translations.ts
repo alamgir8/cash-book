@@ -1583,7 +1583,7 @@ const en: AppTranslations = {
   voiceUnavailable: "Voice is not available on this device — please type.",
   voicePermissionNeeded: "Microphone permission is required.",
   voiceBanglaMissing:
-    "Bangla voice is not installed — it will listen in English. Add Bangla dictation in your phone's settings.",
+    "Bangla voice is not installed — listening in English. Install: Settings → General → Keyboard → Keyboards → Add Keyboard → বাংলা. Then enable Dictation and add বাংলা.",
   profit: "profit",
   loss: "loss",
   matchedExisting: "existing",
@@ -2393,7 +2393,7 @@ const bn: AppTranslations = {
   voiceUnavailable: "এই ডিভাইসে ভয়েস নেই — টাইপ করে লিখুন।",
   voicePermissionNeeded: "মাইক্রোফোনের অনুমতি প্রয়োজন।",
   voiceBanglaMissing:
-    "বাংলা ভয়েস ইনস্টল করা নেই — ইংরেজিতে শুনবে। ফোনের সেটিংস থেকে বাংলা ডিক্টেশন যোগ করুন।",
+    "বাংলা ভয়েস ইনস্টল নেই — ইংরেজিতে শুনবে। ইনস্টল: Settings → General → Keyboard → Keyboards → Add Keyboard → বাংলা। তারপর Dictation চালু করে বাংলা যোগ করুন।",
   profit: "লাভ",
   loss: "ক্ষতি",
   matchedExisting: "আগের পণ্য",

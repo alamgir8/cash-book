@@ -304,8 +304,14 @@ no longer opens a huge empty gap under the bar.
 - [ ] **82.** Tap **Product Name** (or any form field) → keyboard opens → **no giant white gap** between the smart bar and "BASIC INFORMATION". The focused field stays near the keyboard with only a small gap above the form section.
 - [ ] **83.** Type a phrase in either bar → the preview appears (parser works on device).
 - [ ] **84.** Tap the **mic** → app does **not** crash. Either: listening starts, or a permission/toast message appears. Keyboard dismisses first.
+      *(If it still dies instantly with no redbox: the build is missing
+      `NSSpeechRecognitionUsageDescription` — rebuild with
+      `npx expo run:ios --device`.)*
 - [ ] **85.** If Bangla voice is missing, the orange caveat still shows, but English listening still works after grant.
 - [ ] **86.** Grant mic + speech permissions → say a short phrase → text lands in the smart bar.
+- [ ] **87.** **Install Bangla (iPhone):** Settings → General → Keyboard → Keyboards →
+      Add New Keyboard → **বাংলা**. Then Keyboard → **Enable Dictation** On, and add
+      বাংলা under Dictation Languages if listed. Reopen the app → orange caveat gone.
 
 ---
 
