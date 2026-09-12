@@ -334,13 +334,14 @@ async function resolveLocalReadScope(
 }
 
 async function ensureRepaired(db: Awaited<ReturnType<typeof getDb>>) {
+  // Fire-and-forget — Home must not wait on repair/cloud reconcile.
   try {
-    const { ensureLocalLedgerRepaired } = await import(
+    const { scheduleLocalLedgerRepair } = await import(
       "@/lib/local-first/repair-ledger"
     );
-    await ensureLocalLedgerRepaired(db);
+    scheduleLocalLedgerRepair(db);
   } catch (e) {
-    console.warn("[local-txn] repair skipped", e);
+    console.warn("[local-txn] repair schedule skipped", e);
   }
 }
 

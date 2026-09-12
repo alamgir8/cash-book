@@ -1,6 +1,7 @@
 /**
  * Pure chronological cash running balance (no DB / RN imports).
- * Matches backend create rules: paid moves cash; due snapshots without moving.
+ * Matches wallet cash: paid moves the balance; due snapshots without moving
+ * (same as Mongo $inc rules). Open dues are obligations, not cash yet.
  */
 
 export type RunningBalanceTxn = {

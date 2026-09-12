@@ -242,7 +242,7 @@ export default function AccountsScreen() {
                 className="text-xs font-medium uppercase"
                 style={{ color: colors.text.secondary }}
               >
-                Balance
+                {t("balance")}
               </Text>
               <Text
                 className="text-2xl font-bold"
@@ -250,8 +250,26 @@ export default function AccountsScreen() {
                   color: item.balance >= 0 ? colors.success : colors.error,
                 }}
               >
-                {formatAmount(Math.abs(item.balance))}
+                {formatAmount(item.balance)}
               </Text>
+              {item.summary.openingBalance != null &&
+              Math.abs(Number(item.summary.openingBalance)) > 0.0001 ? (
+                <Text
+                  className="text-[10px] mt-0.5"
+                  style={{ color: colors.text.tertiary }}
+                >
+                  {t("openingBalance")}:{" "}
+                  {formatAmount(item.summary.openingBalance)}
+                </Text>
+              ) : item.opening_balance != null &&
+                Math.abs(Number(item.opening_balance)) > 0.0001 ? (
+                <Text
+                  className="text-[10px] mt-0.5"
+                  style={{ color: colors.text.tertiary }}
+                >
+                  {t("openingBalance")}: {formatAmount(item.opening_balance)}
+                </Text>
+              ) : null}
             </View>
           </View>
 
@@ -347,7 +365,7 @@ export default function AccountsScreen() {
                   color: netFlowPositive ? colors.success : colors.error,
                 }}
               >
-                Net Flow
+                {t("cashNet")}
               </Text>
               <Text
                 className="text-lg font-bold mt-1"

@@ -190,6 +190,18 @@ async function maybeSync(reason: SyncReason): Promise<SyncResult> {
           const { queryClient } = await import("@/lib/queryClient");
           await queryClient.invalidateQueries({ refetchType: "active" });
         }
+        // More dirty than one cycle drained — continue soon (delta only).
+        try {
+          const { countPendingDirty } = await import("./pending");
+          const pending = await countPendingDirty();
+          if (pending > 0) {
+            setTimeout(() => {
+              void maybeSync("mutation");
+            }, 750);
+          }
+        } catch {
+          /* ignore */
+        }
       }
       return result;
     } catch (e) {

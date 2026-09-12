@@ -102,6 +102,8 @@ export type AppTranslations = {
   outstandingBalance: string;
   balance: string;
   netFlow: string;
+  cashNet: string;
+  openingBalance: string;
   viewHistory: string;
   lastActivity: string;
   noActivityYet: string;
@@ -899,6 +901,8 @@ const en: AppTranslations = {
   outstandingBalance: "Outstanding balance",
   balance: "Balance",
   netFlow: "Net Flow",
+  cashNet: "Cash net",
+  openingBalance: "Opening",
   viewHistory: "View History",
   lastActivity: "Last activity:",
   noActivityYet: "No activity yet",
@@ -1715,6 +1719,8 @@ const bn: AppTranslations = {
   outstandingBalance: "বকেয়া ব্যালেন্স",
   balance: "ব্যালেন্স",
   netFlow: "নেট প্রবাহ",
+  cashNet: "নগদ নেট",
+  openingBalance: "শুরুর ব্যালেন্স",
   viewHistory: "ইতিহাস দেখুন",
   lastActivity: "শেষ কার্যক্রম:",
   noActivityYet: "এখনো কোনো কার্যক্রম নেই",

@@ -216,7 +216,6 @@ export async function createTransaction(
       input.account_id,
       signedDelta(input.type, amount),
     );
-    // Type-aware party delta (customer credit-positive / supplier debit-positive).
     partyBalanceAfter = await applyPartySignedDelta(
       db,
       input.party_id,

@@ -98,6 +98,11 @@ export async function updateAccount(
         ? ts
         : null;
 
+  const nextOpening =
+    patch.opening_balance !== undefined
+      ? Number(patch.opening_balance)
+      : existing.opening_balance;
+
   await db.runAsync(
     `UPDATE accounts SET
       name = ?, description = ?, kind = ?,
@@ -110,9 +115,7 @@ export async function updateAccount(
     patch.name?.trim() ?? existing.name,
     patch.description !== undefined ? patch.description : existing.description,
     patch.kind ?? existing.kind,
-    patch.opening_balance !== undefined
-      ? Number(patch.opening_balance)
-      : existing.opening_balance,
+    nextOpening,
     patch.currency_code !== undefined
       ? patch.currency_code
       : existing.currency_code,
@@ -125,6 +128,16 @@ export async function updateAccount(
     patch.device_id,
     id,
   );
+
+  // Opening change moves every Balance after + cash — rewrite this account only.
+  if (
+    patch.opening_balance !== undefined &&
+    Math.abs(Number(nextOpening) - Number(existing.opening_balance)) > 0.0001
+  ) {
+    const { recalculateAccountRunningBalances } = await import("../balances");
+    await recalculateAccountRunningBalances(db, id);
+  }
+
   const row = await getAccountById(db, id);
   if (!row) throw new Error("Failed to update account");
   return row;
@@ -167,8 +180,15 @@ export async function upsertAccountFromSync(
       name = excluded.name,
       description = excluded.description,
       kind = excluded.kind,
-      opening_balance = excluded.opening_balance,
-      current_balance = excluded.current_balance,
+      -- Mongo often stores opening_balance=0 with a trusted current_balance.
+      -- Do not wipe a locally derived opening (cloud.current − paidNet) or
+      -- Accounts collapses back to paid-net-only (e.g. Cash 8,323 vs 16,343).
+      opening_balance = CASE
+        WHEN ABS(COALESCE(excluded.opening_balance, 0)) < 0.0001
+        THEN accounts.opening_balance
+        ELSE excluded.opening_balance
+      END,
+      current_balance = COALESCE(excluded.current_balance, accounts.current_balance),
       currency_code = excluded.currency_code,
       currency_symbol = excluded.currency_symbol,
       archived = excluded.archived,

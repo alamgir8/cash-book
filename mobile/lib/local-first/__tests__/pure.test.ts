@@ -51,6 +51,7 @@ test("running balance after includes paid deltas and snapshots dues", async () =
   ]);
   assert.equal(rows[0].balance_after, 15_343);
 
+  // Open dues snapshot wallet cash without moving it (Mongo convention).
   const withDue = computeRunningBalances(10_000, [
     { id: "1", type: "debit", amount: 500, payment_status: "paid" },
     { id: "2", type: "debit", amount: 2000, payment_status: "due" },
@@ -61,12 +62,23 @@ test("running balance after includes paid deltas and snapshots dues", async () =
     [9500, 9500, 9600],
   );
 
-  // Offline create must rewrite the chronological trail (not trust drifted current_balance).
   const repo = readFileSync(
     join(__dirname, "../../../db/repos/transactions.ts"),
     "utf8",
   );
   assert.match(repo, /recalculateAccountRunningBalances/);
+
+  const balances = readFileSync(
+    join(__dirname, "../../../db/balances.ts"),
+    "utf8",
+  );
+  assert.match(balances, /computeRunningBalances/);
+  assert.match(balances, /TRAIL_UPDATE_BATCH|WHEN \? THEN \?/);
+  assert.match(balances, /recalculateAccountCashBalance/);
+  assert.doesNotMatch(
+    balances,
+    /for \(const row of computed\)[\s\S]*?runAsync\([\s\S]*?balance_after_transaction = \?/,
+  );
 });
 
 test("LWW prefers newer updated_at", () => {
@@ -371,7 +383,21 @@ test("partyBalanceSumSql uses the party convention", () => {
 
 test("local repair re-runs party convention fix on existing devices", () => {
   const src = readFileSync(join(__dirname, "../repair-ledger.ts"), "utf8");
-  assert.match(src, /LEDGER_REPAIR_VERSION = "10"/);
+  assert.match(src, /LEDGER_REPAIR_VERSION = "16"/);
+  assert.match(src, /falseDueFix|due_date IS NULL OR due_date = ''/);
+  assert.match(src, /scheduleLocalLedgerRepair/);
+  assert.match(src, /recalculateCashBalancesOnly/);
+  assert.match(src, /reconcileAccountOpeningsFromCloud/);
+});
+
+test("account opening reconcile aligns wallet to Mongo current_balance", () => {
+  const src = readFileSync(
+    join(__dirname, "../reconcile-account-openings.ts"),
+    "utf8",
+  );
+  assert.match(src, /cloudCurrent - paidNet/);
+  assert.match(src, /current_balance = cloud\.current/);
+  assert.match(src, /recalculateAccountRunningBalances/);
 });
 
 // ── Shop form validation (Phase 5 follow-up) ────────────────────────────────
@@ -1144,6 +1170,10 @@ test("shop sync pushes parents before children", () => {
   assert.ok(productAt > 0 && invoiceAt > 0 && movementAt > 0);
   assert.ok(productAt < invoiceAt, "products must precede invoices");
   assert.ok(productAt < movementAt, "products must precede movements");
+  // Total batch must stay under server MAX_PUSH_CHANGES (never whole DB).
+  assert.match(engine, /MAX_PUSH_BATCH = 500/);
+  assert.match(engine, /let remaining = Math\.max\(0, limit\)/);
+  assert.match(engine, /MAX_PUSH_ROUNDS/);
 });
 
 test("invoice push carries embedded items and payments", () => {
