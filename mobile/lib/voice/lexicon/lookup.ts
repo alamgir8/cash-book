@@ -11,7 +11,11 @@
  */
 
 import { normalizeForMatch, scoreNameMatch } from "../bangla-nlp";
-import { parseLexiconBlob, type LexEntry } from "./format";
+import {
+  parseLexiconFull,
+  type BrandMap,
+  type LexEntry,
+} from "./format";
 
 export type LexHit = {
   entry: LexEntry;
@@ -26,12 +30,13 @@ type LexIndex = {
   /** normalized alias → entry id */
   byAlias: Map<string, string>;
   byId: Map<string, LexEntry>;
+  brandMap: BrandMap;
 };
 
 let cached: LexIndex | null = null;
 
 function buildIndex(blob: string): LexIndex {
-  const entries = parseLexiconBlob(blob);
+  const { entries, brandMap } = parseLexiconFull(blob);
   const byAlias = new Map<string, string>();
   const byId = new Map<string, LexEntry>();
 
@@ -44,7 +49,7 @@ function buildIndex(blob: string): LexIndex {
     }
   }
 
-  return { entries, byAlias, byId };
+  return { entries, byAlias, byId, brandMap };
 }
 
 /** Reset cached index (tests only). */
@@ -270,5 +275,102 @@ export function rankUnifiedSuggestions<T extends { _id: string; name: string }>(
     });
   }
 
-  return out.sort((a, b) => b.score - a.score).slice(0, limit);
+  return out
+    .sort((a, b) => {
+      // Existing catalog / aliases always float above pure dictionary hits.
+      const rank = (s: UnifiedSuggestion) =>
+        s.source === "catalog" ? 0 : s.source === "alias" ? 1 : 2;
+      const bySource = rank(a) - rank(b);
+      if (bySource !== 0) return bySource;
+      return b.score - a.score;
+    })
+    .slice(0, limit);
+}
+
+/**
+ * Brands suggested for a product title (e.g. "সাবান" / "লাক্স সাবান" → লাক্স…).
+ * Also filters standalone brand entries when the query looks like a brand prefix.
+ */
+export function suggestBrandsForProduct(
+  productName: string,
+  opts?: { limit?: number; query?: string; index?: LexIndex },
+): UnifiedSuggestion[] {
+  const index = opts?.index ?? cached;
+  if (!index) return [];
+  const limit = opts?.limit ?? 8;
+  const name = normalizeForMatch(productName);
+  const q = normalizeForMatch(opts?.query ?? "");
+
+  const brands: string[] = [];
+  for (const [family, list] of index.brandMap.entries()) {
+    const fam = normalizeForMatch(family);
+    if (!fam) continue;
+    if (name.includes(fam) || fam.includes(name) || scoreNameMatch(name, fam) >= 50) {
+      for (const b of list) brands.push(b);
+    }
+  }
+
+  // Also surface brand lexicon entries that match the typed query.
+  if (q) {
+    for (const entry of index.entries) {
+      if (entry.category !== "brands") continue;
+      if (scoreNameMatch(q, entry.canonical) < 35) continue;
+      brands.push(entry.canonical);
+    }
+  } else {
+    // No query — still include brands already implied by the product name.
+    for (const entry of index.entries) {
+      if (entry.category !== "brands") continue;
+      if (name.includes(normalizeForMatch(entry.canonical))) {
+        brands.push(entry.canonical);
+      }
+    }
+  }
+
+  const seen = new Set<string>();
+  const out: UnifiedSuggestion[] = [];
+  for (const b of brands) {
+    const key = normalizeForMatch(b);
+    if (!key || seen.has(key)) continue;
+    if (q && scoreNameMatch(q, b) < 20 && !normalizeForMatch(b).startsWith(q)) {
+      // When typing a brand filter, drop weak matches — but keep map brands when query empty.
+      if (q.length >= 1) continue;
+    }
+    seen.add(key);
+    out.push({
+      label: b,
+      name: b,
+      source: "lexicon",
+      score: q ? scoreNameMatch(q, b) : 80,
+      category: "brands",
+    });
+  }
+
+  return out
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit);
+}
+
+/** Best-effort: pull a known brand token out of a product title. */
+export function extractBrandFromName(
+  productName: string,
+  opts?: { index?: LexIndex },
+): string | null {
+  const index = opts?.index ?? cached;
+  if (!index) return null;
+  const name = normalizeForMatch(productName);
+  let best: { brand: string; score: number } | null = null;
+
+  for (const entry of index.entries) {
+    if (entry.category !== "brands") continue;
+    for (const alias of entry.aliases) {
+      const a = normalizeForMatch(alias);
+      if (!a || a.length < 2) continue;
+      if (name.includes(a) || name.startsWith(a)) {
+        const score = a.length;
+        if (!best || score > best.score) best = { brand: entry.canonical, score };
+      }
+    }
+  }
+  return best?.brand ?? null;
 }

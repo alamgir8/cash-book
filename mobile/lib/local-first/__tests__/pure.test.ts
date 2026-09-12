@@ -1515,12 +1515,12 @@ test("iOS Info.plist declares speech recognition usage (missing key = native cra
 
 test("Bangla lexicon seed is compact pipe-format and indexes cleanly", async () => {
   // format.ts is dependency-free — safe under Node's type-stripped loader.
-  const { parseLexiconBlob, blobByteLength } = await import(
+  const { parseLexiconFull, blobByteLength } = await import(
     "../../voice/lexicon/format.ts"
   );
 
   const seedDir = join(__dirname, "../../voice/lexicon/seed");
-  const blob = ["staples.ts", "produce.ts", "goods.ts", "brands.ts"]
+  const blob = ["staples.ts", "produce.ts", "goods.ts", "brands.ts", "brand-map.ts"]
     .map((f) => {
       const src = readFileSync(join(seedDir, f), "utf8");
       const start = src.indexOf("`");
@@ -1536,27 +1536,29 @@ test("Bangla lexicon seed is compact pipe-format and indexes cleanly", async () 
   assert.match(blob, /চাল\|/);
   assert.match(blob, /soap/i);
   assert.match(blob, /chal/i);
+  assert.match(blob, /সাবান>/); // brand map
+  assert.match(blob, /# category:brand_map/);
 
-  const entries = parseLexiconBlob(blob);
-  assert.ok(
-    entries.length >= 150,
-    `expected ≥150 entries, got ${entries.length}`,
-  );
+  const full = parseLexiconFull(blob);
+  assert.ok(full.entries.length >= 150, `expected ≥150 entries, got ${full.entries.length}`);
+  assert.ok(full.brandMap.size >= 10, "brand_map should have product→brand rows");
+  assert.ok((full.brandMap.get("সাবান") ?? []).includes("লাক্স"));
   assert.ok(
     blobByteLength(blob) < 80_000,
     "seed blob should stay under ~80KB for fast startup",
   );
 
-  // Exact alias index (same structure production builds) — soap → সাবান.
   const byAlias = new Map<string, string>();
-  for (const e of entries) {
+  for (const e of full.entries) {
     for (const a of e.aliases) {
       const k = a.toLowerCase().replace(/\s+/g, " ").trim();
       if (k && !byAlias.has(k)) byAlias.set(k, e.canonical);
     }
   }
   assert.ok(byAlias.get("soap")?.includes("সাবান"));
-  assert.ok(byAlias.get("chal")?.includes("চাল") || byAlias.get("rice")?.includes("চাল"));
+  assert.ok(
+    byAlias.get("chal")?.includes("চাল") || byAlias.get("rice")?.includes("চাল"),
+  );
   assert.ok(byAlias.has("lux") || [...byAlias.keys()].some((k) => k.includes("lux")));
 
   // App wiring.

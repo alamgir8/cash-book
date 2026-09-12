@@ -1,22 +1,17 @@
 /**
  * Compact Bangla shop lexicon format.
  *
- * WHY THIS FORMAT (not a huge JSON array of objects):
- * - One line per product family → thousands of aliases stay small on disk.
- * - Easy to edit/append without JSON commas breaking.
- * - Parsed once into Maps at startup; O(1) exact + fast prefix scan.
- *
  * Line grammar:
- *   canonical|alias1|alias2|…
+ *   Product / brand entry:
+ *     canonical|alias1|alias2|…
+ *   Brand map (product family → suggested brands):
+ *     productFamily>brand1|brand2|brand3
  * Comments:
- *   # category:groceries
- *   # any note
+ *   # category:staples
+ *   # category:brand_map
+ *   # category:brands
  *
- * Rules:
- * - First field is the canonical Bangla display name shown in the UI.
- * - Later fields are aliases (Bangla, English, romanized) — all optional.
- * - Canonical is always indexed as an alias of itself.
- * - Blank lines ignored. Leading/trailing spaces trimmed per field.
+ * See docs/LEXICON_GUIDE.md for editing instructions.
  */
 
 export type LexCategory =
@@ -36,6 +31,8 @@ export type LexCategory =
   | "stationery"
   | "electronics"
   | "apparel"
+  | "brands"
+  | "brand_map"
   | "other";
 
 export type LexEntry = {
@@ -47,11 +44,25 @@ export type LexEntry = {
   aliases: string[];
 };
 
+/** product family → brand display names */
+export type BrandMap = Map<string, string[]>;
+
 const CATEGORY_RE = /^#\s*category\s*:\s*([a-z0-9_]+)\s*$/i;
 
-/** Parse a compact seed blob into entries. Pure — no I/O. */
+export type ParsedLexicon = {
+  entries: LexEntry[];
+  brandMap: BrandMap;
+};
+
+/** Parse a compact seed blob into entries (legacy helper). */
 export function parseLexiconBlob(blob: string): LexEntry[] {
+  return parseLexiconFull(blob).entries;
+}
+
+/** Parse entries + brand maps. Pure — no I/O. */
+export function parseLexiconFull(blob: string): ParsedLexicon {
   const entries: LexEntry[] = [];
+  const brandMap: BrandMap = new Map();
   let category: string = "other";
   const seenIds = new Set<string>();
 
@@ -66,6 +77,21 @@ export function parseLexiconBlob(blob: string): LexEntry[] {
     }
     if (line.startsWith("#")) continue;
 
+    // Brand map: সাবান>লাক্স|লাইফবয়
+    if (line.includes(">")) {
+      const [left, right] = line.split(">");
+      const family = (left ?? "").trim();
+      const brands = (right ?? "")
+        .split("|")
+        .map((b) => b.trim())
+        .filter(Boolean);
+      if (family && brands.length) {
+        const prev = brandMap.get(family) ?? [];
+        brandMap.set(family, Array.from(new Set([...prev, ...brands])));
+      }
+      continue;
+    }
+
     const fields = line
       .split("|")
       .map((f) => f.trim())
@@ -76,7 +102,6 @@ export function parseLexiconBlob(blob: string): LexEntry[] {
     const aliases = Array.from(new Set(fields));
     const id = `${category}:${canonical}`;
     if (seenIds.has(id)) {
-      // Merge aliases into the existing entry of the same id.
       const existing = entries.find((e) => e.id === id);
       if (existing) {
         for (const a of aliases) {
@@ -89,12 +114,11 @@ export function parseLexiconBlob(blob: string): LexEntry[] {
     entries.push({ id, canonical, category, aliases });
   }
 
-  return entries;
+  return { entries, brandMap };
 }
 
 /** Approximate byte size of a blob (for diagnostics / tests). */
 export function blobByteLength(blob: string): number {
-  // UTF-8 length without allocating a Buffer (Hermes-safe).
   let n = 0;
   for (let i = 0; i < blob.length; i++) {
     const c = blob.charCodeAt(i);

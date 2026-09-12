@@ -1303,6 +1303,7 @@ Pipe-delimited seed packs under `mobile/lib/voice/lexicon/seed/*.ts`:
 - Rest = aliases (Bangla / English / romanized). Append-only, no JSON commas.
 - Parsed once into Maps (~345 entries / ~1300 aliases / ~22KB today).
 - Add more packs and register them in `seed/index.ts`.
+- Full how-to (brand map, aliases, tips): **[`docs/LEXICON_GUIDE.md`](./LEXICON_GUIDE.md)**.
 
 ### 27.3 Runtime
 

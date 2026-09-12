@@ -216,6 +216,12 @@ function descriptionField(t: TranslateFn) {
 export function createProductFormSchema(t: TranslateFn) {
   return z.object({
     name: productNameField(t),
+    brand: z
+      .string()
+      .trim()
+      .max(80, t("vTooLong", { label: t("brand"), max: "80" }))
+      .optional()
+      .or(z.literal("")),
     sku: skuField(t),
     barcode: barcodeField(t),
     description: descriptionField(t),

@@ -58,6 +58,23 @@ type Props = {
   onSubmit: (items: SmartAddItem[]) => void;
   /** Optional: pick an existing product directly (e.g. add to cart). */
   onPickExisting?: (product: Product) => void;
+  /**
+   * Product-create guided mode: tap a chip applies immediately (no + needed).
+   * Also used when selecting a lexicon name that is not yet in the catalog.
+   */
+  onApplySuggestion?: (payload: {
+    suggestion: UnifiedSuggestion;
+    item: SmartAddItem;
+    product?: Product;
+  }) => void;
+  /** Override + button (e.g. advance to next form field). */
+  onPlusPress?: () => void;
+  /** When set, suggestions come from this list instead of name matching. */
+  externalSuggestions?: UnifiedSuggestion[];
+  /** Label above suggestion chips. */
+  suggestionsLabel?: string;
+  /** Hide the live parse preview cards under the bar. */
+  hideParsePreview?: boolean;
   placeholder?: string;
   autoFocus?: boolean;
   /**
@@ -65,6 +82,9 @@ type Props = {
    * under the bar — those live behind a header help icon to save form space.
    */
   compactHints?: boolean;
+  /** Controlled text (optional) — for syncing with a focused form field. */
+  value?: string;
+  onChangeText?: (text: string) => void;
 };
 
 /**
@@ -161,14 +181,31 @@ function SmartAddBarInner({
   organizationId,
   onSubmit,
   onPickExisting,
+  onApplySuggestion,
+  onPlusPress,
+  externalSuggestions,
+  suggestionsLabel,
+  hideParsePreview = false,
   placeholder,
   autoFocus,
   compactHints = true,
+  value: controlledValue,
+  onChangeText: onControlledChange,
 }: Props) {
   const { colors } = useTheme();
   const { t } = useTranslation();
 
-  const [text, setText] = useState("");
+  const [internalText, setInternalText] = useState("");
+  const text = controlledValue !== undefined ? controlledValue : internalText;
+  const setText = useCallback(
+    (next: string | ((prev: string) => string)) => {
+      const resolved =
+        typeof next === "function" ? next(controlledValue ?? internalText) : next;
+      if (onControlledChange) onControlledChange(resolved);
+      else setInternalText(resolved);
+    },
+    [controlledValue, internalText, onControlledChange],
+  );
   const [listening, setListening] = useState(false);
   const [speech, setSpeech] = useState<SpeechSupport | null>(null);
   const [banglaCaveat, setBanglaCaveat] = useState(false);
@@ -312,24 +349,24 @@ function SmartAddBarInner({
   const resolved = useMemo(() => parsed.map(resolve), [parsed, resolve]);
 
   const suggestions = useMemo((): UnifiedSuggestion[] => {
+    if (externalSuggestions) return externalSuggestions;
     if (!text.trim()) return [];
     const q = parsed[0]?.name ?? text;
     if (!q.trim()) return [];
     try {
       return rankUnifiedSuggestions(q, catalog, {
-        limit: 6,
+        limit: 8,
         minScore: 35,
         userAliases,
       });
     } catch {
       return [];
     }
-  }, [text, parsed, catalog, userAliases]);
+  }, [text, parsed, catalog, userAliases, externalSuggestions]);
 
   const applySuggestion = useCallback(
     (s: UnifiedSuggestion) => {
       const spoken = parsed[0];
-      // Learn: if the typed/spoken name differs, remember it for next time.
       if (
         spoken?.name &&
         normalizeForMatch(spoken.name) !== normalizeForMatch(s.name)
@@ -343,26 +380,54 @@ function SmartAddBarInner({
           if (!row) return;
           setUserAliases((prev) => {
             const rest = prev.filter(
-              (a) => normalizeForMatch(a.phrase) !== normalizeForMatch(row.phrase),
+              (a) =>
+                normalizeForMatch(a.phrase) !== normalizeForMatch(row.phrase),
             );
             return [
-              { phrase: row.phrase, name: row.name, productId: row.product_id },
+              {
+                phrase: row.phrase,
+                name: row.name,
+                productId: row.product_id,
+              },
               ...rest,
             ];
           });
         });
       }
 
-      if (s.productId && onPickExisting) {
-        const product = catalog.find((c) => c._id === s.productId);
-        if (product) {
-          onPickExisting(product);
-          setText("");
-          return;
-        }
+      const product = s.productId
+        ? catalog.find((c) => c._id === s.productId)
+        : undefined;
+
+      // Guided product mode: apply immediately to the form.
+      if (onApplySuggestion) {
+        const base: ParsedItem = spoken ?? {
+          raw: s.name,
+          name: s.name,
+          quantity: null,
+          unit: null,
+          unit_price: null,
+          purchase_price: null,
+          sale_price: null,
+          pricingAmbiguous: false,
+          confidence: "medium",
+        };
+        const item = resolve({ ...base, name: s.name });
+        onApplySuggestion({
+          suggestion: s,
+          item: { ...item, matched: product ?? item.matched },
+          product,
+        });
+        setText(s.name);
+        return;
       }
 
-      // Fill the bar with the canonical name, keep qty/price if we had them.
+      if (s.productId && onPickExisting && product) {
+        onPickExisting(product);
+        setText("");
+        return;
+      }
+
       const parts: string[] = [s.name];
       if (spoken?.quantity != null) {
         parts.push(
@@ -376,10 +441,22 @@ function SmartAddBarInner({
       if (price != null) parts.push(`${price} টাকা`);
       setText(parts.join(" "));
     },
-    [parsed, catalog, onPickExisting, organizationId],
+    [
+      parsed,
+      catalog,
+      onPickExisting,
+      onApplySuggestion,
+      organizationId,
+      resolve,
+      setText,
+    ],
   );
 
   const handleAdd = useCallback(() => {
+    if (onPlusPress) {
+      onPlusPress();
+      return;
+    }
     if (resolved.length === 0) {
       toast.error(t("addAtLeastOneItem"));
       return;
@@ -391,7 +468,7 @@ function SmartAddBarInner({
     }
     onSubmit(usable);
     setText("");
-  }, [resolved, onSubmit, t]);
+  }, [resolved, onSubmit, onPlusPress, t, setText]);
 
   const voiceReady = speech?.available === true;
 
@@ -536,17 +613,22 @@ function SmartAddBarInner({
         </TouchableOpacity>
         <TouchableOpacity
           onPress={handleAdd}
-          disabled={!text.trim()}
+          disabled={onPlusPress ? false : !text.trim()}
           style={{
             width: 46,
             height: 46,
             borderRadius: 12,
             alignItems: "center",
             justifyContent: "center",
-            backgroundColor: text.trim() ? colors.success : colors.bg.tertiary,
+            backgroundColor:
+              onPlusPress || text.trim() ? colors.success : colors.bg.tertiary,
           }}
         >
-          <Ionicons name="add" size={24} color="#fff" />
+          <Ionicons
+            name={onPlusPress ? "arrow-forward" : "add"}
+            size={24}
+            color="#fff"
+          />
         </TouchableOpacity>
       </View>
 
@@ -567,8 +649,8 @@ function SmartAddBarInner({
         </Text>
       ) : null}
 
-      {/* Live parse preview */}
-      {resolved.length > 0 ? (
+      {/* Live parse preview — hidden in guided product mode. */}
+      {!hideParsePreview && resolved.length > 0 ? (
         <View style={{ marginTop: 8, gap: 6 }}>
           {resolved.map((item, index) => {
             const profit = profitFor(item);
@@ -642,11 +724,14 @@ function SmartAddBarInner({
               marginBottom: 4,
             }}
           >
-            {t("pickExisting")}
+            {suggestionsLabel ?? t("pickExisting")}
           </Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
             {suggestions.map((s) => {
-              const isCatalog = s.source === "catalog" || !!s.productId;
+              const isExisting =
+                s.source === "catalog" ||
+                s.source === "alias" ||
+                !!s.productId;
               return (
                 <TouchableOpacity
                   key={`${s.source}:${s.name}:${s.productId ?? ""}`}
@@ -655,22 +740,23 @@ function SmartAddBarInner({
                     paddingHorizontal: 10,
                     paddingVertical: 6,
                     borderRadius: 20,
-                    backgroundColor: isCatalog
-                      ? colors.success + "15"
+                    backgroundColor: isExisting
+                      ? colors.success + "18"
                       : colors.info + "12",
                     borderWidth: 1,
-                    borderColor: isCatalog
-                      ? colors.success + "40"
+                    borderColor: isExisting
+                      ? colors.success + "50"
                       : colors.info + "35",
                   }}
                 >
                   <Text
                     style={{
                       fontSize: 12,
-                      color: isCatalog ? colors.success : colors.info,
+                      fontWeight: isExisting ? "700" : "500",
+                      color: isExisting ? colors.success : colors.info,
                     }}
                   >
-                    {s.label}
+                    {isExisting ? `✓ ${s.label}` : s.label}
                   </Text>
                 </TouchableOpacity>
               );

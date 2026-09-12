@@ -552,6 +552,11 @@ export type AppTranslations = {
   products: string;
   productName: string;
   productNamePlaceholder: string;
+  brand: string;
+  brandOptional: string;
+  brandPlaceholder: string;
+  suggestBrands: string;
+  suggestProducts: string;
   sku: string;
   skuAutoHint: string;
   barcode: string;
@@ -1352,6 +1357,11 @@ const en: AppTranslations = {
   products: "Products",
   productName: "Product Name",
   productNamePlaceholder: "e.g. Basmati Rice 5kg",
+  brand: "Brand",
+  brandOptional: "Brand (optional)",
+  brandPlaceholder: "e.g. Lux, Pran, Fresh",
+  suggestBrands: "Suggested brands",
+  suggestProducts: "Suggestions",
   sku: "SKU",
   skuAutoHint: "SKU (auto-generated if blank)",
   barcode: "Barcode",
@@ -2164,6 +2174,11 @@ const bn: AppTranslations = {
   products: "পণ্যসমূহ",
   productName: "পণ্যের নাম",
   productNamePlaceholder: "যেমন: বাসমতি চাল ৫ কেজি",
+  brand: "ব্র্যান্ড",
+  brandOptional: "ব্র্যান্ড (ঐচ্ছিক)",
+  brandPlaceholder: "যেমন: লাক্স, প্রাণ, ফ্রেশ",
+  suggestBrands: "প্রস্তাবিত ব্র্যান্ড",
+  suggestProducts: "সাজেশন",
   sku: "এসকেইউ",
   skuAutoHint: "এসকেইউ (খালি রাখলে স্বয়ংক্রিয়ভাবে তৈরি হবে)",
   barcode: "বারকোড",

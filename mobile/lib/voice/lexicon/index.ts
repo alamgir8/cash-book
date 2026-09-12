@@ -7,6 +7,8 @@ import {
   __resetLexiconIndexForTests as resetLookupCache,
   buildLexiconIndexFromBlob,
   setDefaultLexiconIndex,
+  suggestBrandsForProduct as suggestBrandsForProductLookup,
+  extractBrandFromName as extractBrandFromNameLookup,
 } from "./lookup";
 
 export {
@@ -19,7 +21,7 @@ export {
 } from "./lookup";
 export type { LexHit, UnifiedSuggestion } from "./lookup";
 export type { LexEntry, LexCategory } from "./format";
-export { parseLexiconBlob, blobByteLength } from "./format";
+export { parseLexiconBlob, parseLexiconFull, blobByteLength } from "./format";
 
 let warmed: ReturnType<typeof buildLexiconIndexFromBlob> | null = null;
 
@@ -30,6 +32,21 @@ export function getLexiconIndex() {
     setDefaultLexiconIndex(warmed);
   }
   return warmed;
+}
+
+/** Brands for the current product title (warms index if needed). */
+export function suggestBrandsForProduct(
+  ...args: Parameters<typeof suggestBrandsForProductLookup>
+) {
+  getLexiconIndex();
+  return suggestBrandsForProductLookup(...args);
+}
+
+export function extractBrandFromName(
+  ...args: Parameters<typeof extractBrandFromNameLookup>
+) {
+  getLexiconIndex();
+  return extractBrandFromNameLookup(...args);
 }
 
 /** Warm the index at app start (optional). */

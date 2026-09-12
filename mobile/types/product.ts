@@ -39,6 +39,7 @@ export interface Product {
   organization?: string;
   admin: string;
   name: string;
+  brand?: string;
   sku?: string;
   barcode?: string;
   description?: string;
@@ -109,6 +110,7 @@ export interface ProductStats {
 export interface CreateProductParams {
   organization?: string;
   name: string;
+  brand?: string;
   sku?: string;
   barcode?: string;
   description?: string;
