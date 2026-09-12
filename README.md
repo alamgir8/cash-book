@@ -463,12 +463,18 @@ Replace `43B8F391-1D7E-51F4-B8C3-7B0552CE18DE` in the install command with the I
 
 ## 🔄 Install an Updated Version Later
 
-When you change code and want the updated app on the iPhone:
+When you change code (or `mobile/.env.local`) and want the updated app on the iPhone:
 
 1. Connect the iPhone to the Mac with USB.
 2. Unlock the iPhone.
 3. Keep Developer Mode ON.
-4. Run the Release build again:
+4. **If you only changed `.env.local`:** delete DerivedData for this app first so Xcode does not reuse an old JS bundle (env is baked into that bundle):
+
+```shell
+rm -rf /Users/alamgirhossain/Library/Developer/Xcode/DerivedData/HisabBoiRelease
+```
+
+5. Run the Release build again **from a shell that can see `mobile/.env.local`** (Expo embeds `EXPO_PUBLIC_*` while bundling):
 
 ```shell
 cd /Users/alamgirhossain/Themeforest/native-apps/cash-book/mobile/ios
@@ -483,7 +489,7 @@ xcodebuild -workspace HisabBoi.xcworkspace \
   build
 ```
 
-1. Install the new Release build:
+6. Install the new Release build:
 
 ```shell
 xcrun devicectl device install app \
@@ -491,9 +497,18 @@ xcrun devicectl device install app \
   /Users/alamgirhossain/Library/Developer/Xcode/DerivedData/HisabBoiRelease/Build/Products/Release-iphoneos/HisabBoi.app
 ```
 
-1. Open **Hisab Boi** on the iPhone.
+7. Open **Hisab Boi** on the iPhone.
 
 The new install replaces the old app. App data normally stays unless you delete the app manually.
+
+**After switching API host (local ↔ Vercel):** open the app → **log out → log in again**. Tokens from the other server return `401` on `/auth/refresh` and `/sync/handshake`, so Sync keeps failing even when the new URL is correct.
+
+**Debug / Metro builds:** you do **not** need a full native rebuild for JS or `.env` — restart Metro with cache clear instead:
+
+```shell
+cd /Users/alamgirhossain/Themeforest/native-apps/cash-book/mobile
+npx expo start --dev-client --clear
+```
 
 ---
 

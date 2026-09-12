@@ -8,6 +8,7 @@ import {
   nowIso,
 } from "@/lib/local-first/ids";
 import { partySignedDelta } from "@/lib/local-first/party-balance";
+import { recalculateAccountRunningBalances } from "../balances";
 
 export type TransactionInput = {
   account_id: string;
@@ -273,6 +274,13 @@ export async function createTransaction(
     input.device_id,
   );
 
+  // Chronological rewrite so Balance after matches the ledger trail (not a
+  // drifted accounts.current_balance snapshot). Skip only when restore/sync
+  // explicitly disables balance side-effects.
+  if (input.applyBalance !== false) {
+    await recalculateAccountRunningBalances(db, input.account_id);
+  }
+
   const row = await getTransactionById(db, id);
   if (!row) throw new Error("Failed to create transaction");
   return row;
@@ -312,6 +320,8 @@ export async function softDeleteTransaction(
       id,
     );
   });
+
+  await recalculateAccountRunningBalances(db, existing.account_id);
 }
 
 export type TransactionUpdatePatch = {
@@ -419,6 +429,12 @@ export async function updateTransaction(
       id,
     );
   });
+
+  const nextAccountId = patch.account_id ?? existing.account_id;
+  await recalculateAccountRunningBalances(db, nextAccountId);
+  if (nextAccountId !== existing.account_id) {
+    await recalculateAccountRunningBalances(db, existing.account_id);
+  }
 
   const row = await getTransactionById(db, id);
   if (!row) throw new Error("Failed to update transaction");
