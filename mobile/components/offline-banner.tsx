@@ -182,8 +182,8 @@ export function OfflineBanner() {
   }, [localFirst, refresh]);
 
   /**
-   * Manual retry from the banner. Verifies reachability first so the user gets
-   * a precise reason instead of a silent no-op, and never blocks their work.
+   * Force sync now. Independent of the daily 08/14/20 schedule — never skips
+   * or delays tomorrow's automatic attempts. App keeps working offline either way.
    */
   const handleRetry = useCallback(async () => {
     if (retrying) return;
@@ -198,17 +198,41 @@ export function OfflineBanner() {
     }
 
     setRetrying(true);
+    setState("syncing");
     try {
       const reachable = await probeBackendAvailable(4000);
       if (!reachable) {
         toast.error(t("backendDownKeepWorking"));
+        setBackendOk(false);
+        setState("server_unavailable");
         return;
       }
+      setBackendOk(true);
       toast.info(t("syncStarted"));
-      await requestSyncNow();
+      const result = await requestSyncNow();
       await refresh();
+      if (result.ok) {
+        toast.success(
+          result.pushed || result.pulled
+            ? t("syncSucceeded")
+            : t("upToDate"),
+          result.pushed || result.pulled
+            ? `↑${result.pushed} ↓${result.pulled}`
+            : undefined,
+        );
+      } else if (result.error && result.error !== "Cloud sync disabled") {
+        toast.error(
+          t("syncFailedKeepWorking"),
+          result.error.length > 160
+            ? `${result.error.slice(0, 160)}…`
+            : result.error,
+        );
+      } else {
+        toast.error(t("syncFailedKeepWorking"));
+      }
     } catch {
       toast.error(t("syncFailedKeepWorking"));
+      await refresh();
     } finally {
       setRetrying(false);
     }

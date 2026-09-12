@@ -7,23 +7,55 @@ import {
   subscribeLocalFirstFlags,
 } from "@/lib/local-first/flags";
 import { localDayKey } from "@/lib/local-first/day-key";
+import {
+  DAILY_SYNC_HOURS,
+  nextDueSyncHour,
+} from "@/lib/local-first/daily-schedule";
 
-export { localDayKey };
+export { localDayKey, DAILY_SYNC_HOURS, nextDueSyncHour };
 
-const LAST_DAILY_KEY = "@lf_last_daily_job_ymd";
+const SLOTS_KEY = "@lf_daily_sync_slots_v1";
+const DRIVE_DAY_KEY = "@lf_daily_drive_ymd";
 
-/** True after local midnight until we've recorded today's job. */
-export async function isDailyJobDue(): Promise<boolean> {
+type SlotState = { ymd: string; done: number[] };
+
+async function readSlotState(): Promise<SlotState> {
+  const ymd = localDayKey();
   try {
-    const last = await AsyncStorage.getItem(LAST_DAILY_KEY);
-    return last !== localDayKey();
+    const raw = await AsyncStorage.getItem(SLOTS_KEY);
+    if (!raw) return { ymd, done: [] };
+    const parsed = JSON.parse(raw) as SlotState;
+    if (parsed?.ymd !== ymd || !Array.isArray(parsed.done)) {
+      return { ymd, done: [] };
+    }
+    return {
+      ymd,
+      done: parsed.done.map(Number).filter((n) => Number.isFinite(n)),
+    };
   } catch {
-    return true;
+    return { ymd, done: [] };
   }
 }
 
-export async function markDailyJobDone(): Promise<void> {
-  await AsyncStorage.setItem(LAST_DAILY_KEY, localDayKey());
+async function markSlotAttempted(hour: number): Promise<void> {
+  const state = await readSlotState();
+  if (!state.done.includes(hour)) state.done.push(hour);
+  await AsyncStorage.setItem(
+    SLOTS_KEY,
+    JSON.stringify({ ymd: localDayKey(), done: state.done }),
+  );
+}
+
+async function driveDoneToday(): Promise<boolean> {
+  try {
+    return (await AsyncStorage.getItem(DRIVE_DAY_KEY)) === localDayKey();
+  } catch {
+    return false;
+  }
+}
+
+async function markDriveDoneToday(): Promise<void> {
+  await AsyncStorage.setItem(DRIVE_DAY_KEY, localDayKey());
 }
 
 let started = false;
@@ -33,60 +65,80 @@ let timer: ReturnType<typeof setInterval> | null = null;
 let running = false;
 
 /**
- * Once per local day (after midnight), when the app is active:
- * 1) Mongo sync (if Cloud sync ON)
- * 2) Drive dated backup (if Drive backups ON)
+ * Scheduled local-first maintenance while the app is active:
+ * 1) Cloud sync at DAILY_SYNC_HOURS (if Cloud sync ON)
+ * 2) Drive dated backup once/day (if Drive backups ON)
  *
- * iOS/Android do not guarantee true background midnight wakes without
- * push/BGTask — this runs on foreground + a 15‑minute poll while active.
+ * Rules (product):
+ * - App works offline by default; backend may be down for days/weeks.
+ * - Each slot is attempted once per local day (success OR fail), then we
+ *   wait for the next slot or the same slots tomorrow — forever.
+ * - Manual banner Sync is independent and never clears/skips this schedule.
+ *
+ * iOS/Android do not guarantee background midnight wakes — this runs on
+ * foreground + a short poll while the app is open.
  */
 export async function runDailyLocalFirstJobs(
   reason: string,
-): Promise<{ ran: boolean; sync?: boolean; drive?: boolean }> {
+): Promise<{ ran: boolean; sync?: boolean; drive?: boolean; slot?: number }> {
   if (running) return { ran: false };
   if (!isLocalFirstEnabled()) return { ran: false };
-  if (!(await isDailyJobDue())) return { ran: false };
 
   running = true;
   let synced = false;
   let drove = false;
+  let slot: number | undefined;
   try {
     if (isCloudSyncEnabled()) {
-      try {
-        const { runSync } = await import("@/sync/engine");
-        const result = await runSync();
-        synced = result.ok;
-        if (!result.ok) {
-          console.warn(`[daily-jobs] sync ${reason}`, result.error);
-        } else if (result.pulled > 0 || result.pushed > 0) {
-          const { queryClient } = await import("@/lib/queryClient");
-          await queryClient.invalidateQueries({ refetchType: "active" });
+      const state = await readSlotState();
+      const due = nextDueSyncHour(new Date(), state.done);
+      if (due != null) {
+        slot = due;
+        try {
+          // Goes through the scheduler so we share in-flight with manual Sync
+          // (wait, don't skip) without touching daily slot bookkeeping from
+          // the manual path.
+          const { requestDailySync } = await import("@/sync/scheduler");
+          const result = await requestDailySync();
+          synced = result.ok;
+          if (!result.ok && __DEV__) {
+            console.warn(
+              `[daily-jobs] sync slot ${due}h (${reason}):`,
+              result.error,
+            );
+          }
+        } catch (e) {
+          if (__DEV__) console.warn(`[daily-jobs] sync slot ${due}h`, e);
         }
-      } catch (e) {
-        console.warn(`[daily-jobs] sync ${reason}`, e);
+        // Always consume the slot — fail today ≠ skip tomorrow's same hour.
+        await markSlotAttempted(due);
       }
     }
 
-    if (isDriveBackupEnabled()) {
+    if (isDriveBackupEnabled() && !(await driveDoneToday())) {
       try {
         const { maybeUploadDriveBackup } = await import(
           "@/services/drive-scheduler"
         );
         const result = await maybeUploadDriveBackup("daily");
         drove = result.ok;
-        if (!result.ok && result.error !== "skipped") {
+        // Record the day either way so we don't loop Drive all day; next try tomorrow.
+        await markDriveDoneToday();
+        if (!result.ok && result.error !== "skipped" && __DEV__) {
           console.warn(`[daily-jobs] drive ${reason}`, result.error);
         }
       } catch (e) {
-        console.warn(`[daily-jobs] drive ${reason}`, e);
+        await markDriveDoneToday();
+        if (__DEV__) console.warn(`[daily-jobs] drive ${reason}`, e);
       }
     }
 
-    // One attempt per local day — success or not. Next try is tomorrow.
-    // Manual "Sync now" remains available anytime.
-    await markDailyJobDone();
-
-    return { ran: true, sync: synced, drive: drove };
+    return {
+      ran: slot != null || drove,
+      sync: synced,
+      drive: drove,
+      slot,
+    };
   } finally {
     running = false;
   }
@@ -112,7 +164,7 @@ export function startDailyLocalFirstJobs(): () => void {
   started = true;
 
   appStateSub = AppState.addEventListener("change", onAppState);
-  // Poll while app is open so we catch midnight without requiring a relaunch.
+  // Poll while open so we hit 08/14/20 without needing a relaunch at that minute.
   timer = setInterval(() => {
     if (AppState.currentState === "active") {
       void runDailyLocalFirstJobs("poll");

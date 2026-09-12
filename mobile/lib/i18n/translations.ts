@@ -793,6 +793,7 @@ export type AppTranslations = {
   retrySync: string;
   syncingNow: string;
   syncStarted: string;
+  syncSucceeded: string;
   syncFailedKeepWorking: string;
   deviceOfflineKeepWorking: string;
   backendDownKeepWorking: string;
@@ -1605,6 +1606,7 @@ const en: AppTranslations = {
   retrySync: "Sync",
   syncingNow: "Syncing…",
   syncStarted: "Syncing now…",
+  syncSucceeded: "Synced",
   syncFailedKeepWorking:
     "Sync failed. Please wait — your work is saved and will sync automatically later.",
   deviceOfflineKeepWorking:
@@ -2420,6 +2422,7 @@ const bn: AppTranslations = {
   retrySync: "সিঙ্ক",
   syncingNow: "সিঙ্ক হচ্ছে…",
   syncStarted: "এখন সিঙ্ক হচ্ছে…",
+  syncSucceeded: "সিঙ্ক হয়েছে",
   syncFailedKeepWorking:
     "সিঙ্ক ব্যর্থ হয়েছে। অপেক্ষা করুন — আপনার কাজ সংরক্ষিত আছে, পরে স্বয়ংক্রিয়ভাবে সিঙ্ক হবে।",
   deviceOfflineKeepWorking:

@@ -213,9 +213,46 @@ test("scheduler exports mutation + backoff sync entry points", () => {
   );
   assert.match(src, /export function requestSyncSoon/);
   assert.match(src, /export function requestSyncNow/);
+  assert.match(src, /export function requestDailySync/);
   assert.match(src, /BACKOFF_STEPS_MS/);
   assert.match(src, /probeBackendAvailable/);
   assert.match(src, /reconnect/);
+  // Manual sync must return SyncResult (not void) so the banner can toast errors.
+  assert.match(src, /Promise<SyncResult>/);
+  assert.match(src, /inFlight/);
+  assert.match(src, /PENDING_RETRY_MS/);
+  // Manual must not clear daily slots (comment contract).
+  assert.match(src, /Does NOT touch daily slot/);
+});
+
+test("daily sync slots retry forever (success or fail → next day same hours)", async () => {
+  const { nextDueSyncHour, DAILY_SYNC_HOURS } = await import(
+    "../daily-schedule.ts"
+  );
+  assert.deepEqual([...DAILY_SYNC_HOURS], [8, 14, 20]);
+
+  const morning = new Date("2026-09-12T09:30:00");
+  assert.equal(nextDueSyncHour(morning, []), 8);
+  assert.equal(nextDueSyncHour(morning, [8]), null);
+
+  const afternoon = new Date("2026-09-12T15:00:00");
+  assert.equal(nextDueSyncHour(afternoon, [8]), 14);
+  assert.equal(nextDueSyncHour(afternoon, [8, 14]), null);
+
+  const evening = new Date("2026-09-12T21:00:00");
+  assert.equal(nextDueSyncHour(evening, [8, 14]), 20);
+  assert.equal(nextDueSyncHour(evening, [8, 14, 20]), null);
+
+  // Early morning before first slot — nothing due yet.
+  const before = new Date("2026-09-12T07:00:00");
+  assert.equal(nextDueSyncHour(before, []), null);
+
+  const jobs = readFileSync(join(__dirname, "../daily-jobs.ts"), "utf8");
+  // Slot is consumed after attempt whether sync worked — never blocks tomorrow.
+  assert.match(jobs, /markSlotAttempted/);
+  assert.match(jobs, /requestDailySync/);
+  // Manual path is explicitly independent.
+  assert.match(jobs, /Manual banner Sync/);
 });
 
 test("backend sync applies account \$inc on transaction push", () => {
@@ -1435,6 +1472,9 @@ test("offline banner exposes a manual retry action", () => {
   // Offline must be explained, not silently ignored.
   assert.match(banner, /deviceOfflineKeepWorking/);
   assert.match(banner, /backendDownKeepWorking/);
+  // Manual path must toast the real SyncResult (success or error).
+  assert.match(banner, /syncSucceeded|upToDate/);
+  assert.match(banner, /result\.ok/);
   // The button is hidden while syncing (nothing to retry).
   assert.match(banner, /RETRYABLE/);
   // Banner is tab-only so add/edit screens keep vertical space for the keyboard.
