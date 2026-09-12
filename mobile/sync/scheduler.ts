@@ -171,8 +171,8 @@ async function maybeSync(reason: SyncReason): Promise<SyncResult> {
         const missingApi = /not on this server|resource not found/i.test(
           result.error || "",
         );
-        // "already running" inside engine should be rare now that we share inFlight.
-        if (result.error === "Sync already running") {
+        // "already running" is no longer returned — engine joins in-flight.
+        if (result.error === "Sync paused while migrating — try again in a moment") {
           return result;
         }
         if (missingApi) {

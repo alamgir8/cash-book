@@ -20,7 +20,8 @@ import {
   type LocalFirstFlags,
 } from "@/lib/local-first/flags";
 import { migrateCloudToLocal } from "@/services/migrate-cloud";
-import { runSync, getSyncStatus } from "@/sync/engine";
+import { getSyncStatus } from "@/sync/engine";
+import { requestSyncNow } from "@/sync/scheduler";
 import {
   getDriveAccessToken,
   listDriveBackupDates,
@@ -116,7 +117,8 @@ export function LocalFirstSection() {
     async (force = false) => {
       setBusy("migrate");
       try {
-        await warmLocalFirstRuntime();
+        // Do NOT warm/sync here — that raced migrate and left Sync locked.
+        // migrateCloudToLocal pauses sync, imports, then aligns openings.
         const result = await migrateCloudToLocal({ force });
         if (!result.migrated) {
           Toast.show({ type: "info", text1: "Already migrated" });
@@ -149,6 +151,7 @@ export function LocalFirstSection() {
             e?.response?.data?.message ||
             e?.message ||
             "Check you are logged in and online",
+          visibilityTime: 8000,
         });
       } finally {
         setBusy(null);
@@ -192,7 +195,7 @@ export function LocalFirstSection() {
       // Kick an immediate sync so the toggle doesn't leave a stale Network Error.
       void (async () => {
         try {
-          const result = await runSync();
+          const result = await requestSyncNow();
           await refreshStatus();
           if (result.ok) {
             await refreshLocalQueries();
@@ -201,7 +204,12 @@ export function LocalFirstSection() {
               text1: "Cloud sync on",
               text2: `↑${result.pushed} ↓${result.pulled}`,
             });
-          } else if (result.error && result.error !== "Sync already running") {
+          } else if (
+            result.error &&
+            !/paused while migrating|Up to date|Nothing pending/i.test(
+              result.error,
+            )
+          ) {
             Toast.show({
               type: "error",
               text1: "Sync failed",
@@ -250,18 +258,21 @@ export function LocalFirstSection() {
   const onSync = async () => {
     setBusy("sync");
     try {
-      const result = await runSync();
+      // Join the shared scheduler cycle — never toast "already running".
+      const result = await requestSyncNow();
       if (result.ok) {
         Toast.show({
           type: "success",
           text1: "Synced",
           text2: `↑${result.pushed} ↓${result.pulled}`,
         });
+        await refreshLocalQueries();
       } else {
         Toast.show({
           type: "error",
           text1: "Sync failed",
           text2: result.error,
+          visibilityTime: 7000,
         });
       }
       await refreshStatus();
