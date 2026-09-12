@@ -93,7 +93,10 @@ export default function CreateProductScreen() {
       const item = items[0];
       if (!item) return;
       setValue("name", item.name);
-      if (item.unit && (PRODUCT_UNIT_VALUES as readonly string[]).includes(item.unit)) {
+      if (
+        item.unit &&
+        (PRODUCT_UNIT_VALUES as readonly string[]).includes(item.unit)
+      ) {
         setValue("unit", item.unit as (typeof PRODUCT_UNIT_VALUES)[number]);
       }
       if (item.quantity !== null) {
@@ -144,6 +147,7 @@ export default function CreateProductScreen() {
         title={t("addProduct")}
         showBack
         icon="help-circle-outline"
+        style="pb-1 pt-0"
         onIconPress={() =>
           Alert.alert(
             t("speakOrType"),
@@ -172,12 +176,20 @@ export default function CreateProductScreen() {
       <KeyboardAwareScrollView
         style={{ flex: 1 }}
         {...scrollProps}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 24 }}
+        contentContainerStyle={{
+          paddingHorizontal: 16,
+          paddingTop: 8,
+          paddingBottom: 24,
+        }}
       >
         {/* Basic Info */}
         <SectionTitle title="Basic Information" colors={colors} />
 
-        <Field label={`${t("productName")} *`} colors={colors} error={errors.name?.message}>
+        <Field
+          label={`${t("productName")} *`}
+          colors={colors}
+          error={errors.name?.message}
+        >
           <Controller
             control={control}
             name="name"
@@ -524,7 +536,9 @@ export default function CreateProductScreen() {
           {mutation.isPending ? (
             <View className="flex-row items-center gap-2">
               <ActivityIndicator color="#fff" />
-              <Text className="text-white font-bold text-base">{t("saving")}</Text>
+              <Text className="text-white font-bold text-base">
+                {t("saving")}
+              </Text>
             </View>
           ) : (
             <View className="flex-row items-center gap-2">

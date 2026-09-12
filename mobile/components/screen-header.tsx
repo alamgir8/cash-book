@@ -13,6 +13,7 @@ interface ScreenHeaderProps {
   gradientFrom?: string;
   gradientTo?: string;
   showBack?: boolean;
+  style?: string;
   onBack?: () => void;
   /** Used when stack has no history (avoids GO_BACK hang) */
   backFallback?: string;
@@ -35,6 +36,7 @@ export function ScreenHeader({
   backgroundColor = "#ffffff",
   showBack,
   onBack,
+  style,
   backFallback = "/(app)/settings",
   onIconPress,
   onTitlePress,
@@ -59,7 +61,7 @@ export function ScreenHeader({
           backgroundColor === "#ffffff" ? colors.bg.primary : backgroundColor,
         borderColor: colors.border,
       }}
-      className="pb-3 pt-4 px-5 shadow-sm border-b"
+      className={`pb-3 pt-4 px-5 shadow-sm border-b ${style}`}
     >
       <View className="flex-row items-center justify-between">
         {showBack && (
