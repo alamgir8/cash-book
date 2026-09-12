@@ -138,9 +138,6 @@ export async function recalculateCashBalancesOnly(
     `SELECT id FROM accounts WHERE ${sql} AND deleted_at IS NULL`,
     ...params,
   );
-  for (const account of accounts) {
-    await recalculateAccountCashBalance(db, account.id);
-  }
 
   const parties = await db.getAllAsync<{
     id: string;
@@ -152,25 +149,32 @@ export async function recalculateCashBalancesOnly(
     ...params,
   );
 
-  for (const party of parties) {
-    const serverId = party.server_id || party.id;
-    const sign = partyBalanceSumSql(party.type, "amount", "type");
-    const sum = await db.getFirstAsync<{ net: number | null }>(
-      `SELECT COALESCE(SUM(${sign}), 0) as net
-       FROM transactions
-       WHERE deleted_at IS NULL
-         AND ${paidClause()}
-         AND (party_id = ? OR party_id = ?)`,
-      party.id,
-      serverId,
-    );
-    const current = Number(party.opening_balance) + Number(sum?.net ?? 0);
-    await db.runAsync(
-      `UPDATE parties SET current_balance = ? WHERE id = ?`,
-      current,
-      party.id,
-    );
-  }
+  const { withDbTransaction } = await import("@/db/client");
+  await withDbTransaction(db, async () => {
+    for (const account of accounts) {
+      await recalculateAccountCashBalance(db, account.id);
+    }
+
+    for (const party of parties) {
+      const serverId = party.server_id || party.id;
+      const sign = partyBalanceSumSql(party.type, "amount", "type");
+      const sum = await db.getFirstAsync<{ net: number | null }>(
+        `SELECT COALESCE(SUM(${sign}), 0) as net
+         FROM transactions
+         WHERE deleted_at IS NULL
+           AND ${paidClause()}
+           AND (party_id = ? OR party_id = ?)`,
+        party.id,
+        serverId,
+      );
+      const current = Number(party.opening_balance) + Number(sum?.net ?? 0);
+      await db.runAsync(
+        `UPDATE parties SET current_balance = ? WHERE id = ?`,
+        current,
+        party.id,
+      );
+    }
+  });
 
   return { accounts: accounts.length, parties: parties.length };
 }

@@ -126,7 +126,7 @@ export function FormSheetModal({
         <TouchableOpacity
           activeOpacity={1}
           onPress={handleClose}
-          style={StyleSheet.absoluteFillObject}
+          style={StyleSheet.absoluteFill}
         />
 
         <View

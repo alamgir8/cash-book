@@ -458,6 +458,7 @@ async function applyIncoming(change: SyncChange) {
       // opening_balance stuck at 0 while Mongo has the real opening.
       if (
         change.entity === "account" &&
+        "opening_balance" in existing &&
         payload?.opening_balance != null &&
         Math.abs(Number(existing.opening_balance) || 0) < 0.0001 &&
         Math.abs(Number(payload.opening_balance)) > 0.0001
@@ -714,9 +715,16 @@ export async function runSync(): Promise<SyncResult> {
       timeout: 120000,
     });
 
-    for (let i = 0; i < (pull.changes?.length ?? 0); i++) {
-      if (i % 25 === 0) assertSyncNotPaused();
-      await applyIncoming(pull.changes![i]);
+    const totalChanges = pull.changes?.length ?? 0;
+    const { withDbTransaction } = await import("@/db/client");
+    for (let i = 0; i < totalChanges; i += 50) {
+      assertSyncNotPaused();
+      const chunk = pull.changes!.slice(i, i + 50);
+      await withDbTransaction(db, async () => {
+        for (const change of chunk) {
+          await applyIncoming(change);
+        }
+      });
     }
 
     await setMeta(db, META_KEYS.SYNC_STAGE, "ack");

@@ -107,7 +107,7 @@ export function BarcodeScannerModal({
         ) : (
           <>
             <CameraView
-              style={StyleSheet.absoluteFillObject}
+              style={StyleSheet.absoluteFill}
               facing="back"
               enableTorch={torchOn}
               barcodeScannerSettings={{
@@ -202,7 +202,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   overlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 1,
     pointerEvents: "none",
   },
@@ -222,7 +222,7 @@ const styles = StyleSheet.create({
   },
   hintText: { color: "#fff", fontSize: 14, fontWeight: "500" },
   scannedOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(0,0,0,0.3)",

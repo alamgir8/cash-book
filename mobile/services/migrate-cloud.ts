@@ -515,51 +515,54 @@ async function alignOpeningsFromBackupAccounts(
   db: Awaited<ReturnType<typeof getDb>>,
   accounts: any[],
 ): Promise<number> {
+  const { withDbTransaction } = await import("@/db/client");
   const PAID_SQL = `(payment_status = 'paid' OR payment_status IS NULL OR payment_status = '')`;
   let updated = 0;
-  for (const a of accounts) {
-    const sid = rowId(a);
-    if (!sid) continue;
-    const cloudCurrent = Number(a.current_balance ?? a.balance);
-    if (!Number.isFinite(cloudCurrent)) continue;
+  await withDbTransaction(db, async () => {
+    for (const a of accounts) {
+      const sid = rowId(a);
+      if (!sid) continue;
+      const cloudCurrent = Number(a.current_balance ?? a.balance);
+      if (!Number.isFinite(cloudCurrent)) continue;
 
-    const local = await db.getFirstAsync<{
-      id: string;
-      server_id: string | null;
-    }>(
-      `SELECT id, server_id FROM accounts
-       WHERE deleted_at IS NULL AND (id = ? OR server_id = ?)
-       LIMIT 1`,
-      sid,
-      sid,
-    );
-    if (!local) continue;
+      const local = await db.getFirstAsync<{
+        id: string;
+        server_id: string | null;
+      }>(
+        `SELECT id, server_id FROM accounts
+         WHERE deleted_at IS NULL AND (id = ? OR server_id = ?)
+         LIMIT 1`,
+        sid,
+        sid,
+      );
+      if (!local) continue;
 
-    const serverId = local.server_id || local.id;
-    const sum = await db.getFirstAsync<{
-      paid_debit: number;
-      paid_credit: number;
-    }>(
-      `SELECT
-         COALESCE(SUM(CASE WHEN type = 'debit' AND ${PAID_SQL} THEN amount ELSE 0 END), 0) as paid_debit,
-         COALESCE(SUM(CASE WHEN type = 'credit' AND ${PAID_SQL} THEN amount ELSE 0 END), 0) as paid_credit
-       FROM transactions
-       WHERE deleted_at IS NULL
-         AND (account_id = ? OR account_id = ?)`,
-      local.id,
-      serverId,
-    );
-    const paidNet =
-      Number(sum?.paid_credit ?? 0) - Number(sum?.paid_debit ?? 0);
-    const opening = cloudCurrent - paidNet;
-    await db.runAsync(
-      `UPDATE accounts SET opening_balance = ?, current_balance = ? WHERE id = ?`,
-      opening,
-      cloudCurrent,
-      local.id,
-    );
-    updated += 1;
-  }
+      const serverId = local.server_id || local.id;
+      const sum = await db.getFirstAsync<{
+        paid_debit: number;
+        paid_credit: number;
+      }>(
+        `SELECT
+           COALESCE(SUM(CASE WHEN type = 'debit' AND ${PAID_SQL} THEN amount ELSE 0 END), 0) as paid_debit,
+           COALESCE(SUM(CASE WHEN type = 'credit' AND ${PAID_SQL} THEN amount ELSE 0 END), 0) as paid_credit
+         FROM transactions
+         WHERE deleted_at IS NULL
+           AND (account_id = ? OR account_id = ?)`,
+        local.id,
+        serverId,
+      );
+      const paidNet =
+        Number(sum?.paid_credit ?? 0) - Number(sum?.paid_debit ?? 0);
+      const opening = cloudCurrent - paidNet;
+      await db.runAsync(
+        `UPDATE accounts SET opening_balance = ?, current_balance = ? WHERE id = ?`,
+        opening,
+        cloudCurrent,
+        local.id,
+      );
+      updated += 1;
+    }
+  });
   return updated;
 }
 
@@ -774,12 +777,21 @@ export async function migrateCloudToLocal(opts?: {
 
   try {
     progress("Downloading ledger from cloud…");
-    // Prefer paginated APIs. `/backup/export` often dies on Vercel (~30–60s
-    // function limit) and only wasted time before falling back.
-    let bundle = await assembleLedgerFromApis(progress);
+    const { baseURL: apiBase } = await import("@/lib/api");
+    const serverless = /vercel\.app|netlify\.app/i.test(String(apiBase || ""));
+
+    // LAN / dedicated server: one full /backup/export is fastest and correct.
+    // Vercel: skip export (function time limit) → paginated lean APIs.
+    let bundle = serverless
+      ? null
+      : await tryBackupExport(20_000);
+    if (!bundle || (!bundle.transactions?.length && !bundle.accounts?.length)) {
+      if (!serverless) progress("Export empty — using paginated APIs…");
+      bundle = await assembleLedgerFromApis(progress);
+    }
     if (!bundle.transactions?.length && !bundle.accounts?.length) {
       progress("Trying full backup export…");
-      bundle = (await tryBackupExport(25_000)) || bundle;
+      bundle = (await tryBackupExport(20_000)) || bundle;
     }
 
     const backupAccounts = bundle.accounts ?? [];
@@ -799,9 +811,27 @@ export async function migrateCloudToLocal(opts?: {
     }
 
     if (!txnById.size && !backupAccounts.length) {
-      throw new Error(
-        "Cloud returned no ledger data — check login / API, then try again",
-      );
+      // Empty cloud book is valid for fresh installs / new signups
+      const completedAt = new Date().toISOString();
+      const db = await getDb();
+      await setMeta(db, META_KEYS.MIGRATION_COMPLETED_AT, completedAt);
+      await setMeta(db, META_KEYS.LAST_SYNC_CURSOR, completedAt);
+      await setMeta(db, META_KEYS.SYNC_SCOPE_VERSION, "2");
+      await setMeta(db, META_KEYS.LAST_SYNC_ERROR, null);
+      await setLocalFirstFlags({
+        localFirstEnabled: true,
+        migrationCompletedAt: completedAt,
+      });
+      return {
+        migrated: true,
+        summary: {
+          accountsCount: 0,
+          categoriesCount: 0,
+          partiesCount: 0,
+          transactionsCount: 0,
+          transfersCount: 0,
+        },
+      };
     }
 
     const data = {
@@ -904,9 +934,13 @@ let initialMigrateInFlight: Promise<{
   error?: string;
 }> | null = null;
 
+export function resetInitialMigrateInFlight(): void {
+  initialMigrateInFlight = null;
+}
+
 /**
- * First login / fresh install: download the full cloud ledger into SQLite once,
- * then the app works local-first. Safe to call from app root — single-flight.
+ * First login / fresh install: fill empty SQLite once, then local-first.
+ * Prefer Drive full backup, then cloud APIs. Single-flight.
  */
 export async function ensureInitialCloudMigration(opts?: {
   onProgress?: (message: string) => void;
@@ -920,37 +954,21 @@ export async function ensureInitialCloudMigration(opts?: {
 
   initialMigrateInFlight = (async () => {
     try {
-      await loadLocalFirstFlags();
-      const flags = getLocalFirstFlagsSync();
-      if (!flags.localFirstEnabled) {
-        return { migrated: false, skipped: true };
-      }
-
-      const { getDb } = await import("@/db/client");
-      const db = await getDb();
-      const row = await db.getFirstAsync<{ n: number }>(
-        `SELECT COUNT(*) as n FROM transactions WHERE deleted_at IS NULL`,
+      const { bootstrapLedgerIfEmpty } = await import(
+        "@/lib/local-first/bootstrap-ledger"
       );
-      const txnCount = Number(row?.n ?? 0);
-
-      // Already have a real book on device.
-      if (flags.migrationCompletedAt && txnCount >= 50) {
-        return { migrated: false, skipped: true };
-      }
-
-      opts?.onProgress?.(
-        txnCount === 0
-          ? "First launch — downloading your ledger…"
-          : "Local copy incomplete — re-downloading…",
-      );
-
-      const result = await migrateCloudToLocal({
-        force: Boolean(flags.migrationCompletedAt) || txnCount > 0,
+      const result = await bootstrapLedgerIfEmpty({
         onProgress: opts?.onProgress,
       });
-      return result;
+      return {
+        migrated: result.bootstrapped,
+        skipped: result.skipped,
+        summary: result.summary,
+        error: result.error,
+      };
     } catch (e: any) {
-      const error = e?.response?.data?.message || e?.message || "Migration failed";
+      const error =
+        e?.response?.data?.message || e?.message || "Migration failed";
       console.warn("[migrate] ensureInitialCloudMigration failed", error);
       return { migrated: false, error: String(error) };
     } finally {

@@ -10,7 +10,7 @@ import {
   resolveApiHost,
 } from "./local-first/api-host";
 
-const API_PORT = 4000;
+const API_PORT = Number(process.env.EXPO_PUBLIC_API_PORT || 5050);
 const API_PATH = "/api";
 
 const normalizeUrl = (value?: string | null) => {
@@ -97,7 +97,7 @@ const getBaseURL = () => {
 
   const explicit =
     normalizeUrl(Constants.expoConfig?.extra?.apiBaseUrl) ??
-    normalizeUrl(Constants.manifest?.extra?.apiBaseUrl);
+    normalizeUrl((Constants.manifest as any)?.extra?.apiBaseUrl);
   if (explicit) {
     return explicit;
   }
@@ -105,7 +105,7 @@ const getBaseURL = () => {
   const hostCandidates = [
     Constants.expoConfig?.extra?.apiHost,
     Constants.expoConfig?.hostUri,
-    Constants.manifest?.debuggerHost,
+    (Constants.manifest as any)?.debuggerHost,
     NativeModules.SourceCode?.scriptURL,
   ];
 

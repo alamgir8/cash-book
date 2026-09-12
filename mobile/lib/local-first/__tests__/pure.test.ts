@@ -336,6 +336,18 @@ test("migrate uses paginated APIs when backup export is too slow", () => {
   assert.match(src, /limit = 500/);
 });
 
+test("empty SQLite bootstrap prefers Drive then cloud, then local-first", () => {
+  const src = readFileSync(
+    join(__dirname, "../bootstrap-ledger.ts"),
+    "utf8",
+  );
+  assert.match(src, /bootstrapLedgerIfEmpty/);
+  assert.match(src, /restoreFromDriveFile/);
+  assert.match(src, /migrateCloudToLocal/);
+  assert.match(src, /LAST_SYNC_CURSOR/);
+  assert.match(src, /accounts > 0 && stats\.transactions > 0/);
+});
+
 test("app root auto-downloads ledger after login", () => {
   const layout = readFileSync(
     join(__dirname, "../../../app/_layout.tsx"),
@@ -343,7 +355,7 @@ test("app root auto-downloads ledger after login", () => {
   );
   const boot = readFileSync(join(__dirname, "../bootstrap.ts"), "utf8");
   assert.match(layout, /bootstrapCloudLedgerIfNeeded/);
-  assert.match(boot, /ensureInitialCloudMigration/);
+  assert.match(boot, /bootstrapLedgerIfEmpty/);
 });
 
 test("backend sync applies account \$inc on transaction push", () => {

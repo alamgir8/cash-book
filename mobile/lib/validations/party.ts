@@ -9,7 +9,7 @@ export const partyFormSchema = z.object({
     .min(2, "Name must be at least 2 characters")
     .max(100, "Name must be less than 100 characters"),
   type: z.enum(["customer", "supplier", "both"], {
-    required_error: "Party type is required",
+    message: "Party type is required",
   }),
   code: z.string().optional(),
   phone: z.string().optional(),
