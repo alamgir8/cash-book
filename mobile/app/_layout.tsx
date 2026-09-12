@@ -176,7 +176,7 @@ const RootContent = () => {
         setLedgerProgress("Opening app…");
         setLedgerReady(true);
       }
-    }, 125_000);
+    }, 15_000);
 
     void bootstrapCloudLedgerIfNeeded((msg) => {
       if (!cancelled) setLedgerProgress(msg);
@@ -184,8 +184,14 @@ const RootContent = () => {
       .catch((e) => {
         console.warn("[root] ledger bootstrap failed", e);
       })
-      .finally(() => {
+      .finally(async () => {
         clearTimeout(failOpen);
+        try {
+          const { queryClient } = await import("@/lib/queryClient");
+          await queryClient.invalidateQueries();
+        } catch {
+          /* ignore */
+        }
         if (!cancelled) setLedgerReady(true);
       });
     return () => {
@@ -254,10 +260,7 @@ const RootContent = () => {
       edges={["top"]}
       style={{ flex: 1, backgroundColor: colors.bg.primary }}
     >
-      <StatusBar
-        style={isDark ? "light" : "dark"}
-        backgroundColor={colors.bg.primary}
-      />
+      <StatusBar style={isDark ? "light" : "dark"} />
       <OfflineBanner />
       <SessionLockGate>
         <Stack screenOptions={{ headerShown: false }} />

@@ -1,4 +1,6 @@
-import { router, type Router } from "expo-router";
+import { router } from "expo-router";
+
+type RouterType = typeof router;
 
 /**
  * Safe back navigation — avoids the Expo "GO_BACK was not handled" error
@@ -6,7 +8,7 @@ import { router, type Router } from "expo-router";
  */
 export function safeGoBack(
   fallback: string = "/(app)/settings",
-  nav: Pick<Router, "canGoBack" | "back" | "replace"> = router,
+  nav: Pick<RouterType, "canGoBack" | "back" | "replace"> = router,
 ) {
   try {
     if (typeof nav.canGoBack === "function" && nav.canGoBack()) {

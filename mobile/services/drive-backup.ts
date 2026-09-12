@@ -18,6 +18,8 @@ import {
   setDriveTokenBundle,
 } from "@/services/drive-auth";
 
+export { getValidDriveAccessToken };
+
 const DRIVE_ROOT_FOLDER = "HisabBoi";
 /** Keep this many dated backup JSON files on Drive (oldest deleted). */
 export const DRIVE_RETENTION_COUNT = 30;

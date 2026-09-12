@@ -458,6 +458,7 @@ async function applyIncoming(change: SyncChange) {
       // opening_balance stuck at 0 while Mongo has the real opening.
       if (
         change.entity === "account" &&
+        "opening_balance" in existing &&
         payload?.opening_balance != null &&
         Math.abs(Number(existing.opening_balance) || 0) < 0.0001 &&
         Math.abs(Number(payload.opening_balance)) > 0.0001

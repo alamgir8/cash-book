@@ -26,5 +26,5 @@ export function useThemeStatusBar() {
 export function ThemedStatusBar() {
   const { isDark } = useTheme();
 
-  return <StatusBar style={isDark ? "light" : "dark"} translucent={false} />;
+  return <StatusBar style={isDark ? "light" : "dark"} />;
 }

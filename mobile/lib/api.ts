@@ -97,7 +97,7 @@ const getBaseURL = () => {
 
   const explicit =
     normalizeUrl(Constants.expoConfig?.extra?.apiBaseUrl) ??
-    normalizeUrl(Constants.manifest?.extra?.apiBaseUrl);
+    normalizeUrl((Constants.manifest as any)?.extra?.apiBaseUrl);
   if (explicit) {
     return explicit;
   }
@@ -105,7 +105,7 @@ const getBaseURL = () => {
   const hostCandidates = [
     Constants.expoConfig?.extra?.apiHost,
     Constants.expoConfig?.hostUri,
-    Constants.manifest?.debuggerHost,
+    (Constants.manifest as any)?.debuggerHost,
     NativeModules.SourceCode?.scriptURL,
   ];
 

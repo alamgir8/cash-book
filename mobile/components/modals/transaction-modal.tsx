@@ -1119,7 +1119,7 @@ export const TransactionModal = ({
             dismissAmountPad();
             closeModal();
           }}
-          style={{ ...StyleSheet.absoluteFillObject }}
+          style={{ ...StyleSheet.absoluteFill }}
         />
 
         {/* Bottom sheet — same open height; lifts above keyboard without entering status bar */}

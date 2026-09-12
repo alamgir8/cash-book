@@ -626,7 +626,7 @@ const styles = StyleSheet.create({
 
   // Carousel (absolute fill inside the Modal's View — no nested Modal)
   carouselBg: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "#000",
   },
   carouselPage: {

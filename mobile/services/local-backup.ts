@@ -256,6 +256,9 @@ export async function importLocalBackup(
       }
     }
 
+    const validAccountIds = new Set(accounts.map((a) => idOf(a)));
+    const defaultAccountId = accounts[0] ? idOf(accounts[0]) : "";
+
     for (const a of accounts) {
       await upsertAccountFromSync(db, normalizeAccountRow(a, organizationId));
     }
@@ -266,10 +269,13 @@ export async function importLocalBackup(
       await upsertPartyFromSync(db, normalizePartyRow(p, organizationId));
     }
     for (const t of transactions) {
-      await upsertTransactionFromSync(
-        db,
-        normalizeTransactionRow(t, organizationId),
-      );
+      const norm = normalizeTransactionRow(t, organizationId);
+      if (!norm.account_id || !validAccountIds.has(norm.account_id)) {
+        if (defaultAccountId) {
+          norm.account_id = defaultAccountId;
+        }
+      }
+      await upsertTransactionFromSync(db, norm);
     }
     for (const t of transfers) {
       await upsertTransferFromSync(db, normalizeTransferRow(t, organizationId));
