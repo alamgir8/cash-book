@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Switch,
   ScrollView,
+  Alert,
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useRouter } from "expo-router";
@@ -139,7 +140,23 @@ export default function CreateProductScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg.primary }}>
-      <ScreenHeader title={t("addProduct")} showBack />
+      <ScreenHeader
+        title={t("addProduct")}
+        showBack
+        icon="help-circle-outline"
+        onIconPress={() =>
+          Alert.alert(
+            t("speakOrType"),
+            [
+              t("smartAddPlaceholder"),
+              "",
+              t("voiceBanglaMissing"),
+              "",
+              t("voiceUnavailable"),
+            ].join("\n"),
+          )
+        }
+      />
 
       {/* Keep the smart bar outside the keyboard scroll — otherwise focusing
           a form field leaves a huge empty gap under this input. */}
@@ -148,6 +165,7 @@ export default function CreateProductScreen() {
           mode="product"
           organizationId={organizationId}
           onSubmit={applySmartItem}
+          compactHints
         />
       </View>
 

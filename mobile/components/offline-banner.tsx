@@ -7,6 +7,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import NetInfo from "@react-native-community/netinfo";
+import { usePathname } from "expo-router";
 import { useTheme } from "@/hooks/use-theme";
 import { useTranslation } from "@/hooks/use-translation";
 import { toast } from "@/lib/toast";
@@ -35,6 +36,32 @@ const RETRYABLE: SyncUiState[] = [
   "failed",
   "synced",
 ];
+
+/** Main tab roots only — hide the banner on add/edit/detail/modals to free space. */
+const MAIN_TAB_PATHS = new Set([
+  "/",
+  "/index",
+  "/accounts",
+  "/transactions",
+  "/shop",
+  "/shop/index",
+  "/settings",
+]);
+
+function normalizeAppPath(pathname: string): string {
+  const raw = (pathname || "/").split("?")[0] || "/";
+  // Drop expo-router groups like /(app)
+  const noGroups = raw.replace(/\/\([^/]+\)/g, "");
+  const cleaned = noGroups.replace(/\/+/g, "/") || "/";
+  if (cleaned.length > 1 && cleaned.endsWith("/")) {
+    return cleaned.slice(0, -1);
+  }
+  return cleaned || "/";
+}
+
+export function isMainTabPath(pathname: string): boolean {
+  return MAIN_TAB_PATHS.has(normalizeAppPath(pathname));
+}
 
 function messageFor(
   state: SyncUiState,
@@ -67,9 +94,11 @@ function messageFor(
 
 /**
  * Non-blocking status strip for local-first mode.
- * Distinguishes device offline vs backend unavailable vs pending sync.
+ * Shown only on main tab screens (Home / Accounts / Transactions / Shop / Settings).
  */
 export function OfflineBanner() {
+  const pathname = usePathname();
+  const onMainTab = isMainTabPath(pathname);
   const { colors } = useTheme();
   const { t } = useTranslation();
   const [localFirst, setLocalFirst] = useState(isLocalFirstEnabled());
@@ -187,6 +216,8 @@ export function OfflineBanner() {
 
   const syncText = messageFor(state, pending, t);
   const text = syncText || storageMessage;
+  // Only the five main tabs — hide on add/edit/detail so forms keep vertical space.
+  if (!onMainTab) return null;
   if (!text) return null;
 
   const storageOnly = !syncText && Boolean(storageMessage);

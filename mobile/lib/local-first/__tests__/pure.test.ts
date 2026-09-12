@@ -1437,6 +1437,23 @@ test("offline banner exposes a manual retry action", () => {
   assert.match(banner, /backendDownKeepWorking/);
   // The button is hidden while syncing (nothing to retry).
   assert.match(banner, /RETRYABLE/);
+  // Banner is tab-only so add/edit screens keep vertical space for the keyboard.
+  assert.match(banner, /isMainTabPath/);
+  assert.match(banner, /MAIN_TAB_PATHS/);
+});
+
+test("offline banner main-tab path helper hides nested shop routes", async () => {
+  // Lightweight pure check via source contract — avoids importing RN modules.
+  const banner = readFileSync(
+    join(__dirname, "../../../components/offline-banner.tsx"),
+    "utf8",
+  );
+  assert.match(banner, /"\/shop"/);
+  assert.match(banner, /"\/shop\/index"/);
+  assert.match(banner, /"\/settings"/);
+  // Nested create/pos must not be listed as main tabs.
+  assert.doesNotMatch(banner, /"\/shop\/products\/create"/);
+  assert.doesNotMatch(banner, /"\/shop\/pos"/);
 });
 
 test("smart add bar is protected by an error boundary with a fallback", () => {

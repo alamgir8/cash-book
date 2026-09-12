@@ -60,6 +60,11 @@ type Props = {
   onPickExisting?: (product: Product) => void;
   placeholder?: string;
   autoFocus?: boolean;
+  /**
+   * When true (default), hide the long Bangla-install / voice-unavailable lines
+   * under the bar — those live behind a header help icon to save form space.
+   */
+  compactHints?: boolean;
 };
 
 /**
@@ -158,6 +163,7 @@ function SmartAddBarInner({
   onPickExisting,
   placeholder,
   autoFocus,
+  compactHints = true,
 }: Props) {
   const { colors } = useTheme();
   const { t } = useTranslation();
@@ -544,13 +550,13 @@ function SmartAddBarInner({
         </TouchableOpacity>
       </View>
 
-      {/* Voice state: one short line, never an alarming error. */}
-      {voiceReady && banglaCaveat && !listening ? (
+      {/* Voice status — keep only the live "listening" line when compact. */}
+      {!compactHints && voiceReady && banglaCaveat && !listening ? (
         <Text style={{ fontSize: 11, color: colors.warning, marginTop: 4 }}>
           {t("voiceBanglaMissing")}
         </Text>
       ) : null}
-      {!voiceReady && speech && !listening ? (
+      {!compactHints && !voiceReady && speech && !listening ? (
         <Text style={{ fontSize: 11, color: colors.text.tertiary, marginTop: 4 }}>
           {t("voiceUnavailable")}
         </Text>

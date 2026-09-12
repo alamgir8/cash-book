@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   ScrollView,
+  Alert,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -382,7 +383,23 @@ export default function PosScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg.primary }}>
-      <ScreenHeader title={t("newSale")} showBack />
+      <ScreenHeader
+        title={t("newSale")}
+        showBack
+        icon="help-circle-outline"
+        onIconPress={() =>
+          Alert.alert(
+            t("speakOrType"),
+            [
+              t("smartAddPlaceholder"),
+              "",
+              t("voiceBanglaMissing"),
+              "",
+              t("voiceUnavailable"),
+            ].join("\n"),
+          )
+        }
+      />
 
       {/* Scan / search bar */}
       <View style={{ flexDirection: "row", gap: 10, padding: 12 }}>
@@ -441,6 +458,7 @@ export default function PosScreen() {
           organizationId={organizationId}
           onSubmit={addParsedItems}
           onPickExisting={(product) => addProduct(product, 1)}
+          compactHints
         />
       </View>
 
