@@ -68,6 +68,72 @@ function tableForEntity(entity: SyncChange["entity"]): string {
 
 let syncLock = false;
 
+/** Look up Mongo server_id for a local UUID (or pass through if already server id). */
+async function lookupServerId(
+  db: Awaited<ReturnType<typeof getDb>>,
+  table: "accounts" | "categories" | "parties" | "products" | "transactions",
+  localOrServerId: string | null | undefined,
+): Promise<string | null> {
+  if (!localOrServerId) return null;
+  const row = await db.getFirstAsync<{ server_id: string | null; id: string }>(
+    `SELECT id, server_id FROM ${table}
+     WHERE (id = ? OR server_id = ?) AND deleted_at IS NULL LIMIT 1`,
+    localOrServerId,
+    localOrServerId,
+  );
+  return row?.server_id ?? null;
+}
+
+/**
+ * Offline rows store local UUIDs in FK columns. The server resolveRefId needs
+ * either a Mongo ObjectId or meta_data.client_id — migrated cloud accounts
+ * usually have neither mapped to the local UUID. Attach *_server_id hints so
+ * push can resolve "Account reference not found" failures.
+ */
+async function enrichTransactionPayload(
+  db: Awaited<ReturnType<typeof getDb>>,
+  row: LocalTransaction,
+): Promise<Record<string, unknown>> {
+  const payload = { ...(row as unknown as Record<string, unknown>) };
+  const accountServerId = await lookupServerId(db, "accounts", row.account_id);
+  if (accountServerId) payload.account_server_id = accountServerId;
+  const categoryServerId = await lookupServerId(
+    db,
+    "categories",
+    row.category_id,
+  );
+  if (categoryServerId) payload.category_server_id = categoryServerId;
+  const partyServerId = await lookupServerId(db, "parties", row.party_id);
+  if (partyServerId) payload.party_server_id = partyServerId;
+  const forPartyServerId = await lookupServerId(
+    db,
+    "parties",
+    row.for_party_id,
+  );
+  if (forPartyServerId) payload.for_party_server_id = forPartyServerId;
+  if (row.parent_due_id) {
+    const parentServerId = await lookupServerId(
+      db,
+      "transactions",
+      row.parent_due_id,
+    );
+    if (parentServerId) payload.parent_due_server_id = parentServerId;
+  }
+  return payload;
+}
+
+async function enrichTransferPayload(
+  db: Awaited<ReturnType<typeof getDb>>,
+  row: LocalTransfer,
+): Promise<Record<string, unknown>> {
+  const payload = { ...(row as unknown as Record<string, unknown>) };
+  const fromServer = await lookupServerId(db, "accounts", row.from_account_id);
+  if (fromServer) payload.from_account_server_id = fromServer;
+  const toServer = await lookupServerId(db, "accounts", row.to_account_id);
+  if (toServer) payload.to_account_server_id = toServer;
+  return payload;
+}
+
 async function collectDirtyChanges(limit = 500): Promise<SyncChange[]> {
   const db = await getDb();
   const changes: SyncChange[] = [];
@@ -137,7 +203,7 @@ async function collectDirtyChanges(limit = 500): Promise<SyncChange[]> {
       deleted_at: row.deleted_at,
       device_id: row.device_id,
       client_request_id: row.client_request_id,
-      payload: row as unknown as Record<string, unknown>,
+      payload: await enrichTransactionPayload(db, row),
     });
   }
 
@@ -155,7 +221,7 @@ async function collectDirtyChanges(limit = 500): Promise<SyncChange[]> {
       deleted_at: row.deleted_at,
       device_id: row.device_id,
       client_request_id: row.client_request_id,
-      payload: row as unknown as Record<string, unknown>,
+      payload: await enrichTransferPayload(db, row),
     });
   }
 
@@ -508,7 +574,6 @@ export async function runSync(): Promise<SyncResult> {
       if (match) await markClean(match.entity, a.id, a.server_id ?? null);
     }
 
-    // Rejected rows stay dirty for retry; mark failed + surface reason.
     if (rejected.length) {
       const sample = rejected
         .slice(0, 3)
@@ -605,12 +670,19 @@ export async function runSync(): Promise<SyncResult> {
         count: rejected.length,
         count2: pushed,
       });
+      const sample = rejected
+        .slice(0, 2)
+        .map((r) => r.reason)
+        .filter(Boolean)
+        .join("; ");
       return {
         ok: false,
         pushed,
         pulled,
         serverTime: handshake.serverTime,
-        error: `${rejected.length} change(s) rejected — will retry`,
+        error: sample
+          ? `${rejected.length} change(s) rejected: ${sample}`
+          : `${rejected.length} change(s) rejected — will retry`,
       };
     }
 
@@ -634,11 +706,13 @@ export async function runSync(): Promise<SyncResult> {
       (/network error/i.test(String(raw)) || e?.code === "ERR_NETWORK");
     const message = notDeployed
       ? "Cloud sync API not on this server yet (deploy backend /sync routes)"
-      : isTimeout
-        ? `Sync timed out talking to ${baseURL}. Large first sync can take a minute — tap Sync now again.`
-        : isNetwork
-          ? `Cannot reach API at ${baseURL}. Check Wi‑Fi / EXPO_PUBLIC_BASE_URL and that the backend is running.`
-          : String(raw);
+      : status === 401 || status === 403
+        ? "Session expired — sign in again, then tap Sync"
+        : isTimeout
+          ? `Sync timed out talking to ${baseURL}. Large first sync can take a minute — tap Sync now again.`
+          : isNetwork
+            ? `Cannot reach API at ${baseURL}. Check Wi‑Fi / EXPO_PUBLIC_BASE_URL and that the backend is running.`
+            : String(raw);
     await setMeta(db, META_KEYS.LAST_SYNC_ERROR, message);
     // 404 is expected until production deploys /sync — don't spam telemetry/console.
     if (!notDeployed) {

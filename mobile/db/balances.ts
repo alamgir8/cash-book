@@ -2,6 +2,17 @@ import type { Db } from "./client";
 import { scopeWhere } from "./meta";
 import type { ScopeFilter } from "./types";
 import { partyBalanceSumSql } from "@/lib/local-first/party-balance";
+import {
+  computeRunningBalances,
+  computeBalanceFromDeltas,
+  type RunningBalanceTxn,
+} from "@/lib/local-first/running-balance";
+
+export {
+  computeRunningBalances,
+  computeBalanceFromDeltas,
+  type RunningBalanceTxn,
+};
 
 const paidClause = (alias = "") => {
   const col = alias ? `${alias}.payment_status` : "payment_status";
@@ -9,7 +20,66 @@ const paidClause = (alias = "") => {
 };
 
 /**
+ * Rewrite `balance_after_transaction` for every txn on an account (date order)
+ * and set `accounts.current_balance` to the final running total.
+ *
+ * Fixes offline creates that used a drifted `current_balance` while older rows
+ * still showed the chronological trail from migrate/sync.
+ */
+export async function recalculateAccountRunningBalances(
+  db: Db,
+  accountId: string,
+): Promise<number> {
+  const account = await db.getFirstAsync<{
+    id: string;
+    server_id: string | null;
+    opening_balance: number;
+  }>(
+    `SELECT id, server_id, opening_balance FROM accounts
+     WHERE (id = ? OR server_id = ?) AND deleted_at IS NULL LIMIT 1`,
+    accountId,
+    accountId,
+  );
+  if (!account) return 0;
+
+  const serverId = account.server_id || account.id;
+  const rows = await db.getAllAsync<RunningBalanceTxn>(
+    `SELECT id, type, amount, payment_status FROM transactions
+     WHERE deleted_at IS NULL
+       AND (account_id = ? OR account_id = ?)
+     ORDER BY date ASC, created_at ASC, id ASC`,
+    account.id,
+    serverId,
+  );
+
+  const computed = computeRunningBalances(
+    Number(account.opening_balance) || 0,
+    rows,
+  );
+  for (const row of computed) {
+    await db.runAsync(
+      `UPDATE transactions SET balance_after_transaction = ? WHERE id = ?`,
+      row.balance_after,
+      row.id,
+    );
+  }
+
+  const finalBalance =
+    computed.length > 0
+      ? computed[computed.length - 1].balance_after
+      : Number(account.opening_balance) || 0;
+
+  await db.runAsync(
+    `UPDATE accounts SET current_balance = ? WHERE id = ?`,
+    finalBalance,
+    account.id,
+  );
+  return finalBalance;
+}
+
+/**
  * Recompute account + party balances from opening + paid transactions.
+ * Account path also rewrites per-txn balance_after so the UI trail stays correct.
  * Call after restore and after sync apply.
  */
 export async function recalculateBalances(
@@ -20,35 +90,13 @@ export async function recalculateBalances(
 
   const accounts = await db.getAllAsync<{
     id: string;
-    server_id: string | null;
-    opening_balance: number;
   }>(
-    `SELECT id, server_id, opening_balance FROM accounts WHERE ${sql} AND deleted_at IS NULL`,
+    `SELECT id FROM accounts WHERE ${sql} AND deleted_at IS NULL`,
     ...params,
   );
 
   for (const account of accounts) {
-    const serverId = account.server_id || account.id;
-    // Keep cash math on the same org scope as the account list (plus legacy
-    // NULL-org orphans when includePersonal is set).
-    const txnScope = scopeWhere("t", scope);
-    const sum = await db.getFirstAsync<{ net: number | null }>(
-      `SELECT COALESCE(SUM(CASE WHEN t.type = 'credit' THEN t.amount ELSE -t.amount END), 0) as net
-       FROM transactions t
-       WHERE t.deleted_at IS NULL
-         AND ${paidClause("t")}
-         AND ${txnScope.sql}
-         AND (t.account_id = ? OR t.account_id = ?)`,
-      ...txnScope.params,
-      account.id,
-      serverId,
-    );
-    const current = Number(account.opening_balance) + Number(sum?.net ?? 0);
-    await db.runAsync(
-      `UPDATE accounts SET current_balance = ? WHERE id = ?`,
-      current,
-      account.id,
-    );
+    await recalculateAccountRunningBalances(db, account.id);
   }
 
   const parties = await db.getAllAsync<{
@@ -85,14 +133,4 @@ export async function recalculateBalances(
   }
 
   return { accounts: accounts.length, parties: parties.length };
-}
-
-/** Pure helper for tests — compute balance from opening + deltas. */
-export function computeBalanceFromDeltas(
-  opening: number,
-  deltas: Array<{ type: "debit" | "credit"; amount: number }>,
-): number {
-  return deltas.reduce((bal, d) => {
-    return d.type === "credit" ? bal + d.amount : bal - d.amount;
-  }, opening);
 }

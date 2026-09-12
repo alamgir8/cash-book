@@ -48,9 +48,7 @@ export function useTransactionFilterOptions({
       value: account._id,
       label: account.name,
       subtitle: formatAmount
-        ? `${formatAmount(account.balance ?? 0)}${
-            account.currency_symbol ? ` · ${account.currency_symbol}` : ""
-          }`
+        ? formatAmount(account.balance ?? 0)
         : account.kind?.replace(/_/g, " "),
     }));
   }, [accountsQuery.data, formatAmount]);

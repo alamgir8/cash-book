@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Text,
@@ -107,8 +107,10 @@ export function OfflineBanner() {
   const [backendOk, setBackendOk] = useState<boolean | null>(null);
   const [state, setState] = useState<SyncUiState>("hidden");
   const [pending, setPending] = useState(0);
+  const [lastError, setLastError] = useState<string | null>(null);
   const [storageMessage, setStorageMessage] = useState<string | null>(null);
   const [retrying, setRetrying] = useState(false);
+  const retryingRef = useRef(false);
 
   useEffect(() => {
     return subscribeLocalFirstFlags((flags) => {
@@ -127,6 +129,9 @@ export function OfflineBanner() {
   }, []);
 
   const refresh = useCallback(async () => {
+    // Don't clobber the in-progress manual sync UI with a background probe.
+    if (retryingRef.current) return;
+
     let backend: boolean | null = null;
     if (deviceOnline && cloudSync) {
       backend = await probeBackendAvailable(3500);
@@ -144,6 +149,7 @@ export function OfflineBanner() {
     });
     setState(resolved.state);
     setPending(resolved.pending);
+    setLastError(resolved.lastError);
 
     try {
       const { getLocalStorageReport } = await import(
@@ -198,6 +204,7 @@ export function OfflineBanner() {
     }
 
     setRetrying(true);
+    retryingRef.current = true;
     setState("syncing");
     try {
       const reachable = await probeBackendAvailable(4000);
@@ -210,6 +217,7 @@ export function OfflineBanner() {
       setBackendOk(true);
       toast.info(t("syncStarted"));
       const result = await requestSyncNow();
+      retryingRef.current = false;
       await refresh();
       if (result.ok) {
         toast.success(
@@ -221,6 +229,7 @@ export function OfflineBanner() {
             : undefined,
         );
       } else if (result.error && result.error !== "Cloud sync disabled") {
+        setLastError(result.error);
         toast.error(
           t("syncFailedKeepWorking"),
           result.error.length > 160
@@ -232,14 +241,26 @@ export function OfflineBanner() {
       }
     } catch {
       toast.error(t("syncFailedKeepWorking"));
+      retryingRef.current = false;
       await refresh();
     } finally {
+      retryingRef.current = false;
       setRetrying(false);
     }
   }, [retrying, deviceOnline, cloudSync, refresh, t]);
 
   const syncText = messageFor(state, pending, t);
-  const text = syncText || storageMessage;
+  const detail =
+    state === "failed" && lastError
+      ? lastError.length > 90
+        ? `${lastError.slice(0, 90)}…`
+        : lastError
+      : null;
+  const text = syncText
+    ? detail
+      ? `${syncText} — ${detail}`
+      : syncText
+    : storageMessage;
   // Only the five main tabs — hide on add/edit/detail so forms keep vertical space.
   if (!onMainTab) return null;
   if (!text) return null;

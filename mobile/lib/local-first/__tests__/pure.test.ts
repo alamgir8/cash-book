@@ -33,6 +33,42 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 /** Repo root, for asserting backend files. */
 
+test("running balance after includes paid deltas and snapshots dues", async () => {
+  const { computeRunningBalances, computeBalanceFromDeltas } = await import(
+    "../running-balance.ts"
+  );
+
+  assert.equal(
+    computeBalanceFromDeltas(1000, [
+      { type: "debit", amount: 200 },
+      { type: "credit", amount: 50 },
+    ]),
+    850,
+  );
+
+  const rows = computeRunningBalances(16_343, [
+    { id: "a", type: "debit", amount: 1000, payment_status: "paid" },
+  ]);
+  assert.equal(rows[0].balance_after, 15_343);
+
+  const withDue = computeRunningBalances(10_000, [
+    { id: "1", type: "debit", amount: 500, payment_status: "paid" },
+    { id: "2", type: "debit", amount: 2000, payment_status: "due" },
+    { id: "3", type: "credit", amount: 100, payment_status: "paid" },
+  ]);
+  assert.deepEqual(
+    withDue.map((r) => r.balance_after),
+    [9500, 9500, 9600],
+  );
+
+  // Offline create must rewrite the chronological trail (not trust drifted current_balance).
+  const repo = readFileSync(
+    join(__dirname, "../../../db/repos/transactions.ts"),
+    "utf8",
+  );
+  assert.match(repo, /recalculateAccountRunningBalances/);
+});
+
 test("LWW prefers newer updated_at", () => {
   const decision = resolveLastWriteWins(
     {
@@ -206,6 +242,17 @@ test("levelFromRatio uses configurable thresholds", async () => {
   assert.equal(levelFromRatio(0.95, DEFAULT_STORAGE_THRESHOLDS), "critical");
 });
 
+test("sync push enriches transaction FKs with server_id hints", () => {
+  const src = readFileSync(
+    join(__dirname, "../../../sync/engine.ts"),
+    "utf8",
+  );
+  assert.match(src, /enrichTransactionPayload/);
+  assert.match(src, /account_server_id/);
+  assert.match(src, /party_server_id/);
+  assert.match(src, /from_account_server_id/);
+});
+
 test("scheduler exports mutation + backoff sync entry points", () => {
   const src = readFileSync(
     join(__dirname, "../../../sync/scheduler.ts"),
@@ -324,7 +371,7 @@ test("partyBalanceSumSql uses the party convention", () => {
 
 test("local repair re-runs party convention fix on existing devices", () => {
   const src = readFileSync(join(__dirname, "../repair-ledger.ts"), "utf8");
-  assert.match(src, /LEDGER_REPAIR_VERSION = "9"/);
+  assert.match(src, /LEDGER_REPAIR_VERSION = "10"/);
 });
 
 // ── Shop form validation (Phase 5 follow-up) ────────────────────────────────

@@ -3,7 +3,7 @@ import { recalculateBalances } from "@/db/balances";
 import { getMeta, META_KEYS, setMeta } from "@/db/meta";
 
 /** Bump when repair SQL/rules change so existing devices re-apply. */
-export const LEDGER_REPAIR_VERSION = "9";
+export const LEDGER_REPAIR_VERSION = "10";
 
 /**
  * Rewrite FK columns that still hold Mongo server_ids to the local UUID.
