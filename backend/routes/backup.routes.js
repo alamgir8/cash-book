@@ -13,8 +13,8 @@ const router = Router();
 
 // Rate limit backup operations — expensive endpoints
 const backupLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: 10, // 10 backup operations per hour
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: process.env.NODE_ENV === "production" ? 100 : 500, // Generous in development / testing
   standardHeaders: true,
   legacyHeaders: false,
   message: { message: "Too many backup operations. Try again later." },

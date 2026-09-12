@@ -416,6 +416,22 @@ export async function restoreFromDriveFile(fileId: string): Promise<void> {
       wipeAll: true,
       skipChecksum: true,
     });
+    // Same as cloud migrate — mark local ledger ready so daily sync is delta-only.
+    try {
+      const completedAt = new Date().toISOString();
+      const db = await getDb();
+      await setMeta(db, META_KEYS.MIGRATION_COMPLETED_AT, completedAt);
+      await setMeta(db, META_KEYS.LAST_SYNC_CURSOR, completedAt);
+      await setMeta(db, META_KEYS.SYNC_SCOPE_VERSION, "2");
+      await setMeta(db, META_KEYS.LAST_SYNC_ERROR, null);
+      const { setLocalFirstFlags } = await import("@/lib/local-first/flags");
+      await setLocalFirstFlags({
+        localFirstEnabled: true,
+        migrationCompletedAt: completedAt,
+      });
+    } catch (e) {
+      console.warn("[drive] mark migrated after restore failed", e);
+    }
     void trackLfEvent("drive_restore_success");
   } catch (e) {
     void trackLfEvent("drive_restore_fail", { code: errorCodeFromUnknown(e) });

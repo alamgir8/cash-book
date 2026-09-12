@@ -176,7 +176,7 @@ const RootContent = () => {
         setLedgerProgress("Opening app…");
         setLedgerReady(true);
       }
-    }, 50_000);
+    }, 125_000);
 
     void bootstrapCloudLedgerIfNeeded((msg) => {
       if (!cancelled) setLedgerProgress(msg);

@@ -10,7 +10,7 @@ import {
   resolveApiHost,
 } from "./local-first/api-host";
 
-const API_PORT = 4000;
+const API_PORT = Number(process.env.EXPO_PUBLIC_API_PORT || 5050);
 const API_PATH = "/api";
 
 const normalizeUrl = (value?: string | null) => {

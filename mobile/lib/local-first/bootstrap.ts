@@ -19,22 +19,22 @@ export async function bootstrapLocalFirst(): Promise<void> {
 }
 
 /**
- * After login: if SQLite has no ledger yet, download cloud → local once.
- * Hard-capped so the splash can never spin forever.
+ * After login: if SQLite is empty, load the full ledger once (Drive → cloud),
+ * then work local-first. Daily sync only pushes/pulls deltas afterward.
+ *
+ * Hard-capped so the splash never spins forever.
  */
 export async function bootstrapCloudLedgerIfNeeded(
   onProgress?: (message: string) => void,
 ): Promise<void> {
-  const { ensureInitialCloudMigration } = await import(
-    "@/services/migrate-cloud"
-  );
+  const { bootstrapLedgerIfEmpty } = await import("./bootstrap-ledger");
 
-  const OVERALL_MS = 45_000;
+  const OVERALL_MS = 25_000;
   let timer: ReturnType<typeof setTimeout> | null = null;
   try {
     await Promise.race([
-      ensureInitialCloudMigration({ onProgress }).then(async (result) => {
-        if (result.migrated) {
+      bootstrapLedgerIfEmpty({ onProgress }).then(async (result) => {
+        if (result.bootstrapped) {
           try {
             const { queryClient } = await import("@/lib/queryClient");
             await queryClient.invalidateQueries({ refetchType: "active" });
@@ -43,15 +43,16 @@ export async function bootstrapCloudLedgerIfNeeded(
           }
         }
         if (result.error) {
-          console.warn("[local-first] initial migrate:", result.error);
+          onProgress?.(result.error);
+          console.warn("[local-first] ledger bootstrap:", result.error);
         }
       }),
       new Promise<void>((resolve) => {
         timer = setTimeout(() => {
           onProgress?.(
-            "Download is slow — opening app. Use Settings → Migrate or Drive restore.",
+            "Still downloading — opening app. Use Settings → Migrate or Restore from Drive.",
           );
-          console.warn("[local-first] initial migrate overall deadline");
+          console.warn("[local-first] ledger bootstrap overall deadline");
           resolve();
         }, OVERALL_MS);
       }),

@@ -14,7 +14,7 @@ const router = Router();
 
 const syncLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 60,
+  max: 300,
   standardHeaders: true,
   legacyHeaders: false,
   message: { message: "Too many sync requests. Try again later." },

@@ -116,36 +116,71 @@ export function LocalFirstSection() {
   const runMigrate = useCallback(
     async (force = false) => {
       setBusy("migrate");
+      const watchdog = setTimeout(() => {
+        setBusy(null);
+      }, 90_000);
       try {
-        const result = await migrateCloudToLocal({
-          force,
-          onProgress: (msg) => {
+        // Empty SQLite → Drive then cloud. Force remigrate uses cloud APIs.
+        if (force) {
+          const result = await migrateCloudToLocal({
+            force: true,
+            onProgress: (msg) => {
+              Toast.show({
+                type: "info",
+                text1: "Migrating…",
+                text2: msg,
+                visibilityTime: 2500,
+              });
+            },
+          });
+          if (!result.migrated) {
+            Toast.show({ type: "info", text1: "Already migrated" });
+          } else {
+            await refreshLocalQueries();
+            Toast.show({
+              type: "success",
+              text1: "Migration complete",
+              text2: `${result.summary?.transactionsCount ?? 0} transactions on device`,
+            });
+          }
+        } else {
+          const { bootstrapLedgerIfEmpty } = await import(
+            "@/lib/local-first/bootstrap-ledger"
+          );
+          const result = await bootstrapLedgerIfEmpty({
+            onProgress: (msg) => {
+              Toast.show({
+                type: "info",
+                text1: "Loading ledger…",
+                text2: msg,
+                visibilityTime: 2500,
+              });
+            },
+          });
+          if (result.error) {
+            Toast.show({
+              type: "error",
+              text1: "Could not load ledger",
+              text2: result.error,
+              visibilityTime: 8000,
+            });
+          } else if (result.skipped) {
             Toast.show({
               type: "info",
-              text1: "Migrating…",
-              text2: msg,
-              visibilityTime: 2500,
+              text1: "Already on device",
+              text2: "Working from local SQLite",
             });
-          },
-        });
-        if (!result.migrated) {
-          Toast.show({ type: "info", text1: "Already migrated" });
-        } else {
-          await refreshLocalQueries();
-          Toast.show({
-            type: "success",
-            text1: "Migration complete",
-            text2: `${result.summary?.transactionsCount ?? 0} transactions now on this device`,
-          });
-          void maybeUploadDriveBackup("post-migrate").then((r) => {
-            if (r.ok) {
-              Toast.show({
-                type: "success",
-                text1: "Drive backup uploaded",
-                text2: r.path,
-              });
-            }
-          });
+          } else {
+            await refreshLocalQueries();
+            Toast.show({
+              type: "success",
+              text1:
+                result.source === "drive"
+                  ? "Restored from Drive"
+                  : "Loaded from cloud",
+              text2: `${result.summary?.transactionsCount ?? 0} transactions on device`,
+            });
+          }
         }
         const next = await loadLocalFirstFlags();
         setFlags(next);
@@ -161,6 +196,7 @@ export function LocalFirstSection() {
           visibilityTime: 8000,
         });
       } finally {
+        clearTimeout(watchdog);
         setBusy(null);
       }
     },
@@ -254,7 +290,7 @@ export function LocalFirstSection() {
                 );
                 if (!ok) return;
               }
-              await runMigrate(already);
+              await runMigrate(true);
             })();
           },
         },
@@ -546,19 +582,26 @@ export function LocalFirstSection() {
 
       {flags.localFirstEnabled && !flags.migrationCompletedAt ? (
         <View
-          className="rounded-xl p-3 mb-3"
-          style={{ backgroundColor: colors.warning + "22" }}
+          className="mb-3 rounded-xl p-3 border"
+          style={{
+            backgroundColor: colors.warning + "22",
+            borderColor: colors.warning,
+          }}
         >
           <Text
             className="text-sm font-semibold"
-            style={{ color: colors.warning }}
+            style={{ color: colors.text.primary }}
           >
-            Not migrated yet
+            Local ledger empty
           </Text>
-          <Text className="text-xs mt-1" style={{ color: colors.text.secondary }}>
-            Toggles alone do not copy cloud data. Tap “Migrate from cloud” once
-            — until then local DB is empty and screens look like they are still
-            loading.
+          <Text
+            className="text-xs mt-1"
+            style={{ color: colors.text.secondary }}
+          >
+            On first launch the app loads your full book into SQLite (Drive
+            backup if available, otherwise cloud), then works offline. Daily
+            sync only sends new/changed rows. Tap “Migrate from cloud” or
+            “Restore from Drive”.
           </Text>
         </View>
       ) : null}

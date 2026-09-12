@@ -28,6 +28,20 @@ export async function clearLocalAttachmentFiles(): Promise<void> {
  */
 export async function resetLocalLedgerStorage(): Promise<void> {
   try {
+    const { resetBootstrapLedgerInFlight } = await import("./bootstrap-ledger");
+    resetBootstrapLedgerInFlight();
+  } catch {
+    /* ignore */
+  }
+  try {
+    const { resetInitialMigrateInFlight } = await import(
+      "@/services/migrate-cloud"
+    );
+    resetInitialMigrateInFlight();
+  } catch {
+    /* ignore */
+  }
+  try {
     await deleteDatabaseFile();
   } catch (error) {
     console.warn("[local-first] deleteDatabaseFile failed", error);

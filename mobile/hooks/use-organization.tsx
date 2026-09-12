@@ -60,55 +60,25 @@ export function OrganizationProvider({
     useState<OrganizationSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load saved active organization on mount
+  // Load saved active organization on mount or when organizations change
   useEffect(() => {
     const loadActiveOrg = async () => {
       try {
-        const { isLocalFirstEnabled, loadLocalFirstFlags } = await import(
-          "@/lib/local-first/flags"
-        );
-        await loadLocalFirstFlags();
-        const lfOn = isLocalFirstEnabled();
-
-        const localOrgHasRows = async (orgId: string) => {
-          try {
-            const { getDb } = await import("@/db/client");
-            const db = await getDb();
-            const hit = await db.getFirstAsync<{ c: number }>(
-              `SELECT COUNT(*) as c FROM accounts
-               WHERE deleted_at IS NULL AND organization_id = ?`,
-              orgId,
-            );
-            return Number(hit?.c ?? 0) > 0;
-          } catch {
-            return false;
-          }
-        };
-
         const savedOrgId = await AsyncStorage.getItem(ACTIVE_ORG_KEY);
-        if (savedOrgId && organizations.length > 0) {
+        if (savedOrgId === "personal") {
+          setActiveOrganization(null);
+        } else if (savedOrgId && organizations.length > 0) {
           const org = organizations.find((o) => o.id === savedOrgId);
           if (org) {
-            // Avoid blank screens: org selected but SQLite only has personal rows.
-            if (lfOn && !(await localOrgHasRows(org.id))) {
-              setActiveOrganization(null);
-            } else {
-              setActiveOrganization(org);
-            }
-          }
-        } else if (organizations.length === 1 && !savedOrgId) {
-          const orgId = organizations[0].id;
-          if (lfOn) {
-            if (await localOrgHasRows(orgId)) {
-              setActiveOrganization(organizations[0]);
-              await AsyncStorage.setItem(ACTIVE_ORG_KEY, orgId);
-            } else {
-              setActiveOrganization(null);
-            }
-          } else {
+            setActiveOrganization(org);
+          } else if (organizations.length === 1) {
             setActiveOrganization(organizations[0]);
-            await AsyncStorage.setItem(ACTIVE_ORG_KEY, orgId);
+            await AsyncStorage.setItem(ACTIVE_ORG_KEY, organizations[0].id);
           }
+        } else if (organizations.length === 1) {
+          const orgId = organizations[0].id;
+          setActiveOrganization(organizations[0]);
+          await AsyncStorage.setItem(ACTIVE_ORG_KEY, orgId);
         }
       } catch (error) {
         console.warn("Failed to load active organization:", error);
@@ -125,6 +95,16 @@ export function OrganizationProvider({
     // Logout / switch-account clears the list — drop in-memory active org too
     if (orgs.length === 0) {
       setActiveOrganization(null);
+    } else if (orgs.length === 1) {
+      setActiveOrganization(orgs[0]);
+      void AsyncStorage.setItem(ACTIVE_ORG_KEY, orgs[0].id);
+    } else {
+      setActiveOrganization((current) => {
+        if (current && orgs.some((o) => o.id === current.id)) {
+          return orgs.find((o) => o.id === current.id) ?? current;
+        }
+        return current;
+      });
     }
   }, []);
 
@@ -133,7 +113,7 @@ export function OrganizationProvider({
       try {
         if (!orgId) {
           setActiveOrganization(null);
-          await AsyncStorage.removeItem(ACTIVE_ORG_KEY);
+          await AsyncStorage.setItem(ACTIVE_ORG_KEY, "personal");
           return;
         }
 

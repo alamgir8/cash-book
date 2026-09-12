@@ -137,6 +137,18 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       setAuthToken(tokens.accessToken);
       await persistSession(tokens, admin);
       try {
+        const { resetBootstrapLedgerInFlight } = await import(
+          "@/lib/local-first/bootstrap-ledger"
+        );
+        resetBootstrapLedgerInFlight();
+        const { resetInitialMigrateInFlight } = await import(
+          "@/services/migrate-cloud"
+        );
+        resetInitialMigrateInFlight();
+      } catch {
+        /* ignore */
+      }
+      try {
         const { markSessionUnlocked } = await import("@/lib/auth/login-mode");
         markSessionUnlocked();
       } catch {
