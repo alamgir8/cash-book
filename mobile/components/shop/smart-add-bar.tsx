@@ -11,6 +11,7 @@ import {
   TextInput,
   TouchableOpacity,
   ActivityIndicator,
+  Keyboard,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/use-theme";
@@ -27,6 +28,7 @@ import {
   describeSpeechSupport,
   startListening,
   type ListenSession,
+  type SpeechSupport,
 } from "@/lib/voice/speech";
 import type { Product } from "@/types/product";
 
@@ -154,9 +156,12 @@ function SmartAddBarInner({
 
   const [text, setText] = useState("");
   const [listening, setListening] = useState(false);
-  const [speechReason, setSpeechReason] = useState<string | null>(null);
+  const [speech, setSpeech] = useState<SpeechSupport | null>(null);
+  const [banglaCaveat, setBanglaCaveat] = useState(false);
   const [catalog, setCatalog] = useState<Product[]>([]);
   const sessionRef = useRef<ListenSession | null>(null);
+  const inputRef = useRef<TextInput>(null);
+  const listenLockRef = useRef(false);
 
   // Load the catalog once so matches are instant (and offline).
   useEffect(() => {
@@ -179,18 +184,30 @@ function SmartAddBarInner({
 
   useEffect(() => {
     let cancelled = false;
-    // `.catch` matters: an unhandled rejection here could redbox the screen.
     void describeSpeechSupport()
       .then((s) => {
         if (cancelled) return;
-        if (s.available) setSpeechReason(null);
-        else setSpeechReason(s.reason ?? null);
+        setSpeech(s);
+        // Available but the device lacks Bangla dictation → tell the user once.
+        setBanglaCaveat(s.available && !s.banglaSupported);
       })
       .catch(() => {
-        if (!cancelled) setSpeechReason(null);
+        if (!cancelled) {
+          setSpeech({
+            available: false,
+            provider: "none",
+            lang: "bn-BD",
+            banglaSupported: false,
+          });
+          setBanglaCaveat(false);
+        }
       });
     return () => {
       cancelled = true;
+      // Stop any in-flight session if the screen unmounts mid-listen.
+      const session = sessionRef.current;
+      sessionRef.current = null;
+      void session?.stop().catch(() => undefined);
     };
   }, []);
 
@@ -268,31 +285,74 @@ function SmartAddBarInner({
     setText("");
   }, [resolved, onSubmit, t]);
 
+  const voiceReady = speech?.available === true;
+
   const toggleListening = useCallback(async () => {
-    if (listening) {
-      await sessionRef.current?.stop();
+    // Prevent double-taps from starting two native sessions (crash-prone).
+    if (listenLockRef.current) return;
+    listenLockRef.current = true;
+
+    try {
+      if (listening) {
+        try {
+          await sessionRef.current?.stop();
+        } catch {
+          /* ignore */
+        }
+        sessionRef.current = null;
+        setListening(false);
+        return;
+      }
+
+      // Not an error — just explain, briefly, and keep the field usable.
+      if (!voiceReady) {
+        toast.info(t("voiceUnavailable"));
+        return;
+      }
+
+      // Blur + dismiss before native STT — TextInput focus + AVAudioSession
+      // category changes is a known iOS crash path.
+      try {
+        inputRef.current?.blur();
+        Keyboard.dismiss();
+      } catch {
+        /* ignore */
+      }
+
+      setListening(true);
+      const session = await startListening({
+        onResult: (r) => {
+          // Append so several items can be dictated in sequence.
+          setText((prev) => (prev ? `${prev}, ${r.transcript}` : r.transcript));
+        },
+        onError: (msg) => {
+          // Permission problems are actionable; everything else is informational.
+          toast.error(
+            /permission|অনুমতি|not-allowed/i.test(msg)
+              ? t("voicePermissionNeeded")
+              : msg,
+          );
+          setListening(false);
+          sessionRef.current = null;
+        },
+        onEnd: () => {
+          setListening(false);
+          sessionRef.current = null;
+        },
+      });
+      if (!session) {
+        setListening(false);
+        return;
+      }
+      sessionRef.current = session;
+    } catch (e: any) {
+      setListening(false);
       sessionRef.current = null;
-      setListening(false);
-      return;
+      toast.error(e?.message ?? t("voiceUnavailable"));
+    } finally {
+      listenLockRef.current = false;
     }
-    setListening(true);
-    const session = await startListening({
-      onResult: (r) => {
-        // Append so several items can be dictated in sequence.
-        setText((prev) => (prev ? `${prev}, ${r.transcript}` : r.transcript));
-      },
-      onError: (msg) => {
-        toast.error(msg);
-        setSpeechReason(msg);
-      },
-      onEnd: () => setListening(false),
-    });
-    if (!session) {
-      setListening(false);
-      return;
-    }
-    sessionRef.current = session;
-  }, [listening]);
+  }, [listening, voiceReady, t]);
 
   const money = (n: number) =>
     n.toLocaleString(undefined, {
@@ -305,16 +365,18 @@ function SmartAddBarInner({
     item.cost !== null && item.price !== null ? item.price - item.cost : null;
 
   return (
-    <View style={{ marginBottom: 12 }}>
+    <View style={{ marginBottom: 4 }}>
       {/* Input row */}
       <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
         <TextInput
+          ref={inputRef}
           value={text}
           onChangeText={setText}
           autoFocus={autoFocus}
           placeholder={placeholder ?? t("smartAddPlaceholder")}
           placeholderTextColor={colors.text.tertiary}
           multiline
+          blurOnSubmit
           style={{
             flex: 1,
             borderWidth: 1,
@@ -326,10 +388,15 @@ function SmartAddBarInner({
             color: colors.text.primary,
             backgroundColor: colors.bg.secondary,
             maxHeight: 90,
+            minHeight: 46,
           }}
         />
         <TouchableOpacity
-          onPress={toggleListening}
+          onPress={() => {
+            void toggleListening();
+          }}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: !voiceReady, busy: listening }}
           style={{
             width: 46,
             height: 46,
@@ -337,17 +404,25 @@ function SmartAddBarInner({
             alignItems: "center",
             justifyContent: "center",
             borderWidth: 1,
-            backgroundColor: listening ? colors.error + "20" : colors.bg.secondary,
-            borderColor: listening ? colors.error : colors.border,
+            backgroundColor: listening
+              ? colors.error + "20"
+              : voiceReady
+                ? colors.info + "12"
+                : colors.bg.tertiary,
+            borderColor: listening
+              ? colors.error
+              : voiceReady
+                ? colors.info + "40"
+                : colors.border,
           }}
         >
           {listening ? (
             <ActivityIndicator color={colors.error} />
           ) : (
             <Ionicons
-              name="mic"
+              name={voiceReady ? "mic" : "mic-off"}
               size={22}
-              color={speechReason ? colors.text.tertiary : colors.info}
+              color={voiceReady ? colors.info : colors.text.tertiary}
             />
           )}
         </TouchableOpacity>
@@ -367,10 +442,15 @@ function SmartAddBarInner({
         </TouchableOpacity>
       </View>
 
-      {/* Voice unavailable hint (typing still works) */}
-      {speechReason && !listening ? (
+      {/* Voice state: one short line, never an alarming error. */}
+      {voiceReady && banglaCaveat && !listening ? (
+        <Text style={{ fontSize: 11, color: colors.warning, marginTop: 4 }}>
+          {t("voiceBanglaMissing")}
+        </Text>
+      ) : null}
+      {!voiceReady && speech && !listening ? (
         <Text style={{ fontSize: 11, color: colors.text.tertiary, marginTop: 4 }}>
-          {speechReason}
+          {t("voiceUnavailable")}
         </Text>
       ) : null}
       {listening ? (

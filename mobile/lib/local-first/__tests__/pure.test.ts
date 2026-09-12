@@ -1333,28 +1333,53 @@ test("private-LAN detection and the https-on-LAN warning", async () => {
   assert.equal(looksLikeHttpsLanMistake("https://x.vercel.app/api"), false);
 });
 
-test("optional native STT package is never referenced until installed", () => {
-  // Referencing an uninstalled native module breaks the Metro bundle, which is
-  // what crashed the Shop screens. Naming it in a message is fine; importing or
-  // requiring it is not.
+test("native STT package is imported statically, never dynamically", () => {
+  // The package IS installed now. The rule that matters: it must be a static
+  // top-level import. A dynamic specifier breaks the Metro route bundle (the
+  // original Shop-screen crash), and an uninstalled reference throws.
   const code = codeOnly(
     readFileSync(join(__dirname, "../../voice/speech.ts"), "utf8"),
   );
-  assert.doesNotMatch(
+  assert.match(
     code,
-    /(?:import|require)\s*\(\s*["'`]expo-speech-recognition/,
-    "must not dynamically import the uninstalled module",
+    /import\s*\{[^}]*ExpoSpeechRecognitionModule[^}]*\}\s*from\s*"expo-speech-recognition"/,
+    "must statically import the recognizer module",
   );
   assert.doesNotMatch(
     code,
-    /from\s+["'`]expo-speech-recognition["'`]/,
-    "must not statically import the uninstalled module",
+    /import\(\s*["'`]expo-speech-recognition/,
+    "must not dynamically import it",
   );
-  assert.doesNotMatch(
-    code,
-    /import\s*\{[^}]*\}\s*from\s+["'`]expo-speech-recognition/,
-    "must not import named bindings from the uninstalled module",
+  // And it must actually be declared as a dependency, or the build breaks.
+  const pkg = JSON.parse(
+    readFileSync(join(__dirname, "../../../package.json"), "utf8"),
   );
+  assert.ok(
+    pkg.dependencies["expo-speech-recognition"],
+    "expo-speech-recognition must be a dependency",
+  );
+  // The config plugin must be registered or the native project lacks the mic.
+  const appJson = JSON.parse(
+    readFileSync(join(__dirname, "../../../app.json"), "utf8"),
+  );
+  const pluginNames = (appJson.expo.plugins ?? []).map((p: any) =>
+    Array.isArray(p) ? p[0] : p,
+  );
+  assert.ok(
+    pluginNames.includes("expo-speech-recognition"),
+    "expo-speech-recognition plugin must be registered in app.json",
+  );
+});
+
+test("voice prefers Bangla and reports when the device lacks it", async () => {
+  const src = readFileSync(join(__dirname, "../../voice/speech.ts"), "utf8");
+  // Bangla is the default we ask for.
+  assert.match(src, /"bn-BD"/);
+  // Support is detected rather than assumed, so the UI can say why.
+  assert.match(src, /getSupportedLocales/);
+  assert.match(src, /banglaSupported/);
+  // The mic permission is requested before starting.
+  assert.match(src, /requestPermissionsAsync/);
 });
 
 test("invoice pull payload carries created_at (NOT NULL locally)", () => {
@@ -1420,7 +1445,34 @@ test("smart add bar is protected by an error boundary with a fallback", () => {
   assert.match(bar, /ErrorBoundary/);
   assert.match(bar, /SmartAddFallback/);
   assert.match(bar, /fallback=\{<SmartAddFallback/);
+  // Mic path must dismiss keyboard / blur before native STT.
+  assert.match(bar, /Keyboard\.dismiss/);
+  assert.match(bar, /inputRef\.current\?\.blur/);
+  assert.match(bar, /listenLockRef/);
 });
 
+test("add-product keeps SmartAddBar outside the keyboard scroll view", () => {
+  // Regression for the huge white gap under the smart input when a form field
+  // is focused: the bar must sit above KeyboardAwareScrollView, not inside it.
+  const src = readFileSync(
+    join(__dirname, "../../../app/(app)/shop/products/create.tsx"),
+    "utf8",
+  );
+  const barAt = src.indexOf("<SmartAddBar");
+  const scrollAt = src.indexOf("<KeyboardAwareScrollView");
+  assert.ok(barAt > 0 && scrollAt > 0, "both markers must exist");
+  assert.ok(
+    barAt < scrollAt,
+    "SmartAddBar must render before KeyboardAwareScrollView",
+  );
+  assert.match(src, /paddingTop:\s*12/);
+});
 
+test("native voice start dismisses keyboard and aborts prior sessions", () => {
+  const src = readFileSync(join(__dirname, "../../voice/speech.ts"), "utf8");
+  assert.match(src, /Keyboard\.dismiss/);
+  assert.match(src, /\.abort\(/);
+  assert.match(src, /iosCategory/);
+  assert.match(src, /requestMicrophonePermissionsAsync/);
+});
 

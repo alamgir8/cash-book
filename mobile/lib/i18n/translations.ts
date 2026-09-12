@@ -774,7 +774,9 @@ export type AppTranslations = {
   smartAddPlaceholder: string;
   speakOrType: string;
   listeningTapToStop: string;
-  voiceUnavailableTypingWorks: string;
+  voiceUnavailable: string;
+  voicePermissionNeeded: string;
+  voiceBanglaMissing: string;
   profit: string;
   loss: string;
   matchedExisting: string;
@@ -1578,8 +1580,10 @@ const en: AppTranslations = {
   smartAddPlaceholder: 'Say or type it: "সাবান ২টা ৪৫ টাকা"',
   speakOrType: "Speak or type",
   listeningTapToStop: "Listening… tap the mic to stop",
-  voiceUnavailableTypingWorks:
-    "Voice needs one rebuild on the phone — typing works now.",
+  voiceUnavailable: "Voice is not available on this device — please type.",
+  voicePermissionNeeded: "Microphone permission is required.",
+  voiceBanglaMissing:
+    "Bangla voice is not installed — it will listen in English. Add Bangla dictation in your phone's settings.",
   profit: "profit",
   loss: "loss",
   matchedExisting: "existing",
@@ -2386,8 +2390,10 @@ const bn: AppTranslations = {
   smartAddPlaceholder: 'বলুন বা লিখুন: "সাবান ২টা ৪৫ টাকা"',
   speakOrType: "বলুন বা লিখুন",
   listeningTapToStop: "শোনা হচ্ছে… থামাতে মাইকে চাপুন",
-  voiceUnavailableTypingWorks:
-    "ফোনে ভয়েস চালু করতে একবার রিবিল্ড লাগবে — এখন টাইপ করে কাজ করুন।",
+  voiceUnavailable: "এই ডিভাইসে ভয়েস নেই — টাইপ করে লিখুন।",
+  voicePermissionNeeded: "মাইক্রোফোনের অনুমতি প্রয়োজন।",
+  voiceBanglaMissing:
+    "বাংলা ভয়েস ইনস্টল করা নেই — ইংরেজিতে শুনবে। ফোনের সেটিংস থেকে বাংলা ডিক্টেশন যোগ করুন।",
   profit: "লাভ",
   loss: "ক্ষতি",
   matchedExisting: "আগের পণ্য",

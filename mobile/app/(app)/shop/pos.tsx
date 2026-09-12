@@ -433,8 +433,9 @@ export default function PosScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Say or type an item — fastest path for a busy counter. */}
-      <View style={{ paddingHorizontal: 12 }}>
+      {/* Say or type an item — fastest path for a busy counter.
+          Kept outside the scroll view so the keyboard never opens a gap above it. */}
+      <View style={{ paddingHorizontal: 12, paddingTop: 8, paddingBottom: 4 }}>
         <SmartAddBar
           mode="sale"
           organizationId={organizationId}

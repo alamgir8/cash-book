@@ -157,7 +157,17 @@
           "useSQLCipher": false
         }
       ],
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Hisab Boi uses the microphone so you can add products and sales by speaking instead of typing.",
+          "speechRecognitionPermission": "Hisab Boi uses speech recognition to turn what you say into product names, quantities and prices.",
+          "androidSpeechServicePackages": [
+            "com.google.android.googlequicksearchbox"
+          ]
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

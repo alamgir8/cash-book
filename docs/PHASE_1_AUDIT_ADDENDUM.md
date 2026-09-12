@@ -1140,6 +1140,129 @@ must be requested explicitly.
 - Reachability confirmed: `http://192.168.0.249:5050/health` → 200,
   `/api/sync/handshake` → 401 (route live, auth required).
 
+---
+
+## 25. On-device voice enabled (Bangla) + mic UX (2026-09-12)
+
+### 25.1 The blocker is gone
+
+Earlier the native speech module was deliberately **not installed** (I could not
+build or test it). The user is now building a dev client
+(`npx expo run:ios --device`), so it is safe to add. Installed:
+
+```
+expo-speech-recognition@^57.0.0   (matches Expo SDK 57 exactly)
+```
+
+Registered in `app.json` with explicit, user-facing permission strings (verified
+by introspecting the generated Info.plist):
+
+- `NSMicrophoneUsageDescription` — "…add products and sales by speaking instead
+  of typing."
+- `NSSpeechRecognitionUsageDescription` — "…turn what you say into product
+  names, quantities and prices."
+- `androidSpeechServicePackages: ["com.google.android.googlequicksearchbox"]`
+
+### 25.2 `speech.ts` rewritten against the real API
+
+Now a **static** import (safe, since the package exists) using the documented
+surface: `isRecognitionAvailable()`, `getSupportedLocales()`,
+`requestPermissionsAsync()`, `start({lang, interimResults, continuous})`,
+`stop()`, and typed `addListener("result" | "error" | "end")` inherited from
+expo-modules-core's `EventEmitter`.
+
+**Bangla is the default**, and support is *detected, not assumed*:
+
+- Queries `getSupportedLocales()` for `bn-BD` / `bn-IN` / `bn`.
+- Available → uses `bn-BD`.
+- Not installed → falls back to `en-US` **and says so** (the UI shows a warning
+  line telling the user to add Bangla dictation in phone settings) rather than
+  silently transcribing English.
+
+Web keeps the browser recognizer.
+
+### 25.3 Mic UX — no more alarming "error"
+
+Tapping the mic previously raised an error toast for a known state. Now:
+
+- Mic shows `mic-off` and is visually muted when recognition is unavailable.
+- Tapping it shows a short, informational Bangla message (not an error).
+- Only a genuine permission denial raises an error, phrased as an action.
+- The inline hint is one short line instead of a wrapped sentence.
+- New keys `voiceUnavailable` / `voicePermissionNeeded` / `voiceBanglaMissing`
+  replace the obsolete "one rebuild" text (**743 keys, 0 missing, 0 empty**).
+
+### 25.4 "It always types English" — two different mics
+
+Worth stating plainly, because it is **not** an app bug:
+
+1. **In-app mic (this work)** — we pass `lang: "bn-BD"`, so after the rebuild it
+   listens in Bangla.
+2. **The system keyboard's mic** (iOS dictation) — its language is chosen by
+   **iOS**, not the app. iOS dictation follows the active keyboard language, so
+   with an English keyboard selected it produced English even in a Bangla UI. To
+   fix: Settings → General → Keyboard → Keyboards → add **বাংলা**, and Settings →
+   General → Keyboard → **Dictation** → add Bangla; then switch to the Bangla
+   keyboard before dictating. No app can override this.
+
+### 25.5 Required action: REBUILD
+
+`expo-speech-recognition` is a **native** module, so the current build does not
+contain it (`ios/Podfile.lock` has no entry until pods are re-installed):
+
+```bash
+cd cash-book/mobile && npx expo run:ios --device   # runs pod install, then builds
+```
+
+Expo Go can never run this — a dev client is required.
+
+### 25.6 Verified
+
+- `npm run test:local-first` → **70/70 pass** (updated: the STT package must be
+  imported **statically**, present in `package.json`, and registered as a plugin;
+  plus a test asserting Bangla is preferred, support is detected via
+  `getSupportedLocales`, and mic permission is requested).
+- `npx tsc --noEmit` → **26 errors, unchanged** (checked against the real module
+  types).
+- `npx expo export --platform ios` → success.
+- `expo config --type introspect` → both permission strings present in the
+  generated Info.plist.
+
+---
+
+## 26. Smart-add layout gap + mic crash (2026-09-12)
+
+### 26.1 Layout — huge empty gap above the form when focusing an input
+
+**Cause:** On **Add Product**, `SmartAddBar` lived *inside* `KeyboardAwareScrollView`.
+Focusing Product Name / other fields made the keyboard controller insert space
+under the bar, leaving a large white void between the smart input and
+"BASIC INFORMATION".
+
+**Fix:** Match POS — keep `SmartAddBar` **outside** the scroll view, with explicit
+`paddingTop: 12` under the header. Form fields alone scroll with the keyboard.
+
+### 26.2 Mic tap crash
+
+**Cause:** Starting native STT while a `TextInput` still held focus flips the iOS
+AVAudioSession category under an active keyboard — a known crash path for
+`expo-speech-recognition`. Unhandled promise / double-start made it worse.
+
+**Fix (in `lib/voice/speech.ts` + `SmartAddBar`):**
+- Blur the input + `Keyboard.dismiss()` before `start()`
+- `abort()` any prior session; 120ms settle delay
+- Explicit `iosCategory` on start
+- Split mic / speech permission requests where available
+- Double-tap lock + catch-all so the UI never throws
+- Session cleanup on unmount
+
+### 26.3 Verified
+
+- `npm run test:local-first` → **71/71** (layout + mic-hardening guards added)
+- Touched files typecheck clean against the project baseline
+
+
+
 
 
 

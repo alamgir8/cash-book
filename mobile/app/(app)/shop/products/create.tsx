@@ -141,18 +141,21 @@ export default function CreateProductScreen() {
     <View style={{ flex: 1, backgroundColor: colors.bg.primary }}>
       <ScreenHeader title={t("addProduct")} showBack />
 
-      <KeyboardAwareScrollView
-        style={{ flex: 1 }}
-        {...scrollProps}
-        contentContainerStyle={{ padding: 16, paddingBottom: 24 }}
-      >
-        {/* Speak or type the whole product in one line. */}
+      {/* Keep the smart bar outside the keyboard scroll — otherwise focusing
+          a form field leaves a huge empty gap under this input. */}
+      <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 }}>
         <SmartAddBar
           mode="product"
           organizationId={organizationId}
           onSubmit={applySmartItem}
         />
+      </View>
 
+      <KeyboardAwareScrollView
+        style={{ flex: 1 }}
+        {...scrollProps}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 24 }}
+      >
         {/* Basic Info */}
         <SectionTitle title="Basic Information" colors={colors} />
 
@@ -537,7 +540,7 @@ function SectionTitle({ title, colors }: { title: string; colors: any }) {
         color: colors.text.tertiary,
         letterSpacing: 0.6,
         textTransform: "uppercase",
-        marginTop: 20,
+        marginTop: 12,
         marginBottom: 10,
       }}
     >
