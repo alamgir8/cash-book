@@ -314,6 +314,26 @@ test("daily sync slots retry forever (success or fail → next day same hours)",
   assert.match(jobs, /Manual banner Sync/);
 });
 
+test("sync engine joins in-flight callers instead of already-running", () => {
+  const src = readFileSync(join(__dirname, "../../../sync/engine.ts"), "utf8");
+  assert.match(src, /syncInFlight/);
+  assert.match(src, /pauseSyncForMaintenance/);
+  assert.match(src, /setSyncPaused/);
+  assert.doesNotMatch(src, /Sync already running/);
+});
+
+test("migrate pauses sync and budgets cloud overlay", () => {
+  const src = readFileSync(
+    join(__dirname, "../../../services/migrate-cloud.ts"),
+    "utf8",
+  );
+  assert.match(src, /pauseSyncForMaintenance/);
+  assert.match(src, /withBudget/);
+  assert.match(src, /reconcileAccountOpeningsFromCloud/);
+  assert.match(src, /timeout: 120_000/);
+  assert.match(src, /out\.due_date/);
+});
+
 test("backend sync applies account \$inc on transaction push", () => {
   const src = readFileSync(
     join(

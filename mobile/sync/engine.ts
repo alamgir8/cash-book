@@ -66,7 +66,33 @@ function tableForEntity(entity: SyncChange["entity"]): string {
   return TABLE_FOR_ENTITY[entity];
 }
 
-let syncLock = false;
+/** Shared in-flight sync — callers join instead of "already running". */
+let syncInFlight: Promise<SyncResult> | null = null;
+/** Migrate / wipe holds this so sync cannot race the local DB. */
+let syncPaused = false;
+
+const MAX_SYNC_WALL_MS = 3 * 60 * 1000;
+
+export function isSyncPaused(): boolean {
+  return syncPaused;
+}
+
+/** Block new sync cycles (migrate / wipe). Does not cancel the current one. */
+export function setSyncPaused(paused: boolean): void {
+  syncPaused = paused;
+}
+
+/** Wait for the current cycle (if any), then keep sync paused. */
+export async function pauseSyncForMaintenance(
+  waitMs = 60_000,
+): Promise<void> {
+  syncPaused = true;
+  if (!syncInFlight) return;
+  await Promise.race([
+    syncInFlight.then(() => undefined).catch(() => undefined),
+    new Promise<void>((resolve) => setTimeout(resolve, waitMs)),
+  ]);
+}
 
 /** Look up Mongo server_id for a local UUID (or pass through if already server id). */
 async function lookupServerId(
@@ -539,20 +565,31 @@ export type SyncResult = {
 
 /**
  * Crash-safe sync: handshake → push → pull → ack → recalculate.
+ * Concurrent callers share one in-flight promise (no "already running" toast).
  */
 export async function runSync(): Promise<SyncResult> {
   if (!isCloudSyncEnabled()) {
     return { ok: false, pushed: 0, pulled: 0, error: "Cloud sync disabled" };
   }
-  if (syncLock) {
-    return { ok: false, pushed: 0, pulled: 0, error: "Sync already running" };
+  if (syncPaused) {
+    return {
+      ok: false,
+      pushed: 0,
+      pulled: 0,
+      error: "Sync paused while migrating — try again in a moment",
+    };
   }
+  if (syncInFlight) return syncInFlight;
 
-  syncLock = true;
+  const run = (async (): Promise<SyncResult> => {
   const db = await getDb();
   const runId = await createLocalId();
+  let watchdog: ReturnType<typeof setTimeout> | null = null;
 
   try {
+    watchdog = setTimeout(() => {
+      console.warn("[sync] wall-clock budget exceeded — cycle may be stuck");
+    }, MAX_SYNC_WALL_MS);
     await setMeta(db, META_KEYS.SYNC_RUN_ID, runId);
     await setMeta(db, META_KEYS.SYNC_STAGE, "handshake");
 
@@ -786,8 +823,15 @@ export async function runSync(): Promise<SyncResult> {
     }
     return { ok: false, pushed: 0, pulled: 0, error: message };
   } finally {
-    syncLock = false;
+    if (watchdog) clearTimeout(watchdog);
   }
+  })();
+
+  syncInFlight = run;
+  void run.finally(() => {
+    if (syncInFlight === run) syncInFlight = null;
+  });
+  return run;
 }
 
 export async function getSyncStatus() {
