@@ -121,13 +121,23 @@ export function LocalFirstSection() {
         Toast.show({
           type: "error",
           text1: "Migration timed out",
-          text2: "Check network / API, then try Migrate again",
-          visibilityTime: 8000,
+          text2:
+            "Large ledgers can take a few minutes. Try again, or use Restore from Drive.",
+          visibilityTime: 9000,
         });
-      }, 90_000);
+      }, 180_000);
       try {
-        // Do NOT warm/sync here — that raced migrate and left Sync locked.
-        const result = await migrateCloudToLocal({ force });
+        const result = await migrateCloudToLocal({
+          force,
+          onProgress: (msg) => {
+            Toast.show({
+              type: "info",
+              text1: "Migrating…",
+              text2: msg,
+              visibilityTime: 2500,
+            });
+          },
+        });
         if (!result.migrated) {
           Toast.show({ type: "info", text1: "Already migrated" });
         } else {

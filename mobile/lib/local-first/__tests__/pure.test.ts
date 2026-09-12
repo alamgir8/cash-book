@@ -322,15 +322,17 @@ test("sync engine joins in-flight callers instead of already-running", () => {
   assert.doesNotMatch(src, /Sync already running/);
 });
 
-test("migrate pauses sync and budgets cloud overlay", () => {
+test("migrate uses paginated APIs when backup export is too slow", () => {
   const src = readFileSync(
     join(__dirname, "../../../services/migrate-cloud.ts"),
     "utf8",
   );
-  assert.match(src, /timeout: 60_000/);
+  assert.match(src, /assembleLedgerFromApis/);
+  assert.match(src, /tryBackupExport/);
   assert.match(src, /alignOpeningsFromBackupAccounts/);
   assert.match(src, /pauseSyncForMaintenance/);
-  assert.match(src, /withBudget/);
+  assert.match(src, /withBudget|onProgress/);
+  assert.match(src, /out\.due_date/);
 });
 
 test("backend sync applies account \$inc on transaction push", () => {
