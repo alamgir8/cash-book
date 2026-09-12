@@ -216,6 +216,21 @@ test("scheduler exports mutation + backoff sync entry points", () => {
   assert.match(src, /BACKOFF_STEPS_MS/);
   assert.match(src, /probeBackendAvailable/);
   assert.match(src, /reconnect/);
+  // Manual sync must return SyncResult (not void) so the banner can toast errors.
+  assert.match(src, /Promise<SyncResult>/);
+  assert.match(src, /inFlight/);
+  assert.match(src, /PENDING_RETRY_MS/);
+});
+
+test("daily jobs keep retrying sync on failure within the day", () => {
+  const src = readFileSync(
+    join(__dirname, "../daily-jobs.ts"),
+    "utf8",
+  );
+  assert.match(src, /MAX_DAILY_SYNC_ATTEMPTS/);
+  // Failed sync must not mark the day done (otherwise one fail = no more auto tries).
+  assert.match(src, /return \{ ran: true, sync: false, drive: drove \}/);
+  assert.match(src, /markDailyJobDone/);
 });
 
 test("backend sync applies account \$inc on transaction push", () => {
@@ -1435,6 +1450,9 @@ test("offline banner exposes a manual retry action", () => {
   // Offline must be explained, not silently ignored.
   assert.match(banner, /deviceOfflineKeepWorking/);
   assert.match(banner, /backendDownKeepWorking/);
+  // Manual path must toast the real SyncResult (success or error).
+  assert.match(banner, /syncSucceeded|upToDate/);
+  assert.match(banner, /result\.ok/);
   // The button is hidden while syncing (nothing to retry).
   assert.match(banner, /RETRYABLE/);
   // Banner is tab-only so add/edit screens keep vertical space for the keyboard.

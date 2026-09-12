@@ -11,8 +11,12 @@ import { localDayKey } from "@/lib/local-first/day-key";
 export { localDayKey };
 
 const LAST_DAILY_KEY = "@lf_last_daily_job_ymd";
+const DAILY_SYNC_ATTEMPTS_KEY = "@lf_daily_sync_attempts_ymd";
 
-/** True after local midnight until we've recorded today's job. */
+/** Cap automatic sync attempts per local day (manual Sync remains unlimited). */
+const MAX_DAILY_SYNC_ATTEMPTS = 8;
+
+/** True after local midnight until we've recorded today's successful job. */
 export async function isDailyJobDue(): Promise<boolean> {
   try {
     const last = await AsyncStorage.getItem(LAST_DAILY_KEY);
@@ -24,6 +28,28 @@ export async function isDailyJobDue(): Promise<boolean> {
 
 export async function markDailyJobDone(): Promise<void> {
   await AsyncStorage.setItem(LAST_DAILY_KEY, localDayKey());
+  await AsyncStorage.removeItem(DAILY_SYNC_ATTEMPTS_KEY);
+}
+
+async function dailySyncAttempts(): Promise<number> {
+  try {
+    const raw = await AsyncStorage.getItem(DAILY_SYNC_ATTEMPTS_KEY);
+    if (!raw) return 0;
+    const parsed = JSON.parse(raw) as { ymd?: string; n?: number };
+    if (parsed.ymd !== localDayKey()) return 0;
+    return Number(parsed.n) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+async function bumpDailySyncAttempt(): Promise<number> {
+  const n = (await dailySyncAttempts()) + 1;
+  await AsyncStorage.setItem(
+    DAILY_SYNC_ATTEMPTS_KEY,
+    JSON.stringify({ ymd: localDayKey(), n }),
+  );
+  return n;
 }
 
 let started = false;
@@ -34,11 +60,14 @@ let running = false;
 
 /**
  * Once per local day (after midnight), when the app is active:
- * 1) Mongo sync (if Cloud sync ON)
+ * 1) Mongo sync (if Cloud sync ON) — retries several times if it fails
  * 2) Drive dated backup (if Drive backups ON)
  *
  * iOS/Android do not guarantee true background midnight wakes without
  * push/BGTask — this runs on foreground + a 15‑minute poll while active.
+ *
+ * Sync failure does NOT mark the day done, so pending local data keeps
+ * retrying (up to MAX_DAILY_SYNC_ATTEMPTS). Manual banner Sync is separate.
  */
 export async function runDailyLocalFirstJobs(
   reason: string,
@@ -51,19 +80,32 @@ export async function runDailyLocalFirstJobs(
   let synced = false;
   let drove = false;
   try {
+    let syncFailed = false;
+
     if (isCloudSyncEnabled()) {
-      try {
-        const { runSync } = await import("@/sync/engine");
-        const result = await runSync();
-        synced = result.ok;
-        if (!result.ok) {
-          console.warn(`[daily-jobs] sync ${reason}`, result.error);
-        } else if (result.pulled > 0 || result.pushed > 0) {
-          const { queryClient } = await import("@/lib/queryClient");
-          await queryClient.invalidateQueries({ refetchType: "active" });
+      const attempts = await dailySyncAttempts();
+      if (attempts >= MAX_DAILY_SYNC_ATTEMPTS) {
+        console.warn(
+          `[daily-jobs] sync ${reason}: hit ${MAX_DAILY_SYNC_ATTEMPTS} attempts — will try again tomorrow`,
+        );
+        // Cap reached: finish the day (manual Sync still works).
+      } else {
+        try {
+          await bumpDailySyncAttempt();
+          const { runSync } = await import("@/sync/engine");
+          const result = await runSync();
+          synced = result.ok;
+          if (!result.ok) {
+            console.warn(`[daily-jobs] sync ${reason}`, result.error);
+            syncFailed = true;
+          } else if (result.pulled > 0 || result.pushed > 0) {
+            const { queryClient } = await import("@/lib/queryClient");
+            await queryClient.invalidateQueries({ refetchType: "active" });
+          }
+        } catch (e) {
+          console.warn(`[daily-jobs] sync ${reason}`, e);
+          syncFailed = true;
         }
-      } catch (e) {
-        console.warn(`[daily-jobs] sync ${reason}`, e);
       }
     }
 
@@ -82,8 +124,11 @@ export async function runDailyLocalFirstJobs(
       }
     }
 
-    // One attempt per local day — success or not. Next try is tomorrow.
-    // Manual "Sync now" remains available anytime.
+    // Keep the day open so the 15‑min poll retries while sync is still failing.
+    if (syncFailed) {
+      return { ran: true, sync: false, drive: drove };
+    }
+
     await markDailyJobDone();
 
     return { ran: true, sync: synced, drive: drove };
