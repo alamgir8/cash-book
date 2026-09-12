@@ -11,21 +11,32 @@ import {
   TextInput,
   TouchableOpacity,
   ActivityIndicator,
+  Keyboard,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/hooks/use-theme";
 import { useTranslation } from "@/hooks/use-translation";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { toast } from "@/lib/toast";
 import { dalFetchProducts } from "@/data/products";
+import { dalListPhraseAliases, dalSavePhraseAlias } from "@/data/phrase-aliases";
 import {
+  normalizeForMatch,
   parseBanglaItems,
   rankByName,
+  scoreNameMatch,
   type ParsedItem,
 } from "@/lib/voice/bangla-nlp";
+import {
+  canonicalNameFromLexicon,
+  rankUnifiedSuggestions,
+  type UnifiedSuggestion,
+} from "@/lib/voice/lexicon";
 import {
   describeSpeechSupport,
   startListening,
   type ListenSession,
+  type SpeechSupport,
 } from "@/lib/voice/speech";
 import type { Product } from "@/types/product";
 
@@ -47,8 +58,33 @@ type Props = {
   onSubmit: (items: SmartAddItem[]) => void;
   /** Optional: pick an existing product directly (e.g. add to cart). */
   onPickExisting?: (product: Product) => void;
+  /**
+   * Product-create guided mode: tap a chip applies immediately (no + needed).
+   * Also used when selecting a lexicon name that is not yet in the catalog.
+   */
+  onApplySuggestion?: (payload: {
+    suggestion: UnifiedSuggestion;
+    item: SmartAddItem;
+    product?: Product;
+  }) => void;
+  /** Override + button (e.g. advance to next form field). */
+  onPlusPress?: () => void;
+  /** When set, suggestions come from this list instead of name matching. */
+  externalSuggestions?: UnifiedSuggestion[];
+  /** Label above suggestion chips. */
+  suggestionsLabel?: string;
+  /** Hide the live parse preview cards under the bar. */
+  hideParsePreview?: boolean;
   placeholder?: string;
   autoFocus?: boolean;
+  /**
+   * When true (default), hide the long Bangla-install / voice-unavailable lines
+   * under the bar — those live behind a header help icon to save form space.
+   */
+  compactHints?: boolean;
+  /** Controlled text (optional) — for syncing with a focused form field. */
+  value?: string;
+  onChangeText?: (text: string) => void;
 };
 
 /**
@@ -58,22 +94,128 @@ type Props = {
  * preview chips (name · qty+unit · price, plus profit for sales) → add.
  * Everything runs offline; voice is optional and degrades to typing.
  */
-export function SmartAddBar({
-  mode,
-  organizationId,
+export function SmartAddBar(props: Props) {
+  /**
+   * A convenience bar must never take down the till. If anything inside it
+   * throws (parser, mic, catalog query), the screen keeps working and shows a
+   * plain text field instead.
+   */
+  return (
+    <ErrorBoundary fallback={<SmartAddFallback {...props} />}>
+      <SmartAddBarInner {...props} />
+    </ErrorBoundary>
+  );
+}
+
+/** Minimal always-works fallback: type a name, add it. */
+function SmartAddFallback({
   onSubmit,
-  onPickExisting,
   placeholder,
   autoFocus,
 }: Props) {
   const { colors } = useTheme();
   const { t } = useTranslation();
+  const [value, setValue] = useState("");
 
-  const [text, setText] = useState("");
+  const add = useCallback(() => {
+    const name = value.trim();
+    if (!name) return;
+    onSubmit([
+      {
+        raw: name,
+        name,
+        quantity: 1,
+        unit: null,
+        unit_price: null,
+        purchase_price: null,
+        sale_price: null,
+        pricingAmbiguous: false,
+        confidence: "low",
+        price: null,
+        cost: null,
+      },
+    ]);
+    setValue("");
+  }, [value, onSubmit]);
+
+  return (
+    <View style={{ flexDirection: "row", gap: 8, marginBottom: 12 }}>
+      <TextInput
+        value={value}
+        onChangeText={setValue}
+        autoFocus={autoFocus}
+        placeholder={placeholder ?? t("smartAddPlaceholder")}
+        placeholderTextColor={colors.text.tertiary}
+        style={{
+          flex: 1,
+          borderWidth: 1,
+          borderColor: colors.border,
+          borderRadius: 12,
+          paddingHorizontal: 14,
+          paddingVertical: 11,
+          fontSize: 15,
+          color: colors.text.primary,
+          backgroundColor: colors.bg.secondary,
+        }}
+      />
+      <TouchableOpacity
+        onPress={add}
+        disabled={!value.trim()}
+        style={{
+          width: 46,
+          height: 46,
+          borderRadius: 12,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: value.trim() ? colors.success : colors.bg.tertiary,
+        }}
+      >
+        <Ionicons name="add" size={24} color="#fff" />
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+function SmartAddBarInner({
+  mode,
+  organizationId,
+  onSubmit,
+  onPickExisting,
+  onApplySuggestion,
+  onPlusPress,
+  externalSuggestions,
+  suggestionsLabel,
+  hideParsePreview = false,
+  placeholder,
+  autoFocus,
+  compactHints = true,
+  value: controlledValue,
+  onChangeText: onControlledChange,
+}: Props) {
+  const { colors } = useTheme();
+  const { t } = useTranslation();
+
+  const [internalText, setInternalText] = useState("");
+  const text = controlledValue !== undefined ? controlledValue : internalText;
+  const setText = useCallback(
+    (next: string | ((prev: string) => string)) => {
+      const resolved =
+        typeof next === "function" ? next(controlledValue ?? internalText) : next;
+      if (onControlledChange) onControlledChange(resolved);
+      else setInternalText(resolved);
+    },
+    [controlledValue, internalText, onControlledChange],
+  );
   const [listening, setListening] = useState(false);
-  const [speechReason, setSpeechReason] = useState<string | null>(null);
+  const [speech, setSpeech] = useState<SpeechSupport | null>(null);
+  const [banglaCaveat, setBanglaCaveat] = useState(false);
   const [catalog, setCatalog] = useState<Product[]>([]);
+  const [userAliases, setUserAliases] = useState<
+    Array<{ phrase: string; name: string; productId?: string | null }>
+  >([]);
   const sessionRef = useRef<ListenSession | null>(null);
+  const inputRef = useRef<TextInput>(null);
+  const listenLockRef = useRef(false);
 
   // Load the catalog once so matches are instant (and offline).
   useEffect(() => {
@@ -84,9 +226,18 @@ export function SmartAddBar({
           organization: organizationId || undefined,
           limit: 500,
         });
-        if (!cancelled) setCatalog(res.products ?? []);
+        if (!cancelled) setCatalog(res?.products ?? []);
       } catch {
         /* catalog optional — matching just won't suggest */
+      }
+      try {
+        const aliases = await dalListPhraseAliases({
+          organizationId,
+          limit: 400,
+        });
+        if (!cancelled) setUserAliases(aliases);
+      } catch {
+        /* aliases optional */
       }
     })();
     return () => {
@@ -95,20 +246,71 @@ export function SmartAddBar({
   }, [organizationId]);
 
   useEffect(() => {
-    void describeSpeechSupport().then((s) => {
-      if (s.available) setSpeechReason(null);
-      else setSpeechReason(s.reason);
-    });
+    let cancelled = false;
+    void describeSpeechSupport()
+      .then((s) => {
+        if (cancelled) return;
+        setSpeech(s);
+        // Available but the device lacks Bangla dictation → tell the user once.
+        setBanglaCaveat(s.available && !s.banglaSupported);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSpeech({
+            available: false,
+            provider: "none",
+            lang: "bn-BD",
+            banglaSupported: false,
+          });
+          setBanglaCaveat(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+      // Stop any in-flight session if the screen unmounts mid-listen.
+      const session = sessionRef.current;
+      sessionRef.current = null;
+      void session?.stop().catch(() => undefined);
+    };
   }, []);
 
-  const parsed = useMemo(() => parseBanglaItems(text), [text]);
+  // Guard the parser: a malformed phrase must not break rendering.
+  const parsed = useMemo(() => {
+    if (!text.trim()) return [];
+    try {
+      return parseBanglaItems(text);
+    } catch {
+      return [];
+    }
+  }, [text]);
 
-  /** Resolve a parsed phrase against the catalog and the current mode. */
+  /** Resolve a parsed phrase against catalog + bundled lexicon + user aliases. */
   const resolve = useCallback(
     (p: ParsedItem): SmartAddItem => {
-      const matched = rankByName(p.name, catalog, 45)[0];
-      // Price precedence: an explicit spoken cost/sale, else the catalog price
-      // for this context, else the single spoken price.
+      // Prefer a real catalog product; fall back to lexicon canonical name.
+      let matched = rankByName(p.name, catalog, 45)[0];
+      let name = p.name;
+
+      if (!matched) {
+        // User alias may point at a product id.
+        const alias = userAliases.find(
+          (a) =>
+            scoreNameMatch(p.name, a.phrase) >= 70 ||
+            scoreNameMatch(p.name, a.name) >= 70,
+        );
+        if (alias?.productId) {
+          matched = catalog.find((c) => c._id === alias.productId);
+        }
+        if (alias && !matched) {
+          name = alias.name;
+        } else if (!matched) {
+          const { name: canon } = canonicalNameFromLexicon(p.name, {
+            minScore: 70,
+          });
+          name = canon;
+        }
+      }
+
       let price: number | null = null;
       let cost: number | null = null;
 
@@ -127,7 +329,6 @@ export function SmartAddBar({
           p.purchase_price ??
           (matched ? Number(matched.cost_price ?? matched.purchase_price) : null);
       } else {
-        // Adding a product to the catalog: cost and sale are both meaningful.
         price = p.unit_price ?? (matched ? Number(matched.sale_price) : null);
         cost =
           p.purchase_price ??
@@ -136,24 +337,126 @@ export function SmartAddBar({
 
       return {
         ...p,
+        name,
         matched,
         price,
         cost: cost ?? null,
       };
     },
-    [catalog, mode],
+    [catalog, mode, userAliases],
   );
 
   const resolved = useMemo(() => parsed.map(resolve), [parsed, resolve]);
 
-  const suggestions = useMemo(() => {
+  const suggestions = useMemo((): UnifiedSuggestion[] => {
+    if (externalSuggestions) return externalSuggestions;
     if (!text.trim()) return [];
     const q = parsed[0]?.name ?? text;
     if (!q.trim()) return [];
-    return rankByName(q, catalog, 40).slice(0, 4);
-  }, [text, parsed, catalog]);
+    try {
+      return rankUnifiedSuggestions(q, catalog, {
+        limit: 8,
+        minScore: 35,
+        userAliases,
+      });
+    } catch {
+      return [];
+    }
+  }, [text, parsed, catalog, userAliases, externalSuggestions]);
+
+  const applySuggestion = useCallback(
+    (s: UnifiedSuggestion) => {
+      const spoken = parsed[0];
+      if (
+        spoken?.name &&
+        normalizeForMatch(spoken.name) !== normalizeForMatch(s.name)
+      ) {
+        void dalSavePhraseAlias({
+          phrase: spoken.name,
+          name: s.name,
+          productId: s.productId ?? null,
+          organizationId,
+        }).then((row) => {
+          if (!row) return;
+          setUserAliases((prev) => {
+            const rest = prev.filter(
+              (a) =>
+                normalizeForMatch(a.phrase) !== normalizeForMatch(row.phrase),
+            );
+            return [
+              {
+                phrase: row.phrase,
+                name: row.name,
+                productId: row.product_id,
+              },
+              ...rest,
+            ];
+          });
+        });
+      }
+
+      const product = s.productId
+        ? catalog.find((c) => c._id === s.productId)
+        : undefined;
+
+      // Guided product mode: apply immediately to the form.
+      if (onApplySuggestion) {
+        const base: ParsedItem = spoken ?? {
+          raw: s.name,
+          name: s.name,
+          quantity: null,
+          unit: null,
+          unit_price: null,
+          purchase_price: null,
+          sale_price: null,
+          pricingAmbiguous: false,
+          confidence: "medium",
+        };
+        const item = resolve({ ...base, name: s.name });
+        onApplySuggestion({
+          suggestion: s,
+          item: { ...item, matched: product ?? item.matched },
+          product,
+        });
+        setText(s.name);
+        return;
+      }
+
+      if (s.productId && onPickExisting && product) {
+        onPickExisting(product);
+        setText("");
+        return;
+      }
+
+      const parts: string[] = [s.name];
+      if (spoken?.quantity != null) {
+        parts.push(
+          spoken.unit
+            ? `${spoken.quantity} ${spoken.unit}`
+            : `${spoken.quantity}টা`,
+        );
+      }
+      const price =
+        spoken?.unit_price ?? spoken?.sale_price ?? spoken?.purchase_price;
+      if (price != null) parts.push(`${price} টাকা`);
+      setText(parts.join(" "));
+    },
+    [
+      parsed,
+      catalog,
+      onPickExisting,
+      onApplySuggestion,
+      organizationId,
+      resolve,
+      setText,
+    ],
+  );
 
   const handleAdd = useCallback(() => {
+    if (onPlusPress) {
+      onPlusPress();
+      return;
+    }
     if (resolved.length === 0) {
       toast.error(t("addAtLeastOneItem"));
       return;
@@ -165,33 +468,76 @@ export function SmartAddBar({
     }
     onSubmit(usable);
     setText("");
-  }, [resolved, onSubmit, t]);
+  }, [resolved, onSubmit, onPlusPress, t, setText]);
+
+  const voiceReady = speech?.available === true;
 
   const toggleListening = useCallback(async () => {
-    if (listening) {
-      await sessionRef.current?.stop();
+    // Prevent double-taps from starting two native sessions (crash-prone).
+    if (listenLockRef.current) return;
+    listenLockRef.current = true;
+
+    try {
+      if (listening) {
+        try {
+          await sessionRef.current?.stop();
+        } catch {
+          /* ignore */
+        }
+        sessionRef.current = null;
+        setListening(false);
+        return;
+      }
+
+      // Not an error — just explain, briefly, and keep the field usable.
+      if (!voiceReady) {
+        toast.info(t("voiceUnavailable"));
+        return;
+      }
+
+      // Blur + dismiss before native STT — TextInput focus + AVAudioSession
+      // category changes is a known iOS crash path.
+      try {
+        inputRef.current?.blur();
+        Keyboard.dismiss();
+      } catch {
+        /* ignore */
+      }
+
+      setListening(true);
+      const session = await startListening({
+        onResult: (r) => {
+          // Append so several items can be dictated in sequence.
+          setText((prev) => (prev ? `${prev}, ${r.transcript}` : r.transcript));
+        },
+        onError: (msg) => {
+          // Permission problems are actionable; everything else is informational.
+          toast.error(
+            /permission|অনুমতি|not-allowed/i.test(msg)
+              ? t("voicePermissionNeeded")
+              : msg,
+          );
+          setListening(false);
+          sessionRef.current = null;
+        },
+        onEnd: () => {
+          setListening(false);
+          sessionRef.current = null;
+        },
+      });
+      if (!session) {
+        setListening(false);
+        return;
+      }
+      sessionRef.current = session;
+    } catch (e: any) {
+      setListening(false);
       sessionRef.current = null;
-      setListening(false);
-      return;
+      toast.error(e?.message ?? t("voiceUnavailable"));
+    } finally {
+      listenLockRef.current = false;
     }
-    setListening(true);
-    const session = await startListening({
-      onResult: (r) => {
-        // Append so several items can be dictated in sequence.
-        setText((prev) => (prev ? `${prev}, ${r.transcript}` : r.transcript));
-      },
-      onError: (msg) => {
-        toast.error(msg);
-        setSpeechReason(msg);
-      },
-      onEnd: () => setListening(false),
-    });
-    if (!session) {
-      setListening(false);
-      return;
-    }
-    sessionRef.current = session;
-  }, [listening]);
+  }, [listening, voiceReady, t]);
 
   const money = (n: number) =>
     n.toLocaleString(undefined, {
@@ -204,16 +550,18 @@ export function SmartAddBar({
     item.cost !== null && item.price !== null ? item.price - item.cost : null;
 
   return (
-    <View style={{ marginBottom: 12 }}>
+    <View style={{ marginBottom: 4 }}>
       {/* Input row */}
       <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
         <TextInput
+          ref={inputRef}
           value={text}
           onChangeText={setText}
           autoFocus={autoFocus}
           placeholder={placeholder ?? t("smartAddPlaceholder")}
           placeholderTextColor={colors.text.tertiary}
           multiline
+          blurOnSubmit
           style={{
             flex: 1,
             borderWidth: 1,
@@ -225,10 +573,15 @@ export function SmartAddBar({
             color: colors.text.primary,
             backgroundColor: colors.bg.secondary,
             maxHeight: 90,
+            minHeight: 46,
           }}
         />
         <TouchableOpacity
-          onPress={toggleListening}
+          onPress={() => {
+            void toggleListening();
+          }}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: !voiceReady, busy: listening }}
           style={{
             width: 46,
             height: 46,
@@ -236,40 +589,58 @@ export function SmartAddBar({
             alignItems: "center",
             justifyContent: "center",
             borderWidth: 1,
-            backgroundColor: listening ? colors.error + "20" : colors.bg.secondary,
-            borderColor: listening ? colors.error : colors.border,
+            backgroundColor: listening
+              ? colors.error + "20"
+              : voiceReady
+                ? colors.info + "12"
+                : colors.bg.tertiary,
+            borderColor: listening
+              ? colors.error
+              : voiceReady
+                ? colors.info + "40"
+                : colors.border,
           }}
         >
           {listening ? (
             <ActivityIndicator color={colors.error} />
           ) : (
             <Ionicons
-              name="mic"
+              name={voiceReady ? "mic" : "mic-off"}
               size={22}
-              color={speechReason ? colors.text.tertiary : colors.info}
+              color={voiceReady ? colors.info : colors.text.tertiary}
             />
           )}
         </TouchableOpacity>
         <TouchableOpacity
           onPress={handleAdd}
-          disabled={!text.trim()}
+          disabled={onPlusPress ? false : !text.trim()}
           style={{
             width: 46,
             height: 46,
             borderRadius: 12,
             alignItems: "center",
             justifyContent: "center",
-            backgroundColor: text.trim() ? colors.success : colors.bg.tertiary,
+            backgroundColor:
+              onPlusPress || text.trim() ? colors.success : colors.bg.tertiary,
           }}
         >
-          <Ionicons name="add" size={24} color="#fff" />
+          <Ionicons
+            name={onPlusPress ? "arrow-forward" : "add"}
+            size={24}
+            color="#fff"
+          />
         </TouchableOpacity>
       </View>
 
-      {/* Voice unavailable hint (typing still works) */}
-      {speechReason && !listening ? (
+      {/* Voice status — keep only the live "listening" line when compact. */}
+      {!compactHints && voiceReady && banglaCaveat && !listening ? (
+        <Text style={{ fontSize: 11, color: colors.warning, marginTop: 4 }}>
+          {t("voiceBanglaMissing")}
+        </Text>
+      ) : null}
+      {!compactHints && !voiceReady && speech && !listening ? (
         <Text style={{ fontSize: 11, color: colors.text.tertiary, marginTop: 4 }}>
-          {speechReason}
+          {t("voiceUnavailable")}
         </Text>
       ) : null}
       {listening ? (
@@ -278,8 +649,8 @@ export function SmartAddBar({
         </Text>
       ) : null}
 
-      {/* Live parse preview */}
-      {resolved.length > 0 ? (
+      {/* Live parse preview — hidden in guided product mode. */}
+      {!hideParsePreview && resolved.length > 0 ? (
         <View style={{ marginTop: 8, gap: 6 }}>
           {resolved.map((item, index) => {
             const profit = profitFor(item);
@@ -343,8 +714,8 @@ export function SmartAddBar({
         </View>
       ) : null}
 
-      {/* Existing-product suggestions (pick instead of re-typing) */}
-      {suggestions.length > 0 && onPickExisting ? (
+      {/* Catalog + lexicon + saved-phrase suggestions */}
+      {suggestions.length > 0 ? (
         <View style={{ marginTop: 8 }}>
           <Text
             style={{
@@ -353,30 +724,43 @@ export function SmartAddBar({
               marginBottom: 4,
             }}
           >
-            {t("pickExisting")}
+            {suggestionsLabel ?? t("pickExisting")}
           </Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-            {suggestions.map((p) => (
-              <TouchableOpacity
-                key={p._id}
-                onPress={() => {
-                  onPickExisting(p);
-                  setText("");
-                }}
-                style={{
-                  paddingHorizontal: 10,
-                  paddingVertical: 6,
-                  borderRadius: 20,
-                  backgroundColor: colors.success + "15",
-                  borderWidth: 1,
-                  borderColor: colors.success + "40",
-                }}
-              >
-                <Text style={{ fontSize: 12, color: colors.success }}>
-                  {p.name}
-                </Text>
-              </TouchableOpacity>
-            ))}
+            {suggestions.map((s) => {
+              const isExisting =
+                s.source === "catalog" ||
+                s.source === "alias" ||
+                !!s.productId;
+              return (
+                <TouchableOpacity
+                  key={`${s.source}:${s.name}:${s.productId ?? ""}`}
+                  onPress={() => applySuggestion(s)}
+                  style={{
+                    paddingHorizontal: 10,
+                    paddingVertical: 6,
+                    borderRadius: 20,
+                    backgroundColor: isExisting
+                      ? colors.success + "18"
+                      : colors.info + "12",
+                    borderWidth: 1,
+                    borderColor: isExisting
+                      ? colors.success + "50"
+                      : colors.info + "35",
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      fontWeight: isExisting ? "700" : "500",
+                      color: isExisting ? colors.success : colors.info,
+                    }}
+                  >
+                    {isExisting ? `✓ ${s.label}` : s.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
       ) : null}

@@ -584,11 +584,16 @@ const ITEM_SEPARATORS = new Set(["আর", "ও", "এবং", "and", "তার
 /**
  * Normalize for comparison: unify digits, drop punctuation, collapse spaces.
  * Bangla text is preserved as-is (no transliteration), so "চাল" matches "চাল".
+ *
+ * Uses an explicit character class rather than `\p{L}` unicode property
+ * escapes: Hermes support for those is inconsistent across versions and a
+ * throw here would take down the screen (this runs during render).
  */
 export function normalizeForMatch(input: string): string {
   return normalizeDigits(String(input ?? ""))
     .toLowerCase()
-    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    // Keep Bangla (\u0980-\u09FF), Latin letters, digits and whitespace.
+    .replace(/[^\u0980-\u09FFa-zA-Z0-9\s]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }

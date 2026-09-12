@@ -186,8 +186,8 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
 
   const handleSave = async (values: ProfileFormData) => {
     if (submitting) return;
+    setSubmitting(true);
     try {
-      setSubmitting(true);
       const payload = {
         name: values.name,
         email: values.email,
@@ -213,10 +213,12 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
       Toast.show({
         type: "success",
         text1: t("profileUpdated"),
-        // Be explicit that an offline save is queued rather than sent.
         text2: result.synced ? undefined : "Saved on this device — will sync",
       });
-      handleClose();
+      // Clear loading before unmounting so a remount never inherits a stuck spinner.
+      setSubmitting(false);
+      reset();
+      onClose();
     } catch (error) {
       const message =
         error instanceof Error ? error.message : t("unableToUpdateProfile");
@@ -225,7 +227,6 @@ export function ProfileEditModal({ visible, onClose }: ProfileEditModalProps) {
         text1: t("updateFailed"),
         text2: message,
       });
-    } finally {
       setSubmitting(false);
     }
   };

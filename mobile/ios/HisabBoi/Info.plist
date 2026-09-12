@@ -66,7 +66,9 @@
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Allow Hisab Boi to connect to your Mac for local development (Metro) and your local API server on the same Wi‑Fi.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Allow Hisab Boi to use the microphone for voice input when adding transactions.</string>
+	<string>Hisab Boi uses the microphone so you can add products and sales by speaking instead of typing.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Hisab Boi uses speech recognition to turn what you say into product names, quantities and prices.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Allow Hisab Boi to save photos to your library.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

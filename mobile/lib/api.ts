@@ -5,6 +5,10 @@ import axios, {
 } from "axios";
 import Constants from "expo-constants";
 import { NativeModules } from "react-native";
+import {
+  looksLikeHttpsLanMistake,
+  resolveApiHost,
+} from "./local-first/api-host";
 
 const API_PORT = 4000;
 const API_PATH = "/api";
@@ -55,8 +59,40 @@ const parseHostname = (value?: string | null) => {
 // Determine the best base URL we can for the current runtime.
 const getBaseURL = () => {
   const envUrl = normalizeUrl(process.env.EXPO_PUBLIC_BASE_URL);
+
+  // Dev-only: follow Metro's host when the configured LAN IP is stale (DHCP).
+  // Cast once: the manifest typing is incomplete across Expo versions (the
+  // pre-existing reads below rely on the same loose shape).
+  const anyConstants = Constants as any;
+  const metroHost =
+    anyConstants?.expoConfig?.hostUri ??
+    anyConstants?.manifest?.debuggerHost ??
+    undefined;
+
   if (envUrl) {
-    return envUrl;
+    const fixed = resolveApiHost({
+      configuredUrl: envUrl,
+      metroHost,
+      isDev: __DEV__,
+      // Opt-in only: Metro's advertised host can be stale (observed advertising
+      // an IP that was not on the machine at all).
+      autofixEnabled:
+        String(process.env.EXPO_PUBLIC_API_AUTOFIX ?? "").toLowerCase() === "on",
+    });
+    if (fixed.changed) {
+      console.warn(
+        `[api] EXPO_PUBLIC_API_AUTOFIX=on — following Metro's host.\n` +
+          `      configured: ${envUrl}\n` +
+          `      using:      ${fixed.url}`,
+      );
+    }
+    if (__DEV__ && looksLikeHttpsLanMistake(envUrl)) {
+      console.warn(
+        `[api] EXPO_PUBLIC_BASE_URL uses https on a LAN address. The local ` +
+          `backend serves plain HTTP, so requests will fail. Use http:// instead.`,
+      );
+    }
+    return fixed.url;
   }
 
   const explicit =

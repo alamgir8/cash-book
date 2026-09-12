@@ -186,6 +186,7 @@ export async function createLocalProduct(
       barcode: params.barcode,
       description: params.description,
       category_id: params.category_id,
+      brand: params.brand,
       unit: params.unit,
       purchase_price: params.purchase_price,
       additional_cost: params.additional_cost,

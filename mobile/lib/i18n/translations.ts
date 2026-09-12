@@ -552,6 +552,11 @@ export type AppTranslations = {
   products: string;
   productName: string;
   productNamePlaceholder: string;
+  brand: string;
+  brandOptional: string;
+  brandPlaceholder: string;
+  suggestBrands: string;
+  suggestProducts: string;
   sku: string;
   skuAutoHint: string;
   barcode: string;
@@ -774,7 +779,9 @@ export type AppTranslations = {
   smartAddPlaceholder: string;
   speakOrType: string;
   listeningTapToStop: string;
-  voiceUnavailableTypingWorks: string;
+  voiceUnavailable: string;
+  voicePermissionNeeded: string;
+  voiceBanglaMissing: string;
   profit: string;
   loss: string;
   matchedExisting: string;
@@ -783,6 +790,13 @@ export type AppTranslations = {
   pickExisting: string;
   addToCart: string;
   addToInvoice: string;
+  retrySync: string;
+  syncingNow: string;
+  syncStarted: string;
+  syncFailedKeepWorking: string;
+  deviceOfflineKeepWorking: string;
+  backendDownKeepWorking: string;
+  upToDate: string;
 };
 
 // ── English ───────────────────────────────────────────────────────────────────
@@ -1343,6 +1357,11 @@ const en: AppTranslations = {
   products: "Products",
   productName: "Product Name",
   productNamePlaceholder: "e.g. Basmati Rice 5kg",
+  brand: "Brand",
+  brandOptional: "Brand (optional)",
+  brandPlaceholder: "e.g. Lux, Pran, Fresh",
+  suggestBrands: "Suggested brands",
+  suggestProducts: "Suggestions",
   sku: "SKU",
   skuAutoHint: "SKU (auto-generated if blank)",
   barcode: "Barcode",
@@ -1571,8 +1590,10 @@ const en: AppTranslations = {
   smartAddPlaceholder: 'Say or type it: "সাবান ২টা ৪৫ টাকা"',
   speakOrType: "Speak or type",
   listeningTapToStop: "Listening… tap the mic to stop",
-  voiceUnavailableTypingWorks:
-    "Voice needs one rebuild on the phone — typing works now.",
+  voiceUnavailable: "Voice is not available on this device — please type.",
+  voicePermissionNeeded: "Microphone permission is required.",
+  voiceBanglaMissing:
+    "Bangla voice is not installed — listening in English. Install: Settings → General → Keyboard → Keyboards → Add Keyboard → বাংলা. Then enable Dictation and add বাংলা.",
   profit: "profit",
   loss: "loss",
   matchedExisting: "existing",
@@ -1581,6 +1602,16 @@ const en: AppTranslations = {
   pickExisting: "Or pick an existing product",
   addToCart: "Add to cart",
   addToInvoice: "Add to invoice",
+  retrySync: "Sync",
+  syncingNow: "Syncing…",
+  syncStarted: "Syncing now…",
+  syncFailedKeepWorking:
+    "Sync failed. Please wait — your work is saved and will sync automatically later.",
+  deviceOfflineKeepWorking:
+    "Your device is offline. Keep working — sync will happen automatically later.",
+  backendDownKeepWorking:
+    "Backend is down or unreachable. Keep working — sync will happen automatically later.",
+  upToDate: "Everything is synced",
 };
 
 // ── Bengali (বাংলা) ────────────────────────────────────────────────────────────
@@ -2143,6 +2174,11 @@ const bn: AppTranslations = {
   products: "পণ্যসমূহ",
   productName: "পণ্যের নাম",
   productNamePlaceholder: "যেমন: বাসমতি চাল ৫ কেজি",
+  brand: "ব্র্যান্ড",
+  brandOptional: "ব্র্যান্ড (ঐচ্ছিক)",
+  brandPlaceholder: "যেমন: লাক্স, প্রাণ, ফ্রেশ",
+  suggestBrands: "প্রস্তাবিত ব্র্যান্ড",
+  suggestProducts: "সাজেশন",
   sku: "এসকেইউ",
   skuAutoHint: "এসকেইউ (খালি রাখলে স্বয়ংক্রিয়ভাবে তৈরি হবে)",
   barcode: "বারকোড",
@@ -2369,8 +2405,10 @@ const bn: AppTranslations = {
   smartAddPlaceholder: 'বলুন বা লিখুন: "সাবান ২টা ৪৫ টাকা"',
   speakOrType: "বলুন বা লিখুন",
   listeningTapToStop: "শোনা হচ্ছে… থামাতে মাইকে চাপুন",
-  voiceUnavailableTypingWorks:
-    "ফোনে ভয়েস চালু করতে একবার রিবিল্ড লাগবে — এখন টাইপ করে কাজ করুন।",
+  voiceUnavailable: "এই ডিভাইসে ভয়েস নেই — টাইপ করে লিখুন।",
+  voicePermissionNeeded: "মাইক্রোফোনের অনুমতি প্রয়োজন।",
+  voiceBanglaMissing:
+    "বাংলা ভয়েস ইনস্টল নেই — ইংরেজিতে শুনবে। ইনস্টল: Settings → General → Keyboard → Keyboards → Add Keyboard → বাংলা। তারপর Dictation চালু করে বাংলা যোগ করুন।",
   profit: "লাভ",
   loss: "ক্ষতি",
   matchedExisting: "আগের পণ্য",
@@ -2379,6 +2417,16 @@ const bn: AppTranslations = {
   pickExisting: "অথবা আগের পণ্য থেকে বেছে নিন",
   addToCart: "কার্টে যোগ করুন",
   addToInvoice: "ইনভয়েসে যোগ করুন",
+  retrySync: "সিঙ্ক",
+  syncingNow: "সিঙ্ক হচ্ছে…",
+  syncStarted: "এখন সিঙ্ক হচ্ছে…",
+  syncFailedKeepWorking:
+    "সিঙ্ক ব্যর্থ হয়েছে। অপেক্ষা করুন — আপনার কাজ সংরক্ষিত আছে, পরে স্বয়ংক্রিয়ভাবে সিঙ্ক হবে।",
+  deviceOfflineKeepWorking:
+    "আপনার ডিভাইস অফলাইনে আছে। কাজ চালিয়ে যান — পরে স্বয়ংক্রিয়ভাবে সিঙ্ক হবে।",
+  backendDownKeepWorking:
+    "সার্ভার বন্ধ বা পাওয়া যাচ্ছে না। কাজ চালিয়ে যান — পরে স্বয়ংক্রিয়ভাবে সিঙ্ক হবে।",
+  upToDate: "সবকিছু সিঙ্ক হয়েছে",
 };
 
 export const translations: Record<string, AppTranslations> = { en, bn };

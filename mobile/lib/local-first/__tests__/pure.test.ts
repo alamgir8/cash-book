@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { resolveLastWriteWins } from "../conflicts.ts";
@@ -1001,10 +1001,12 @@ test("offline settings migration adds cache + outbox tables", () => {
   assert.match(migrations, /CREATE TABLE IF NOT EXISTS pending_ops/);
   assert.match(migrations, /idx_pending_ops_created/);
   assert.match(migrations, /005_offline_settings/);
+  assert.match(migrations, /006_phrase_aliases/);
+  assert.match(migrations, /CREATE TABLE IF NOT EXISTS phrase_aliases/);
 
   // Schema version must stay in lockstep with the newest migration.
   const types = readFileSync(join(__dirname, "../../../db/types.ts"), "utf8");
-  assert.match(types, /LOCAL_SCHEMA_VERSION = 5/);
+  assert.match(types, /LOCAL_SCHEMA_VERSION = 6/);
 });
 
 test("settings writes never persist a PIN to SQLite", () => {
@@ -1023,6 +1025,7 @@ test("settings writes never persist a PIN to SQLite", () => {
 // ── Shop sync contract (Phase 13) ──────────────────────────────────────────
 
 const repoRoot = join(__dirname, "../../../..");
+const mobileRoot = join(__dirname, "../../..");
 
 test("sync entity enum includes shop entities on both client and server", () => {
   const engine = readFileSync(join(__dirname, "../../../sync/engine.ts"), "utf8");
@@ -1120,6 +1123,7 @@ test("local wipe clears shop data so logout cannot leak it", () => {
     "inventory_movements",
     "settings_cache",
     "pending_ops",
+    "phrase_aliases",
     "organizations",
   ]) {
     assert.match(
@@ -1144,5 +1148,433 @@ test("shop writes trigger a sync nudge", () => {
   }
 });
 
+// ── Regression guards for the on-device crash + sync failure ────────────────
 
+/** Strip block + line comments so guards test code, not prose. */
+function codeOnly(source: string): string {
+  return source
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/(^|\s)\/\/[^\n]*/g, "$1");
+}
+
+test("voice modules avoid Metro-hostile dynamic imports and regex", () => {
+  for (const file of ["speech.ts", "bangla-nlp.ts"]) {
+    const code = codeOnly(
+      readFileSync(join(__dirname, "../../voice", file), "utf8"),
+    );
+    // Metro needs static string literals in import(); a variable specifier
+    // fails the route bundle and crashes the screen when the route loads.
+    assert.doesNotMatch(
+      code,
+      /import\(\s*[A-Za-z_$][A-Za-z0-9_$]*\s*\)/,
+      `${file} must not use a variable dynamic import`,
+    );
+    // Hermes support for \p{...} is inconsistent; a throw here runs in render.
+    assert.doesNotMatch(code, /\\p\{/, `${file} must not use \\p{...} regex`);
+  }
+});
+
+test("react-native core is never dynamically imported", () => {
+  /**
+   * Regression: `await import("react-native")` inside speech.ts went through
+   * expo's async-require `importAll`, which enumerates every RN export and hits
+   * the lazy getters — including `get__PushNotificationIOS`, which throws
+   * "tried to access a native module that doesn't exist" in Expo Go.
+   * `Platform` must be a static import.
+   */
+  const roots = ["app", "components", "lib", "hooks", "data", "db", "sync", "services"];
+  const offenders: string[] = [];
+
+  const walk = (dir: string) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const p = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (/node_modules|ios|android|\.expo/.test(p)) continue;
+        walk(p);
+      } else if (/\.(ts|tsx)$/.test(entry.name)) {
+        const code = codeOnly(readFileSync(p, "utf8"));
+        if (/import\(\s*["'`]react-native["'`]\s*\)/.test(code)) {
+          offenders.push(p.replace(`${mobileRoot}/`, ""));
+        }
+      }
+    }
+  };
+  for (const root of roots) {
+    try {
+      walk(join(__dirname, "../../../", root));
+    } catch {
+      /* root may not exist */
+    }
+  }
+  assert.deepEqual(offenders, [], "static-import react-native instead");
+});
+
+// ── Dev API host self-heal ─────────────────────────────────────────────────
+
+test("LAN autofix is opt-in and only then follows Metro's host", async () => {
+  const { resolveApiHost } = await import("../api-host.ts");
+
+  const configured = "http://192.168.0.214:5050/api";
+  const metroHost = "192.168.0.249:8081";
+
+  // DEFAULT OFF. Metro was observed advertising an address that was not on the
+  // machine, so rewriting a configured URL without an explicit opt-in could turn
+  // a working URL into a dead one.
+  const byDefault = resolveApiHost({ configuredUrl: configured, metroHost, isDev: true });
+  assert.equal(byDefault.changed, false);
+  assert.equal(byDefault.reason, "disabled");
+  assert.equal(byDefault.url, configured);
+
+  // Explicit opt-in → rewrite, preserving port/path/protocol.
+  const opted = resolveApiHost({
+    configuredUrl: configured,
+    metroHost,
+    isDev: true,
+    autofixEnabled: true,
+  });
+  assert.equal(opted.changed, true);
+  assert.equal(opted.reason, "applied");
+  assert.equal(opted.url, "http://192.168.0.249:5050/api");
+
+  // Already correct → untouched even when enabled.
+  assert.equal(
+    resolveApiHost({
+      configuredUrl: "http://192.168.0.249:5050/api",
+      metroHost,
+      isDev: true,
+      autofixEnabled: true,
+    }).changed,
+    false,
+  );
+});
+
+test("API host autofix never touches production, public or loopback hosts", async () => {
+  const { resolveApiHost } = await import("../api-host.ts");
+
+  // Production builds are never rewritten.
+  assert.equal(
+    resolveApiHost({
+      configuredUrl: "http://192.168.0.214:5050/api",
+      metroHost: "192.168.0.249:8081",
+      isDev: false,
+    }).changed,
+    false,
+  );
+
+  // Explicit opt-out.
+  assert.equal(
+    resolveApiHost({
+      configuredUrl: "http://192.168.0.214:5050/api",
+      metroHost: "192.168.0.249:8081",
+      isDev: true,
+      autofixEnabled: false,
+    }).changed,
+    false,
+  );
+
+  // A remote (public) API must be respected, even in dev.
+  assert.equal(
+    resolveApiHost({
+      configuredUrl: "https://cash-book-seven.vercel.app/api",
+      metroHost: "192.168.0.249:8081",
+      isDev: true,
+    }).changed,
+    false,
+  );
+
+  // Loopback is deliberate, not a stale lease.
+  assert.equal(
+    resolveApiHost({
+      configuredUrl: "http://127.0.0.1:5050/api",
+      metroHost: "192.168.0.249:8081",
+      isDev: true,
+    }).changed,
+    false,
+  );
+
+  // No Metro host available → leave it alone even with opt-in.
+  assert.equal(
+    resolveApiHost({
+      configuredUrl: "http://192.168.0.214:5050/api",
+      metroHost: null,
+      isDev: true,
+      autofixEnabled: true,
+    }).changed,
+    false,
+  );
+
+  // A public API is respected even with opt-in.
+  assert.equal(
+    resolveApiHost({
+      configuredUrl: "https://cash-book-seven.vercel.app/api",
+      metroHost: "192.168.0.249:8081",
+      isDev: true,
+      autofixEnabled: true,
+    }).changed,
+    false,
+  );
+});
+
+test("private-LAN detection and the https-on-LAN warning", async () => {
+  const { isPrivateLanHost, looksLikeHttpsLanMistake, hostnameOf } =
+    await import("../api-host.ts");
+
+  assert.equal(isPrivateLanHost("192.168.1.5"), true);
+  assert.equal(isPrivateLanHost("10.0.0.7"), true);
+  assert.equal(isPrivateLanHost("172.16.4.9"), true);
+  assert.equal(isPrivateLanHost("172.32.4.9"), false);
+  assert.equal(isPrivateLanHost("localhost"), false);
+  assert.equal(isPrivateLanHost("127.0.0.1"), false);
+  assert.equal(isPrivateLanHost("8.8.8.8"), false);
+
+  assert.equal(hostnameOf("192.168.0.249:8081"), "192.168.0.249");
+  assert.equal(hostnameOf("http://192.168.0.249:5050/api"), "192.168.0.249");
+
+  // The protocol mistake that produced "Network Error" on the LAN.
+  assert.equal(looksLikeHttpsLanMistake("https://192.168.0.249:5050/api"), true);
+  assert.equal(looksLikeHttpsLanMistake("http://192.168.0.249:5050/api"), false);
+  assert.equal(looksLikeHttpsLanMistake("https://x.vercel.app/api"), false);
+});
+
+test("native STT package is imported statically, never dynamically", () => {
+  // The package IS installed now. The rule that matters: it must be a static
+  // top-level import. A dynamic specifier breaks the Metro route bundle (the
+  // original Shop-screen crash), and an uninstalled reference throws.
+  const code = codeOnly(
+    readFileSync(join(__dirname, "../../voice/speech.ts"), "utf8"),
+  );
+  assert.match(
+    code,
+    /import\s*\{[^}]*ExpoSpeechRecognitionModule[^}]*\}\s*from\s*"expo-speech-recognition"/,
+    "must statically import the recognizer module",
+  );
+  assert.doesNotMatch(
+    code,
+    /import\(\s*["'`]expo-speech-recognition/,
+    "must not dynamically import it",
+  );
+  // And it must actually be declared as a dependency, or the build breaks.
+  const pkg = JSON.parse(
+    readFileSync(join(__dirname, "../../../package.json"), "utf8"),
+  );
+  assert.ok(
+    pkg.dependencies["expo-speech-recognition"],
+    "expo-speech-recognition must be a dependency",
+  );
+  // The config plugin must be registered or the native project lacks the mic.
+  const appJson = JSON.parse(
+    readFileSync(join(__dirname, "../../../app.json"), "utf8"),
+  );
+  const pluginNames = (appJson.expo.plugins ?? []).map((p: any) =>
+    Array.isArray(p) ? p[0] : p,
+  );
+  assert.ok(
+    pluginNames.includes("expo-speech-recognition"),
+    "expo-speech-recognition plugin must be registered in app.json",
+  );
+});
+
+test("voice prefers Bangla and reports when the device lacks it", async () => {
+  const src = readFileSync(join(__dirname, "../../voice/speech.ts"), "utf8");
+  // Bangla is the default we ask for.
+  assert.match(src, /"bn-BD"/);
+  // Support is detected rather than assumed, so the UI can say why.
+  assert.match(src, /getSupportedLocales/);
+  assert.match(src, /banglaSupported/);
+  // The mic permission is requested before starting.
+  assert.match(src, /requestPermissionsAsync/);
+});
+
+test("invoice pull payload carries created_at (NOT NULL locally)", () => {
+  const controller = readFileSync(
+    join(repoRoot, "backend/controllers/sync.controller.js"),
+    "utf8",
+  );
+  // Without these the client insert fails with
+  // "NOT NULL constraint failed: invoice_items.created_at".
+  assert.match(
+    controller,
+    /created_at: toIso\(doc\.createdAt\) \|\| new Date\(\)\.toISOString\(\),/,
+  );
+  assert.match(controller, /created_at: toIso\(p\.createdAt\)/);
+  assert.match(controller, /product_server_id: it\.product \? String\(it\.product\) : null/);
+});
+
+test("invoice upserts default NOT NULL columns instead of throwing", () => {
+  const repo = readFileSync(
+    join(__dirname, "../../../db/repos/invoices.ts"),
+    "utf8",
+  );
+  const items = repo.slice(
+    repo.indexOf("export async function upsertInvoiceItemFromSync"),
+    repo.indexOf("export async function upsertInvoicePaymentFromSync"),
+  );
+  assert.match(items, /created_at: row\.created_at \?\? nowIso\(\)/);
+  assert.match(items, /description: row\.description \?\? ""/);
+
+  const payments = repo.slice(
+    repo.indexOf("export async function upsertInvoicePaymentFromSync"),
+  );
+  assert.match(payments, /created_at: row\.created_at \?\? nowIso\(\)/);
+});
+
+test("pulled invoice items map the server product id to the local id", () => {
+  const engine = readFileSync(join(__dirname, "../../../sync/engine.ts"), "utf8");
+  const slice = engine.slice(engine.indexOf("if (change.entity === \"invoice\")"));
+  assert.match(slice, /SELECT id FROM products WHERE server_id = \?/);
+  assert.match(slice, /product_id: localProductId/);
+});
+
+test("offline banner exposes a manual retry action", () => {
+  const banner = readFileSync(
+    join(__dirname, "../../../components/offline-banner.tsx"),
+    "utf8",
+  );
+  assert.match(banner, /requestSyncNow/);
+  assert.match(banner, /probeBackendAvailable/);
+  // Offline must be explained, not silently ignored.
+  assert.match(banner, /deviceOfflineKeepWorking/);
+  assert.match(banner, /backendDownKeepWorking/);
+  // The button is hidden while syncing (nothing to retry).
+  assert.match(banner, /RETRYABLE/);
+  // Banner is tab-only so add/edit screens keep vertical space for the keyboard.
+  assert.match(banner, /isMainTabPath/);
+  assert.match(banner, /MAIN_TAB_PATHS/);
+});
+
+test("offline banner main-tab path helper hides nested shop routes", async () => {
+  // Lightweight pure check via source contract — avoids importing RN modules.
+  const banner = readFileSync(
+    join(__dirname, "../../../components/offline-banner.tsx"),
+    "utf8",
+  );
+  assert.match(banner, /"\/shop"/);
+  assert.match(banner, /"\/shop\/index"/);
+  assert.match(banner, /"\/settings"/);
+  // Nested create/pos must not be listed as main tabs.
+  assert.doesNotMatch(banner, /"\/shop\/products\/create"/);
+  assert.doesNotMatch(banner, /"\/shop\/pos"/);
+});
+
+test("smart add bar is protected by an error boundary with a fallback", () => {
+  const bar = readFileSync(
+    join(__dirname, "../../../components/shop/smart-add-bar.tsx"),
+    "utf8",
+  );
+  // A convenience feature must never take down the counter screen.
+  assert.match(bar, /ErrorBoundary/);
+  assert.match(bar, /SmartAddFallback/);
+  assert.match(bar, /fallback=\{<SmartAddFallback/);
+  // Mic path must dismiss keyboard / blur before native STT.
+  assert.match(bar, /Keyboard\.dismiss/);
+  assert.match(bar, /inputRef\.current\?\.blur/);
+  assert.match(bar, /listenLockRef/);
+});
+
+test("add-product keeps SmartAddBar outside the keyboard scroll view", () => {
+  // Regression for the huge white gap under the smart input when a form field
+  // is focused: the bar must sit above KeyboardAwareScrollView, not inside it.
+  const src = readFileSync(
+    join(__dirname, "../../../app/(app)/shop/products/create.tsx"),
+    "utf8",
+  );
+  const barAt = src.indexOf("<SmartAddBar");
+  const scrollAt = src.indexOf("<KeyboardAwareScrollView");
+  assert.ok(barAt > 0 && scrollAt > 0, "both markers must exist");
+  assert.ok(
+    barAt < scrollAt,
+    "SmartAddBar must render before KeyboardAwareScrollView",
+  );
+  assert.match(src, /paddingTop:\s*12/);
+});
+
+test("native voice start dismisses keyboard and aborts prior sessions", () => {
+  const src = readFileSync(join(__dirname, "../../voice/speech.ts"), "utf8");
+  assert.match(src, /Keyboard\.dismiss/);
+  assert.match(src, /\.abort\(/);
+  assert.match(src, /iosCategory/);
+  assert.match(src, /requestMicrophonePermissionsAsync/);
+});
+
+test("iOS Info.plist declares speech recognition usage (missing key = native crash)", () => {
+  // iOS aborts the process if SFSpeechRecognizer is used without this key.
+  const plist = readFileSync(
+    join(__dirname, "../../../ios/HisabBoi/Info.plist"),
+    "utf8",
+  );
+  assert.match(plist, /NSSpeechRecognitionUsageDescription/);
+  assert.match(plist, /NSMicrophoneUsageDescription/);
+  const appJson = JSON.parse(
+    readFileSync(join(__dirname, "../../../app.json"), "utf8"),
+  );
+  assert.ok(
+    appJson.expo.ios?.infoPlist?.NSSpeechRecognitionUsageDescription,
+    "app.json must keep the key so prebuild does not drop it",
+  );
+});
+
+test("Bangla lexicon seed is compact pipe-format and indexes cleanly", async () => {
+  // format.ts is dependency-free — safe under Node's type-stripped loader.
+  const { parseLexiconFull, blobByteLength } = await import(
+    "../../voice/lexicon/format.ts"
+  );
+
+  const seedDir = join(__dirname, "../../voice/lexicon/seed");
+  const blob = ["staples.ts", "produce.ts", "goods.ts", "brands.ts", "brand-map.ts"]
+    .map((f) => {
+      const src = readFileSync(join(seedDir, f), "utf8");
+      const start = src.indexOf("`");
+      const end = src.lastIndexOf("`");
+      assert.ok(start >= 0 && end > start, `${f} must export a template string`);
+      return src.slice(start + 1, end);
+    })
+    .join("\n");
+
+  assert.doesNotMatch(blob.trimStart(), /^\[/);
+  assert.match(blob, /# category:/);
+  assert.match(blob, /সাবান\|/);
+  assert.match(blob, /চাল\|/);
+  assert.match(blob, /soap/i);
+  assert.match(blob, /chal/i);
+  assert.match(blob, /সাবান>/); // brand map
+  assert.match(blob, /# category:brand_map/);
+
+  const full = parseLexiconFull(blob);
+  assert.ok(full.entries.length >= 150, `expected ≥150 entries, got ${full.entries.length}`);
+  assert.ok(full.brandMap.size >= 10, "brand_map should have product→brand rows");
+  assert.ok((full.brandMap.get("সাবান") ?? []).includes("লাক্স"));
+  assert.ok(
+    blobByteLength(blob) < 80_000,
+    "seed blob should stay under ~80KB for fast startup",
+  );
+
+  const byAlias = new Map<string, string>();
+  for (const e of full.entries) {
+    for (const a of e.aliases) {
+      const k = a.toLowerCase().replace(/\s+/g, " ").trim();
+      if (k && !byAlias.has(k)) byAlias.set(k, e.canonical);
+    }
+  }
+  assert.ok(byAlias.get("soap")?.includes("সাবান"));
+  assert.ok(
+    byAlias.get("chal")?.includes("চাল") || byAlias.get("rice")?.includes("চাল"),
+  );
+  assert.ok(byAlias.has("lux") || [...byAlias.keys()].some((k) => k.includes("lux")));
+
+  // App wiring.
+  const bar = readFileSync(
+    join(__dirname, "../../../components/shop/smart-add-bar.tsx"),
+    "utf8",
+  );
+  assert.match(bar, /rankUnifiedSuggestions/);
+  assert.match(bar, /canonicalNameFromLexicon/);
+  assert.match(bar, /dalSavePhraseAlias/);
+
+  const lookup = readFileSync(
+    join(__dirname, "../../voice/lexicon/lookup.ts"),
+    "utf8",
+  );
+  assert.match(lookup, /function matchLexicon/);
+  assert.match(lookup, /rankUnifiedSuggestions/);
+});
 

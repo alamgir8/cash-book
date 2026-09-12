@@ -223,11 +223,18 @@ Do this after Section B so there are products to sync. Watch Metro logs for
 - [ ] **47.** Invoice number collision: create an offline invoice whose number matches an existing server one → sync succeeds (server appends a short suffix) instead of the push failing.
 - [ ] **48.** **Logout safety:** log out → sign in as a *different* account → Shop shows **no** products/invoices from the previous account.
 
-## 11. Section I — Voice / natural-language entry (new)
+## 11. Section I — Voice / natural-language entry
 
 The bar is on **Shop → New Sale (POS)** and **Shop → Products → Add Product**.
-On the phone the mic needs a rebuild, but **typing works today** — test by typing.
+**Requires a dev-client rebuild** (`expo run:ios --device`) so the native speech
+module is present — Expo Go cannot run it. Typing works in both cases.
 
+- [ ] **48a.** The mic shows as **active** (not muted). If it is muted, the module
+      is missing → you are on an old build, or in Expo Go.
+- [ ] **48b.** Tap the mic → the OS asks for microphone **and** speech-recognition
+      permission → grant both.
+- [ ] **48c.** Say `সাবান দুইটা পঁয়তাল্লিশ টাকা` in Bangla → the transcript appears
+      in the field as **Bangla** (not English).
 - [ ] **49.** In POS, type exactly: `Lux সাবান/সাবান ২টা ৪৫টাকা করে` → preview reads name **Lux সাবান/সাবান**, qty **2**, price **45**. Tap add → one cart line, qty 2, unit price 45.
 - [ ] **50.** Type `২ কেজি চাল ৮০ টাকা` → qty 2, unit **kg**, price 80.
 - [ ] **51.** Type `৫০০ গ্রাম চিনি ৬০ টাকা` → unit **g**, qty 500.
@@ -237,7 +244,22 @@ On the phone the mic needs a rebuild, but **typing works today** — test by typ
 - [ ] **55.** In **Add Product**, type `লাক্স সাবান ২টা ৪৫ টাকা` → the form fills name, sale price 45, opening stock 2, unit pcs.
 - [ ] **56.** Type `সাড়ে তিন কেজি চাল ৮০ টাকা` → qty **3.5** kg (not 3).
 - [ ] **57.** Sale line shows **profit** when the product has a cost price. Sell below cost → the number goes negative (a loss).
-- [ ] **58.** Voice unavailable message is shown on the phone (expected until the rebuild) and the **text field still works**.
+- [ ] **58.** Say several items in one breath with commas → each becomes its own cart line.
+
+### 11.1 If Bangla voice comes out as English
+
+Two separate mics — check which you are using:
+
+- [ ] **58a.** **In-app mic** (our button): should be Bangla. If a warning says
+      Bangla voice is not installed, add it on the phone:
+      **iOS** → Settings → General → Keyboard → Keyboards → add **বাংলা**; and
+      Settings → General → Keyboard → **Dictation** → enable + add Bangla.
+- [ ] **58b.** **The keyboard's own mic** (the 🎤 on the iOS keyboard): its language
+      is set by **iOS**, following the active keyboard. Switch to the **Bangla
+      keyboard first**, then dictate. No app can override this — it is not a bug
+      in Hisab Boi.
+- [ ] **58c.** Android: Settings → System → Languages & input → Voice input →
+      add **বাংলা**.
 
 ## 12. Section J — Bangla localization (new)
 
@@ -260,6 +282,48 @@ On the phone the mic needs a rebuild, but **typing works today** — test by typ
 - [ ] **72.** Enable the login PIN while offline → sign out/in → the PIN works **offline** (stored in SecureStore).
 - [ ] **73.** Offline, previously-opened shops still list (cached), with the offline banner; **creating** a shop offline shows the "needs a connection once" message rather than a generic failure.
 - [ ] **74.** Disable the PIN while offline → after sync, `has_login_pin` is false on the server.
+
+## 14. Section L — banner retry button (new)
+
+The banner is the coloured strip at the top when sync has work to do.
+
+- [ ] **75.** With pending changes, the banner shows a small **Sync** chip on the **right**.
+- [ ] **76.** **Airplane mode** → tap the chip → a message says your device is offline and to keep working (no crash, no silent no-op).
+- [ ] **77.** With the device online but the **backend stopped** → tap the chip → "Backend is down or unreachable… keep working".
+- [ ] **78.** Backend running, device online → tap the chip → it shows a spinner, then the pending count drops / banner disappears.
+- [ ] **79.** While a sync is in progress the chip is hidden (nothing to retry).
+
+## 15. Section M — Shop screen crash + input spacing (updated)
+
+Both screens below crashed on device before; they must now open normally.
+The smart bar sits **outside** the keyboard scroll view so focusing a form field
+no longer opens a huge empty gap under the bar.
+
+- [ ] **80.** Shop → **New Sale** opens the POS screen (no redbox). Smart bar at top with normal padding under the header.
+- [ ] **81.** Shop → Products → **+ (Add Product)** opens; smart bar sits under the header with **~12px** top padding (not flush, not a huge gap).
+- [ ] **82.** Tap **Product Name** (or any form field) → keyboard opens → **no giant white gap** between the smart bar and "BASIC INFORMATION". The focused field stays near the keyboard with only a small gap above the form section.
+- [ ] **83.** Type a phrase in either bar → the preview appears (parser works on device).
+- [ ] **84.** Tap the **mic** → app does **not** crash. Either: listening starts, or a permission/toast message appears. Keyboard dismisses first.
+      *(If it still dies instantly with no redbox: the build is missing
+      `NSSpeechRecognitionUsageDescription` — rebuild with
+      `npx expo run:ios --device`.)*
+- [ ] **85.** If Bangla voice is missing, the orange caveat still shows, but English listening still works after grant.
+- [ ] **86.** Grant mic + speech permissions → say a short phrase → text lands in the smart bar.
+- [ ] **87.** **Install Bangla (iPhone):** Settings → General → Keyboard → Keyboards →
+      Add New Keyboard → **বাংলা**. Then Keyboard → **Enable Dictation** On, and add
+      বাংলা under Dictation Languages if listed. Reopen the app → orange caveat gone.
+      *(Note: Apple often does **not** list Bangla under Dictation Languages at all —
+      that is an OS limit. Use typing + the in-app lexicon instead.)*
+
+## 16. Section N — Bangla lexicon / phrase match (new)
+
+- [ ] **88.** Add Product → type `soap` or `সাব` → suggestion chips include **সাবান** (lexicon).
+- [ ] **89.** Type `chal` or `rice` → chips include **চাল**.
+- [ ] **90.** Type `lux` → chips include a সাবান / লাক্স-related entry.
+- [ ] **91.** Tap a lexicon chip → the smart bar fills the canonical Bangla name (qty/price kept if present).
+- [ ] **92.** POS: type a catalog product name → green chip (catalog) + blue chips (lexicon) can both appear; catalog pick adds to cart.
+- [ ] **93.** Type a nickname, tap a chip to correct it → next time the nickname suggests the same name (learned alias, local SQLite).
+
 
 ---
 

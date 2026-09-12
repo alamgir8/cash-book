@@ -986,6 +986,340 @@ catches the duplicate-key error on `invoice_number` and retries with a short
 - **Phase 14 (backup) still outstanding** — shop entities are still absent from
   the backup body, so "Backup Now" does not yet protect them.
 
+---
+
+## 23. Device crash on Shop screens + manual retry sync (2026-09-12)
+
+### 23.1 A real sync failure, caught in the Metro log
+
+The device log showed the pull path crashing:
+
+```
+WARN  [sync] FunctionCallException: Calling the 'finalizeAsync' function has failed
+→ Caused by: SQLiteErrorException: Error code 19:
+   NOT NULL constraint failed: invoice_items.created_at
+```
+
+`invoice_items.created_at` is `NOT NULL`, but the server's `invoiceToPayload`
+did not send it, so **every inbound invoice pull aborted**. Two fixes:
+
+1. `invoiceToPayload` now emits `created_at` for items and payments, plus
+   `product_server_id` so the client can resolve the catalog link.
+2. Defence in depth: `upsertInvoiceItemFromSync` / `upsertInvoicePaymentFromSync`
+   now default every NOT NULL column (`created_at`, `description`, numerics) so a
+   thin payload can never abort a sync again.
+
+Also fixed: pulled items stored the **server** product id in the local
+`product_id` column, breaking product links and stock lookups. The engine now
+maps `product_server_id` → the local product id on pull.
+
+### 23.2 The Shop-screen crash
+
+"Crashes on tapping New Sale / Add Product" — both routes render the new
+`SmartAddBar`, so that was the prime suspect. Two patterns in its dependency
+graph are known to break Metro/Hermes and were removed:
+
+1. **Variable dynamic import.** `speech.ts` did
+   `const name = "expo-speech-recognition"; await import(name)`. Metro requires
+   **static string literals** in `import()`. A dynamic specifier either fails the
+   route bundle (which builds lazily exactly when you tap the button — matching
+   the symptom) or throws at runtime as "Requiring unknown module".
+   The module is deliberately **no longer referenced at all** until it is
+   installed; on-device voice reports "unavailable" and typing covers the same
+   workflow. `speech.ts`'s header documents the 4-step enable path.
+2. **`\p{L}` unicode property escapes** in `normalizeForMatch`. Hermes support is
+   inconsistent across versions, and that function runs **during render**, so a
+   throw would take down the screen. Replaced with an explicit
+   `[\u0980-\u09FFa-zA-Z0-9\s]` class — same behaviour for Bangla/Latin.
+
+Hardening so this class of bug cannot reach the user again:
+
+- `SmartAddBar` is wrapped in an **ErrorBoundary** with a plain text-field
+  fallback, so a convenience feature can never take down the till.
+- Its effects use `.catch()` (no unhandled rejections) and the parser call is
+  wrapped in try/catch.
+
+### 23.3 Verification — and its limits
+
+- **Production bundle now builds cleanly**: `npx expo export --platform ios`
+  succeeded with no `Unable to resolve` / `Invalid call` errors, which is the
+  check that catches this crash class. The bundle was decoded and confirmed to
+  contain the new modules (Hermes stores Bangla as UTF-16LE — searching for
+  `কেজি` / `সাবান` in UTF-8 falsely reports "missing").
+- **Honest limit:** the crash was not reproduced interactively. The removed
+  patterns are the standard causes of this exact symptom, and the bundle now
+  verifies — but if it still crashes, the redbox stack from Metro is needed to go
+  further.
+
+### 23.4 Manual retry on the offline banner
+
+`components/offline-banner.tsx` now shows a small **Sync** chip on the right for
+`offline | server_unavailable | pending | failed | synced`:
+
+- Device offline → "Your device is offline. Keep working — sync will happen
+  automatically later."
+- Backend unreachable → "Backend is down or unreachable. Keep working — …"
+- Otherwise it probes reachability, shows "Syncing now…", runs
+  `requestSyncNow()`, then refreshes the banner state.
+- Hidden while syncing, and hidden for storage-only messages (nothing to sync).
+- 7 new keys, Bangla + English (**741 keys, 0 missing, 0 empty**).
+
+### 23.5 Verified
+
+- `npm run test:local-first` → **65/65 pass** (7 new regression guards: no
+  variable dynamic import, no `\p{...}`, no import of the uninstalled STT
+  package, invoice payload `created_at`, defensive upserts, server→local product
+  id mapping, banner retry wiring, error-boundary fallback).
+- `npx tsc --noEmit` → **26 errors, unchanged**.
+- `node --check backend/controllers/sync.controller.js` → OK.
+- iOS production bundle export → success.
+
+---
+
+## 24. Expo Go crash: dynamic `react-native` import (2026-09-12)
+
+### 24.1 The error
+
+```
+ERROR [Invariant Violation: Your JavaScript code tried to access a native
+module that doesn't exist. …]
+Call Stack
+  NativeEventEmitter.js:57
+  PushNotificationIOS.js:67
+  module.exports.get__PushNotificationIOS (react-native/index.js:326)
+  importAll (expo/src/async-require/asyncRequireModule.ts:70)
+```
+
+Preceded by deprecation warnings for `ProgressBarAndroid`, `SafeAreaView`,
+`Clipboard`, `InteractionManager` — i.e. **react-native's lazy export getters
+were being enumerated**.
+
+### 24.2 Root cause (introduced by §23's fix)
+
+`lib/voice/speech.ts` did `const { Platform } = await import("react-native")`.
+Under Expo Go that routes through expo's async-require `importAll`, which walks
+**every** export of `react-native`, touching the lazy getters. `Platform` is
+harmless, but `get__PushNotificationIOS` throws the invariant violation because
+that native module does not exist in Expo Go.
+
+Fix: a plain top-level `import { Platform } from "react-native"` — the same
+pattern the rest of the app uses. Only `Platform` is touched.
+
+This was the **only** dynamic `react-native` import in the codebase (verified by
+scan), and a new test now enforces that none is ever added again across
+`app/ components/ lib/ hooks/ data/ db/ sync/ services/`.
+
+### 24.3 Also fixed: stale API host
+
+The device log showed requests going to `http://192.168.0.214:5050/api`, but
+`ipconfig getifaddr en0` reported `192.168.0.249` — the Mac's LAN IP had changed
+(DHCP) and `.env.local` held the old value, so every request timed out.
+
+`.env.local` is corrected to the current address, and the file now documents that
+the IP churns and must be re-checked after any network change.
+
+Additionally, `lib/local-first/api-host.ts` was added: a **dev-only, opt-in**
+helper (`EXPO_PUBLIC_API_AUTOFIX=on`) that can follow Metro's host when a
+configured LAN IP goes stale, preserving port/path/protocol; plus a
+`looksLikeHttpsLanMistake` warning for the `https://`-on-LAN protocol error.
+
+**It defaults OFF, deliberately.** While verifying, `192.168.0.214` (Metro's
+advertised host) turned out **not to be on the machine at all** — only `.249`
+was. Auto-following Metro would therefore have rewritten a working URL into a
+dead one. Metro's advertised host is a hint, not a source of truth, so the fix
+must be requested explicitly.
+
+### 24.4 Verified
+
+- `npm run test:local-first` → **69/69 pass** (4 new: no dynamic
+  `react-native` import anywhere; LAN autofix is opt-in and preserves the URL;
+  it never touches production/public/loopback/unknown-Metro cases; private-LAN
+  detection + https-on-LAN warning).
+- `npx tsc --noEmit` → **26 errors, unchanged**.
+- `npx expo export --platform ios` → success.
+- Reachability confirmed: `http://192.168.0.249:5050/health` → 200,
+  `/api/sync/handshake` → 401 (route live, auth required).
+
+---
+
+## 25. On-device voice enabled (Bangla) + mic UX (2026-09-12)
+
+### 25.1 The blocker is gone
+
+Earlier the native speech module was deliberately **not installed** (I could not
+build or test it). The user is now building a dev client
+(`npx expo run:ios --device`), so it is safe to add. Installed:
+
+```
+expo-speech-recognition@^57.0.0   (matches Expo SDK 57 exactly)
+```
+
+Registered in `app.json` with explicit, user-facing permission strings (verified
+by introspecting the generated Info.plist):
+
+- `NSMicrophoneUsageDescription` — "…add products and sales by speaking instead
+  of typing."
+- `NSSpeechRecognitionUsageDescription` — "…turn what you say into product
+  names, quantities and prices."
+- `androidSpeechServicePackages: ["com.google.android.googlequicksearchbox"]`
+
+### 25.2 `speech.ts` rewritten against the real API
+
+Now a **static** import (safe, since the package exists) using the documented
+surface: `isRecognitionAvailable()`, `getSupportedLocales()`,
+`requestPermissionsAsync()`, `start({lang, interimResults, continuous})`,
+`stop()`, and typed `addListener("result" | "error" | "end")` inherited from
+expo-modules-core's `EventEmitter`.
+
+**Bangla is the default**, and support is *detected, not assumed*:
+
+- Queries `getSupportedLocales()` for `bn-BD` / `bn-IN` / `bn`.
+- Available → uses `bn-BD`.
+- Not installed → falls back to `en-US` **and says so** (the UI shows a warning
+  line telling the user to add Bangla dictation in phone settings) rather than
+  silently transcribing English.
+
+Web keeps the browser recognizer.
+
+### 25.3 Mic UX — no more alarming "error"
+
+Tapping the mic previously raised an error toast for a known state. Now:
+
+- Mic shows `mic-off` and is visually muted when recognition is unavailable.
+- Tapping it shows a short, informational Bangla message (not an error).
+- Only a genuine permission denial raises an error, phrased as an action.
+- The inline hint is one short line instead of a wrapped sentence.
+- New keys `voiceUnavailable` / `voicePermissionNeeded` / `voiceBanglaMissing`
+  replace the obsolete "one rebuild" text (**743 keys, 0 missing, 0 empty**).
+
+### 25.4 "It always types English" — two different mics
+
+Worth stating plainly, because it is **not** an app bug:
+
+1. **In-app mic (this work)** — we pass `lang: "bn-BD"`, so after the rebuild it
+   listens in Bangla.
+2. **The system keyboard's mic** (iOS dictation) — its language is chosen by
+   **iOS**, not the app. iOS dictation follows the active keyboard language, so
+   with an English keyboard selected it produced English even in a Bangla UI. To
+   fix: Settings → General → Keyboard → Keyboards → add **বাংলা**, and Settings →
+   General → Keyboard → **Dictation** → add Bangla; then switch to the Bangla
+   keyboard before dictating. No app can override this.
+
+### 25.5 Required action: REBUILD
+
+`expo-speech-recognition` is a **native** module, so the current build does not
+contain it (`ios/Podfile.lock` has no entry until pods are re-installed):
+
+```bash
+cd cash-book/mobile && npx expo run:ios --device   # runs pod install, then builds
+```
+
+Expo Go can never run this — a dev client is required.
+
+### 25.6 Verified
+
+- `npm run test:local-first` → **70/70 pass** (updated: the STT package must be
+  imported **statically**, present in `package.json`, and registered as a plugin;
+  plus a test asserting Bangla is preferred, support is detected via
+  `getSupportedLocales`, and mic permission is requested).
+- `npx tsc --noEmit` → **26 errors, unchanged** (checked against the real module
+  types).
+- `npx expo export --platform ios` → success.
+- `expo config --type introspect` → both permission strings present in the
+  generated Info.plist.
+
+---
+
+## 26. Smart-add layout gap + mic crash (2026-09-12)
+
+### 26.1 Layout — huge empty gap above the form when focusing an input
+
+**Cause:** On **Add Product**, `SmartAddBar` lived *inside* `KeyboardAwareScrollView`.
+Focusing Product Name / other fields made the keyboard controller insert space
+under the bar, leaving a large white void between the smart input and
+"BASIC INFORMATION".
+
+**Fix:** Match POS — keep `SmartAddBar` **outside** the scroll view, with explicit
+`paddingTop: 12` under the header. Form fields alone scroll with the keyboard.
+
+### 26.2 Mic tap crash
+
+**Cause (confirmed):** `ios/HisabBoi/Info.plist` had `NSMicrophoneUsageDescription`
+but was **missing `NSSpeechRecognitionUsageDescription`**. On iOS, requesting
+speech recognition without that key aborts the process instantly (native crash,
+no JS redbox — which matches "tap mic → app dies" with a clean Metro log).
+
+**Fix:**
+- Added `NSSpeechRecognitionUsageDescription` to `Info.plist` and `app.json`
+  `ios.infoPlist` so prebuild keeps it.
+- Blur + dismiss keyboard, abort prior session, explicit `iosCategory`,
+  double-tap lock (JS hardening around the same path).
+
+**Requires a native rebuild** — plist changes are not hot-reloaded:
+
+```bash
+cd cash-book/mobile && npx expo run:ios --device
+```
+
+### 26.3 How to install Bangla voice (iPhone)
+
+1. **Settings → General → Keyboard → Keyboards → Add New Keyboard… → বাংলা**
+   (Bengali / বাংলা - phonetic or standard).
+2. **Settings → General → Keyboard → Enable Dictation** → On.
+3. If shown: **Dictation Languages** → add **বাংলা**.
+4. Back in Hisab Boi, reopen Add Product — the orange "Bangla missing" line
+   should clear after the next support check (or kill/reopen the app).
+
+Android: **Settings → System → Languages & input → On-device recognition /
+Voice → download বাংলা**.
+
+### 26.4 Verified
+
+- `npm run test:local-first` → **73/73** (plist guard added)
+- Touched files typecheck clean against the project baseline
+
+---
+
+## 27. Bangla shop lexicon + phrase aliases (2026-09-12)
+
+### 27.1 Why
+
+iOS does not expose Bangla as a Dictation language, so English (or messy)
+transcripts are common. A local phrase dictionary is the production path:
+match spoken/typed text against a large offline vocabulary, then the shop's
+catalog and custom aliases.
+
+### 27.2 Format (optimized for thousands of words)
+
+Pipe-delimited seed packs under `mobile/lib/voice/lexicon/seed/*.ts`:
+
+```
+# category:staples
+চাল|rice|chal|মোটা চাল
+সাবান|soap|sabun|lux|লাক্স
+```
+
+- One line per product family; first field = canonical Bangla display name.
+- Rest = aliases (Bangla / English / romanized). Append-only, no JSON commas.
+- Parsed once into Maps (~345 entries / ~1300 aliases / ~22KB today).
+- Add more packs and register them in `seed/index.ts`.
+- Full how-to (brand map, aliases, tips): **[`docs/LEXICON_GUIDE.md`](./LEXICON_GUIDE.md)**.
+
+### 27.3 Runtime
+
+- `lexicon/lookup.ts` — exact + fuzzy match; unified ranker (user alias → catalog → lexicon).
+- `SmartAddBar` shows suggestion chips from all three; picking a chip can
+  **learn** a custom phrase → name/product in SQLite `phrase_aliases` (migration 006).
+- Schema version **v6**. Local-only aliases (not synced in v1).
+
+### 27.4 Verified
+
+- `npm run test:local-first` → **74/74**
+
+
+
+
+
 
 
 

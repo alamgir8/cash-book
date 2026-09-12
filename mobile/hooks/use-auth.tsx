@@ -625,11 +625,37 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         throw new Error("Could not save settings on this device");
       }
 
-      // 3) Best-effort push. Offline leaves the change queued for next sync.
+      // 3) Best-effort push — never block the save UI on a slow/unreachable API.
+      //    A hung axios call previously left the profile modal spinner spinning forever
+      //    even though the local save (and language switch) had already succeeded.
       try {
-        const result = await settingsSync.flushPendingOps();
-        if (result.flushed > 0 && result.failed === 0) {
-          await refreshProfile();
+        const flushPromise = settingsSync.flushPendingOps();
+        const timeoutPromise = new Promise<{
+          flushed: number;
+          failed: number;
+          timedOut: true;
+        }>((resolve) =>
+          setTimeout(
+            () => resolve({ flushed: 0, failed: 0, timedOut: true }),
+            4000,
+          ),
+        );
+        const result = await Promise.race([flushPromise, timeoutPromise]);
+        if ("timedOut" in result && result.timedOut) {
+          // Keep flushing in the background; UI must not wait.
+          void flushPromise.catch(() => undefined);
+          return { synced: false };
+        }
+        if (
+          !("timedOut" in result) &&
+          result.flushed > 0 &&
+          result.failed === 0
+        ) {
+          // Soft refresh — also time-boxed.
+          await Promise.race([
+            refreshProfile(),
+            new Promise((r) => setTimeout(r, 2500)),
+          ]);
           return { synced: true };
         }
         return { synced: false };

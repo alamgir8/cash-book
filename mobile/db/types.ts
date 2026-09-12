@@ -1,5 +1,5 @@
 /** Current local SQLite schema version (bump when adding migrations). */
-export const LOCAL_SCHEMA_VERSION = 5;
+export const LOCAL_SCHEMA_VERSION = 6;
 
 export const DB_NAME = "hisabboi_local.db";
 
@@ -270,6 +270,26 @@ export type LocalPendingOp = {
   created_at: string;
   attempts: number;
   last_error: string | null;
+};
+
+/**
+ * Shop-keeper phrase → product/name shortcut.
+ * Local-only (not synced in v1). Lets "লাক্স" always resolve to a catalog product.
+ */
+export type LocalPhraseAlias = {
+  id: string;
+  organization_id: string | null;
+  /** Original phrase as typed/saved. */
+  phrase: string;
+  /** Normalized form used for lookup. */
+  phrase_norm: string;
+  /** Display / fill name (usually product name or lexicon canonical). */
+  name: string;
+  /** Optional link to a local products.id */
+  product_id: string | null;
+  use_count: number;
+  created_at: string;
+  updated_at: string;
 };
 
 export type ScopeFilter = {

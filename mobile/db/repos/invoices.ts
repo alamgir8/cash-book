@@ -614,9 +614,25 @@ export async function upsertInvoiceItemFromSync(
   db: Db,
   row: LocalInvoiceItem,
 ): Promise<void> {
+  // Defensive: a server payload missing these must not abort the whole sync
+  // (the columns are NOT NULL). `invoice_id` is also re-asserted from the row.
+  const safe = {
+    ...row,
+    description: row.description ?? "",
+    quantity: Number(row.quantity ?? 0),
+    unit_price: Number(row.unit_price ?? 0),
+    discount: Number(row.discount ?? 0),
+    discount_type: row.discount_type === "percent" ? "percent" : "fixed",
+    tax_rate: Number(row.tax_rate ?? 0),
+    subtotal: Number(row.subtotal ?? 0),
+    discount_amount: Number(row.discount_amount ?? 0),
+    tax_amount: Number(row.tax_amount ?? 0),
+    total: Number(row.total ?? 0),
+    created_at: row.created_at ?? nowIso(),
+  };
   const { sql, params } = buildUpsert(
     "invoice_items",
-    { ...(row as unknown as Record<string, unknown>) },
+    { ...(safe as unknown as Record<string, unknown>) },
     "id",
   );
   await db.runAsync(sql, ...params);
@@ -626,9 +642,15 @@ export async function upsertInvoicePaymentFromSync(
   db: Db,
   row: LocalInvoicePayment,
 ): Promise<void> {
+  const safe = {
+    ...row,
+    amount: Number(row.amount ?? 0),
+    date: row.date ?? nowIso(),
+    created_at: row.created_at ?? nowIso(),
+  };
   const { sql, params } = buildUpsert(
     "invoice_payments",
-    { ...(row as unknown as Record<string, unknown>) },
+    { ...(safe as unknown as Record<string, unknown>) },
     "id",
   );
   await db.runAsync(sql, ...params);

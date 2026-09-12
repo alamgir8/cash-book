@@ -1396,6 +1396,7 @@ const invoiceToPayload = (doc) => ({
   items: (doc.items || []).map((it) => ({
     id: it._id ? String(it._id) : null,
     product_id: it.product ? String(it.product) : null,
+    product_server_id: it.product ? String(it.product) : null,
     description: it.description,
     quantity: it.quantity,
     unit: it.unit ?? "pcs",
@@ -1410,6 +1411,8 @@ const invoiceToPayload = (doc) => ({
     unit_cost_at_sale: it.unit_cost_at_sale ?? null,
     barcode_snapshot: it.barcode ?? null,
     notes: it.notes ?? null,
+    // Required locally (NOT NULL) — without this the pull fails on insert.
+    created_at: toIso(doc.createdAt) || new Date().toISOString(),
   })),
   payments: (doc.payments || []).map((p) => ({
     id: p._id ? String(p._id) : null,
@@ -1420,6 +1423,7 @@ const invoiceToPayload = (doc) => ({
     transaction_id: p.transaction ? String(p.transaction) : null,
     reference: p.reference ?? null,
     notes: p.notes ?? null,
+    created_at: toIso(p.createdAt) || toIso(doc.createdAt) || new Date().toISOString(),
   })),
   created_at: toIso(doc.createdAt),
   updated_at: toIso(doc.updatedAt),

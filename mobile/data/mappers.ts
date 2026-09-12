@@ -115,6 +115,7 @@ export function localProductToApi(
     admin: "",
     organization: row.organization_id ?? undefined,
     name: row.name,
+    brand: row.brand ?? undefined,
     sku: row.sku ?? undefined,
     barcode: row.barcode ?? undefined,
     description: row.description ?? undefined,

@@ -113,24 +113,43 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   const [preferences, setPreferences] =
     useState<UserPreferences>(defaultPreferences);
 
-  // Load preferences from auth user; reset when signed out
+  // Load preferences from auth user; reset when signed out.
+  // Prefer legacy `settings`, fall back to `profile_settings` (what the edit modal writes).
   useEffect(() => {
-    if (state.status === "authenticated" && state.user?.settings) {
-      const userSettings = state.user.settings;
-      setPreferences({
-        currency: userSettings.currency,
-        currency_symbol: currencyMap[userSettings.currency]?.symbol || "$",
-        locale: currencyMap[userSettings.currency]?.locale || "en-US",
-        date_format: "MMM D, YYYY",
-        time_format: "12h",
-        language: userSettings.language,
-        language_label: languageMap[userSettings.language] || "English",
-      });
-    } else if (state.status === "unauthenticated") {
-      // Reset so a previous user's currency/language does not linger
-      setPreferences(defaultPreferences);
+    if (state.status !== "authenticated" || !state.user) {
+      if (state.status === "unauthenticated") {
+        setPreferences(defaultPreferences);
+      }
+      return;
     }
-  }, [state.status, state.user?.settings]);
+    const user = state.user as any;
+    const currency =
+      user.settings?.currency ||
+      user.profile_settings?.currency_code ||
+      defaultPreferences.currency;
+    const language =
+      user.settings?.language ||
+      user.profile_settings?.language ||
+      defaultPreferences.language;
+    setPreferences((prev) => ({
+      ...prev,
+      currency,
+      currency_symbol:
+        user.settings?.currency_symbol ||
+        user.profile_settings?.currency_symbol ||
+        currencyMap[currency]?.symbol ||
+        "$",
+      locale: currencyMap[currency]?.locale || prev.locale || "en-US",
+      language,
+      language_label: languageMap[language] || "English",
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sync from auth user only
+  }, [
+    state.status,
+    state.user?.settings,
+    (state.user as any)?.profile_settings?.language,
+    (state.user as any)?.profile_settings?.currency_code,
+  ]);
 
   const updatePreferences = useCallback(
     async (newPrefs: Partial<UserPreferences>) => {

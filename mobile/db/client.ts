@@ -115,6 +115,7 @@ export async function wipeLedgerData(
     ...params,
   );
   await db.runAsync(`DELETE FROM products WHERE ${orgClause}`, ...params);
+  await db.runAsync(`DELETE FROM phrase_aliases WHERE ${orgClause}`, ...params);
 }
 
 /** Full wipe of all ledger tables (personal + every organization). */
@@ -131,6 +132,7 @@ export async function wipeAllLedgerData(db: Db): Promise<void> {
   await db.runAsync(`DELETE FROM invoices`);
   await db.runAsync(`DELETE FROM inventory_movements`);
   await db.runAsync(`DELETE FROM products`);
+  await db.runAsync(`DELETE FROM phrase_aliases`);
   await db.runAsync(`DELETE FROM settings_cache`);
   await db.runAsync(`DELETE FROM pending_ops`);
   // Org settings cache is user data too (names, prefixes).
