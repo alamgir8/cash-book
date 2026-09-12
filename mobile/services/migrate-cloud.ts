@@ -548,78 +548,208 @@ async function alignOpeningsFromBackupAccounts(
   return updated;
 }
 
+async function fetchAllCloudAccountsRaw(): Promise<any[]> {
+  const byId = new Map<string, any>();
+  const push = async (organizationId: string | null) => {
+    const { data } = await api.get<{ accounts?: any[] }>("/accounts", {
+      params: organizationId ? { organization: organizationId } : undefined,
+      timeout: 30_000,
+    });
+    for (const a of data.accounts ?? []) {
+      const id = String(a._id ?? a.id ?? "");
+      if (id) byId.set(id, a);
+    }
+  };
+  await push(null);
+  try {
+    const orgs = await organizationsApi.list();
+    for (const org of orgs || []) {
+      const id = (org as any).id || org._id;
+      if (id) {
+        try {
+          await push(String(id));
+        } catch (e) {
+          console.warn(`[migrate] accounts for org ${id} failed`, e);
+        }
+      }
+    }
+  } catch (e) {
+    console.warn("[migrate] org list for accounts failed", e);
+  }
+  return [...byId.values()];
+}
+
+async function fetchAllCloudCategoriesRaw(): Promise<any[]> {
+  const byId = new Map<string, any>();
+  const push = async (organizationId: string | null) => {
+    const { data } = await api.get<{ categories?: any[] }>("/categories", {
+      params: {
+        include_archived: "true",
+        ...(organizationId ? { organization: organizationId } : {}),
+      },
+      timeout: 30_000,
+    });
+    for (const c of data.categories ?? []) {
+      const id = String(c._id ?? c.id ?? "");
+      if (id) byId.set(id, c);
+    }
+  };
+  await push(null);
+  try {
+    const orgs = await organizationsApi.list();
+    for (const org of orgs || []) {
+      const id = (org as any).id || org._id;
+      if (id) {
+        try {
+          await push(String(id));
+        } catch (e) {
+          console.warn(`[migrate] categories for org ${id} failed`, e);
+        }
+      }
+    }
+  } catch {
+    /* personal cats still ok */
+  }
+  return [...byId.values()];
+}
+
 /**
- * Cloud → local migration. Fast path uses `/backup/export` only (includes
- * Mongo current_balance). Shop seeds are budgeted so Settings cannot spin.
+ * Assemble a backup-shaped payload via small paginated APIs.
+ * Vercel kills `/backup/export` at ~30s — this path stays under that per request.
+ */
+async function assembleLedgerFromApis(): Promise<{
+  accounts: any[];
+  categories: any[];
+  parties: any[];
+  transactions: any[];
+  transfers: any[];
+}> {
+  const [accounts, categories, parties, transactions] = await Promise.all([
+    fetchAllCloudAccountsRaw(),
+    fetchAllCloudCategoriesRaw(),
+    fetchAllParties(),
+    fetchAllCloudTransactions(),
+  ]);
+  return {
+    accounts,
+    categories,
+    parties,
+    transactions: transactions.map(apiTransactionToBackupRow),
+    transfers: [],
+  };
+}
+
+async function tryBackupExport(timeoutMs: number): Promise<{
+  accounts: any[];
+  categories: any[];
+  parties: any[];
+  transactions: any[];
+  transfers: any[];
+} | null> {
+  try {
+    const { data } = await api.get<BackupData>("/backup/export", {
+      timeout: timeoutMs,
+    });
+    const payload = (data as any).data ?? {};
+    return {
+      accounts: payload.accounts ?? [],
+      categories: payload.categories ?? [],
+      parties: payload.parties ?? [],
+      transactions: payload.transactions ?? [],
+      transfers: payload.transfers ?? [],
+    };
+  } catch (e) {
+    console.warn(
+      "[migrate] /backup/export unavailable (Vercel 30s limit?) — using paginated APIs",
+      e,
+    );
+    return null;
+  }
+}
+
+/**
+ * Cloud → local migration.
+ * Prefer paginated APIs (Vercel-safe). Optionally merge a fast backup/export
+ * if the server returns it under budget.
  */
 export async function migrateCloudToLocal(opts?: {
   force?: boolean;
+  onProgress?: (message: string) => void;
 }): Promise<{ migrated: boolean; summary?: Record<string, number> }> {
   const flags = getLocalFirstFlagsSync();
   if (flags.migrationCompletedAt && !opts?.force) {
     return { migrated: false };
   }
 
+  const progress = (msg: string) => {
+    try {
+      opts?.onProgress?.(msg);
+    } catch {
+      /* ignore */
+    }
+  };
+
   const { pauseSyncForMaintenance, setSyncPaused } = await import(
     "@/sync/engine"
   );
-  // Abort any in-flight sync quickly so wipe cannot deadlock on SQLite.
-  await pauseSyncForMaintenance(15_000);
+  progress("Pausing sync…");
+  await pauseSyncForMaintenance(10_000);
 
   try {
-    const { data } = await api.get<BackupData>("/backup/export", {
-      timeout: 60_000,
-    });
-    const payload = (data as any).data ?? {};
-    const backupAccounts = Array.isArray(payload.accounts)
-      ? payload.accounts
-      : [];
+    progress("Downloading ledger from cloud…");
+    // Prefer paginated APIs. `/backup/export` often dies on Vercel (~30–60s
+    // function limit) and only wasted time before falling back.
+    let bundle = await assembleLedgerFromApis();
+    if (!bundle.transactions?.length && !bundle.accounts?.length) {
+      progress("Trying full backup export…");
+      bundle = (await tryBackupExport(25_000)) || bundle;
+    }
 
+    const backupAccounts = bundle.accounts ?? [];
     const txnById = new Map<string, any>();
-    for (const t of payload.transactions ?? []) {
+    for (const t of bundle.transactions ?? []) {
       const id = rowId(t);
       if (id) txnById.set(id, t);
     }
-
-    const partyById = new Map<string, any>();
-    for (const p of payload.parties ?? []) {
-      const id = rowId(p);
-      if (id) partyById.set(id, p);
-    }
-
-    // Only crawl /transactions if the dump is empty (should be rare).
+    // Ensure API-shaped txns if dump used thin rows.
     if (txnById.size === 0) {
-      await withBudget(
-        "transactions overlay",
-        45_000,
-        async () => {
-          try {
-            const apiTxns = await fetchAllCloudTransactions();
-            for (const t of apiTxns) {
-              const mapped = apiTransactionToBackupRow(t);
-              const id = rowId(mapped);
-              if (!id) continue;
-              txnById.set(id, mapped);
-            }
-          } catch (e) {
-            console.warn("[migrate] transaction overlay failed", e);
-          }
-          return null;
-        },
-        null,
-      );
+      progress("Fetching transactions…");
+      for (const t of await fetchAllCloudTransactions()) {
+        const mapped = apiTransactionToBackupRow(t);
+        const id = rowId(mapped);
+        if (id) txnById.set(id, mapped);
+      }
     }
-
-    payload.transactions = [...txnById.values()];
-    payload.parties = [...partyById.values()];
-    (data as any).data = payload;
 
     if (!txnById.size && !backupAccounts.length) {
       throw new Error(
-        "Cloud backup was empty — check login and API, then try again",
+        "Cloud returned no ledger data — check login / API, then try again",
       );
     }
 
+    const data = {
+      version: "2.0",
+      exportedAt: new Date().toISOString(),
+      data: {
+        accounts: backupAccounts,
+        categories: bundle.categories ?? [],
+        parties: bundle.parties ?? [],
+        transactions: [...txnById.values()],
+        transfers: bundle.transfers ?? [],
+        balanceSnapshots: [],
+      },
+      summary: {
+        accountsCount: backupAccounts.length,
+        categoriesCount: (bundle.categories ?? []).length,
+        partiesCount: (bundle.parties ?? []).length,
+        transactionsCount: txnById.size,
+        transfersCount: (bundle.transfers ?? []).length,
+        balanceSnapshotsCount: 0,
+        totalBalance: 0,
+      },
+    };
+
+    progress(`Importing ${txnById.size} transactions…`);
     const summary = await importLocalBackup(data, {
       mode: "replace",
       wipeAll: true,
@@ -627,7 +757,7 @@ export async function migrateCloudToLocal(opts?: {
     const completedAt = new Date().toISOString();
     const db = await getDb();
 
-    // Align wallets from the dump's Mongo current_balance (no extra network).
+    progress("Aligning account balances…");
     try {
       await alignOpeningsFromBackupAccounts(db, backupAccounts);
       const { recalculateCashBalancesOnly } = await import("@/db/balances");
@@ -636,64 +766,7 @@ export async function migrateCloudToLocal(opts?: {
       console.warn("[migrate] backup opening align skipped", e);
     }
 
-    // Shop seed is optional — never block leaving Settings spinner.
-    let productsCount = 0;
-    let productsSkipped = 0;
-    let invoicesCount = 0;
-    let invoicesSkipped = 0;
-    await withBudget(
-      "shop seed",
-      20_000,
-      async () => {
-        try {
-          const cloudProducts = await fetchAllCloudProducts();
-          for (const p of cloudProducts) {
-            try {
-              await productsRepo.upsertProductFromSync(
-                db,
-                cloudProductToLocal(p),
-              );
-              productsCount += 1;
-            } catch {
-              productsSkipped += 1;
-            }
-          }
-        } catch (e) {
-          console.warn("[migrate] product seed failed", e);
-        }
-        try {
-          const cloudInvoices = await fetchAllCloudInvoices();
-          await withDbTransaction(db, async (txn) => {
-            for (const inv of cloudInvoices) {
-              try {
-                const mapped = cloudInvoiceToLocal(inv);
-                await invoicesRepo.upsertInvoiceFromSync(txn, mapped.invoice);
-                for (const it of mapped.items) {
-                  await invoicesRepo.upsertInvoiceItemFromSync(txn, it);
-                }
-                for (const p of mapped.payments) {
-                  await invoicesRepo.upsertInvoicePaymentFromSync(txn, p);
-                }
-                invoicesCount += 1;
-              } catch {
-                invoicesSkipped += 1;
-              }
-            }
-          });
-        } catch (e) {
-          console.warn("[migrate] invoice seed failed", e);
-        }
-        try {
-          const orgs = await organizationsApi.list();
-          await cacheOrganizations(orgs);
-        } catch {
-          /* ignore */
-        }
-        return null;
-      },
-      null,
-    );
-
+    // Mark migrated ASAP so Settings leaves the spinner; shop can sync later.
     await setMeta(db, META_KEYS.MIGRATION_COMPLETED_AT, completedAt);
     await setMeta(db, META_KEYS.LAST_SYNC_CURSOR, completedAt);
     await setMeta(db, META_KEYS.SYNC_SCOPE_VERSION, "2");
@@ -707,6 +780,28 @@ export async function migrateCloudToLocal(opts?: {
       count: summary.transactionsCount,
     });
 
+    // Best-effort shop seed in background — never blocks the UI toast.
+    void (async () => {
+      try {
+        const cloudProducts = await fetchAllCloudProducts();
+        for (const p of cloudProducts) {
+          try {
+            await productsRepo.upsertProductFromSync(db, cloudProductToLocal(p));
+          } catch {
+            /* skip dupes */
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+      try {
+        const orgs = await organizationsApi.list();
+        await cacheOrganizations(orgs);
+      } catch {
+        /* ignore */
+      }
+    })();
+
     return {
       migrated: true,
       summary: {
@@ -715,10 +810,6 @@ export async function migrateCloudToLocal(opts?: {
         partiesCount: summary.partiesCount,
         transactionsCount: summary.transactionsCount,
         transfersCount: summary.transfersCount,
-        productsCount,
-        productsSkipped,
-        invoicesCount,
-        invoicesSkipped,
       },
     };
   } catch (e) {
