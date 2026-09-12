@@ -20,7 +20,7 @@ import { AuthLoading } from "../components/auth-loading";
 import { queryClient } from "../lib/queryClient";
 import { organizationsApi } from "../services/organizations";
 import type { OrganizationSummary } from "../services/organizations";
-import { bootstrapLocalFirst } from "../lib/local-first/bootstrap";
+import { bootstrapLocalFirst, bootstrapCloudLedgerIfNeeded } from "../lib/local-first/bootstrap";
 import { startDailyLocalFirstJobs } from "../lib/local-first/daily-jobs";
 import { startSyncScheduler } from "../sync/scheduler";
 import {
@@ -143,11 +143,12 @@ const RootContent = () => {
   const router = useRouter();
   const [isReady, setReady] = useState(false);
   const [isNavigationReady, setNavigationReady] = useState(false);
+  const [ledgerReady, setLedgerReady] = useState(false);
+  const [ledgerProgress, setLedgerProgress] = useState("Preparing…");
   const { colors, isDark } = useTheme();
   useInvalidateOnLocalFirstFlags();
 
   useEffect(() => {
-    // Mark as ready immediately — add Font.loadAsync here if custom fonts are needed later
     void bootstrapLocalFirst().finally(() => setReady(true));
   }, []);
 
@@ -160,19 +161,51 @@ const RootContent = () => {
         )
       : null;
 
+  // First login / reinstall: pull ledger into SQLite, but never block forever.
   useEffect(() => {
-    if (!isReady || !authUserKey) return;
+    if (!isReady || state.status !== "authenticated" || !authUserKey) {
+      if (state.status === "unauthenticated") setLedgerReady(true);
+      return;
+    }
+    let cancelled = false;
+    setLedgerReady(false);
+    setLedgerProgress("Checking local ledger…");
+
+    const failOpen = setTimeout(() => {
+      if (!cancelled) {
+        setLedgerProgress("Opening app…");
+        setLedgerReady(true);
+      }
+    }, 50_000);
+
+    void bootstrapCloudLedgerIfNeeded((msg) => {
+      if (!cancelled) setLedgerProgress(msg);
+    })
+      .catch((e) => {
+        console.warn("[root] ledger bootstrap failed", e);
+      })
+      .finally(() => {
+        clearTimeout(failOpen);
+        if (!cancelled) setLedgerReady(true);
+      });
+    return () => {
+      cancelled = true;
+      clearTimeout(failOpen);
+    };
+  }, [isReady, state.status, authUserKey]);
+
+  useEffect(() => {
+    if (!isReady || !authUserKey || !ledgerReady) return;
     setDriveBackupUserKeyProvider(() => authUserKey);
     const stopSync = startSyncScheduler();
     const stopDrive = startDriveBackupScheduler();
-    // Once per local day after midnight (on foreground / 15m poll): Mongo sync + Drive backup.
     const stopDaily = startDailyLocalFirstJobs();
     return () => {
       stopSync();
       stopDrive();
       stopDaily();
     };
-  }, [isReady, authUserKey]);
+  }, [isReady, authUserKey, ledgerReady]);
 
   useEffect(() => {
     const maybeHideSplash = async () => {
@@ -202,9 +235,13 @@ const RootContent = () => {
     }
   }, [segments, state.status, router]);
 
-  // Show loading screen while checking auth or resources not ready
+  // Show loading screen while checking auth, resources, or first-time ledger download
   if (!isReady || state.status === "loading") {
     return <AuthLoading />;
+  }
+
+  if (state.status === "authenticated" && !ledgerReady) {
+    return <AuthLoading message={ledgerProgress} />;
   }
 
   // Show loading screen until navigation is complete to prevent flash

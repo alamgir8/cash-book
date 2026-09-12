@@ -17,6 +17,7 @@ import type {
 } from "@/db/types";
 import {
   getLocalFirstFlagsSync,
+  loadLocalFirstFlags,
   setLocalFirstFlags,
 } from "@/lib/local-first/flags";
 import {
@@ -167,31 +168,40 @@ function mergeTxnRows(base: any, richer: any): any {
 
 async function fetchCloudTransactionsPage(
   organizationId: string | null,
+  onPage?: (page: number, pages: number, got: number) => void,
 ): Promise<any[]> {
   const out: any[] = [];
   let page = 1;
   let pages = 1;
+  // Large pages + long timeout: default axios 15s was killing migrate on Vercel.
+  const limit = 500;
   while (page <= pages) {
-    const params: Record<string, string | number> = { page, limit: 100 };
+    const params: Record<string, string | number> = { page, limit };
     if (organizationId) params.organization = organizationId;
     const { data } = await api.get<{
       transactions: any[];
       pagination?: { page: number; pages: number; total: number };
-    }>("/transactions", { params });
+    }>("/transactions", { params, timeout: 60_000 });
     out.push(...(data.transactions ?? []));
     pages = Math.max(1, Number(data.pagination?.pages ?? 1));
+    onPage?.(page, pages, out.length);
     page += 1;
-    if (page > 1000) break;
+    if (page > 200) break;
   }
   return out;
 }
 
 /** Personal + every organization the user belongs to. */
-async function fetchAllCloudTransactions(): Promise<any[]> {
+async function fetchAllCloudTransactions(
+  onProgress?: (message: string) => void,
+): Promise<any[]> {
   const byId = new Map<string, any>();
 
   try {
-    const personal = await fetchCloudTransactionsPage(null);
+    onProgress?.("Downloading personal transactions…");
+    const personal = await fetchCloudTransactionsPage(null, (p, pages, got) => {
+      onProgress?.(`Personal transactions ${p}/${pages} (${got})…`);
+    });
     for (const t of personal) byId.set(String(t._id), t);
   } catch (e) {
     console.warn("[migrate] personal transactions failed", e);
@@ -203,7 +213,12 @@ async function fetchAllCloudTransactions(): Promise<any[]> {
       const id = (org as any).id || org._id;
       if (!id) continue;
       try {
-        const rows = await fetchCloudTransactionsPage(String(id));
+        onProgress?.(`Downloading shop transactions…`);
+        const rows = await fetchCloudTransactionsPage(String(id), (p, pages, got) => {
+          onProgress?.(
+            `Shop transactions ${p}/${pages} (${byId.size + got})…`,
+          );
+        });
         for (const t of rows) byId.set(String(t._id), t);
       } catch (e) {
         console.warn(`[migrate] org ${id} transactions failed`, e);
@@ -211,7 +226,7 @@ async function fetchAllCloudTransactions(): Promise<any[]> {
     }
   } catch (e) {
     console.warn(
-      "[migrate] list organizations failed — keeping backup-export transactions",
+      "[migrate] list organizations failed — keeping personal transactions",
       e,
     );
   }
@@ -548,38 +563,81 @@ async function alignOpeningsFromBackupAccounts(
   return updated;
 }
 
-async function fetchAllCloudAccountsRaw(): Promise<any[]> {
+async function withDeadline<T>(
+  label: string,
+  ms: number,
+  work: () => Promise<T>,
+  fallback: T,
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  try {
+    return await Promise.race([
+      work(),
+      new Promise<T>((resolve) => {
+        timer = setTimeout(() => {
+          console.warn(`[migrate] ${label} deadline ${ms}ms — using fallback`);
+          resolve(fallback);
+        }, ms);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+async function fetchAllCloudAccountsRaw(
+  onProgress?: (message: string) => void,
+): Promise<any[]> {
   const byId = new Map<string, any>();
   const push = async (organizationId: string | null) => {
     const { data } = await api.get<{ accounts?: any[] }>("/accounts", {
-      params: organizationId ? { organization: organizationId } : undefined,
-      timeout: 30_000,
+      params: {
+        skip_summary: "true",
+        include_archived: "true",
+        ...(organizationId ? { organization: organizationId } : {}),
+      },
+      timeout: 20_000,
     });
     for (const a of data.accounts ?? []) {
       const id = String(a._id ?? a.id ?? "");
       if (id) byId.set(id, a);
     }
   };
-  await push(null);
-  try {
-    const orgs = await organizationsApi.list();
-    for (const org of orgs || []) {
-      const id = (org as any).id || org._id;
-      if (id) {
-        try {
-          await push(String(id));
-        } catch (e) {
-          console.warn(`[migrate] accounts for org ${id} failed`, e);
-        }
+
+  onProgress?.("Downloading accounts…");
+  await withDeadline("personal accounts", 25_000, () => push(null), undefined);
+
+  // Org list is optional — never block migrate on it.
+  const orgs = await withDeadline(
+    "org list (accounts)",
+    12_000,
+    async () => {
+      try {
+        return (await organizationsApi.list()) || [];
+      } catch {
+        return [];
       }
-    }
-  } catch (e) {
-    console.warn("[migrate] org list for accounts failed", e);
+    },
+    [],
+  );
+
+  for (const org of orgs) {
+    const id = (org as any).id || (org as any)._id;
+    if (!id) continue;
+    onProgress?.(`Downloading accounts (${byId.size})…`);
+    await withDeadline(
+      `accounts org ${id}`,
+      20_000,
+      () => push(String(id)),
+      undefined,
+    );
   }
   return [...byId.values()];
 }
 
-async function fetchAllCloudCategoriesRaw(): Promise<any[]> {
+async function fetchAllCloudCategoriesRaw(
+  onProgress?: (message: string) => void,
+): Promise<any[]> {
   const byId = new Map<string, any>();
   const push = async (organizationId: string | null) => {
     const { data } = await api.get<{ categories?: any[] }>("/categories", {
@@ -587,49 +645,68 @@ async function fetchAllCloudCategoriesRaw(): Promise<any[]> {
         include_archived: "true",
         ...(organizationId ? { organization: organizationId } : {}),
       },
-      timeout: 30_000,
+      timeout: 20_000,
     });
     for (const c of data.categories ?? []) {
       const id = String(c._id ?? c.id ?? "");
       if (id) byId.set(id, c);
     }
   };
-  await push(null);
-  try {
-    const orgs = await organizationsApi.list();
-    for (const org of orgs || []) {
-      const id = (org as any).id || org._id;
-      if (id) {
-        try {
-          await push(String(id));
-        } catch (e) {
-          console.warn(`[migrate] categories for org ${id} failed`, e);
-        }
+
+  onProgress?.("Downloading categories…");
+  await withDeadline("personal categories", 25_000, () => push(null), undefined);
+
+  const orgs = await withDeadline(
+    "org list (categories)",
+    12_000,
+    async () => {
+      try {
+        return (await organizationsApi.list()) || [];
+      } catch {
+        return [];
       }
-    }
-  } catch {
-    /* personal cats still ok */
+    },
+    [],
+  );
+
+  for (const org of orgs) {
+    const id = (org as any).id || (org as any)._id;
+    if (!id) continue;
+    await withDeadline(
+      `categories org ${id}`,
+      20_000,
+      () => push(String(id)),
+      undefined,
+    );
   }
   return [...byId.values()];
 }
 
 /**
  * Assemble a backup-shaped payload via small paginated APIs.
- * Vercel kills `/backup/export` at ~30s — this path stays under that per request.
+ * Vercel kills `/backup/export` at ~30–60s — this path stays under that per request.
  */
-async function assembleLedgerFromApis(): Promise<{
+async function assembleLedgerFromApis(
+  onProgress?: (message: string) => void,
+): Promise<{
   accounts: any[];
   categories: any[];
   parties: any[];
   transactions: any[];
   transfers: any[];
 }> {
-  const [accounts, categories, parties, transactions] = await Promise.all([
-    fetchAllCloudAccountsRaw(),
-    fetchAllCloudCategoriesRaw(),
-    fetchAllParties(),
-    fetchAllCloudTransactions(),
-  ]);
+  onProgress?.("Downloading accounts…");
+  const accounts = await fetchAllCloudAccountsRaw(onProgress);
+  onProgress?.("Downloading categories…");
+  const categories = await fetchAllCloudCategoriesRaw(onProgress);
+  onProgress?.("Downloading parties…");
+  const parties = await withDeadline(
+    "parties",
+    30_000,
+    () => fetchAllParties(),
+    [],
+  );
+  const transactions = await fetchAllCloudTransactions(onProgress);
   return {
     accounts,
     categories,
@@ -699,7 +776,7 @@ export async function migrateCloudToLocal(opts?: {
     progress("Downloading ledger from cloud…");
     // Prefer paginated APIs. `/backup/export` often dies on Vercel (~30–60s
     // function limit) and only wasted time before falling back.
-    let bundle = await assembleLedgerFromApis();
+    let bundle = await assembleLedgerFromApis(progress);
     if (!bundle.transactions?.length && !bundle.accounts?.length) {
       progress("Trying full backup export…");
       bundle = (await tryBackupExport(25_000)) || bundle;
@@ -714,7 +791,7 @@ export async function migrateCloudToLocal(opts?: {
     // Ensure API-shaped txns if dump used thin rows.
     if (txnById.size === 0) {
       progress("Fetching transactions…");
-      for (const t of await fetchAllCloudTransactions()) {
+      for (const t of await fetchAllCloudTransactions(progress)) {
         const mapped = apiTransactionToBackupRow(t);
         const id = rowId(mapped);
         if (id) txnById.set(id, mapped);
@@ -819,3 +896,68 @@ export async function migrateCloudToLocal(opts?: {
     setSyncPaused(false);
   }
 }
+
+let initialMigrateInFlight: Promise<{
+  migrated: boolean;
+  summary?: Record<string, number>;
+  skipped?: boolean;
+  error?: string;
+}> | null = null;
+
+/**
+ * First login / fresh install: download the full cloud ledger into SQLite once,
+ * then the app works local-first. Safe to call from app root — single-flight.
+ */
+export async function ensureInitialCloudMigration(opts?: {
+  onProgress?: (message: string) => void;
+}): Promise<{
+  migrated: boolean;
+  summary?: Record<string, number>;
+  skipped?: boolean;
+  error?: string;
+}> {
+  if (initialMigrateInFlight) return initialMigrateInFlight;
+
+  initialMigrateInFlight = (async () => {
+    try {
+      await loadLocalFirstFlags();
+      const flags = getLocalFirstFlagsSync();
+      if (!flags.localFirstEnabled) {
+        return { migrated: false, skipped: true };
+      }
+
+      const { getDb } = await import("@/db/client");
+      const db = await getDb();
+      const row = await db.getFirstAsync<{ n: number }>(
+        `SELECT COUNT(*) as n FROM transactions WHERE deleted_at IS NULL`,
+      );
+      const txnCount = Number(row?.n ?? 0);
+
+      // Already have a real book on device.
+      if (flags.migrationCompletedAt && txnCount >= 50) {
+        return { migrated: false, skipped: true };
+      }
+
+      opts?.onProgress?.(
+        txnCount === 0
+          ? "First launch — downloading your ledger…"
+          : "Local copy incomplete — re-downloading…",
+      );
+
+      const result = await migrateCloudToLocal({
+        force: Boolean(flags.migrationCompletedAt) || txnCount > 0,
+        onProgress: opts?.onProgress,
+      });
+      return result;
+    } catch (e: any) {
+      const error = e?.response?.data?.message || e?.message || "Migration failed";
+      console.warn("[migrate] ensureInitialCloudMigration failed", error);
+      return { migrated: false, error: String(error) };
+    } finally {
+      initialMigrateInFlight = null;
+    }
+  })();
+
+  return initialMigrateInFlight;
+}
+

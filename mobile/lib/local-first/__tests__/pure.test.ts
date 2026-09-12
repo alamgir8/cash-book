@@ -331,8 +331,19 @@ test("migrate uses paginated APIs when backup export is too slow", () => {
   assert.match(src, /tryBackupExport/);
   assert.match(src, /alignOpeningsFromBackupAccounts/);
   assert.match(src, /pauseSyncForMaintenance/);
-  assert.match(src, /withBudget|onProgress/);
-  assert.match(src, /out\.due_date/);
+  assert.match(src, /ensureInitialCloudMigration/);
+  assert.match(src, /timeout: 60_000/);
+  assert.match(src, /limit = 500/);
+});
+
+test("app root auto-downloads ledger after login", () => {
+  const layout = readFileSync(
+    join(__dirname, "../../../app/_layout.tsx"),
+    "utf8",
+  );
+  const boot = readFileSync(join(__dirname, "../bootstrap.ts"), "utf8");
+  assert.match(layout, /bootstrapCloudLedgerIfNeeded/);
+  assert.match(boot, /ensureInitialCloudMigration/);
 });
 
 test("backend sync applies account \$inc on transaction push", () => {

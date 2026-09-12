@@ -201,6 +201,14 @@ export const listAccounts = async (req, res, next) => {
     });
 
     const accounts = await Account.find(filter).sort({ name: 1 }).lean();
+    // Migrate / bootstrap only needs wallet fields — summary aggregates can
+    // exceed Vercel time limits and leave the mobile splash spinning forever.
+    if (
+      req.query.skip_summary === "true" ||
+      req.query.skipSummary === "true"
+    ) {
+      return res.json({ accounts });
+    }
     const withSummary = await decorateWithSummary({
       adminId: req.user.id,
       accounts,
