@@ -116,16 +116,6 @@ export function LocalFirstSection() {
   const runMigrate = useCallback(
     async (force = false) => {
       setBusy("migrate");
-      const wall = setTimeout(() => {
-        setBusy(null);
-        Toast.show({
-          type: "error",
-          text1: "Migration timed out",
-          text2:
-            "Large ledgers can take a few minutes. Try again, or use Restore from Drive.",
-          visibilityTime: 9000,
-        });
-      }, 180_000);
       try {
         const result = await migrateCloudToLocal({
           force,
@@ -171,7 +161,6 @@ export function LocalFirstSection() {
           visibilityTime: 8000,
         });
       } finally {
-        clearTimeout(wall);
         setBusy(null);
       }
     },

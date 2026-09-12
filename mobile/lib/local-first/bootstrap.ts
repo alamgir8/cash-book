@@ -17,3 +17,46 @@ export async function bootstrapLocalFirst(): Promise<void> {
     console.warn("[local-first] bootstrap failed", error);
   }
 }
+
+/**
+ * After login: if SQLite has no ledger yet, download cloud → local once.
+ * Hard-capped so the splash can never spin forever.
+ */
+export async function bootstrapCloudLedgerIfNeeded(
+  onProgress?: (message: string) => void,
+): Promise<void> {
+  const { ensureInitialCloudMigration } = await import(
+    "@/services/migrate-cloud"
+  );
+
+  const OVERALL_MS = 45_000;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  try {
+    await Promise.race([
+      ensureInitialCloudMigration({ onProgress }).then(async (result) => {
+        if (result.migrated) {
+          try {
+            const { queryClient } = await import("@/lib/queryClient");
+            await queryClient.invalidateQueries({ refetchType: "active" });
+          } catch {
+            /* ignore */
+          }
+        }
+        if (result.error) {
+          console.warn("[local-first] initial migrate:", result.error);
+        }
+      }),
+      new Promise<void>((resolve) => {
+        timer = setTimeout(() => {
+          onProgress?.(
+            "Download is slow — opening app. Use Settings → Migrate or Drive restore.",
+          );
+          console.warn("[local-first] initial migrate overall deadline");
+          resolve();
+        }, OVERALL_MS);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
