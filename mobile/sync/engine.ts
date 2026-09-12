@@ -71,7 +71,7 @@ let syncInFlight: Promise<SyncResult> | null = null;
 /** Migrate / wipe holds this so sync cannot race the local DB. */
 let syncPaused = false;
 
-const MAX_SYNC_WALL_MS = 3 * 60 * 1000;
+const MAX_SYNC_WALL_MS = 90_000;
 
 export function isSyncPaused(): boolean {
   return syncPaused;
@@ -82,9 +82,15 @@ export function setSyncPaused(paused: boolean): void {
   syncPaused = paused;
 }
 
+function assertSyncNotPaused(): void {
+  if (syncPaused) {
+    throw new Error("SYNC_PAUSED_FOR_MAINTENANCE");
+  }
+}
+
 /** Wait for the current cycle (if any), then keep sync paused. */
 export async function pauseSyncForMaintenance(
-  waitMs = 60_000,
+  waitMs = 20_000,
 ): Promise<void> {
   syncPaused = true;
   if (!syncInFlight) return;
@@ -619,6 +625,7 @@ export async function runSync(): Promise<SyncResult> {
     let acceptedTotal = 0;
     const rejectedAll: Array<{ id: string; reason: string }> = [];
     for (let round = 0; round < MAX_PUSH_ROUNDS; round++) {
+      assertSyncNotPaused();
       const dirty = await collectDirtyChanges(MAX_PUSH_BATCH);
       if (!dirty.length) break;
 
@@ -685,6 +692,7 @@ export async function runSync(): Promise<SyncResult> {
     const rejected = rejectedAll;
     const pushedCount = acceptedTotal;
 
+    assertSyncNotPaused();
     await setMeta(db, META_KEYS.SYNC_STAGE, "pull");
     // Scope v2: personal + organization books. Reset cursor once so org rows
     // created before the last personal-only sync are not skipped.
@@ -706,8 +714,9 @@ export async function runSync(): Promise<SyncResult> {
       timeout: 120000,
     });
 
-    for (const change of pull.changes ?? []) {
-      await applyIncoming(change);
+    for (let i = 0; i < (pull.changes?.length ?? 0); i++) {
+      if (i % 25 === 0) assertSyncNotPaused();
+      await applyIncoming(pull.changes![i]);
     }
 
     await setMeta(db, META_KEYS.SYNC_STAGE, "ack");
@@ -727,18 +736,35 @@ export async function runSync(): Promise<SyncResult> {
     await setMeta(db, META_KEYS.SYNC_STAGE, "done");
 
     // Restore openings then rewrite Balance-after (delta sync never uploads
-    // the whole DB — this is local math only).
+    // the whole DB — this is local math only). Budgeted so Sync Now cannot spin.
     if (pushedCount > 0 || (pull.changes?.length ?? 0) > 0) {
+      assertSyncNotPaused();
       try {
         const { reconcileAccountOpeningsFromCloud } = await import(
           "@/lib/local-first/reconcile-account-openings"
         );
-        await reconcileAccountOpeningsFromCloud(db);
+        await Promise.race([
+          reconcileAccountOpeningsFromCloud(db),
+          new Promise<never>((_, reject) =>
+            setTimeout(
+              () => reject(new Error("opening reconcile timed out")),
+              15_000,
+            ),
+          ),
+        ]);
       } catch (e) {
         if (__DEV__) console.warn("[sync] opening reconcile skipped", e);
       }
       try {
-        await recalculateBalances(db, { allOrganizations: true });
+        await Promise.race([
+          recalculateBalances(db, { allOrganizations: true }),
+          new Promise<never>((_, reject) =>
+            setTimeout(
+              () => reject(new Error("balance recalc timed out")),
+              30_000,
+            ),
+          ),
+        ]);
       } catch (e) {
         console.warn("[sync] balance recalc skipped", e);
       }
@@ -797,6 +823,17 @@ export async function runSync(): Promise<SyncResult> {
       serverTime: handshake.serverTime,
     };
   } catch (e: any) {
+    if (
+      e?.message === "SYNC_PAUSED_FOR_MAINTENANCE" ||
+      /SYNC_PAUSED_FOR_MAINTENANCE/.test(String(e?.message || ""))
+    ) {
+      return {
+        ok: false,
+        pushed: 0,
+        pulled: 0,
+        error: "Sync paused while migrating — try again in a moment",
+      };
+    }
     const status = e?.response?.status;
     const raw = e?.response?.data?.message || e?.message || "Sync failed";
     const notDeployed =

@@ -327,11 +327,10 @@ test("migrate pauses sync and budgets cloud overlay", () => {
     join(__dirname, "../../../services/migrate-cloud.ts"),
     "utf8",
   );
+  assert.match(src, /timeout: 60_000/);
+  assert.match(src, /alignOpeningsFromBackupAccounts/);
   assert.match(src, /pauseSyncForMaintenance/);
   assert.match(src, /withBudget/);
-  assert.match(src, /reconcileAccountOpeningsFromCloud/);
-  assert.match(src, /timeout: 120_000/);
-  assert.match(src, /out\.due_date/);
 });
 
 test("backend sync applies account \$inc on transaction push", () => {

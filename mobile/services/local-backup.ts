@@ -277,14 +277,15 @@ export async function importLocalBackup(
 
   });
 
-  // Fix dues/loans that arrived with wrong payment_status or category type,
-  // then recompute account cash from the full ledger (all credits − all debits).
+  // Fix dues/loans that arrived with wrong payment_status or category type.
+  // skipCloud: migrate already carries Mongo current_balance in the dump —
+  // don't block import on another network round-trip.
   await setMeta(db, META_KEYS.LEDGER_REPAIR_VERSION, null);
   const {
     repairLocalLedgerSemantics,
     LEDGER_REPAIR_VERSION,
   } = await import("@/lib/local-first/repair-ledger");
-  await repairLocalLedgerSemantics(db);
+  await repairLocalLedgerSemantics(db, { skipCloud: true });
   await setMeta(db, META_KEYS.LEDGER_REPAIR_VERSION, LEDGER_REPAIR_VERSION);
 
   const liveAccounts = wipeAll

@@ -205,7 +205,10 @@ async function finishRepairEnrichment(db: Db): Promise<void> {
  * Fix common migrate/restore damage (local SQL only + cash balances).
  * Cloud overlay and Balance-after trails finish in the background.
  */
-export async function repairLocalLedgerSemantics(db: Db): Promise<{
+export async function repairLocalLedgerSemantics(
+  db: Db,
+  opts?: { skipCloud?: boolean },
+): Promise<{
   duesFixed: number;
   categoriesFixed: number;
   revertedToPaid: number;
@@ -330,17 +333,20 @@ export async function repairLocalLedgerSemantics(db: Db): Promise<{
 
   // Align openings to Mongo current before cash paint so Accounts shows
   // নগদ≈16k / বিকাশ≈5.7k / ব্যাংক≈612k instead of local paid-net drift.
-  try {
-    const { reconcileAccountOpeningsFromCloud } = await import(
-      "./reconcile-account-openings"
-    );
-    await withTimeout(
-      reconcileAccountOpeningsFromCloud(db),
-      ACCOUNT_OPENING_RECONCILE_MS,
-      "account openings (pre-cash)",
-    );
-  } catch (e) {
-    console.warn("[repair] pre-cash opening reconcile skipped", e);
+  // Skip during migrate/import — caller already has cloud currents in the dump.
+  if (!opts?.skipCloud) {
+    try {
+      const { reconcileAccountOpeningsFromCloud } = await import(
+        "./reconcile-account-openings"
+      );
+      await withTimeout(
+        reconcileAccountOpeningsFromCloud(db),
+        ACCOUNT_OPENING_RECONCILE_MS,
+        "account openings (pre-cash)",
+      );
+    } catch (e) {
+      console.warn("[repair] pre-cash opening reconcile skipped", e);
+    }
   }
 
   // Cash first so Accounts/Dashboard can paint; trails finish in background.

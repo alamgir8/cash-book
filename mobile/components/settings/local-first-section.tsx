@@ -116,9 +116,17 @@ export function LocalFirstSection() {
   const runMigrate = useCallback(
     async (force = false) => {
       setBusy("migrate");
+      const wall = setTimeout(() => {
+        setBusy(null);
+        Toast.show({
+          type: "error",
+          text1: "Migration timed out",
+          text2: "Check network / API, then try Migrate again",
+          visibilityTime: 8000,
+        });
+      }, 90_000);
       try {
         // Do NOT warm/sync here — that raced migrate and left Sync locked.
-        // migrateCloudToLocal pauses sync, imports, then aligns openings.
         const result = await migrateCloudToLocal({ force });
         if (!result.migrated) {
           Toast.show({ type: "info", text1: "Already migrated" });
@@ -129,7 +137,6 @@ export function LocalFirstSection() {
             text1: "Migration complete",
             text2: `${result.summary?.transactionsCount ?? 0} transactions now on this device`,
           });
-          // Best-effort Drive snapshot after migrate (if connected).
           void maybeUploadDriveBackup("post-migrate").then((r) => {
             if (r.ok) {
               Toast.show({
@@ -154,6 +161,7 @@ export function LocalFirstSection() {
           visibilityTime: 8000,
         });
       } finally {
+        clearTimeout(wall);
         setBusy(null);
       }
     },
@@ -257,8 +265,16 @@ export function LocalFirstSection() {
 
   const onSync = async () => {
     setBusy("sync");
+    const wall = setTimeout(() => {
+      setBusy(null);
+      Toast.show({
+        type: "error",
+        text1: "Sync timed out",
+        text2: "Try again — or Migrate from cloud first if local DB is empty",
+        visibilityTime: 8000,
+      });
+    }, 90_000);
     try {
-      // Join the shared scheduler cycle — never toast "already running".
       const result = await requestSyncNow();
       if (result.ok) {
         Toast.show({
@@ -277,6 +293,7 @@ export function LocalFirstSection() {
       }
       await refreshStatus();
     } finally {
+      clearTimeout(wall);
       setBusy(null);
     }
   };
@@ -600,6 +617,7 @@ export function LocalFirstSection() {
           label="Migrate from cloud"
           onPress={onMigrate}
           busy={busy === "migrate"}
+          disabled={Boolean(busy) && busy !== "migrate"}
         />
         <Action
           colors={colors}
@@ -607,7 +625,9 @@ export function LocalFirstSection() {
           label="Sync now (Mongo)"
           onPress={onSync}
           busy={busy === "sync"}
-          disabled={!flags.cloudSyncEnabled}
+          disabled={
+            !flags.cloudSyncEnabled || (Boolean(busy) && busy !== "sync")
+          }
         />
         <Text
           className="text-xs font-semibold mt-2"
