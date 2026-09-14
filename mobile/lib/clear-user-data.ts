@@ -18,6 +18,7 @@ export type ClearUserScopedOptions = {
 /**
  * Clears in-memory React Query cache and org/prefs storage.
  * Ledger wipe is opt-in — never wipe on soft/session expiry.
+ * Wipe is hard-capped so logout cannot hang on SQLite close/delete.
  */
 export async function clearUserScopedData(
   options: ClearUserScopedOptions = {},
@@ -36,11 +37,42 @@ export async function clearUserScopedData(
   if (!wipeLedger) return;
 
   try {
+    // Stop background sync so closeDb is not blocked by an in-flight cycle.
+    try {
+      const { stopSyncScheduler } = await import("@/sync/scheduler");
+      stopSyncScheduler();
+    } catch {
+      /* ignore */
+    }
+    try {
+      const { setSyncPaused } = await import("@/sync/engine");
+      setSyncPaused(true);
+    } catch {
+      /* ignore */
+    }
+
     const { resetLocalLedgerForUserChange } = await import(
       "@/lib/local-first/owner"
     );
-    await resetLocalLedgerForUserChange();
+    await Promise.race([
+      resetLocalLedgerForUserChange(),
+      new Promise<void>((resolve) =>
+        setTimeout(() => {
+          console.warn(
+            "[clear-user-data] ledger wipe deadline — continuing logout",
+          );
+          resolve();
+        }, 8_000),
+      ),
+    ]);
   } catch (error) {
     console.warn("Failed to reset local ledger on user change", error);
+  } finally {
+    try {
+      const { setSyncPaused } = await import("@/sync/engine");
+      setSyncPaused(false);
+    } catch {
+      /* ignore */
+    }
   }
 }

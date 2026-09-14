@@ -1,4 +1,5 @@
 import { loadLocalFirstFlags } from "./flags";
+import { baseURL } from "@/lib/api";
 
 /**
  * Load feature flags. If local-first is already enabled, warm SQLite so
@@ -18,18 +19,23 @@ export async function bootstrapLocalFirst(): Promise<void> {
   }
 }
 
+function isServerlessApiHost(): boolean {
+  return /vercel\.app|netlify\.app/i.test(String(baseURL || ""));
+}
+
 /**
  * After login: if SQLite is empty, load the full ledger once (Drive → cloud),
  * then work local-first. Daily sync only pushes/pulls deltas afterward.
  *
- * Hard-capped so the splash never spins forever.
+ * Hard-capped so the splash never spins forever. Vercel paginated dumps need
+ * more wall time than a LAN /backup/export.
  */
 export async function bootstrapCloudLedgerIfNeeded(
   onProgress?: (message: string) => void,
 ): Promise<void> {
   const { bootstrapLedgerIfEmpty } = await import("./bootstrap-ledger");
 
-  const OVERALL_MS = 25_000;
+  const OVERALL_MS = isServerlessApiHost() ? 90_000 : 45_000;
   let timer: ReturnType<typeof setTimeout> | null = null;
   try {
     await Promise.race([

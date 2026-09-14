@@ -152,14 +152,13 @@ function mergeTxnRows(base: any, richer: any): any {
   }
   if (richer.description) out.description = richer.description;
   if (richer.vendor) out.vendor = richer.vendor;
-  // Force due only for real open dues (remaining + due_date). Migrating
-  // due_remaining alone used to mark paid cash rows as due and shrink wallets.
+  // Force due for real open dues (remaining > 0, not a payment child).
+  // Due date is optional in the UI — do not require it.
   if (
     out.due_remaining != null &&
     Number(out.due_remaining) > 0 &&
     !out.parent_due_id &&
-    !out.due_settled_at &&
-    out.due_date
+    !out.due_settled_at
   ) {
     out.payment_status = "due";
   }
@@ -782,16 +781,18 @@ export async function migrateCloudToLocal(opts?: {
 
     // LAN / dedicated server: one full /backup/export is fastest and correct.
     // Vercel: skip export (function time limit) → paginated lean APIs.
+    // Large books on Atlas via LAN often need >20s for the full dump.
+    const exportBudgetMs = serverless ? 20_000 : 120_000;
     let bundle = serverless
       ? null
-      : await tryBackupExport(20_000);
+      : await tryBackupExport(exportBudgetMs);
     if (!bundle || (!bundle.transactions?.length && !bundle.accounts?.length)) {
       if (!serverless) progress("Export empty — using paginated APIs…");
       bundle = await assembleLedgerFromApis(progress);
     }
     if (!bundle.transactions?.length && !bundle.accounts?.length) {
       progress("Trying full backup export…");
-      bundle = (await tryBackupExport(20_000)) || bundle;
+      bundle = (await tryBackupExport(exportBudgetMs)) || bundle;
     }
 
     const backupAccounts = bundle.accounts ?? [];
@@ -811,7 +812,49 @@ export async function migrateCloudToLocal(opts?: {
     }
 
     if (!txnById.size && !backupAccounts.length) {
-      // Empty cloud book is valid for fresh installs / new signups
+      // Distinguish "brand-new empty book" from "download failed / timed out".
+      // Stamping migrated+now-cursor on a false empty permanently skips history.
+      let cloudLooksEmpty = false;
+      try {
+        progress("Verifying cloud book is empty…");
+        const { data } = await api.get<{ accounts?: any[] }>("/accounts", {
+          params: { skip_summary: "true", include_archived: "true" },
+          timeout: 20_000,
+        });
+        const n = (data.accounts ?? []).length;
+        if (n > 0) {
+          throw new Error(
+            `Cloud has ${n} account(s) but download returned empty (timeout?). Use LAN API or Drive restore, then Re-download from cloud.`,
+          );
+        }
+        // Confirm transactions endpoint also empty (one page).
+        const { data: txPage } = await api.get<{
+          transactions?: any[];
+          pagination?: { total?: number };
+        }>("/transactions", {
+          params: { page: 1, limit: 1 },
+          timeout: 20_000,
+        });
+        const txTotal = Number(
+          txPage.pagination?.total ?? txPage.transactions?.length ?? 0,
+        );
+        if (txTotal > 0) {
+          throw new Error(
+            `Cloud has ${txTotal} transaction(s) but download returned empty. Try again or use LAN API / Drive.`,
+          );
+        }
+        cloudLooksEmpty = true;
+      } catch (e) {
+        if (!cloudLooksEmpty) {
+          const msg =
+            e instanceof Error
+              ? e.message
+              : "Could not verify empty cloud book";
+          console.warn("[migrate] refusing empty stamp:", msg);
+          return { migrated: false };
+        }
+      }
+
       const completedAt = new Date().toISOString();
       const db = await getDb();
       await setMeta(db, META_KEYS.MIGRATION_COMPLETED_AT, completedAt);

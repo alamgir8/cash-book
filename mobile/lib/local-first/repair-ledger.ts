@@ -6,7 +6,7 @@ import {
 import { getMeta, META_KEYS, setMeta } from "@/db/meta";
 
 /** Bump when repair SQL/rules change so existing devices re-apply. */
-export const LEDGER_REPAIR_VERSION = "16";
+export const LEDGER_REPAIR_VERSION = "18";
 
 /** Soft deadline for optional cloud overlay — never block Home paint. */
 const CLOUD_RECONCILE_MS = 12_000;
@@ -219,21 +219,11 @@ export async function repairLocalLedgerSemantics(
   const orgsStamped = await stampOrganizationFromAccount(db);
 
   // ─── Payment status cleanup ───
-  // Settled due roots stay payment_status='due' with due_settled_at set so they
-  // remain excluded from wallet cash; their payment children are the cash hits.
-  // (Flipping settled roots to paid double-counts with those children.)
-
-  const revertZero = await db.runAsync(
-    `UPDATE transactions
-     SET payment_status = 'paid',
-         due_remaining = NULL,
-         updated_at = COALESCE(updated_at, datetime('now'))
-     WHERE deleted_at IS NULL
-       AND payment_status = 'due'
-       AND due_remaining IS NOT NULL
-       AND CAST(due_remaining AS REAL) <= 0
-       AND (due_settled_at IS NULL OR due_settled_at = '')`,
-  );
+  // Canonical due model (matches cloud):
+  //   open due     → payment_status='due', remaining > 0, due_settled_at NULL
+  //   partial pay  → payment_status='due', remaining decreased
+  //   fully paid   → payment_status='due', remaining = 0, due_settled_at set
+  // Payment children are always payment_status='paid'.
 
   const revertPayments = await db.runAsync(
     `UPDATE transactions
@@ -243,6 +233,23 @@ export async function repairLocalLedgerSemantics(
        AND payment_status = 'due'
        AND parent_due_id IS NOT NULL
        AND parent_due_id != ''`,
+  );
+
+  // Stamp settled when remaining hit 0 — keep status 'due' (never flip to paid).
+  const stampSettled = await db.runAsync(
+    `UPDATE transactions
+     SET due_remaining = 0,
+         due_settled_at = COALESCE(
+           NULLIF(due_settled_at, ''),
+           updated_at,
+           datetime('now')
+         ),
+         payment_status = 'due',
+         updated_at = COALESCE(updated_at, datetime('now'))
+     WHERE deleted_at IS NULL
+       AND (parent_due_id IS NULL OR parent_due_id = '')
+       AND due_remaining IS NOT NULL
+       AND CAST(due_remaining AS REAL) <= 0`,
   );
 
   await db.runAsync(
@@ -258,22 +265,8 @@ export async function repairLocalLedgerSemantics(
      WHERE due_group_id IN ('[object Object]', 'undefined', 'null')`,
   );
 
-  // False dues from thin migrate / old repair: marked due with remaining but
-  // NEVER given a due_date. Those excluded debit cash and inflated balances
-  // (Bank +1,30,000). Flip them back to paid so wallet cash is correct.
-  const falseDueFix = await db.runAsync(
-    `UPDATE transactions
-     SET payment_status = 'paid',
-         due_remaining = NULL,
-         updated_at = COALESCE(updated_at, datetime('now'))
-     WHERE deleted_at IS NULL
-       AND payment_status = 'due'
-       AND (parent_due_id IS NULL OR parent_due_id = '')
-       AND (due_date IS NULL OR due_date = '')
-       AND (due_settled_at IS NULL OR due_settled_at = '')`,
-  );
-
-  // Restore real open dues only when remaining > 0 AND due_date is set.
+  // Restore due roots wrongly flipped to paid (v16 falseDueFix / v17 settleZero).
+  // Do NOT touch normal cash-paid rows that never had a due chain.
   const dueFix = await db.runAsync(
     `UPDATE transactions
      SET payment_status = 'due',
@@ -281,11 +274,6 @@ export async function repairLocalLedgerSemantics(
      WHERE deleted_at IS NULL
        AND payment_status != 'due'
        AND (parent_due_id IS NULL OR parent_due_id = '')
-       AND due_remaining IS NOT NULL
-       AND CAST(due_remaining AS REAL) > 0
-       AND due_date IS NOT NULL
-       AND due_date != ''
-       AND (due_settled_at IS NULL OR due_settled_at = '')
        AND (
          category_id IS NULL OR category_id NOT IN (
            SELECT id FROM categories WHERE type IN ('loan_in','loan_out')
@@ -293,14 +281,33 @@ export async function repairLocalLedgerSemantics(
            SELECT server_id FROM categories
            WHERE server_id IS NOT NULL AND type IN ('loan_in','loan_out')
          )
+       )
+       AND (
+         (due_remaining IS NOT NULL AND CAST(due_remaining AS REAL) > 0
+           AND (due_settled_at IS NULL OR due_settled_at = ''))
+         OR (due_settled_at IS NOT NULL AND due_settled_at != '')
+         OR (
+           due_remaining IS NOT NULL
+           AND CAST(due_remaining AS REAL) <= 0
+           AND (
+             (due_group_id IS NOT NULL AND due_group_id != '')
+             OR EXISTS (
+               SELECT 1 FROM transactions c
+               WHERE c.deleted_at IS NULL
+                 AND (
+                   c.parent_due_id = transactions.id
+                   OR (transactions.server_id IS NOT NULL
+                       AND c.parent_due_id = transactions.server_id)
+                 )
+             )
+           )
+         )
        )`,
   );
 
   const duesFixed = Number(dueFix.changes ?? 0);
   const revertedToPaid =
-    Number(revertZero.changes ?? 0) +
-    Number(revertPayments.changes ?? 0) +
-    Number(falseDueFix.changes ?? 0);
+    Number(revertPayments.changes ?? 0) + Number(stampSettled.changes ?? 0);
 
   const catFixes = [
     `UPDATE categories SET type = 'loan_out', flow = 'debit'

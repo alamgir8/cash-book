@@ -74,17 +74,19 @@ function scheduleBackoffRetry() {
   }, delay);
 }
 
-async function networkUsable(): Promise<boolean> {
+async function networkUsable(opts?: { allowUnknownReachability?: boolean }): Promise<boolean> {
   const net = await NetInfo.fetch();
   if (net.isConnected === false) return false;
-  // null reachability = unknown; allow attempt (backend health will decide)
+  // iOS often reports isInternetReachable===false on Wi‑Fi while API works.
+  // Manual Sync must not be blocked by that false negative.
+  if (opts?.allowUnknownReachability) return true;
   if (net.isInternetReachable === false) return false;
   return true;
 }
 
 /**
  * Lightweight backend probe — distinct from "device has internet".
- * Uses /health (unauthenticated). Does not hammer: callers gate frequency.
+ * Tries /health then API root (Vercel rewrite quirks). Callers gate frequency.
  */
 export async function probeBackendAvailable(
   timeoutMs = 4000,
@@ -92,14 +94,23 @@ export async function probeBackendAvailable(
   try {
     const { baseURL } = await import("@/lib/api");
     const root = String(baseURL).replace(/\/api\/?$/, "");
-    const controller = new AbortController();
-    const t = setTimeout(() => controller.abort(), timeoutMs);
-    const res = await fetch(`${root}/health`, {
-      method: "GET",
-      signal: controller.signal,
-    });
-    clearTimeout(t);
-    return res.ok;
+    const candidates = [`${root}/health`, `${root}/`, String(baseURL).replace(/\/?$/, "/")];
+    for (const url of candidates) {
+      try {
+        const controller = new AbortController();
+        const t = setTimeout(() => controller.abort(), timeoutMs);
+        const res = await fetch(url, {
+          method: "GET",
+          signal: controller.signal,
+        });
+        clearTimeout(t);
+        // 401/403 still prove the host is up (auth required).
+        if (res.ok || res.status === 401 || res.status === 403) return true;
+      } catch {
+        /* try next */
+      }
+    }
+    return false;
   } catch {
     return false;
   }
@@ -127,7 +138,11 @@ async function maybeSync(reason: SyncReason): Promise<SyncResult> {
     return disabledResult("Sync paused after API hard-fail");
   }
 
-  if (!(await networkUsable())) {
+  if (
+    !(await networkUsable({
+      allowUnknownReachability: reason === "manual" || reason === "daily",
+    }))
+  ) {
     return disabledResult("Device offline");
   }
 
@@ -246,7 +261,7 @@ export function requestSyncNow(): Promise<SyncResult> {
   failStreak = 0;
   lastHardFailAt = 0;
   clearBackoffTimer();
-  const MANUAL_MS = 95_000;
+  const MANUAL_MS = 185_000;
   return Promise.race([
     maybeSync("manual"),
     new Promise<SyncResult>((resolve) =>

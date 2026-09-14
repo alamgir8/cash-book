@@ -3,7 +3,6 @@ import type { Dispatch, SetStateAction } from "react";
 import type { Transaction, TransactionFilters } from "@/services/transactions";
 import {
   applyChipFilter,
-  filterTransactionsByActiveFilters,
   mergeTransactionFilters,
   serializeTransactionFilters,
   type ChipFilterType,
@@ -66,10 +65,9 @@ export function useTransactionListState(
     setLoadingMore(false);
   }, [scopeSignature]);
 
-  const visibleTransactions = useMemo(
-    () => filterTransactionsByActiveFilters(allTransactions, filters),
-    [allTransactions, filters],
-  );
+  // SQL / API already applied filters. Re-filtering here dropped valid rows
+  // when party._id was server_id while the chip used local UUID (and vice versa).
+  const visibleTransactions = allTransactions;
 
   // Re-apply when fetch settles. Pull-to-refresh used to clear the list then
   // skip this effect when React Query kept the same data reference (empty forever).
@@ -140,9 +138,31 @@ export function useTransactionListState(
   const applyChip = useCallback(
     (type: ChipFilterType, value?: string) => {
       resetList();
-      setFilters((prev) => withPreservedKeys(applyChipFilter(prev, type, value)));
+      setFilters((prev) => {
+        const next = withPreservedKeys(applyChipFilter(prev, type, value));
+        // Wide limit so filtered SQL pages aren't truncated at 30.
+        const hasDim =
+          next.categoryId ||
+          next.category_name ||
+          next.counterparty ||
+          next.party_id ||
+          next.party_name ||
+          next.for_party_id ||
+          next.for_party_name ||
+          next.payment_status ||
+          next.loan_filter ||
+          next.search ||
+          next.q;
+        if (hasDim && (next.limit ?? defaultLimit) < 2000) {
+          next.limit = 2000;
+        }
+        if (!hasDim) {
+          next.limit = defaultLimit;
+        }
+        return next;
+      });
     },
-    [resetList, setFilters, withPreservedKeys],
+    [resetList, setFilters, withPreservedKeys, defaultLimit],
   );
 
   const handleCategoryFilter = useCallback(
@@ -173,11 +193,34 @@ export function useTransactionListState(
   const handleFilterChange = useCallback(
     (patch: Partial<TransactionFilters> & { searchInput?: string }) => {
       resetList();
-      setFilters((prev) =>
-        withPreservedKeys(mergeTransactionFilters(prev, patch)),
-      );
+      setFilters((prev) => {
+        const next = withPreservedKeys(mergeTransactionFilters(prev, patch));
+        const hasDim =
+          next.categoryId ||
+          next.category_name ||
+          next.counterparty ||
+          next.party_id ||
+          next.party_name ||
+          next.for_party_id ||
+          next.for_party_name ||
+          next.payment_status ||
+          next.loan_filter ||
+          next.search ||
+          next.q ||
+          next.from ||
+          next.to ||
+          next.startDate ||
+          next.endDate;
+        if (hasDim && (next.limit ?? defaultLimit) < 2000) {
+          next.limit = 2000;
+        }
+        if (!hasDim) {
+          next.limit = defaultLimit;
+        }
+        return next;
+      });
     },
-    [resetList, setFilters, withPreservedKeys],
+    [resetList, setFilters, withPreservedKeys, defaultLimit],
   );
 
   const handleLoadMore = useCallback(() => {

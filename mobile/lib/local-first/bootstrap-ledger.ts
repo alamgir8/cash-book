@@ -93,6 +93,20 @@ export async function bootstrapLedgerIfEmpty(opts?: {
         return { bootstrapped: false, skipped: true, source: "local" };
       }
 
+      // Prior install stamped "migrated" with an empty DB (failed Vercel dump).
+      // Clear the stamp so force remigrate can refill SQLite.
+      if (flags.migrationCompletedAt && stats.transactions === 0) {
+        progress("Local ledger empty — re-downloading from cloud…");
+        await setLocalFirstFlags({ migrationCompletedAt: null });
+        try {
+          const db = await getDb();
+          await setMeta(db, META_KEYS.MIGRATION_COMPLETED_AT, null);
+          await setMeta(db, META_KEYS.LAST_SYNC_CURSOR, "1970-01-01T00:00:00.000Z");
+        } catch {
+          /* ignore */
+        }
+      }
+
       const { pauseSyncForMaintenance, setSyncPaused } = await import(
         "@/sync/engine"
       );

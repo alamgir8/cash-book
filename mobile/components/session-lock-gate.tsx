@@ -6,13 +6,16 @@ import {
   Modal,
   KeyboardAvoidingView,
   Platform,
+  TouchableOpacity,
 } from "react-native";
 import NetInfo from "@react-native-community/netinfo";
 import { useForm, Controller } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/hooks/use-auth";
 import { useTheme } from "@/hooks/use-theme";
+import { useBiometric } from "@/hooks/use-biometric";
 import { PasswordInput } from "@/components/password-input";
 import { CustomButton } from "@/components/custom-button";
 import {
@@ -35,15 +38,25 @@ type FormValues = z.infer<typeof schema>;
  * When login mode is "every_time", require a credential check once per launch
  * — but only if the device is online and the backend is reachable.
  * Offline / server-down → unlock automatically so the cash book stays usable.
+ *
+ * Unlock options: password, PIN, or Face ID / biometric (same as sign-in).
  */
 export function SessionLockGate({ children }: { children: React.ReactNode }) {
   const { state, signIn } = useAuth();
   const { colors } = useTheme();
+  const {
+    status: biometricStatus,
+    isAuthenticating,
+    findBiometricCredentials,
+    getBiometricDisplayName,
+    getBiometricIconName,
+  } = useBiometric();
   const [mode, setMode] = useState<LoginMode>(getLoginModeSync());
   const [checking, setChecking] = useState(true);
   const [needsUnlock, setNeedsUnlock] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasBiometricStored, setHasBiometricStored] = useState(false);
 
   const { control, handleSubmit } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -53,6 +66,18 @@ export function SessionLockGate({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     void loadLoginMode().then(setMode);
     return subscribeLoginMode(setMode);
+  }, []);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const { getBiometricUsers } = await import("@/services/biometric");
+        const users = await getBiometricUsers();
+        setHasBiometricStored(users.length > 0);
+      } catch {
+        setHasBiometricStored(false);
+      }
+    })();
   }, []);
 
   useEffect(() => {
@@ -79,9 +104,8 @@ export function SessionLockGate({ children }: { children: React.ReactNode }) {
       setChecking(true);
       try {
         const net = await NetInfo.fetch();
-        const online =
-          net.isConnected === true && net.isInternetReachable !== false;
-        if (!online) {
+        // Hard disconnect only — iOS often false-reports reachability.
+        if (net.isConnected === false) {
           markSessionUnlocked();
           if (!cancelled) setNeedsUnlock(false);
           return;
@@ -129,6 +153,35 @@ export function SessionLockGate({ children }: { children: React.ReactNode }) {
     [signIn, state],
   );
 
+  const onBiometricUnlock = useCallback(async () => {
+    if (state.status !== "authenticated" || busy || isAuthenticating) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const credentials = await findBiometricCredentials();
+      if (!credentials) {
+        setError("No Face ID credentials saved. Use password or PIN.");
+        return;
+      }
+      await signIn({
+        identifier: credentials.identifier,
+        password: credentials.password,
+      });
+      markSessionUnlocked();
+      setNeedsUnlock(false);
+    } catch (e: any) {
+      setError(e?.message || "Face ID unlock failed. Try password or PIN.");
+    } finally {
+      setBusy(false);
+    }
+  }, [
+    state.status,
+    busy,
+    isAuthenticating,
+    findBiometricCredentials,
+    signIn,
+  ]);
+
   if (state.status !== "authenticated") {
     return <>{children}</>;
   }
@@ -147,6 +200,12 @@ export function SessionLockGate({ children }: { children: React.ReactNode }) {
       </View>
     );
   }
+
+  const showFace =
+    hasBiometricStored || Boolean(biometricStatus?.isAvailable);
+  const bioName = getBiometricDisplayName(
+    biometricStatus?.biometricType ?? "none",
+  );
 
   return (
     <>
@@ -178,9 +237,60 @@ export function SessionLockGate({ children }: { children: React.ReactNode }) {
               marginBottom: 24,
             }}
           >
-            Login every time is on. Enter your password or PIN to continue.
+            Login every time is on. Unlock with {bioName}, password, or PIN.
             (Skipped automatically when offline.)
           </Text>
+
+          {showFace ? (
+            <TouchableOpacity
+              onPress={() => void onBiometricUnlock()}
+              disabled={busy || isAuthenticating}
+              style={{
+                backgroundColor: hasBiometricStored
+                  ? `${colors.primary}18`
+                  : colors.bg.tertiary,
+                borderColor: hasBiometricStored
+                  ? colors.primary
+                  : colors.border,
+                opacity: busy || isAuthenticating ? 0.6 : 1,
+                borderWidth: 1,
+                borderRadius: 12,
+                paddingVertical: 16,
+                marginBottom: 16,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 10,
+              }}
+            >
+              {isAuthenticating || busy ? (
+                <ActivityIndicator size="small" color={colors.primary} />
+              ) : (
+                <Ionicons
+                  name={getBiometricIconName(
+                    biometricStatus?.biometricType ?? "none",
+                  )}
+                  size={26}
+                  color={
+                    hasBiometricStored
+                      ? colors.primary
+                      : colors.text.tertiary
+                  }
+                />
+              )}
+              <Text
+                style={{
+                  color: hasBiometricStored
+                    ? colors.primary
+                    : colors.text.secondary,
+                  fontWeight: "700",
+                  fontSize: 16,
+                }}
+              >
+                Unlock with {bioName}
+              </Text>
+            </TouchableOpacity>
+          ) : null}
 
           <Controller
             control={control}

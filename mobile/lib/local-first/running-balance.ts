@@ -18,6 +18,7 @@ export function computeRunningBalances(
   let running = Number(opening) || 0;
   const out: Array<{ id: string; balance_after: number }> = [];
   for (const txn of txns) {
+    // Due roots (open or settled) stay payment_status='due' — snapshot only.
     const status = txn.payment_status || "paid";
     if (status !== "due") {
       const amt = Number(txn.amount) || 0;

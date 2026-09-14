@@ -16,15 +16,18 @@ function refId(value: unknown): string | null {
 function resolvePaymentStatus(row: CloudTxn): "paid" | "due" {
   const parent = refId(row.parent_due_id);
   if (parent) return "paid";
-  if (row.due_settled_at) return "paid";
   const remaining =
     row.due_remaining != null && row.due_remaining !== ""
       ? Number(row.due_remaining)
       : null;
-  if (remaining != null && remaining <= 0) return "paid";
+  // Canonical: due roots stay 'due' even when settled (remaining 0 / due_settled_at).
   if (row.payment_status === "due") return "due";
+  if (remaining != null && remaining > 0 && !row.due_settled_at) return "due";
+  if (row.due_settled_at) return "due";
+  if (remaining != null && remaining <= 0 && row.payment_status !== "paid") {
+    return "due";
+  }
   if (row.payment_status === "paid") return "paid";
-  if (remaining != null && remaining > 0) return "due";
   return "paid";
 }
 

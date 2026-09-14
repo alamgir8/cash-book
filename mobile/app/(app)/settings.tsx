@@ -534,6 +534,11 @@ export default function SettingsScreen() {
                   text: t("signOut"),
                   style: "destructive",
                   onPress: () => {
+                    Toast.show({
+                      type: "info",
+                      text1: t("signOut"),
+                      text2: "Signing out…",
+                    });
                     void signOut();
                   },
                 },
