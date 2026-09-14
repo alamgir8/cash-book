@@ -996,6 +996,10 @@ const buildReportHtml = ({
     🐱 GitHub
   </a>
   &nbsp;|&nbsp;
+  <a href="https://www.facebook.com/profile.php?id=61584818995538" target="_blank" style="color: #1877f2; text-decoration: none;">
+    📘 Facebook
+  </a>
+  &nbsp;|&nbsp;
   <a href="https://themeforest.net/user/htmllover" target="_blank" style="color: #0d9488; text-decoration: none;">
     🌿 ThemeForest
   </a>
@@ -1383,6 +1387,10 @@ const buildGroupedReportHtml = ({
       &nbsp;|&nbsp;
       <a href="https://github.com/alamgir8" target="_blank" style="color: #333; text-decoration: none;">
         🐱 GitHub
+      </a>
+      &nbsp;|&nbsp;
+      <a href="https://www.facebook.com/profile.php?id=61584818995538" target="_blank" style="color: #1877f2; text-decoration: none;">
+        📘 Facebook
       </a>
       &nbsp;|&nbsp;
       <a href="https://themeforest.net/user/htmllover" target="_blank" style="color: #0d9488; text-decoration: none;">
@@ -1852,6 +1860,8 @@ export const exportPartyLedgerPdf = async (
               &nbsp;|&nbsp;
               <a href="https://github.com/alamgir8" target="_blank" style="color: #333; text-decoration: none; font-weight: 700;">🐱 GitHub</a>
               &nbsp;|&nbsp;
+              <a href="https://www.facebook.com/profile.php?id=61584818995538" target="_blank" style="color: #1877f2; text-decoration: none; font-weight: 700;">📘 Facebook</a>
+              &nbsp;|&nbsp;
               <a href="https://themeforest.net/user/htmllover" target="_blank" style="color: #0d9488; text-decoration: none; font-weight: 700;">🌿 ThemeForest</a>
             </div>
           </div>
@@ -2267,6 +2277,8 @@ export const exportInvoicePdf = async (invoiceId: string): Promise<string> => {
               <a href="https://www.linkedin.com/in/alamgir8" target="_blank" style="color: #0a66c2; text-decoration: none; font-weight: 700;">🔗 Alamgir Hossain</a>
               &nbsp;|&nbsp;
               <a href="https://github.com/alamgir8" target="_blank" style="color: #333; text-decoration: none; font-weight: 700;">🐱 GitHub</a>
+              &nbsp;|&nbsp;
+              <a href="https://www.facebook.com/profile.php?id=61584818995538" target="_blank" style="color: #1877f2; text-decoration: none; font-weight: 700;">📘 Facebook</a>
               &nbsp;|&nbsp;
               <a href="https://themeforest.net/user/htmllover" target="_blank" style="color: #0d9488; text-decoration: none; font-weight: 700;">🌿 ThemeForest</a>
             </div>

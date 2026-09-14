@@ -376,6 +376,7 @@ export function buildHistoryPdfHtml(args: BuildHistoryPdfHtmlArgs): string {
     .dev a { text-decoration: none; font-weight: 700; }
     .dev .linkedin { color: #0a66c2; }
     .dev .github { color: #333; }
+    .dev .facebook { color: #1877f2; }
     .dev .theme { color: #0d9488; }
 
     @page { margin-top: 14mm; margin-bottom: 14mm; margin-left: 10mm; margin-right: 10mm; }
@@ -429,6 +430,8 @@ export function buildHistoryPdfHtml(args: BuildHistoryPdfHtmlArgs): string {
       <a class="linkedin" href="https://www.linkedin.com/in/alamgir8" target="_blank">🔗 Alamgir Hossain</a>
       &nbsp;|&nbsp;
       <a class="github" href="https://github.com/alamgir8" target="_blank">🐱 GitHub</a>
+      &nbsp;|&nbsp;
+      <a class="facebook" href="https://www.facebook.com/profile.php?id=61584818995538" target="_blank">📘 Facebook</a>
       &nbsp;|&nbsp;
       <a class="theme" href="https://themeforest.net/user/htmllover" target="_blank">🌿 ThemeForest</a>
     </p>
