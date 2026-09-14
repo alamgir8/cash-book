@@ -28,6 +28,8 @@ type Props = {
   onReturnLoan?: (transaction: Transaction) => void;
   onViewChain?: (transaction: Transaction) => void;
   onViewHistory?: (transaction: Transaction) => void;
+  /** Opens For / counterparty ledger (for_party), separate from vendor history */
+  onViewForHistory?: (transaction: Transaction) => void;
 };
 
 /** Chips repeat a lot on this card; keep their shape defined in one place. */
@@ -109,6 +111,7 @@ const TransactionCardComponent = ({
   onReturnLoan,
   onViewChain,
   onViewHistory,
+  onViewForHistory,
 }: Props) => {
   const attachmentCount = transaction.attachments?.length ?? 0;
   const { formatAmount, preferences } = usePreferences();
@@ -186,8 +189,14 @@ const TransactionCardComponent = ({
   // Vendor History only when a real vendor/party is linked — never for
   // transfers or the literal "Transfer" counterparty (that dumped every transfer).
   const hasRealVendor = !!(partyName || vendorText);
+  const hasForOrCounterparty = !!(
+    forPartyName ||
+    (counterpartyText && !sameText(counterpartyText, partyName))
+  );
   const showVendorHistory =
     !!onViewHistory && hasRealVendor && !hasChain && !isTransfer;
+  const showForHistory =
+    !!onViewForHistory && hasForOrCounterparty && !hasChain && !isTransfer;
 
   // Flatten comment/keyword into unique note lines (multiline notes → list items).
   const noteLines = [transaction.comment, transaction.keyword]
@@ -662,26 +671,45 @@ const TransactionCardComponent = ({
             </View>
           ) : null}
 
-          {/* Vendor History — only when a real vendor/party is linked */}
-          {showVendorHistory ? (
+          {/* Vendor + For/Counterparty history — side by side when both exist */}
+          {showVendorHistory || showForHistory ? (
             <View className="flex-row gap-2 mb-2">
-              <TouchableOpacity
-                onPress={() => onViewHistory!(transaction)}
-                style={{ backgroundColor: colors.bg.tertiary }}
-                className="flex-1 flex-row justify-center items-center gap-1.5 px-3 py-2 rounded-lg"
-              >
-                <Ionicons
-                  name="time-outline"
-                  size={16}
-                  color={colors.text.secondary}
-                />
-                <Text
-                  style={{ color: colors.text.secondary }}
-                  className="text-xs font-semibold"
+              {showVendorHistory ? (
+                <TouchableOpacity
+                  onPress={() => onViewHistory!(transaction)}
+                  style={{ backgroundColor: colors.info + "20" }}
+                  className="flex-1 flex-row justify-center items-center gap-1.5 px-3 py-2 rounded-lg"
                 >
-                  {t("viewHistory")}
-                </Text>
-              </TouchableOpacity>
+                  <Ionicons
+                    name="storefront-outline"
+                    size={16}
+                    color={colors.info}
+                  />
+                  <Text
+                    style={{ color: colors.info }}
+                    className="text-xs font-semibold"
+                    numberOfLines={1}
+                  >
+                    {t("vendorHistory")}
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
+              {showForHistory ? (
+                <TouchableOpacity
+                  onPress={() => onViewForHistory!(transaction)}
+                  style={{ backgroundColor: "#7c3aed20" }}
+                  className="flex-1 flex-row justify-center items-center gap-1.5 px-3 py-2 rounded-lg"
+                >
+                  <Ionicons name="people-outline" size={16} color="#c084fc" />
+                  <Text
+                    style={{ color: "#c084fc" }}
+                    className="text-xs font-semibold"
+                    numberOfLines={1}
+                  >
+                    {t("forHistory")}
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
             </View>
           ) : null}
 
@@ -806,5 +834,6 @@ export const TransactionCard = memo(
     prevProps.onReturnLoan === nextProps.onReturnLoan &&
     prevProps.onViewChain === nextProps.onViewChain &&
     prevProps.onViewHistory === nextProps.onViewHistory &&
+    prevProps.onViewForHistory === nextProps.onViewForHistory &&
     prevProps.onAttachmentsPress === nextProps.onAttachmentsPress,
 );

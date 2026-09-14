@@ -646,12 +646,16 @@ export type VendorLedger = {
  */
 export const fetchVendorLedger = async ({
   partyId,
+  forPartyId,
   counterparty,
   organizationId,
+  role,
 }: {
   partyId?: string;
+  forPartyId?: string;
   counterparty?: string;
   organizationId?: string | null;
+  role?: "vendor" | "for_party";
 }): Promise<VendorLedger> => {
   const { ensureLocalFirstFlags, isLocalFirstEnabled } = await import(
     "@/lib/local-first/flags"
@@ -659,7 +663,12 @@ export const fetchVendorLedger = async ({
   await ensureLocalFirstFlags();
   if (isLocalFirstEnabled()) {
     const local = await import("@/data/parties.local");
-    const data = await local.fetchLocalVendorLedger({ partyId, counterparty });
+    const data = await local.fetchLocalVendorLedger({
+      partyId,
+      forPartyId,
+      counterparty,
+      role,
+    });
     return {
       party_id: data.party_id,
       party_name: data.party_name,
@@ -678,8 +687,10 @@ export const fetchVendorLedger = async ({
   }
 
   const params: Record<string, string> = {};
-  if (partyId) params.party_id = partyId;
+  if (forPartyId) params.for_party_id = forPartyId;
+  else if (partyId) params.party_id = partyId;
   else if (counterparty) params.counterparty = counterparty;
+  if (role) params.role = role;
   if (organizationId) params.organization = organizationId;
   params.limit = "200";
   const { data } = await api.get<{

@@ -550,7 +550,7 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
         />
         <View
           className="rounded-t-3xl"
-          style={{ backgroundColor: colors.bg.primary, maxHeight: "88%" }}
+          style={{ backgroundColor: colors.bg.primary, maxHeight: "90%" }}
         >
           {/* Header */}
           <View
@@ -678,13 +678,13 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
                   backgroundColor: ledger.summary.is_settled
                     ? "#16a34a15"
                     : ledger.summary.net_owed_by_me > 0
-                      ? "#f43f5e15"
+                      ? "#fb718515"
                       : "#f59e0b15",
                   borderWidth: 1,
                   borderColor: ledger.summary.is_settled
                     ? "#16a34a40"
                     : ledger.summary.net_owed_by_me > 0
-                      ? "#f43f5e40"
+                      ? "#fb718540"
                       : "#f59e0b40",
                 }}
               >
@@ -705,7 +705,7 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
                       color: ledger.summary.is_settled
                         ? "#16a34a"
                         : ledger.summary.net_owed_by_me > 0
-                          ? "#f43f5e"
+                          ? "#fb7185"
                           : "#f59e0b",
                     }}
                   >
@@ -717,7 +717,7 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
                     <>
                       <Text
                         className="text-xs mt-0.5"
-                        style={{ color: "#f43f5e" }}
+                        style={{ color: "#fb7185" }}
                       >
                         {t("iOweThem2")}{" "}
                         {formatAmount(ledger.summary.owed_by_me)}
@@ -1044,7 +1044,7 @@ const LedgerRow = ({
             style={{
               color:
                 runningBalance < 0
-                  ? "#f43f5e"
+                  ? "#fb7185"
                   : runningBalance > 0
                     ? "#f59e0b"
                     : "#16a34a",

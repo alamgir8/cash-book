@@ -582,7 +582,9 @@ export async function fetchLocalVendors(
  */
 export async function fetchLocalVendorLedger(params: {
   partyId?: string;
+  forPartyId?: string;
   counterparty?: string;
+  role?: "vendor" | "for_party";
   limit?: number;
 }): Promise<{
   party_id: string | null;
@@ -608,15 +610,40 @@ export async function fetchLocalVendorLedger(params: {
   };
 }> {
   const db = await getDb();
-  const limit = Math.min(Math.max(Number(params.limit ?? 200), 1), 500);
+  const limit = Math.min(Math.max(Number(params.limit ?? 2000), 1), 5000);
 
   let clauses: string[] = ["deleted_at IS NULL"];
   const bind: (string | number)[] = [];
   let partyName = "";
-  let resolvedPartyId: string | null = params.partyId ?? null;
+  let resolvedPartyId: string | null =
+    params.forPartyId ?? params.partyId ?? null;
   let partyType: string | null = null;
+  const role = params.role ?? (params.forPartyId ? "for_party" : "vendor");
 
-  if (params.partyId) {
+  if (params.forPartyId || (role === "for_party" && params.partyId)) {
+    const id = params.forPartyId || params.partyId!;
+    const { row } = await resolveLocalParty(id);
+    if (!row || row.deleted_at) {
+      return {
+        party_id: id,
+        party_name: "",
+        counterparty: null,
+        timeline: [],
+        summary: {
+          total_credit: 0,
+          total_debit: 0,
+          net_balance: 0,
+          transaction_count: 0,
+        },
+      };
+    }
+    partyName = row.name;
+    resolvedPartyId = row.server_id || row.id;
+    partyType = row.type ?? null;
+    // For / counterparty ledger: for_party_id only
+    clauses.push(`(for_party_id = ? OR for_party_id = ?)`);
+    bind.push(row.id, row.server_id || row.id);
+  } else if (params.partyId) {
     const { row } = await resolveLocalParty(params.partyId);
     if (!row || row.deleted_at) {
       return {
@@ -654,11 +681,27 @@ export async function fetchLocalVendorLedger(params: {
         },
       };
     }
-    clauses.push("counterparty = ?");
-    bind.push(cp);
+    if (role === "for_party") {
+      // Legacy free-text For: match for_party name OR counterparty string
+      clauses.push(
+        `(
+          counterparty = ? COLLATE NOCASE
+          OR for_party_id IN (
+            SELECT id FROM parties WHERE name = ? COLLATE NOCASE
+            UNION
+            SELECT server_id FROM parties
+            WHERE server_id IS NOT NULL AND name = ? COLLATE NOCASE
+          )
+        )`,
+      );
+      bind.push(cp, cp, cp);
+    } else {
+      clauses.push("counterparty = ?");
+      bind.push(cp);
+    }
     partyName = cp;
   } else {
-    throw new Error("partyId or counterparty required");
+    throw new Error("partyId, forPartyId, or counterparty required");
   }
 
   const where = clauses.join(" AND ");

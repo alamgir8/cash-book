@@ -152,11 +152,11 @@ export async function fetchLocalAccountDetail(accountId: string) {
   const { db, row } = await resolveLocalAccount(accountId);
   if (!row) throw new Error("Account not found");
 
+  // Same universe as account history feed / Backup Now — never drop
+  // legacy null-org rows that share this account id.
   const txns = await transactionsRepo.listTransactions(
     db,
-    row.organization_id
-      ? { organizationId: row.organization_id }
-      : { allOrganizations: true },
+    { allOrganizations: true },
     { accountId: row.id, limit: 20, offset: 0 },
   );
   // Per-account cash math must include every txn on the account (including

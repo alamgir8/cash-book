@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
+import { useFocusEffect } from "expo-router";
 import {
   type TransactionFilters,
 } from "@/services/transactions";
@@ -8,6 +9,7 @@ import {
   dalFetchAccountTransactions,
 } from "@/data/accounts";
 import {
+  dalFetchBookTransactionCount,
   dalFetchTransactionTotals,
   dalFetchTransactions,
 } from "@/data/transactions";
@@ -174,6 +176,8 @@ export function useTransactionFeed({
       enabled &&
       (accountId !== undefined ? Boolean(accountId) : true),
     staleTime: 45_000,
+    // After migrate/sync, remounting Home/Ledger must not keep a thin cache.
+    refetchOnMount: "always",
     placeholderData: keepPreviousData,
   });
 
@@ -198,7 +202,29 @@ export function useTransactionFeed({
       enabled &&
       (accountId !== undefined ? Boolean(accountId) : true),
     staleTime: 45_000,
+    refetchOnMount: "always",
   });
+
+  // Absolute SQLite size (ignores chips) — banner + stale-cache detection.
+  const bookCountQuery = useQuery({
+    queryKey: ["local-book-txn-count", orgKey],
+    queryFn: dalFetchBookTransactionCount,
+    enabled: flagsReady && enabled && localFirstEnabled,
+    staleTime: 30_000,
+    refetchOnMount: "always",
+  });
+
+  // Tab focus: Home and Ledger share filters but were left stale by
+  // queryClient defaults (refetchOnMount/focus false).
+  useFocusEffect(
+    useCallback(() => {
+      if (!flagsReady || !enabled) return;
+      void transactionsQuery.refetch();
+      void totalsQuery.refetch();
+      if (localFirstEnabled) void bookCountQuery.refetch();
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional focus refetch
+    }, [flagsReady, enabled, localFirstEnabled, orgKey, accountId]),
+  );
 
   const listState = useTransactionListState(
     filters,
@@ -239,6 +265,36 @@ export function useTransactionFeed({
     transactionsQuery.data?.pagination?.total ??
     listState.allTransactions.length;
 
+  const bookTransactionCount = bookCountQuery.data ?? totalTransactionCount;
+
+  // Unfiltered feed drifted behind SQLite (common after migrate while Home
+  // kept a thin React Query page). Force a fresh read of the full book.
+  const staleBookRepairRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!localFirstEnabled || !flagsReady) return;
+    if (hasActiveFilters) return;
+    const book = bookCountQuery.data;
+    if (book == null || book <= 0) return;
+    if (totalTransactionCount >= book) {
+      staleBookRepairRef.current = null;
+      return;
+    }
+    if (book - totalTransactionCount < 20) return;
+    const token = `${book}:${totalTransactionCount}`;
+    if (staleBookRepairRef.current === token) return;
+    staleBookRepairRef.current = token;
+    void transactionsQuery.refetch();
+    void totalsQuery.refetch();
+  }, [
+    localFirstEnabled,
+    flagsReady,
+    hasActiveFilters,
+    bookCountQuery.data,
+    totalTransactionCount,
+    transactionsQuery,
+    totalsQuery,
+  ]);
+
   const ledgerTotals = useMemo(() => {
     if (!totalsQuery.data) return null;
     return {
@@ -266,6 +322,7 @@ export function useTransactionFeed({
     categoriesQuery,
     hasActiveFilters,
     totalTransactionCount,
+    bookTransactionCount,
     ledgerTotals,
     totalsQuery,
     ...listState,

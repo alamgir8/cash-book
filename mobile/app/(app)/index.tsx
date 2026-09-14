@@ -30,6 +30,8 @@ export default function DashboardScreen() {
 
   const [viewingVendorHistoryFor, setViewingVendorHistoryFor] =
     useState<Transaction | null>(null);
+  const [viewingForHistoryFor, setViewingForHistoryFor] =
+    useState<Transaction | null>(null);
 
   const {
     filters,
@@ -53,6 +55,7 @@ export default function DashboardScreen() {
     vendorOptions,
     totals,
     totalTransactionCount,
+    bookTransactionCount,
     hasActiveFilters,
     canCreateTransactions,
     canEditTransactions,
@@ -90,7 +93,7 @@ export default function DashboardScreen() {
     () => (
       <>
         <IncompleteLedgerBanner
-          localTransactionCount={totalTransactionCount}
+          localTransactionCount={bookTransactionCount}
         />
         {((accountsQuery.isLoading && !accountsQuery.isError) ||
           (transactionsQuery.isLoading && !transactionsQuery.isError)) &&
@@ -101,7 +104,11 @@ export default function DashboardScreen() {
           <StatsCards
             totalDebit={totals.debit}
             totalCredit={totals.credit}
-            transactionCount={totalTransactionCount}
+            transactionCount={
+              hasActiveFilters
+                ? totalTransactionCount
+                : Math.max(totalTransactionCount, bookTransactionCount)
+            }
             accountCount={accountsQuery.data?.length ?? 0}
             isLoading={false}
           />
@@ -128,6 +135,8 @@ export default function DashboardScreen() {
       transactionsQuery.data,
       totals,
       totalTransactionCount,
+      bookTransactionCount,
+      hasActiveFilters,
       setModalVisible,
       openTransferModal,
       handleExportPdf,
@@ -163,6 +172,7 @@ export default function DashboardScreen() {
       onVendorPress: handleVendorFilter,
       onForPartyPress: handleForPartyFilter,
       onViewHistory: setViewingVendorHistoryFor,
+      onViewForHistory: setViewingForHistoryFor,
       onPaymentStatusPress: handlePaymentStatusFilter,
       onEdit: handleEditTransaction,
       onDelete: isDeleteModeActive ? handleDeleteTransaction : undefined,
@@ -309,6 +319,16 @@ export default function DashboardScreen() {
           visible={!!viewingVendorHistoryFor}
           onClose={() => setViewingVendorHistoryFor(null)}
           transaction={viewingVendorHistoryFor}
+          mode="vendor"
+        />
+      )}
+
+      {viewingForHistoryFor && (
+        <VendorHistorySheet
+          visible={!!viewingForHistoryFor}
+          onClose={() => setViewingForHistoryFor(null)}
+          transaction={viewingForHistoryFor}
+          mode="for_party"
         />
       )}
     </View>

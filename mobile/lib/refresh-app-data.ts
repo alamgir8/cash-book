@@ -8,6 +8,8 @@ import {
 /** Pull-to-refresh / settings: broad but only active observers. */
 const APP_REFRESH_KEYS = [
   ["transactions"],
+  ["transaction-totals"],
+  ["local-book-txn-count"],
   ["accounts"],
   queryKeys.accountsOverview,
   ["account"],
@@ -25,12 +27,14 @@ const APP_REFRESH_KEYS = [
   ["profile"],
   ["due-chain"],
   ["counterparty-ledger"],
+  ["vendor-ledger"],
 ] as const;
 
 /** After create/update/delete on Home / Ledger / Account — keep it light. */
 const TRANSACTION_REFRESH_KEYS = [
   ["transactions"],
   ["transaction-totals"],
+  ["local-book-txn-count"],
   ["accounts"],
   queryKeys.accountsOverview,
   ["account"],
@@ -42,6 +46,7 @@ const TRANSACTION_REFRESH_KEYS = [
   ["due-chain"],
   ["counterparty-ledger"],
   ["partyLedger"],
+  ["vendor-ledger"],
 ] as const;
 
 async function refreshLocalBalancesIfNeeded() {
@@ -73,8 +78,10 @@ async function invalidateActive(
       queryClient.invalidateQueries({
         queryKey: queryKey as string[],
         exact: false,
-        // Only refetch queries currently mounted — avoids storms from frozen tabs
-        refetchType: "active",
+        // Mark every matching cache entry stale and refetch observers.
+        // "active"-only left Home stuck on a thin pre-migrate page while
+        // Ledger/VendorHistory opened fresh and showed the full book.
+        refetchType: "all",
       }),
     ),
   );

@@ -335,6 +335,15 @@ async function resolveLocalReadScope(
   return { organizationId: null, allOrganizations: true };
 }
 
+/** Absolute on-device book size (ignores org/chips). Used by banner + stale-cache guard. */
+export async function fetchLocalBookTransactionCount(): Promise<number> {
+  const db = await getDb();
+  const row = await db.getFirstAsync<{ c: number }>(
+    `SELECT COUNT(*) as c FROM transactions WHERE deleted_at IS NULL`,
+  );
+  return Number(row?.c ?? 0);
+}
+
 async function ensureRepaired(db: Awaited<ReturnType<typeof getDb>>) {
   // Fire-and-forget — Home must not wait on repair/cloud reconcile.
   try {

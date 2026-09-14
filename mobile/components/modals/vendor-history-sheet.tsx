@@ -40,12 +40,15 @@ type Props = {
   visible: boolean;
   onClose: () => void;
   transaction: Transaction;
+  /** vendor = party/vendor column; for_party = For / counterparty party */
+  mode?: "vendor" | "for_party";
 };
 
 export const VendorHistorySheet = ({
   visible,
   onClose,
   transaction,
+  mode = "vendor",
 }: Props) => {
   const { colors } = useTheme();
   const { formatAmount } = usePreferences();
@@ -64,20 +67,41 @@ export const VendorHistorySheet = ({
     return undefined;
   };
 
-  // Vendor ledger is for the Vendor party only — never for_party, and never
-  // the literal "Transfer" counterparty (that listed every account transfer).
-  const partyId = partyRefId(transaction.party);
+  const isForPartyMode = mode === "for_party";
+
+  // Vendor ledger: party only. For ledger: for_party, else legacy counterparty text.
+  const partyId = isForPartyMode
+    ? partyRefId(transaction.for_party)
+    : partyRefId(transaction.party);
   const rawCp = transaction.counterparty?.trim() || "";
   const counterparty =
-    !partyId && rawCp && rawCp.toLowerCase() !== "transfer"
+    !partyId &&
+    !isForPartyMode &&
+    rawCp &&
+    rawCp.toLowerCase() !== "transfer"
+      ? rawCp
+      : undefined;
+  // For-mode without linked party: fall back to counterparty string when it
+  // is not the vendor name (legacy free-text "For").
+  const forCounterparty =
+    isForPartyMode &&
+    !partyId &&
+    rawCp &&
+    rawCp.toLowerCase() !== "transfer"
       ? rawCp
       : undefined;
 
-  const vendorName =
-    partyRefName(transaction.party) ||
-    transaction.vendor?.trim() ||
-    counterparty ||
-    "";
+  const displayName = isForPartyMode
+    ? partyRefName(transaction.for_party) || forCounterparty || ""
+    : partyRefName(transaction.party) ||
+      transaction.vendor?.trim() ||
+      counterparty ||
+      "";
+
+  const ledgerTitle = isForPartyMode ? "Counterparty Ledger" : "Full Ledger";
+  const ledgerSubtitle = isForPartyMode
+    ? `All transactions for ${displayName || "this counterparty"}`
+    : `All transactions with ${displayName || "this vendor"}`;
 
   // Only loan_in / loan_out / due transactions show directional "they owe / you owe" language
   const isLoanContext =
@@ -85,16 +109,25 @@ export const VendorHistorySheet = ({
     transaction.category?.type === "loan_out" ||
     transaction.payment_status === "due";
 
+  const queryPartyId = partyId;
+  const queryCounterparty = isForPartyMode ? forCounterparty : counterparty;
+
   const ledgerQuery = useQuery({
     queryKey: [
-      "vendor-ledger",
-      partyId,
-      counterparty,
+      isForPartyMode ? "for-party-ledger" : "vendor-ledger",
+      queryPartyId,
+      queryCounterparty,
       organizationId ?? "personal",
     ],
     queryFn: () =>
-      fetchVendorLedger({ partyId, counterparty, organizationId }),
-    enabled: visible && !!(partyId || counterparty),
+      fetchVendorLedger({
+        partyId: isForPartyMode ? undefined : queryPartyId,
+        forPartyId: isForPartyMode ? queryPartyId : undefined,
+        counterparty: queryCounterparty,
+        organizationId,
+        role: isForPartyMode ? "for_party" : "vendor",
+      }),
+    enabled: visible && !!(queryPartyId || queryCounterparty),
   });
 
   const ledger = ledgerQuery.data;
@@ -112,8 +145,11 @@ export const VendorHistorySheet = ({
 
       const fmt = (n: number) => "৳" + Number(n).toLocaleString("en");
       const s = ledger.summary;
-      const title = `${vendorName || ledger.party_name} — Full Ledger`;
-      const subtitle = `All transactions with ${vendorName || ledger.party_name}`;
+      const name = displayName || ledger.party_name;
+      const title = `${name} — ${ledgerTitle}`;
+      const subtitle = isForPartyMode
+        ? `All transactions for ${name}`
+        : `All transactions with ${name}`;
 
       const net = s.net_balance;
       const netLabel = isLoanContext
@@ -127,16 +163,16 @@ export const VendorHistorySheet = ({
           : net > 0
             ? "Net Received"
             : "Net Spent";
-      const netColor = net === 0 ? "#16a34a" : net > 0 ? "#f59e0b" : "#e11d48";
+      const netColor = net === 0 ? "#16a34a" : net > 0 ? "#f59e0b" : "#fb7185";
 
       const statsHtml = `<div class="stats-bar">
         <div class="stat-box" style="border-top:3px solid #16a34a">
           <div class="stat-label">Total Credit (In)</div>
           <div class="stat-value" style="color:#16a34a">${fmt(s.total_credit)}</div>
         </div>
-        <div class="stat-box" style="border-top:3px solid #e11d48">
+        <div class="stat-box" style="border-top:3px solid #fb7185">
           <div class="stat-label">Total Debit (Out)</div>
-          <div class="stat-value" style="color:#e11d48">${fmt(s.total_debit)}</div>
+          <div class="stat-value" style="color:#fb7185">${fmt(s.total_debit)}</div>
         </div>
       </div>`;
 
@@ -153,11 +189,11 @@ export const VendorHistorySheet = ({
       const rowsHtml = chronological
         .map((e) => {
           const isCredit = e.entry_type === "credit";
-          const amtColor = isCredit ? "#16a34a" : "#e11d48";
+          const amtColor = isCredit ? "#0d9488" : "#fb7185";
           const sign = isCredit ? "+" : "-";
           const bal = e.running_balance;
           const balColor =
-            bal === 0 ? "#16a34a" : bal > 0 ? "#f59e0b" : "#e11d48";
+            bal === 0 ? "#16a34a" : bal > 0 ? "#f59e0b" : "#fb7185";
           const balLabel = isLoanContext
             ? bal === 0
               ? "✓ Clear"
@@ -184,7 +220,7 @@ export const VendorHistorySheet = ({
 
       const finalBal = ledger.summary.net_balance;
       const fbColor =
-        finalBal === 0 ? "#16a34a" : finalBal > 0 ? "#f59e0b" : "#e11d48";
+        finalBal === 0 ? "#16a34a" : finalBal > 0 ? "#f59e0b" : "#fb7185";
       const fbLabel = isLoanContext
         ? finalBal === 0
           ? "✓ Fully Settled"
@@ -280,7 +316,7 @@ export const VendorHistorySheet = ({
     }
   };
 
-  const displayName = vendorName || ledger?.party_name || "";
+  const resolvedName = displayName || ledger?.party_name || "";
 
   return (
     <Modal visible={visible} transparent animationType="slide">
@@ -310,13 +346,15 @@ export const VendorHistorySheet = ({
                 className="text-lg font-bold"
                 style={{ color: colors.text.primary }}
               >
-                {displayName ? `${displayName} — Full Ledger` : "Vendor Ledger"}
+                {resolvedName
+                  ? `${resolvedName} — ${ledgerTitle}`
+                  : ledgerTitle}
               </Text>
               <Text
                 className="text-xs mt-0.5"
                 style={{ color: colors.text.tertiary }}
               >
-                {`All transactions with ${displayName || "this vendor"}`}
+                {ledgerSubtitle}
               </Text>
             </View>
             {ledger && (
@@ -375,7 +413,7 @@ export const VendorHistorySheet = ({
               className="px-6 py-4"
               contentContainerStyle={{ gap: 12, paddingBottom: 24 }}
             >
-              {/* Summary cards: credit / debit */}
+              {/* Summary cards: credit / debit — same chip style as Loan Given */}
               <View className="flex-row gap-3">
                 <SummaryCard
                   label="Total Credit (In)"
@@ -386,7 +424,7 @@ export const VendorHistorySheet = ({
                 <SummaryCard
                   label="Total Debit (Out)"
                   value={formatAmount(ledger.summary.total_debit)}
-                  color="#e11d48"
+                  color="#fb7185"
                   colors={colors}
                 />
               </View>
@@ -478,7 +516,7 @@ const NetBalanceChip = ({
 }) => {
   const isSettled = netBalance === 0;
   const youAreOwed = netBalance > 0;
-  const color = isSettled ? "#16a34a" : youAreOwed ? "#f59e0b" : "#e11d48";
+  const color = isSettled ? "#16a34a" : youAreOwed ? "#f59e0b" : "#fb7185";
   const label = isSettled
     ? "Settled"
     : youAreOwed
@@ -533,6 +571,7 @@ type VendorLedgerRowProps = {
   colors: any;
 };
 
+/** Matches Loan Given / Payment History timeline cards. */
 const VendorLedgerRow = ({
   entryType,
   date,
@@ -547,7 +586,8 @@ const VendorLedgerRow = ({
   colors,
 }: VendorLedgerRowProps) => {
   const isCredit = entryType === "credit";
-  const color = isCredit ? "#16a34a" : "#e11d48";
+  // Same accent language as loan given (teal/green in) + light rose out
+  const typeColor = isCredit ? "#0d9488" : "#fb7185";
   const icon = isCredit ? "arrow-down-outline" : "arrow-up-outline";
   const sign = isCredit ? "+" : "-";
   const label = isCredit ? "Credit" : "Debit";
@@ -557,7 +597,7 @@ const VendorLedgerRow = ({
       ? "#16a34a"
       : runningBalance > 0
         ? "#f59e0b"
-        : "#e11d48";
+        : "#fb7185";
   const balLabel = showOweBalance
     ? runningBalance === 0
       ? "Clear"
@@ -571,7 +611,7 @@ const VendorLedgerRow = ({
       <View className="items-center" style={{ width: 32 }}>
         <View
           className="w-8 h-8 rounded-full items-center justify-center"
-          style={{ backgroundColor: color }}
+          style={{ backgroundColor: typeColor }}
         >
           <Ionicons name={icon as any} size={15} color="white" />
         </View>
@@ -598,7 +638,10 @@ const VendorLedgerRow = ({
       >
         <View className="flex-row justify-between items-start">
           <View className="flex-1 mr-2">
-            <Text className="text-xs font-semibold" style={{ color }}>
+            <Text
+              className="text-xs font-semibold"
+              style={{ color: typeColor }}
+            >
               {`${label}${categoryName ? ` · ${categoryName}` : ""}`}
             </Text>
             {!!description && (
@@ -611,7 +654,7 @@ const VendorLedgerRow = ({
               </Text>
             )}
           </View>
-          <Text className="text-sm font-bold" style={{ color }}>
+          <Text className="text-sm font-bold" style={{ color: typeColor }}>
             {`${sign}${formatAmount(amount)}`}
           </Text>
         </View>

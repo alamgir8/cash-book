@@ -105,6 +105,8 @@ export type AppTranslations = {
   cashNet: string;
   openingBalance: string;
   viewHistory: string;
+  vendorHistory: string;
+  forHistory: string;
   lastActivity: string;
   noActivityYet: string;
   loadingAccounts: string;
@@ -904,6 +906,8 @@ const en: AppTranslations = {
   cashNet: "Cash net",
   openingBalance: "Opening",
   viewHistory: "View History",
+  vendorHistory: "Vendor History",
+  forHistory: "For History",
   lastActivity: "Last activity:",
   noActivityYet: "No activity yet",
   loadingAccounts: "Loading accounts...",
@@ -1722,6 +1726,8 @@ const bn: AppTranslations = {
   cashNet: "নগদ নেট",
   openingBalance: "শুরুর ব্যালেন্স",
   viewHistory: "ইতিহাস দেখুন",
+  vendorHistory: "বিক্রেতার ইতিহাস",
+  forHistory: "জন্য ইতিহাস",
   lastActivity: "শেষ কার্যক্রম:",
   noActivityYet: "এখনো কোনো কার্যক্রম নেই",
   loadingAccounts: "অ্যাকাউন্ট লোড হচ্ছে...",
