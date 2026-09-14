@@ -811,7 +811,49 @@ export async function migrateCloudToLocal(opts?: {
     }
 
     if (!txnById.size && !backupAccounts.length) {
-      // Empty cloud book is valid for fresh installs / new signups
+      // Distinguish "brand-new empty book" from "download failed / timed out".
+      // Stamping migrated+now-cursor on a false empty permanently skips history.
+      let cloudLooksEmpty = false;
+      try {
+        progress("Verifying cloud book is empty…");
+        const { data } = await api.get<{ accounts?: any[] }>("/accounts", {
+          params: { skip_summary: "true", include_archived: "true" },
+          timeout: 20_000,
+        });
+        const n = (data.accounts ?? []).length;
+        if (n > 0) {
+          throw new Error(
+            `Cloud has ${n} account(s) but download returned empty (timeout?). Use LAN API or Drive restore, then Re-download from cloud.`,
+          );
+        }
+        // Confirm transactions endpoint also empty (one page).
+        const { data: txPage } = await api.get<{
+          transactions?: any[];
+          pagination?: { total?: number };
+        }>("/transactions", {
+          params: { page: 1, limit: 1 },
+          timeout: 20_000,
+        });
+        const txTotal = Number(
+          txPage.pagination?.total ?? txPage.transactions?.length ?? 0,
+        );
+        if (txTotal > 0) {
+          throw new Error(
+            `Cloud has ${txTotal} transaction(s) but download returned empty. Try again or use LAN API / Drive.`,
+          );
+        }
+        cloudLooksEmpty = true;
+      } catch (e) {
+        if (!cloudLooksEmpty) {
+          const msg =
+            e instanceof Error
+              ? e.message
+              : "Could not verify empty cloud book";
+          console.warn("[migrate] refusing empty stamp:", msg);
+          return { migrated: false };
+        }
+      }
+
       const completedAt = new Date().toISOString();
       const db = await getDb();
       await setMeta(db, META_KEYS.MIGRATION_COMPLETED_AT, completedAt);

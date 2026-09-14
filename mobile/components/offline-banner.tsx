@@ -121,9 +121,9 @@ export function OfflineBanner() {
 
   useEffect(() => {
     const unsub = NetInfo.addEventListener((net) => {
-      const online =
-        net.isConnected === true && net.isInternetReachable !== false;
-      setDeviceOnline(online);
+      // Treat only hard disconnect as offline — iOS false-negatives
+      // isInternetReachable while cellular/Wi‑Fi still reach the API.
+      setDeviceOnline(net.isConnected !== false);
     });
     return unsub;
   }, []);
@@ -207,14 +207,9 @@ export function OfflineBanner() {
     retryingRef.current = true;
     setState("syncing");
     try {
+      // Probe is advisory — never block Sync Now on a flaky /health.
       const reachable = await probeBackendAvailable(4000);
-      if (!reachable) {
-        toast.error(t("backendDownKeepWorking"));
-        setBackendOk(false);
-        setState("server_unavailable");
-        return;
-      }
-      setBackendOk(true);
+      setBackendOk(reachable);
       toast.info(t("syncStarted"));
       const result = await requestSyncNow();
       retryingRef.current = false;

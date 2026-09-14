@@ -71,6 +71,8 @@ let syncInFlight: Promise<SyncResult> | null = null;
 let syncPaused = false;
 
 const MAX_SYNC_WALL_MS = 90_000;
+/** Longer budget when SQLite is empty and we must pull full history. */
+const MAX_SYNC_WALL_EMPTY_MS = 180_000;
 
 /** Hard deadline — when exceeded, assertSyncDeadline throws so the cycle exits. */
 let syncDeadlineAt = 0;
@@ -601,12 +603,23 @@ export async function runSync(): Promise<SyncResult> {
   const db = await getDb();
   const runId = await createLocalId();
   let watchdog: ReturnType<typeof setTimeout> | null = null;
-  syncDeadlineAt = Date.now() + MAX_SYNC_WALL_MS;
+  let localTxnCount = 0;
+  try {
+    const row = await db.getFirstAsync<{ n: number }>(
+      `SELECT COUNT(*) as n FROM transactions WHERE deleted_at IS NULL`,
+    );
+    localTxnCount = Number(row?.n ?? 0);
+  } catch {
+    /* ignore */
+  }
+  const wallMs =
+    localTxnCount === 0 ? MAX_SYNC_WALL_EMPTY_MS : MAX_SYNC_WALL_MS;
+  syncDeadlineAt = Date.now() + wallMs;
 
   try {
     watchdog = setTimeout(() => {
       console.warn("[sync] wall-clock budget exceeded — aborting cycle");
-    }, MAX_SYNC_WALL_MS);
+    }, wallMs);
     await setMeta(db, META_KEYS.SYNC_RUN_ID, runId);
     await setMeta(db, META_KEYS.SYNC_STAGE, "handshake");
 
@@ -712,6 +725,22 @@ export async function runSync(): Promise<SyncResult> {
     const upgradingScope = scopeVersion !== "2";
     if (upgradingScope) {
       await setMeta(db, META_KEYS.LAST_SYNC_CURSOR, "1970-01-01T00:00:00.000Z");
+    }
+    // Empty local ledger + a "now" cursor from a failed bootstrap would skip
+    // all history on every Sync Now. Force a full pull once.
+    try {
+      const txnCount = await db.getFirstAsync<{ n: number }>(
+        `SELECT COUNT(*) as n FROM transactions WHERE deleted_at IS NULL`,
+      );
+      if (Number(txnCount?.n ?? 0) === 0) {
+        await setMeta(
+          db,
+          META_KEYS.LAST_SYNC_CURSOR,
+          "1970-01-01T00:00:00.000Z",
+        );
+      }
+    } catch {
+      /* ignore */
     }
     const since =
       (await getMeta(db, META_KEYS.LAST_SYNC_CURSOR)) ||

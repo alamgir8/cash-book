@@ -21,9 +21,11 @@ import { useActiveOrgId } from "@/hooks/use-organization";
 import { useLocalFirstFlags } from "@/hooks/use-local-first-flags";
 import { serializeTransactionFilters } from "@/lib/transaction-filters";
 
-/** Default page sizes — keep first paint light */
+/** Default page sizes — keep first paint light; filtered lists load more. */
 export const FEED_PAGE_LIMIT = 30;
 export const ACCOUNT_FEED_PAGE_LIMIT = 30;
+/** When any chip / panel filter is active, load a wide page so SQL results aren't truncated. */
+export const FILTERED_FEED_PAGE_LIMIT = 2000;
 
 export type TransactionFeedConfig = {
   /** When set, only transactions for this account are loaded. */

@@ -61,7 +61,7 @@ iOS OAuth client bundle ID must match the app (`com.alamgir.hisabboi`). Prefer a
 3. Optional: Cloud sync ON only after `/api/sync` is deployed.
 4. Connect Drive → Upload dated backup → Restore pick-date smoke test.
 
-Flags default **OFF** so production stays cloud-primary until cutover.
+**Flags default ON** for on-device storage + cloud sync (dual-write OFF). Cutover dogfood uses Settings to tune Drive / dual-write.
 
 **Attachments policy (v1):** with local-first ON, receipts save under the app documents folder (compressed via ImagePicker quality) — no Cloudinary. Paths live in SQLite `attachments_json`. Drive JSON backups do **not** embed binary media yet (zip later). Cloud-primary mode still uses the server/Cloudinary upload API.
 
@@ -498,6 +498,8 @@ xcrun devicectl device install app \
 ```
 
 7. Open **Hisab Boi** on the iPhone.
+
+8. **If lists are empty or Sync fails after update:** Settings → On-device storage → **Re-download from cloud** (or Restore from Drive). A previous failed Vercel dump can leave an empty SQLite stamped “migrated”; re-download refills it. Prefer a LAN `EXPO_PUBLIC_BASE_URL` for the first large fill if Vercel times out.
 
 The new install replaces the old app. App data normally stays unless you delete the app manually.
 

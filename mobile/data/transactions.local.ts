@@ -226,10 +226,12 @@ function enrichFromMaps(
     categoryLocalId: category?.id,
     partyName: party?.name,
     partyType: party?.type,
-    partyLocalId: party?.server_id || party?.id,
+    // Always local UUID — filter chips / panel use parties.id; server_id
+    // here made client re-filter drop SQL hits after pagination.
+    partyLocalId: party?.id ?? row.party_id ?? undefined,
     forPartyName: forParty?.name,
     forPartyType: forParty?.type,
-    forPartyLocalId: forParty?.server_id || forParty?.id,
+    forPartyLocalId: forParty?.id ?? row.for_party_id ?? undefined,
   });
 }
 
@@ -313,10 +315,10 @@ export async function enrichLocalTransaction(
     categoryLocalId: category?.id,
     partyName: party?.name,
     partyType: party?.type,
-    partyLocalId: party?.server_id || party?.id,
+    partyLocalId: party?.id ?? row.party_id ?? undefined,
     forPartyName: forParty?.name,
     forPartyType: forParty?.type,
-    forPartyLocalId: forParty?.server_id || forParty?.id,
+    forPartyLocalId: forParty?.id ?? row.for_party_id ?? undefined,
   });
 }
 
