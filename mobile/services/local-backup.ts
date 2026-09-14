@@ -459,14 +459,9 @@ function resolvePaymentStatus(row: any): "paid" | "due" {
     remaining != null && remaining !== "" ? Number(remaining) : null;
 
   // Trust explicit status from source (API / backup export).
-  if (row.payment_status === "due") {
-    // Settled / zero-remaining dues are paid (cash from payment children).
-    if (row.due_settled_at) return "paid";
-    if (remainingNum != null && remainingNum <= 0) return "paid";
-    return "due";
-  }
+  // Due roots stay 'due' when settled (remaining 0 + due_settled_at) — cloud schema.
+  if (row.payment_status === "due") return "due";
   if (row.payment_status === "paid") {
-    // Open remaining without settled stamp → still due (repair/migrate lag).
     if (
       remainingNum != null &&
       remainingNum > 0 &&
@@ -475,6 +470,7 @@ function resolvePaymentStatus(row: any): "paid" | "due" {
     ) {
       return "due";
     }
+    if (row.due_settled_at && !parent) return "due";
     return "paid";
   }
 
@@ -486,6 +482,7 @@ function resolvePaymentStatus(row: any): "paid" | "due" {
   ) {
     return "due";
   }
+  if (row.due_settled_at && !parent) return "due";
 
   return "paid";
 }

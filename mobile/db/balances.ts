@@ -96,10 +96,8 @@ export async function recalculateAccountRunningBalances(
     type: string;
     amount: number;
     payment_status: string | null;
-    parent_due_id: string | null;
-    due_settled_at: string | null;
   }>(
-    `SELECT id, type, amount, payment_status, parent_due_id, due_settled_at
+    `SELECT id, type, amount, payment_status
      FROM transactions
      WHERE deleted_at IS NULL
        AND (account_id = ? OR account_id = ?)

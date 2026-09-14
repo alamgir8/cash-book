@@ -12,13 +12,7 @@ type CloudAccount = {
   name?: string;
 };
 
-const PAID_SQL = `(
-  (payment_status = 'paid' OR payment_status IS NULL OR payment_status = '')
-  AND (
-    (parent_due_id IS NOT NULL AND parent_due_id != '')
-    OR (due_settled_at IS NULL OR due_settled_at = '')
-  )
-)`;
+const PAID_SQL = `(payment_status = 'paid' OR payment_status IS NULL OR payment_status = '')`;
 
 async function fetchCloudAccounts(
   organizationId: string | null,

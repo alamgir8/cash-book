@@ -312,12 +312,7 @@ export async function softDeleteTransaction(
   if (!existing || existing.deleted_at) return;
 
   await withDbTransaction(db, async (txn) => {
-    const isSettledRoot =
-      !existing.parent_due_id &&
-      Boolean(existing.due_settled_at);
-    const countedAsCash =
-      existing.payment_status === "paid" && !isSettledRoot;
-    if (countedAsCash) {
+    if (existing.payment_status === "paid") {
       const reverse = -signedDelta(existing.type, existing.amount);
       await applyAccountDelta(txn, existing.account_id, reverse);
       const existingPartyType = await resolvePartyType(txn, existing.party_id);
@@ -332,7 +327,7 @@ export async function softDeleteTransaction(
       }
     }
 
-    // Undoing a due payment restores remaining on the parent.
+    // Undoing a due payment restores remaining on the parent (stays due).
     if (existing.parent_due_id) {
       const parent = await getTransactionById(txn, existing.parent_due_id);
       if (parent && !parent.deleted_at) {
@@ -418,14 +413,8 @@ export async function updateTransaction(
     );
     const hasPaymentChildren = Number(childCount?.n ?? 0) > 0;
 
-    // Reverse prior cash only for rows that counted as wallet cash.
-    const existingCountedAsCash =
-      existing.payment_status === "paid" &&
-      !(
-        !existing.parent_due_id &&
-        existing.due_settled_at
-      );
-    if (existingCountedAsCash) {
+    // Reverse cash only for paid rows (due roots never moved cash).
+    if (existing.payment_status === "paid") {
       const reverse = -signedDelta(existing.type, existing.amount);
       await applyAccountDelta(txn, existing.account_id, reverse);
       const existingPartyType = await resolvePartyType(txn, existing.party_id);
@@ -443,11 +432,10 @@ export async function updateTransaction(
     let balanceAfter: number | null = existing.balance_after_transaction;
     let partyBalanceAfter: number | null = existing.party_balance_after;
 
-    // Apply cash for paid rows. Settled due roots with payment children already
-    // moved cash via those children — do not apply the root amount again.
+    // Cash/Paid toggle: apply cash unless this due root already has payment children.
     const applyCash =
       nextStatus === "paid" &&
-      !( !existing.parent_due_id && hasPaymentChildren );
+      !(existing.payment_status === "due" && hasPaymentChildren);
 
     if (applyCash) {
       balanceAfter = await applyAccountDelta(
@@ -467,25 +455,26 @@ export async function updateTransaction(
       partyBalanceAfter = null;
     }
 
-    // Preserve partial remaining; only init when entering due or amount was never paid down.
+    // Preserve partial remaining on due edits. Init only when entering due.
     let nextRemaining = existing.due_remaining;
     let nextSettledAt = existing.due_settled_at;
     if (nextStatus === "due") {
-      nextSettledAt = null;
       if (existing.payment_status !== "due") {
         nextRemaining = nextAmount;
+        nextSettledAt = null;
       } else if (
         patch.amount !== undefined &&
         Number(existing.due_remaining) === Number(existing.amount)
       ) {
         nextRemaining = nextAmount;
       }
-    } else if (
-      existing.payment_status === "due" &&
-      nextStatus === "paid"
-    ) {
-      nextRemaining = 0;
-      nextSettledAt = existing.due_settled_at || ts;
+      // Keep due_settled_at if already fully settled; clear only when reopening.
+      if (
+        nextRemaining != null &&
+        Number(nextRemaining) > 0
+      ) {
+        nextSettledAt = null;
+      }
     }
 
     await txn.runAsync(
@@ -585,21 +574,19 @@ export async function createDuePaymentTransaction(
     });
 
     const nextRemaining = Math.max(0, remaining - payAmount);
-    const settled = nextRemaining <= 1e-9;
-    const settledAt = settled ? nowIso() : null;
-    // Fully paid → status paid + settled stamp. Partial → stay due.
+    const settledAt = nextRemaining <= 1e-9 ? nowIso() : null;
+    // Keep payment_status='due' always on the root (cloud schema). Settled =
+    // remaining 0 + due_settled_at set. Cash moves only via the paid child.
     await txn.runAsync(
       `UPDATE transactions SET
-        due_remaining = ?,
-        due_settled_at = ?,
-        payment_status = ?,
+        due_remaining = ?, due_settled_at = ?,
+        payment_status = 'due',
         updated_at = ?, dirty = 1, sync_status = 'pending_update',
         retry_count = 0, last_sync_error = NULL,
         device_id = ?, sync_version = sync_version + 1
        WHERE id = ?`,
       nextRemaining,
       settledAt,
-      settled ? "paid" : "due",
       nowIso(),
       input.device_id,
       parent.id,

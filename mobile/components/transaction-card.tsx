@@ -145,8 +145,12 @@ const TransactionCardComponent = ({
   const showDueHistory = (isDue || isPayment) && !!onViewChain;
   const showLoanHistory = isLoanLedger && !!onViewChain;
   const hasChain = showDueHistory || showLoanHistory;
-  const remaining = transaction.due_remaining ?? transaction.amount;
-  const isSettled = isDue && remaining === 0;
+  const remaining = Number(
+    transaction.due_remaining ?? transaction.amount ?? 0,
+  );
+  const isSettled =
+    isDue &&
+    (Boolean(transaction.due_settled_at) || remaining <= 0);
 
   const categoryName = getCategoryRefName(transaction.category);
   const partyName = getPartyRefName(transaction.party);
@@ -201,8 +205,12 @@ const TransactionCardComponent = ({
     isPayment && typeof transaction.parent_due_id === "object"
       ? transaction.parent_due_id
       : null;
-  const parentRemaining = parentDue?.due_remaining ?? parentDue?.amount ?? 0;
-  const parentIsSettled = !!parentDue && parentRemaining === 0;
+  const parentRemaining = Number(
+    parentDue?.due_remaining ?? parentDue?.amount ?? 0,
+  );
+  const parentIsSettled =
+    !!parentDue &&
+    (Boolean((parentDue as any).due_settled_at) || parentRemaining <= 0);
   const paymentShowsParentDue = !!parentDue && !parentIsSettled;
   // Reconstruct a minimal Transaction shape to pass to onPayDue from a payment card
   const parentAsDueTxn =
@@ -496,11 +504,11 @@ const TransactionCardComponent = ({
             }}
             style={{
               backgroundColor:
-                transaction.payment_status === "due" || paymentShowsParentDue
+                paymentShowsParentDue || (isDue && !isSettled)
                   ? "#d97706" + "20"
                   : "#16a34a" + "20",
               borderColor:
-                transaction.payment_status === "due" || paymentShowsParentDue
+                paymentShowsParentDue || (isDue && !isSettled)
                   ? "#d97706" + "40"
                   : "#16a34a" + "40",
             }}
@@ -509,7 +517,7 @@ const TransactionCardComponent = ({
             <Text
               style={{
                 color:
-                  transaction.payment_status === "due" || paymentShowsParentDue
+                  paymentShowsParentDue || (isDue && !isSettled)
                     ? "#d97706"
                     : "#16a34a",
               }}
@@ -517,9 +525,14 @@ const TransactionCardComponent = ({
             >
               {paymentShowsParentDue
                 ? `${t("due")} · ${t("dueAmountLeft", { n: formatAmount(parentRemaining) })}`
-                : transaction.payment_status === "due"
-                  ? t("due")
-                  : t("paid")}
+                : isDue && isSettled
+                  ? t("settled")
+                  : isDue
+                    ? remaining > 0 &&
+                      remaining < Number(transaction.amount || remaining)
+                      ? `${t("due")} · ${t("dueAmountLeft", { n: formatAmount(remaining) })}`
+                      : t("due")
+                    : t("paid")}
             </Text>
           </TouchableOpacity>
         ) : null}
@@ -750,6 +763,8 @@ export const TransactionCard = memo(
       nextProps.transaction.balance_after_transaction &&
     prevProps.transaction.due_remaining ===
       nextProps.transaction.due_remaining &&
+    prevProps.transaction.due_settled_at ===
+      nextProps.transaction.due_settled_at &&
     prevProps.transaction.payment_status ===
       nextProps.transaction.payment_status &&
     prevProps.transaction.loan_summary?.outstanding ===

@@ -20,11 +20,13 @@ function resolvePaymentStatus(row: CloudTxn): "paid" | "due" {
     row.due_remaining != null && row.due_remaining !== ""
       ? Number(row.due_remaining)
       : null;
-  // Fully settled → paid (cash from payment children; root excluded via due_settled_at).
-  if (row.due_settled_at) return "paid";
-  if (remaining != null && remaining <= 0) return "paid";
+  // Canonical: due roots stay 'due' even when settled (remaining 0 / due_settled_at).
   if (row.payment_status === "due") return "due";
-  if (remaining != null && remaining > 0) return "due";
+  if (remaining != null && remaining > 0 && !row.due_settled_at) return "due";
+  if (row.due_settled_at) return "due";
+  if (remaining != null && remaining <= 0 && row.payment_status !== "paid") {
+    return "due";
+  }
   if (row.payment_status === "paid") return "paid";
   return "paid";
 }
