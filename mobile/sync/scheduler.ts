@@ -203,7 +203,24 @@ async function maybeSync(reason: SyncReason): Promise<SyncResult> {
         clearBackoffTimer();
         if (result.pulled > 0 || result.pushed > 0) {
           const { queryClient } = await import("@/lib/queryClient");
-          await queryClient.invalidateQueries({ refetchType: "active" });
+          // Refetch every transaction observer (Home + Ledger + Account), not
+          // only the focused tab — otherwise Dashboard keeps a thin stale count.
+          await queryClient.invalidateQueries({
+            predicate: (q) => {
+              const key = q.queryKey[0];
+              return (
+                key === "transactions" ||
+                key === "transaction-totals" ||
+                key === "local-book-txn-count" ||
+                key === "accounts" ||
+                key === "account" ||
+                key === "vendor-ledger" ||
+                key === "due-chain" ||
+                key === "counterparty-ledger"
+              );
+            },
+            refetchType: "all",
+          });
         }
         // More dirty than one cycle drained — continue soon (delta only).
         try {

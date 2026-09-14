@@ -86,6 +86,7 @@ export function useDashboard() {
     partyOptions,
     hasActiveFilters,
     totalTransactionCount,
+    bookTransactionCount,
     ledgerTotals,
   } = feed;
 
@@ -388,6 +389,7 @@ export function useDashboard() {
     partyOptions,
     totals,
     totalTransactionCount,
+    bookTransactionCount,
     hasActiveFilters,
     canCreateTransactions,
     canEditTransactions,

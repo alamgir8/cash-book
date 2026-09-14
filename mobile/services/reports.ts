@@ -2,10 +2,7 @@ import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import { Paths, File } from "expo-file-system";
 import dayjs from "dayjs";
-import {
-  type Transaction,
-  type TransactionFilters,
-} from "./transactions";
+import { type Transaction, type TransactionFilters } from "./transactions";
 import { dalFetchTransactions } from "@/data/transactions";
 import { dalFetchAccountDetail } from "@/data/accounts";
 import { dalFetchPartyLedger } from "@/data/parties";
@@ -722,44 +719,47 @@ const buildReportHtml = ({
     }
 
     .page {
-      padding: 8px;
+      padding: 12px 18px;
       min-height: 100%;
     }
 
-    /* Hero header (like cricket PDF top bar) */
+    /* Header — dark title like classic Full Ledger export */
     .hero {
-      background: #34a4eb;
-      color: #ecfdf5;
-      border-radius: 6px;
-      padding: 18px 18px 16px;
-      box-shadow: 0 10px 28px rgba(4, 120, 87, 0.22);
+      background: #fff;
+      color: #0f172a;
+      border-radius: 0;
+      padding: 8px 8px 16px;
+      box-shadow: none;
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       justify-content: space-between;
       gap: 16px;
       margin-bottom: 18px;
+      border-bottom: 2px solid #e2e8f0;
     }
     .hero-title {
       margin: 0;
       font-weight: 800;
       letter-spacing: .2px;
-      font-size: 20px;
+      font-size: 22px;
       line-height: 1.2;
+      color: #0f172a;
     }
     .hero-sub {
       margin-top: 4px;
-      color: #d1fae5;
-      font-size: 12px;
+      color: #374151;
+      font-size: 13px;
+      font-weight: 500;
     }
     .hero-meta {
       text-align: right;
       font-size: 12px;
-      color: #bbf7d0;
+      color: #64748b;
       line-height: 1.5;
     }
 
     /* KPIs row like “Match Summary” cards */
-    .kpis { margin: 16px 2px 14px; }
+    .kpis { margin: 16px 0 14px; }
     .kpi-grid {
       display: grid;
       grid-template-columns: repeat(12, 1fr);
@@ -825,7 +825,8 @@ const buildReportHtml = ({
 
     /* Filters block (compact chips like “Applied Filters”) */
     .filters {
-      margin: 14px 2px 14px;
+      margin: 14px 0;
+      padding: 4px 12px;
     }
     .filters h2 {
       font-size: 14px;
@@ -866,14 +867,15 @@ const buildReportHtml = ({
     thead th {
       position: sticky;
       top: 0;
-      background: #34a4eb;
-      color: #ecfdf5;
+      background: #f8fafc;
+      color: #0f172a;
       padding: 12px 10px;
       font-size: 12px;
       letter-spacing: .08em;
       text-transform: uppercase;
       text-align: left;
       font-weight: 800;
+      border-bottom: 1px solid #e2e8f0;
     }
     tbody td {
       padding: 12px 10px;
@@ -926,12 +928,12 @@ const buildReportHtml = ({
     }
 
     /* Print */
-    @page { margin-top: 14mm; margin-bottom: 14mm; margin-left: 8mm; margin-right: 8mm; }
+    @page { margin-top: 14mm; margin-bottom: 14mm; margin-left: 10mm; margin-right: 10mm; }
     @media print {
-      .page { padding: 0; }
+      .page { padding: 0 6px; }
       .hero { box-shadow: none; }
       .kpi, .table-wrap { box-shadow: none; }
-      thead th { box-shadow: inset 0 -1px 0 #0b1220; }
+      thead th { box-shadow: inset 0 -1px 0 #e2e8f0; }
     }
   </style>
 </head>
@@ -994,7 +996,11 @@ const buildReportHtml = ({
     🐱 GitHub
   </a>
   &nbsp;|&nbsp;
-  <a href="https://themeforest.net/user/themereaact" target="_blank" style="color: #10b981; text-decoration: none;">
+  <a href="https://www.facebook.com/profile.php?id=61584818995538" target="_blank" style="color: #1877f2; text-decoration: none;">
+    📘 Facebook
+  </a>
+  &nbsp;|&nbsp;
+  <a href="https://themeforest.net/user/htmllover" target="_blank" style="color: #0d9488; text-decoration: none;">
     🌿 ThemeForest
   </a>
 </p>
@@ -1213,24 +1219,25 @@ const buildGroupedReportHtml = ({
       -webkit-font-smoothing: antialiased;
     }
 
-    .page { padding: 8px; min-height: 100%; }
+    .page { padding: 12px 18px; min-height: 100%; }
 
     .hero {
-      background: #34a4eb;
-      color: #ecfdf5;
-      border-radius: 6px;
-      padding: 18px;
-      box-shadow: 0 10px 28px rgba(4, 120, 87, 0.22);
+      background: #fff;
+      color: #0f172a;
+      border-radius: 0;
+      padding: 8px 8px 16px;
+      box-shadow: none;
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       justify-content: space-between;
       margin-bottom: 18px;
+      border-bottom: 2px solid #e2e8f0;
     }
-    .hero-title { margin: 0; font-weight: 800; font-size: 20px; }
-    .hero-sub { margin-top: 4px; color: #d1fae5; font-size: 12px; }
-    .hero-meta { text-align: right; font-size: 12px; color: #bbf7d0; }
+    .hero-title { margin: 0; font-weight: 800; font-size: 22px; color: #0f172a; }
+    .hero-sub { margin-top: 4px; color: #374151; font-size: 13px; font-weight: 500; }
+    .hero-meta { text-align: right; font-size: 12px; color: #64748b; }
 
-    .kpis { margin: 16px 2px 14px; }
+    .kpis { margin: 16px 0 14px; }
     .kpi-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 12px; }
     .kpi {
       grid-column: span 4;
@@ -1290,8 +1297,8 @@ const buildGroupedReportHtml = ({
 
     .table-wrap { overflow-x: auto; }
     table { width: 100%; border-collapse: collapse; font-size: 11px; }
-    thead { background: #f1f5f9; }
-    th { padding: 10px 8px; text-align: left; font-weight: 700; color: #475569; border-bottom: 1px solid #e2e8f0; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+    thead { background: #f8fafc; }
+    th { padding: 10px 8px; text-align: left; font-weight: 800; color: #0f172a; border-bottom: 1px solid #e2e8f0; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
     td { padding: 10px 8px; border-bottom: 1px solid #f1f5f9; vertical-align: top; color: #334155; }
     tr:hover td { background: #f8fafc; }
 
@@ -1302,12 +1309,18 @@ const buildGroupedReportHtml = ({
     .amount.positive { color: #047857; }
     .amount.negative { color: #e11d48; }
 
-    .filters { margin: 14px 2px 14px; }
+    .filters { margin: 14px 0; padding: 4px 12px; }
     .filters h2 { font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: #475569; margin: 0 0 8px 0; }
     .filters .chips { display: flex; flex-wrap: wrap; gap: 6px; }
     .chip { padding: 6px 12px; border-radius: 999px; background: #eef2ff; border: 1px solid #c7d2fe; color: #3730a3; font-size: 12px; font-weight: 700; white-space: nowrap; }
 
     footer { text-align: center; font-size: 11px; color: #94a3b8; margin-top: 24px; padding-bottom: 16px; }
+
+    @page { margin-top: 14mm; margin-bottom: 14mm; margin-left: 10mm; margin-right: 10mm; }
+    @media print {
+      .page { padding: 0 6px; }
+      .kpi, .group { box-shadow: none; }
+    }
   </style>
 </head>
 <body>
@@ -1376,7 +1389,11 @@ const buildGroupedReportHtml = ({
         🐱 GitHub
       </a>
       &nbsp;|&nbsp;
-      <a href="https://themeforest.net/user/themereaact" target="_blank" style="color: #10b981; text-decoration: none;">
+      <a href="https://www.facebook.com/profile.php?id=61584818995538" target="_blank" style="color: #1877f2; text-decoration: none;">
+        📘 Facebook
+      </a>
+      &nbsp;|&nbsp;
+      <a href="https://themeforest.net/user/htmllover" target="_blank" style="color: #0d9488; text-decoration: none;">
         🌿 ThemeForest
       </a>
     </p>
@@ -1681,30 +1698,30 @@ export const exportPartyLedgerPdf = async (
               font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
               font-size: 12px;
               color: #1f2937;
-              padding: 20px;
+              padding: 24px;
               background: #ffffff;
             }
             .header {
               text-align: center;
               margin-bottom: 24px;
               padding-bottom: 16px;
-              border-bottom: 3px solid #3b82f6;
+              border-bottom: 2px solid #e2e8f0;
             }
             .header h1 {
               font-size: 24px;
-              font-weight: 700;
-              color: #111827;
+              font-weight: 800;
+              color: #0f172a;
               margin-bottom: 4px;
             }
             .header h2 {
               font-size: 16px;
               font-weight: 600;
-              color: #3b82f6;
+              color: #374151;
               margin-bottom: 8px;
             }
             .header .meta {
               font-size: 11px;
-              color: #6b7280;
+              color: #64748b;
             }
             .summary-grid {
               display: grid;
@@ -1773,8 +1790,8 @@ export const exportPartyLedgerPdf = async (
             th {
               padding: 12px 8px;
               font-size: 11px;
-              font-weight: 700;
-              color: #374151;
+              font-weight: 800;
+              color: #0f172a;
               text-align: left;
               text-transform: uppercase;
               letter-spacing: 0.5px;
@@ -1836,7 +1853,17 @@ export const exportPartyLedgerPdf = async (
 
           <div class="footer">
             <div>Total Entries: ${entries.length}</div>
-            <div style="margin-top: 4px;">CashBook - Party Ledger Report</div>
+            <div style="margin-top: 4px;">Generated by Cash Book — ${generatedAt}</div>
+            <div style="margin-top: 8px;">
+              Develop By •
+              <a href="https://www.linkedin.com/in/alamgir8" target="_blank" style="color: #0a66c2; text-decoration: none; font-weight: 700;">🔗 Alamgir Hossain</a>
+              &nbsp;|&nbsp;
+              <a href="https://github.com/alamgir8" target="_blank" style="color: #333; text-decoration: none; font-weight: 700;">🐱 GitHub</a>
+              &nbsp;|&nbsp;
+              <a href="https://www.facebook.com/profile.php?id=61584818995538" target="_blank" style="color: #1877f2; text-decoration: none; font-weight: 700;">📘 Facebook</a>
+              &nbsp;|&nbsp;
+              <a href="https://themeforest.net/user/htmllover" target="_blank" style="color: #0d9488; text-decoration: none; font-weight: 700;">🌿 ThemeForest</a>
+            </div>
           </div>
         </body>
       </html>
@@ -1932,7 +1959,7 @@ export const exportInvoicePdf = async (invoiceId: string): Promise<string> => {
               font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
               font-size: 12px;
               color: #1f2937;
-              padding: 20px;
+              padding: 24px;
               background: #ffffff;
             }
             .header {
@@ -1941,12 +1968,12 @@ export const exportInvoicePdf = async (invoiceId: string): Promise<string> => {
               align-items: flex-start;
               margin-bottom: 32px;
               padding-bottom: 16px;
-              border-bottom: 3px solid #3b82f6;
+              border-bottom: 2px solid #e2e8f0;
             }
             .header-left h1 {
               font-size: 32px;
               font-weight: 800;
-              color: #111827;
+              color: #0f172a;
               margin-bottom: 4px;
             }
             .header-left .invoice-number {
@@ -2024,8 +2051,8 @@ export const exportInvoicePdf = async (invoiceId: string): Promise<string> => {
             th {
               padding: 12px 8px;
               font-size: 11px;
-              font-weight: 700;
-              color: #374151;
+              font-weight: 800;
+              color: #0f172a;
               text-align: left;
               text-transform: uppercase;
               letter-spacing: 0.5px;
@@ -2241,10 +2268,20 @@ export const exportInvoicePdf = async (invoiceId: string): Promise<string> => {
           }
 
           <div class="footer">
-            <div>Generated on ${generatedAt}</div>
-            <div style="margin-top: 4px;">CashBook - Invoice #${escapeHtml(
+            <div>Generated by Cash Book — ${generatedAt}</div>
+            <div style="margin-top: 4px;">Invoice #${escapeHtml(
               invoice.invoice_number || "",
             )}</div>
+            <div style="margin-top: 8px;">
+              Develop By •
+              <a href="https://www.linkedin.com/in/alamgir8" target="_blank" style="color: #0a66c2; text-decoration: none; font-weight: 700;">🔗 Alamgir Hossain</a>
+              &nbsp;|&nbsp;
+              <a href="https://github.com/alamgir8" target="_blank" style="color: #333; text-decoration: none; font-weight: 700;">🐱 GitHub</a>
+              &nbsp;|&nbsp;
+              <a href="https://www.facebook.com/profile.php?id=61584818995538" target="_blank" style="color: #1877f2; text-decoration: none; font-weight: 700;">📘 Facebook</a>
+              &nbsp;|&nbsp;
+              <a href="https://themeforest.net/user/htmllover" target="_blank" style="color: #0d9488; text-decoration: none; font-weight: 700;">🌿 ThemeForest</a>
+            </div>
           </div>
         </body>
       </html>

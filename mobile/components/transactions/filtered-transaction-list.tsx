@@ -17,6 +17,7 @@ export type TransactionCardActions = {
   onForPartyPress: (forPartyName?: string) => void;
   onPaymentStatusPress: (status?: "paid" | "due") => void;
   onViewHistory?: (transaction: Transaction) => void;
+  onViewForHistory?: (transaction: Transaction) => void;
   onEdit?: (transaction: Transaction) => void;
   onDelete?: (transaction: Transaction) => void;
   onAttachmentsPress?: (transaction: Transaction) => void;
@@ -75,6 +76,7 @@ const TransactionRow = memo(function TransactionRow({
       onPartyPress={actions.onVendorPress}
       onForPartyPress={actions.onForPartyPress}
       onViewHistory={actions.onViewHistory}
+      onViewForHistory={actions.onViewForHistory}
       onPaymentStatusPress={actions.onPaymentStatusPress}
       onEdit={actions.onEdit}
       onDelete={actions.onDelete}
@@ -114,6 +116,7 @@ export function FilteredTransactionList({
     cardActions.onForPartyPress,
     cardActions.onPaymentStatusPress,
     cardActions.onViewHistory,
+    cardActions.onViewForHistory,
     cardActions.onEdit,
     cardActions.onDelete,
     cardActions.onAttachmentsPress,

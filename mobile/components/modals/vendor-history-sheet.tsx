@@ -40,12 +40,15 @@ type Props = {
   visible: boolean;
   onClose: () => void;
   transaction: Transaction;
+  /** vendor = party/vendor column; for_party = For / counterparty party */
+  mode?: "vendor" | "for_party";
 };
 
 export const VendorHistorySheet = ({
   visible,
   onClose,
   transaction,
+  mode = "vendor",
 }: Props) => {
   const { colors } = useTheme();
   const { formatAmount } = usePreferences();
@@ -64,20 +67,41 @@ export const VendorHistorySheet = ({
     return undefined;
   };
 
-  // Vendor ledger is for the Vendor party only — never for_party, and never
-  // the literal "Transfer" counterparty (that listed every account transfer).
-  const partyId = partyRefId(transaction.party);
+  const isForPartyMode = mode === "for_party";
+
+  // Vendor ledger: party only. For ledger: for_party, else legacy counterparty text.
+  const partyId = isForPartyMode
+    ? partyRefId(transaction.for_party)
+    : partyRefId(transaction.party);
   const rawCp = transaction.counterparty?.trim() || "";
   const counterparty =
-    !partyId && rawCp && rawCp.toLowerCase() !== "transfer"
+    !partyId &&
+    !isForPartyMode &&
+    rawCp &&
+    rawCp.toLowerCase() !== "transfer"
+      ? rawCp
+      : undefined;
+  // For-mode without linked party: fall back to counterparty string when it
+  // is not the vendor name (legacy free-text "For").
+  const forCounterparty =
+    isForPartyMode &&
+    !partyId &&
+    rawCp &&
+    rawCp.toLowerCase() !== "transfer"
       ? rawCp
       : undefined;
 
-  const vendorName =
-    partyRefName(transaction.party) ||
-    transaction.vendor?.trim() ||
-    counterparty ||
-    "";
+  const displayName = isForPartyMode
+    ? partyRefName(transaction.for_party) || forCounterparty || ""
+    : partyRefName(transaction.party) ||
+      transaction.vendor?.trim() ||
+      counterparty ||
+      "";
+
+  const ledgerTitle = isForPartyMode ? "Counterparty Ledger" : "Full Ledger";
+  const ledgerSubtitle = isForPartyMode
+    ? `All transactions for ${displayName || "this counterparty"}`
+    : `All transactions with ${displayName || "this vendor"}`;
 
   // Only loan_in / loan_out / due transactions show directional "they owe / you owe" language
   const isLoanContext =
@@ -85,16 +109,25 @@ export const VendorHistorySheet = ({
     transaction.category?.type === "loan_out" ||
     transaction.payment_status === "due";
 
+  const queryPartyId = partyId;
+  const queryCounterparty = isForPartyMode ? forCounterparty : counterparty;
+
   const ledgerQuery = useQuery({
     queryKey: [
-      "vendor-ledger",
-      partyId,
-      counterparty,
+      isForPartyMode ? "for-party-ledger" : "vendor-ledger",
+      queryPartyId,
+      queryCounterparty,
       organizationId ?? "personal",
     ],
     queryFn: () =>
-      fetchVendorLedger({ partyId, counterparty, organizationId }),
-    enabled: visible && !!(partyId || counterparty),
+      fetchVendorLedger({
+        partyId: isForPartyMode ? undefined : queryPartyId,
+        forPartyId: isForPartyMode ? queryPartyId : undefined,
+        counterparty: queryCounterparty,
+        organizationId,
+        role: isForPartyMode ? "for_party" : "vendor",
+      }),
+    enabled: visible && !!(queryPartyId || queryCounterparty),
   });
 
   const ledger = ledgerQuery.data;
@@ -110,157 +143,114 @@ export const VendorHistorySheet = ({
         return;
       }
 
-      const fmt = (n: number) => "৳" + Number(n).toLocaleString("en");
+      const { buildHistoryPdfHtml, formatHistoryAmount } = await import(
+        "@/lib/history-pdf"
+      );
+
       const s = ledger.summary;
-      const title = `${vendorName || ledger.party_name} — Full Ledger`;
-      const subtitle = `All transactions with ${vendorName || ledger.party_name}`;
+      const name = displayName || ledger.party_name;
+      const title = `${name} — ${ledgerTitle}`;
+      const subtitle = isForPartyMode
+        ? `All transactions for ${name}`
+        : `All transactions with ${name}`;
 
       const net = s.net_balance;
-      const netLabel = isLoanContext
-        ? net === 0
-          ? "Settled"
-          : net > 0
-            ? "They Owe You"
-            : "You Owe Them"
-        : net === 0
-          ? "Balanced"
-          : net > 0
-            ? "Net Received"
-            : "Net Spent";
-      const netColor = net === 0 ? "#16a34a" : net > 0 ? "#f59e0b" : "#e11d48";
-
-      const statsHtml = `<div class="stats-bar">
-        <div class="stat-box" style="border-top:3px solid #16a34a">
-          <div class="stat-label">Total Credit (In)</div>
-          <div class="stat-value" style="color:#16a34a">${fmt(s.total_credit)}</div>
-        </div>
-        <div class="stat-box" style="border-top:3px solid #e11d48">
-          <div class="stat-label">Total Debit (Out)</div>
-          <div class="stat-value" style="color:#e11d48">${fmt(s.total_debit)}</div>
-        </div>
-      </div>`;
-
-      const statusHtml = isLoanContext
-        ? `
-        <div class="status-chip" style="background:${netColor}10;border-color:${netColor}40">
-          <span style="color:${netColor};font-weight:700;font-size:13px">${netLabel}</span>
-          <span style="color:${netColor};font-weight:800;font-size:16px;margin-left:auto">${fmt(Math.abs(net))}</span>
-        </div>
-        <div class="tx-count">${s.transaction_count} transactions total</div>`
-        : `<div class="tx-count">${s.transaction_count} transactions total</div>`;
+      const banner =
+        isLoanContext
+          ? {
+              label:
+                net === 0
+                  ? "Settled"
+                  : net > 0
+                    ? "They Owe You"
+                    : "You Owe Them",
+              value: formatHistoryAmount(Math.abs(net)),
+              tone:
+                net === 0
+                  ? ("credit" as const)
+                  : net > 0
+                    ? ("sky" as const)
+                    : ("debit" as const),
+            }
+          : net !== 0
+            ? {
+                label: net > 0 ? "Net Received" : "Net Spent",
+                value: formatHistoryAmount(Math.abs(net)),
+                tone: net > 0 ? ("credit" as const) : ("debit" as const),
+              }
+            : null;
 
       const chronological = [...ledger.timeline].reverse();
-      const rowsHtml = chronological
-        .map((e) => {
-          const isCredit = e.entry_type === "credit";
-          const amtColor = isCredit ? "#16a34a" : "#e11d48";
-          const sign = isCredit ? "+" : "-";
-          const bal = e.running_balance;
-          const balColor =
-            bal === 0 ? "#16a34a" : bal > 0 ? "#f59e0b" : "#e11d48";
-          const balLabel = isLoanContext
-            ? bal === 0
-              ? "✓ Clear"
+      const rows = chronological.map((e) => {
+        const isCredit = e.entry_type === "credit";
+        const bal = Number(e.running_balance) || 0;
+        const catName =
+          (e as any).category?.name ?? (e as any).category_id?.name ?? "";
+        const typeLabel = `${isCredit ? "Credit" : "Debit"}${catName ? ` · ${catName}` : ""}`;
+        const balance = isLoanContext
+          ? bal === 0
+            ? "✓ Clear"
+            : bal > 0
+              ? `${formatHistoryAmount(bal)} owed to you`
+              : `${formatHistoryAmount(Math.abs(bal))} you owe`
+          : formatHistoryAmount(Math.abs(bal));
+        return {
+          date: dayjs(e.date).format("MMM D, YYYY"),
+          typeLabel,
+          typeTone: isCredit ? ("credit" as const) : ("debit" as const),
+          note: e.description,
+          amount: formatHistoryAmount(
+            isCredit ? Number(e.amount) : -Number(e.amount),
+            true,
+          ),
+          amountTone: isCredit ? ("credit" as const) : ("debit" as const),
+          balance,
+          balanceTone:
+            bal === 0
+              ? ("credit" as const)
               : bal > 0
-                ? `${fmt(bal)} owed to you`
-                : `${fmt(Math.abs(bal))} you owe`
-            : `${fmt(Math.abs(bal))}`;
-          const catName =
-            (e as any).category?.name ?? (e as any).category_id?.name ?? "";
-          return `
-            <tr class="entry-row" style="background:${isCredit ? "#f0fdf4" : "#fff1f2"}">
-              <td class="td-date">${dayjs(e.date).format("DD MMM YYYY")}</td>
-              <td class="td-type">
-                <span class="type-chip" style="background:${amtColor}20;color:${amtColor}">
-                  ${isCredit ? "Credit" : "Debit"}${catName ? ` · ${catName}` : ""}
-                </span>
-              </td>
-              <td class="td-note">${e.description ?? "<span style='color:#9ca3af'>—</span>"}</td>
-              <td class="td-amount" style="color:${amtColor}">${sign}${fmt(e.amount)}</td>
-              <td class="td-balance" style="color:${balColor};font-weight:600">${balLabel}</td>
-            </tr>`;
-        })
-        .join("");
+                ? ("sky" as const)
+                : ("debit" as const),
+        };
+      });
 
-      const finalBal = ledger.summary.net_balance;
-      const fbColor =
-        finalBal === 0 ? "#16a34a" : finalBal > 0 ? "#f59e0b" : "#e11d48";
-      const fbLabel = isLoanContext
-        ? finalBal === 0
-          ? "✓ Fully Settled"
-          : finalBal > 0
-            ? `${fmt(finalBal)} — Owed to you`
-            : `${fmt(Math.abs(finalBal))} — You owe`
-        : `Net: ${fmt(Math.abs(finalBal))}`;
+      const closing = {
+        label: "Closing Balance",
+        value: isLoanContext
+          ? net === 0
+            ? "✓ Fully Settled"
+            : net > 0
+              ? `${formatHistoryAmount(net)} — Owed to you`
+              : `${formatHistoryAmount(Math.abs(net))} — You owe`
+          : `Net: ${formatHistoryAmount(Math.abs(net))}`,
+        tone:
+          net === 0
+            ? ("credit" as const)
+            : net > 0
+              ? ("sky" as const)
+              : ("debit" as const),
+      };
 
-      const html = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8"/>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif; background: #f8fafc; color: #111; padding: 28px; }
-    .header { margin-bottom: 20px; padding-bottom: 16px; border-bottom: 2px solid #cbd5e1; }
-    .header h1 { font-size: 22px; font-weight: 800; color: #0f172a; }
-    .header .subtitle { font-size: 13px; color: #374151; margin-top: 3px; font-weight: 500; }
-    .header .exported { font-size: 12px; color: #374151; margin-top: 6px; }
-    .stats-bar { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
-    .stat-box { flex: 1; min-width: 100px; background: #fff; border-radius: 10px; padding: 10px 14px; border: 1px solid #cbd5e1; }
-    .stat-label { font-size: 10px; color: #374151; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; font-weight: 600; }
-    .stat-value { font-size: 15px; font-weight: 800; }
-    .status-chip { display: flex; align-items: center; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 10px; padding: 10px 16px; margin-bottom: 8px; }
-    .tx-count { font-size: 11px; color: #64748b; margin-bottom: 18px; }
-    .table-wrap { background: #fff; border-radius: 12px; border: 1px solid #cbd5e1; overflow: hidden; }
-    table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-    thead tr { background: #0f172a; }
-    thead th { color: #f1f5f9; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; padding: 11px 12px; text-align: left; }
-    .entry-row td { padding: 10px 12px; border-bottom: 1px solid #e2e8f0; vertical-align: middle; }
-    .entry-row:last-of-type td { border-bottom: 2px solid #94a3b8; }
-    .td-date { width: 90px; font-size: 11.5px; color: #1e293b; white-space: nowrap; font-weight: 600; }
-    .td-type { width: 130px; }
-    .td-note { color: #1e293b; font-weight: 500; }
-    .td-amount { width: 80px; font-weight: 700; text-align: right; white-space: nowrap; }
-    .td-balance { width: 140px; text-align: right; font-size: 11.5px; white-space: nowrap; font-weight: 600; }
-    .type-chip { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 10.5px; font-weight: 600; white-space: nowrap; }
-    .final-row { background: #0f172a; }
-    .final-row td { padding: 12px; color: #f1f5f9; font-size: 13px; font-weight: 700; }
-    .footer { margin-top: 32px; padding: 22px 0 10px; border-top: 2px solid #374151; text-align: center; }
-    .footer-generated { font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 10px; }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <h1>${title}</h1>
-    <div class="subtitle">${subtitle}</div>
-    <div class="exported">Exported on ${dayjs().format("DD MMM YYYY, hh:mm A")}</div>
-  </div>
-  ${statsHtml}
-  ${statusHtml}
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th class="td-date">Date</th>
-          <th class="td-type">Type</th>
-          <th>Note / Description</th>
-          <th class="td-amount" style="text-align:right">Amount</th>
-          <th class="td-balance" style="text-align:right">Running Balance</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${rowsHtml}
-        <tr class="final-row">
-          <td colspan="4" style="font-weight:700;font-size:13px;color:#f1f5f9">Closing Balance</td>
-          <td style="font-weight:800;font-size:14px;color:${fbColor};text-align:right">${fbLabel}</td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-  <div class="footer">
-    <div class="footer-generated">Generated by Cash Book — ${dayjs().format("MMMM DD, YYYY hh:mm A")}</div>
-  </div>
-</body>
-</html>`;
+      const html = buildHistoryPdfHtml({
+        title,
+        subtitle,
+        metaRight: `${s.transaction_count} transactions total`,
+        kpis: [
+          {
+            label: "Total Credit (In)",
+            value: formatHistoryAmount(s.total_credit),
+            tone: "credit",
+          },
+          {
+            label: "Total Debit (Out)",
+            value: formatHistoryAmount(s.total_debit),
+            tone: "debit",
+          },
+        ],
+        banner,
+        rows,
+        closing,
+      });
 
       const { uri } = await Print.printToFileAsync({ html, base64: false });
       const canShare = await Sharing.isAvailableAsync();
@@ -280,7 +270,7 @@ export const VendorHistorySheet = ({
     }
   };
 
-  const displayName = vendorName || ledger?.party_name || "";
+  const resolvedName = displayName || ledger?.party_name || "";
 
   return (
     <Modal visible={visible} transparent animationType="slide">
@@ -310,13 +300,15 @@ export const VendorHistorySheet = ({
                 className="text-lg font-bold"
                 style={{ color: colors.text.primary }}
               >
-                {displayName ? `${displayName} — Full Ledger` : "Vendor Ledger"}
+                {resolvedName
+                  ? `${resolvedName} — ${ledgerTitle}`
+                  : ledgerTitle}
               </Text>
               <Text
                 className="text-xs mt-0.5"
                 style={{ color: colors.text.tertiary }}
               >
-                {`All transactions with ${displayName || "this vendor"}`}
+                {ledgerSubtitle}
               </Text>
             </View>
             {ledger && (
@@ -375,7 +367,7 @@ export const VendorHistorySheet = ({
               className="px-6 py-4"
               contentContainerStyle={{ gap: 12, paddingBottom: 24 }}
             >
-              {/* Summary cards: credit / debit */}
+              {/* Summary cards: credit / debit — same chip style as Loan Given */}
               <View className="flex-row gap-3">
                 <SummaryCard
                   label="Total Credit (In)"
@@ -386,7 +378,7 @@ export const VendorHistorySheet = ({
                 <SummaryCard
                   label="Total Debit (Out)"
                   value={formatAmount(ledger.summary.total_debit)}
-                  color="#e11d48"
+                  color="#fb7185"
                   colors={colors}
                 />
               </View>
@@ -478,7 +470,7 @@ const NetBalanceChip = ({
 }) => {
   const isSettled = netBalance === 0;
   const youAreOwed = netBalance > 0;
-  const color = isSettled ? "#16a34a" : youAreOwed ? "#f59e0b" : "#e11d48";
+  const color = isSettled ? "#16a34a" : youAreOwed ? "#f59e0b" : "#fb7185";
   const label = isSettled
     ? "Settled"
     : youAreOwed
@@ -533,6 +525,7 @@ type VendorLedgerRowProps = {
   colors: any;
 };
 
+/** Matches Loan Given / Payment History timeline cards. */
 const VendorLedgerRow = ({
   entryType,
   date,
@@ -547,7 +540,8 @@ const VendorLedgerRow = ({
   colors,
 }: VendorLedgerRowProps) => {
   const isCredit = entryType === "credit";
-  const color = isCredit ? "#16a34a" : "#e11d48";
+  // Same accent language as loan given (teal/green in) + light rose out
+  const typeColor = isCredit ? "#0d9488" : "#fb7185";
   const icon = isCredit ? "arrow-down-outline" : "arrow-up-outline";
   const sign = isCredit ? "+" : "-";
   const label = isCredit ? "Credit" : "Debit";
@@ -557,7 +551,7 @@ const VendorLedgerRow = ({
       ? "#16a34a"
       : runningBalance > 0
         ? "#f59e0b"
-        : "#e11d48";
+        : "#fb7185";
   const balLabel = showOweBalance
     ? runningBalance === 0
       ? "Clear"
@@ -571,7 +565,7 @@ const VendorLedgerRow = ({
       <View className="items-center" style={{ width: 32 }}>
         <View
           className="w-8 h-8 rounded-full items-center justify-center"
-          style={{ backgroundColor: color }}
+          style={{ backgroundColor: typeColor }}
         >
           <Ionicons name={icon as any} size={15} color="white" />
         </View>
@@ -598,7 +592,10 @@ const VendorLedgerRow = ({
       >
         <View className="flex-row justify-between items-start">
           <View className="flex-1 mr-2">
-            <Text className="text-xs font-semibold" style={{ color }}>
+            <Text
+              className="text-xs font-semibold"
+              style={{ color: typeColor }}
+            >
               {`${label}${categoryName ? ` · ${categoryName}` : ""}`}
             </Text>
             {!!description && (
@@ -611,7 +608,7 @@ const VendorLedgerRow = ({
               </Text>
             )}
           </View>
-          <Text className="text-sm font-bold" style={{ color }}>
+          <Text className="text-sm font-bold" style={{ color: typeColor }}>
             {`${sign}${formatAmount(amount)}`}
           </Text>
         </View>

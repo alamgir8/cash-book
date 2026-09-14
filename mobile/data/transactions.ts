@@ -50,6 +50,14 @@ export async function dalFetchTransactionTotals(
   return local.fetchLocalTransactionTotals(filters);
 }
 
+/** Full SQLite book size — not scoped by org or list filters. */
+export async function dalFetchBookTransactionCount(): Promise<number> {
+  await ensureLocalFirstFlags();
+  if (!isLocalFirstEnabled()) return 0;
+  const local = await import("./transactions.local");
+  return local.fetchLocalBookTransactionCount();
+}
+
 type CreatePayload = {
   accountId: string;
   amount: number;

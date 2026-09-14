@@ -53,6 +53,8 @@ export function useTransactionsScreen() {
   );
   const [viewingVendorHistoryFor, setViewingVendorHistoryFor] =
     useState<Transaction | null>(null);
+  const [viewingForHistoryFor, setViewingForHistoryFor] =
+    useState<Transaction | null>(null);
   const [viewingAttachmentsFor, setViewingAttachmentsFor] =
     useState<Transaction | null>(null);
 
@@ -100,6 +102,7 @@ export function useTransactionsScreen() {
     partyOptions,
     hasActiveFilters,
     totalTransactionCount,
+    bookTransactionCount,
     ledgerTotals,
   } = feed;
 
@@ -191,6 +194,10 @@ export function useTransactionsScreen() {
     setViewingVendorHistoryFor(transaction);
   }, []);
 
+  const handleViewForHistory = useCallback((transaction: Transaction) => {
+    setViewingForHistoryFor(transaction);
+  }, []);
+
   const handleExport = useCallback(async () => {
     if (exporting) return;
     try {
@@ -247,6 +254,7 @@ export function useTransactionsScreen() {
     returningLoanTxn,
     viewingChainFor,
     viewingVendorHistoryFor,
+    viewingForHistoryFor,
     viewingAttachmentsFor,
     transactionsQuery,
     accountsQuery,
@@ -259,6 +267,7 @@ export function useTransactionsScreen() {
     partyOptions,
     summaryTotals,
     totalTransactionCount,
+    bookTransactionCount,
     hasActiveFilters,
     canEditTransactions,
     canDeleteTransactions,
@@ -269,6 +278,7 @@ export function useTransactionsScreen() {
     setReturningLoanTxn,
     setViewingChainFor,
     setViewingVendorHistoryFor,
+    setViewingForHistoryFor,
     setViewingAttachmentsFor,
     setModalVisible,
     handleEditTransaction,
@@ -280,6 +290,7 @@ export function useTransactionsScreen() {
     handlePartyPress: handleVendorFilter,
     handleForPartyPress: handleForPartyFilter,
     handleViewHistory,
+    handleViewForHistory,
     handlePaymentStatusPress: handlePaymentStatusFilter,
     handleFilterChange,
     handleResetFilters,

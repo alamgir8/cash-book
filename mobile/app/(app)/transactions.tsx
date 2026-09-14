@@ -30,6 +30,7 @@ export default function TransactionsScreen() {
     returningLoanTxn,
     viewingChainFor,
     viewingVendorHistoryFor,
+    viewingForHistoryFor,
     viewingAttachmentsFor,
     transactionsQuery,
     accountsQuery,
@@ -41,6 +42,7 @@ export default function TransactionsScreen() {
     vendorOptions,
     summaryTotals,
     totalTransactionCount,
+    bookTransactionCount,
     hasActiveFilters,
     canEditTransactions,
     canExportData,
@@ -50,6 +52,7 @@ export default function TransactionsScreen() {
     setReturningLoanTxn,
     setViewingChainFor,
     setViewingVendorHistoryFor,
+    setViewingForHistoryFor,
     setViewingAttachmentsFor,
     handleEditTransaction,
     handleDeleteTransaction,
@@ -59,6 +62,7 @@ export default function TransactionsScreen() {
     handleVendorPress,
     handleForPartyPress,
     handleViewHistory,
+    handleViewForHistory,
     handlePaymentStatusPress,
     handleFilterChange,
     handleResetFilters,
@@ -75,7 +79,11 @@ export default function TransactionsScreen() {
       <StatsCards
         totalDebit={summaryTotals.debit}
         totalCredit={summaryTotals.credit}
-        transactionCount={totalTransactionCount}
+        transactionCount={
+          hasActiveFilters || accountId
+            ? totalTransactionCount
+            : Math.max(totalTransactionCount, bookTransactionCount)
+        }
         accountCount={accountsQuery.data?.length ?? 0}
         isLoading={transactionsQuery.isLoading}
       />
@@ -83,6 +91,9 @@ export default function TransactionsScreen() {
     [
       summaryTotals,
       totalTransactionCount,
+      bookTransactionCount,
+      hasActiveFilters,
+      accountId,
       accountsQuery.data,
       transactionsQuery.isLoading,
     ],
@@ -119,6 +130,7 @@ export default function TransactionsScreen() {
       onVendorPress: handleVendorPress,
       onForPartyPress: handleForPartyPress,
       onViewHistory: handleViewHistory,
+      onViewForHistory: handleViewForHistory,
       onPaymentStatusPress: handlePaymentStatusPress,
       onEdit: canEditTransactions ? handleEditTransaction : undefined,
       onDelete: isDeleteModeActive ? handleDeleteTransaction : undefined,
@@ -133,6 +145,7 @@ export default function TransactionsScreen() {
       handleVendorPress,
       handleForPartyPress,
       handleViewHistory,
+      handleViewForHistory,
       handlePaymentStatusPress,
       canEditTransactions,
       handleEditTransaction,
@@ -247,6 +260,16 @@ export default function TransactionsScreen() {
           visible={!!viewingVendorHistoryFor}
           onClose={() => setViewingVendorHistoryFor(null)}
           transaction={viewingVendorHistoryFor}
+          mode="vendor"
+        />
+      )}
+
+      {viewingForHistoryFor && (
+        <VendorHistorySheet
+          visible={!!viewingForHistoryFor}
+          onClose={() => setViewingForHistoryFor(null)}
+          transaction={viewingForHistoryFor}
+          mode="for_party"
         />
       )}
     </View>

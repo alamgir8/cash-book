@@ -79,6 +79,8 @@ export default function AccountDetailScreen() {
   );
   const [viewingVendorHistoryFor, setViewingVendorHistoryFor] =
     useState<Transaction | null>(null);
+  const [viewingForHistoryFor, setViewingForHistoryFor] =
+    useState<Transaction | null>(null);
   const [exporting, setExporting] = useState(false);
   const [exportModalVisible, setExportModalVisible] = useState(false);
   const [exportingType, setExportingType] = useState<ExportType | null>(null);
@@ -166,6 +168,10 @@ export default function AccountDetailScreen() {
 
   const handleViewHistory = useCallback((txn: Transaction) => {
     setViewingVendorHistoryFor(txn);
+  }, []);
+
+  const handleViewForHistory = useCallback((txn: Transaction) => {
+    setViewingForHistoryFor(txn);
   }, []);
 
   const handleEditTransaction = useCallback((transaction: Transaction) => {
@@ -387,6 +393,7 @@ export default function AccountDetailScreen() {
           onForPartyPress: handleForPartyFilter,
           onPaymentStatusPress: handlePaymentStatusFilter,
           onViewHistory: handleViewHistory,
+          onViewForHistory: handleViewForHistory,
           onEdit: canEditTransactions ? handleEditTransaction : undefined,
           onDelete:
             canDeleteTransactions && isDeleteModeActive
@@ -473,6 +480,16 @@ export default function AccountDetailScreen() {
           visible={!!viewingVendorHistoryFor}
           onClose={() => setViewingVendorHistoryFor(null)}
           transaction={viewingVendorHistoryFor}
+          mode="vendor"
+        />
+      )}
+
+      {viewingForHistoryFor && (
+        <VendorHistorySheet
+          visible={!!viewingForHistoryFor}
+          onClose={() => setViewingForHistoryFor(null)}
+          transaction={viewingForHistoryFor}
+          mode="for_party"
         />
       )}
     </View>
