@@ -536,7 +536,7 @@ export async function createLocalTransaction(payload: CreatePayload) {
     date: payload.date ?? new Date().toISOString(),
     description: payload.description ?? null,
     keyword: payload.comment ?? null,
-    payment_status: payload.payment_status ?? "paid",
+    payment_status: payload.payment_status === "due" ? "due" : "paid",
     due_date: payload.due_date ?? null,
     organization_id: payload.organizationId ?? null,
     device_id,

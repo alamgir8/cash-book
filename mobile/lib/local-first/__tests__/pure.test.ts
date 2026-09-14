@@ -429,8 +429,14 @@ test("partyBalanceSumSql uses the party convention", () => {
 
 test("local repair re-runs party convention fix on existing devices", () => {
   const src = readFileSync(join(__dirname, "../repair-ledger.ts"), "utf8");
-  assert.match(src, /LEDGER_REPAIR_VERSION = "16"/);
-  assert.match(src, /falseDueFix|due_date IS NULL OR due_date = ''/);
+  assert.match(src, /LEDGER_REPAIR_VERSION = "17"/);
+  // Must NOT flip open dues to paid just because due_date is empty (UI optional).
+  assert.doesNotMatch(
+    src,
+    /falseDueFix[\s\S]*due_date IS NULL OR due_date = ''/,
+  );
+  assert.match(src, /payment_status = 'due'/);
+  assert.match(src, /CAST\(due_remaining AS REAL\) > 0/);
   assert.match(src, /scheduleLocalLedgerRepair/);
   assert.match(src, /recalculateCashBalancesOnly/);
   assert.match(src, /reconcileAccountOpeningsFromCloud/);

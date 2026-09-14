@@ -116,9 +116,10 @@ export function LocalFirstSection() {
   const runMigrate = useCallback(
     async (force = false) => {
       setBusy("migrate");
+      // Full LAN /backup/export of a large book can exceed 90s — don't fake-fail the UI.
       const watchdog = setTimeout(() => {
         setBusy(null);
-      }, 90_000);
+      }, 5 * 60_000);
       try {
         // Empty SQLite → Drive then cloud. Force remigrate uses cloud APIs.
         if (force) {

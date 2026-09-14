@@ -33,7 +33,7 @@ import type {
 const LEGACY_TOKEN_KEY = "debit-credit-token";
 const STORAGE_SESSION_KEY = "cash-book-auth-session";
 const STORAGE_USER_KEY = "cash-book-auth-user";
-/** Set on Switch Account so sign-in skips Face ID auto-login once. */
+/** Set on Sign Out / Switch Account so sign-in shows email+password (skips Face ID auto once). */
 export const SKIP_BIOMETRIC_AUTO_LOGIN_KEY = "cash-book-skip-biometric-auto";
 // Disable automatic token refresh - only refresh on demand to prevent auto logouts
 const REFRESH_INTERVAL_MS = 0; // Disabled - manual refresh only
@@ -109,9 +109,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const clearSession = useCallback(
     async (options: { wipeLedger?: boolean } = {}) => {
       const wipeLedger = options.wipeLedger ?? false;
+      // 1) Drop session immediately so UI navigates to sign-in (do not wait on SQLite).
       setAuthToken();
       stopRefreshTimer();
-      await clearUserScopedData({ wipeLedger });
       try {
         await SecureStore.deleteItemAsync(STORAGE_SESSION_KEY);
         await SecureStore.deleteItemAsync(LEGACY_TOKEN_KEY);
@@ -127,6 +127,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       }
       if (isMountedRef.current) {
         setState({ status: "unauthenticated", user: null, tokens: null });
+      }
+
+      // 2) Clear caches / optional ledger wipe after the user is signed out.
+      try {
+        await clearUserScopedData({ wipeLedger });
+      } catch (error) {
+        console.warn("Failed to clear user-scoped data after logout", error);
       }
     },
     [stopRefreshTimer],
@@ -548,11 +555,26 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   );
 
   const signOut = useCallback(async () => {
-    const current = stateRef.current;
-    if (current.status === "authenticated") {
-      await authService.logout(current.tokens.refreshToken);
+    // Always show full email/password + Face ID screen — never auto Face ID back in.
+    try {
+      await AsyncStorage.setItem(SKIP_BIOMETRIC_AUTO_LOGIN_KEY, "1");
+    } catch (error) {
+      console.warn("Failed to set skip-biometric flag", error);
     }
-    await clearSession({ wipeLedger: true });
+
+    const current = stateRef.current;
+    const refreshToken =
+      current.status === "authenticated"
+        ? current.tokens.refreshToken
+        : null;
+
+    // Local clear first (works offline). Server revoke is best-effort.
+    // Keep SQLite for the same user re-login; Switch Account wipes instead.
+    await clearSession({ wipeLedger: false });
+
+    if (refreshToken) {
+      void authService.logout(refreshToken).catch(() => {});
+    }
   }, [clearSession]);
 
   const switchAccount = useCallback(async () => {
@@ -562,13 +584,26 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     } catch (error) {
       console.warn("Failed to set skip-biometric flag", error);
     }
-    await signOut();
+
+    const current = stateRef.current;
+    const refreshToken =
+      current.status === "authenticated"
+        ? current.tokens.refreshToken
+        : null;
+
+    // Different account must not see this ledger.
+    await clearSession({ wipeLedger: true });
+
+    if (refreshToken) {
+      void authService.logout(refreshToken).catch(() => {});
+    }
+
     Toast.show({
       type: "info",
       text1: "Switch account",
       text2: "Enter the other account’s email/phone and password.",
     });
-  }, [signOut]);
+  }, [clearSession]);
 
   const refreshProfile = useCallback(async () => {
     if (stateRef.current.status !== "authenticated") return;

@@ -460,12 +460,23 @@ function resolvePaymentStatus(row: any): "paid" | "due" {
 
   // Trust explicit status from source (API / backup export).
   if (row.payment_status === "due") {
-    // Settled / zero-remaining dues are cash-paid even if status lagged.
+    // Settled / zero-remaining dues are paid (cash from payment children).
     if (row.due_settled_at) return "paid";
     if (remainingNum != null && remainingNum <= 0) return "paid";
     return "due";
   }
-  if (row.payment_status === "paid") return "paid";
+  if (row.payment_status === "paid") {
+    // Open remaining without settled stamp → still due (repair/migrate lag).
+    if (
+      remainingNum != null &&
+      remainingNum > 0 &&
+      !row.due_settled_at &&
+      !parent
+    ) {
+      return "due";
+    }
+    return "paid";
+  }
 
   // Infer from chain fields ONLY when payment_status was missing/empty.
   if (

@@ -152,14 +152,13 @@ function mergeTxnRows(base: any, richer: any): any {
   }
   if (richer.description) out.description = richer.description;
   if (richer.vendor) out.vendor = richer.vendor;
-  // Force due only for real open dues (remaining + due_date). Migrating
-  // due_remaining alone used to mark paid cash rows as due and shrink wallets.
+  // Force due for real open dues (remaining > 0, not a payment child).
+  // Due date is optional in the UI — do not require it.
   if (
     out.due_remaining != null &&
     Number(out.due_remaining) > 0 &&
     !out.parent_due_id &&
-    !out.due_settled_at &&
-    out.due_date
+    !out.due_settled_at
   ) {
     out.payment_status = "due";
   }
@@ -782,16 +781,18 @@ export async function migrateCloudToLocal(opts?: {
 
     // LAN / dedicated server: one full /backup/export is fastest and correct.
     // Vercel: skip export (function time limit) → paginated lean APIs.
+    // Large books on Atlas via LAN often need >20s for the full dump.
+    const exportBudgetMs = serverless ? 20_000 : 120_000;
     let bundle = serverless
       ? null
-      : await tryBackupExport(20_000);
+      : await tryBackupExport(exportBudgetMs);
     if (!bundle || (!bundle.transactions?.length && !bundle.accounts?.length)) {
       if (!serverless) progress("Export empty — using paginated APIs…");
       bundle = await assembleLedgerFromApis(progress);
     }
     if (!bundle.transactions?.length && !bundle.accounts?.length) {
       progress("Trying full backup export…");
-      bundle = (await tryBackupExport(20_000)) || bundle;
+      bundle = (await tryBackupExport(exportBudgetMs)) || bundle;
     }
 
     const backupAccounts = bundle.accounts ?? [];

@@ -503,7 +503,16 @@ xcrun devicectl device install app \
 
 The new install replaces the old app. App data normally stays unless you delete the app manually.
 
-**After switching API host (local ↔ Vercel):** open the app → **log out → log in again**. Tokens from the other server return `401` on `/auth/refresh` and `/sync/handshake`, so Sync keeps failing even when the new URL is correct.
+**After switching API host (local ↔ Vercel):** open the app → **log out → log in again**. Tokens from the other server return `401` on `/auth/refresh` and `/sync/handshake`, so Sync/Migrate keep failing even when the new URL is correct.
+
+**Release + local API checklist (migrate without Vercel timeouts):**
+1. Mac and iPhone on the **same Wi‑Fi**; backend running (`cd backend && npm run dev`).
+2. `mobile/.env.local` → `EXPO_PUBLIC_BASE_URL=http://YOUR_MAC_IP:5050/api` (run `ipconfig getifaddr en0`).
+3. Wipe DerivedData, rebuild Release, reinstall (env is baked into the JS bundle).
+4. iPhone → **Settings → Privacy & Security → Local Network → Hisab Boi = ON**.
+5. Open Hisab Boi → **log out → log in** (against the local API).
+6. Settings → On-device storage → **Migrate from cloud** / **Re-download from cloud**. Local backend uses the same Atlas DB, so this pulls your real cloud book without Vercel’s time limit.
+7. After migrate succeeds, tap **Sync now**.
 
 **Debug / Metro builds:** you do **not** need a full native rebuild for JS or `.env` — restart Metro with cache clear instead:
 

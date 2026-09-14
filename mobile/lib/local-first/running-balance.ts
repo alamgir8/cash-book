@@ -9,7 +9,19 @@ export type RunningBalanceTxn = {
   type: "debit" | "credit" | string;
   amount: number;
   payment_status?: string | null;
+  parent_due_id?: string | null;
+  due_settled_at?: string | null;
 };
+
+function countsAsCash(txn: RunningBalanceTxn): boolean {
+  const status = txn.payment_status || "paid";
+  if (status === "due") return false;
+  const parent = txn.parent_due_id;
+  const settled = txn.due_settled_at;
+  // Settled due roots (no parent, settled stamp) do not move cash.
+  if ((!parent || parent === "") && settled) return false;
+  return true;
+}
 
 export function computeRunningBalances(
   opening: number,
@@ -18,8 +30,7 @@ export function computeRunningBalances(
   let running = Number(opening) || 0;
   const out: Array<{ id: string; balance_after: number }> = [];
   for (const txn of txns) {
-    const status = txn.payment_status || "paid";
-    if (status !== "due") {
+    if (countsAsCash(txn)) {
       const amt = Number(txn.amount) || 0;
       running += txn.type === "credit" ? amt : -amt;
     }

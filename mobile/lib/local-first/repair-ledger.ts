@@ -6,7 +6,7 @@ import {
 import { getMeta, META_KEYS, setMeta } from "@/db/meta";
 
 /** Bump when repair SQL/rules change so existing devices re-apply. */
-export const LEDGER_REPAIR_VERSION = "16";
+export const LEDGER_REPAIR_VERSION = "17";
 
 /** Soft deadline for optional cloud overlay — never block Home paint. */
 const CLOUD_RECONCILE_MS = 12_000;
@@ -219,22 +219,10 @@ export async function repairLocalLedgerSemantics(
   const orgsStamped = await stampOrganizationFromAccount(db);
 
   // ─── Payment status cleanup ───
-  // Settled due roots stay payment_status='due' with due_settled_at set so they
-  // remain excluded from wallet cash; their payment children are the cash hits.
-  // (Flipping settled roots to paid double-counts with those children.)
+  // Open dues stay payment_status='due' until remaining hits 0.
+  // Fully settled roots become 'paid' + due_settled_at (cash still from children only).
 
-  const revertZero = await db.runAsync(
-    `UPDATE transactions
-     SET payment_status = 'paid',
-         due_remaining = NULL,
-         updated_at = COALESCE(updated_at, datetime('now'))
-     WHERE deleted_at IS NULL
-       AND payment_status = 'due'
-       AND due_remaining IS NOT NULL
-       AND CAST(due_remaining AS REAL) <= 0
-       AND (due_settled_at IS NULL OR due_settled_at = '')`,
-  );
-
+  // Payment children must always be paid.
   const revertPayments = await db.runAsync(
     `UPDATE transactions
      SET payment_status = 'paid',
@@ -243,6 +231,28 @@ export async function repairLocalLedgerSemantics(
        AND payment_status = 'due'
        AND parent_due_id IS NOT NULL
        AND parent_due_id != ''`,
+  );
+
+  // Fully paid dues (remaining ≤ 0): mark paid + stamp settled (cash-safe).
+  const settleZero = await db.runAsync(
+    `UPDATE transactions
+     SET payment_status = 'paid',
+         due_remaining = 0,
+         due_settled_at = COALESCE(
+           NULLIF(due_settled_at, ''),
+           updated_at,
+           datetime('now')
+         ),
+         updated_at = COALESCE(updated_at, datetime('now'))
+     WHERE deleted_at IS NULL
+       AND (parent_due_id IS NULL OR parent_due_id = '')
+       AND due_remaining IS NOT NULL
+       AND CAST(due_remaining AS REAL) <= 0
+       AND (
+         payment_status = 'due'
+         OR due_settled_at IS NULL
+         OR due_settled_at = ''
+       )`,
   );
 
   await db.runAsync(
@@ -258,33 +268,18 @@ export async function repairLocalLedgerSemantics(
      WHERE due_group_id IN ('[object Object]', 'undefined', 'null')`,
   );
 
-  // False dues from thin migrate / old repair: marked due with remaining but
-  // NEVER given a due_date. Those excluded debit cash and inflated balances
-  // (Bank +1,30,000). Flip them back to paid so wallet cash is correct.
-  const falseDueFix = await db.runAsync(
-    `UPDATE transactions
-     SET payment_status = 'paid',
-         due_remaining = NULL,
-         updated_at = COALESCE(updated_at, datetime('now'))
-     WHERE deleted_at IS NULL
-       AND payment_status = 'due'
-       AND (parent_due_id IS NULL OR parent_due_id = '')
-       AND (due_date IS NULL OR due_date = '')
-       AND (due_settled_at IS NULL OR due_settled_at = '')`,
-  );
-
-  // Restore real open dues only when remaining > 0 AND due_date is set.
+  // Restore open dues wrongly flipped to paid (v16 required due_date; UI due
+  // date is optional — any unpaid remaining must stay due).
   const dueFix = await db.runAsync(
     `UPDATE transactions
      SET payment_status = 'due',
+         due_settled_at = NULL,
          updated_at = COALESCE(updated_at, datetime('now'))
      WHERE deleted_at IS NULL
        AND payment_status != 'due'
        AND (parent_due_id IS NULL OR parent_due_id = '')
        AND due_remaining IS NOT NULL
        AND CAST(due_remaining AS REAL) > 0
-       AND due_date IS NOT NULL
-       AND due_date != ''
        AND (due_settled_at IS NULL OR due_settled_at = '')
        AND (
          category_id IS NULL OR category_id NOT IN (
@@ -298,9 +293,7 @@ export async function repairLocalLedgerSemantics(
 
   const duesFixed = Number(dueFix.changes ?? 0);
   const revertedToPaid =
-    Number(revertZero.changes ?? 0) +
-    Number(revertPayments.changes ?? 0) +
-    Number(falseDueFix.changes ?? 0);
+    Number(settleZero.changes ?? 0) + Number(revertPayments.changes ?? 0);
 
   const catFixes = [
     `UPDATE categories SET type = 'loan_out', flow = 'debit'

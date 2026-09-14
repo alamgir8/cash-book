@@ -16,6 +16,8 @@ export {
 
 const paidClause = (alias = "") => {
   const col = alias ? `${alias}.payment_status` : "payment_status";
+  // Open/settled due roots stay payment_status='due' — excluded from wallet cash.
+  // Only explicit paid rows (incl. due-payment children) move cash.
   return `(${col} = 'paid' OR ${col} IS NULL OR ${col} = '')`;
 };
 
@@ -94,8 +96,10 @@ export async function recalculateAccountRunningBalances(
     type: string;
     amount: number;
     payment_status: string | null;
+    parent_due_id: string | null;
+    due_settled_at: string | null;
   }>(
-    `SELECT id, type, amount, payment_status
+    `SELECT id, type, amount, payment_status, parent_due_id, due_settled_at
      FROM transactions
      WHERE deleted_at IS NULL
        AND (account_id = ? OR account_id = ?)

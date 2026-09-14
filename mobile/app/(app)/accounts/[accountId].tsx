@@ -211,7 +211,7 @@ export default function AccountDetailScreen() {
       party: values.party || undefined,
       for_party: (values as any).for_party || undefined,
       scheme: (values as any).scheme || undefined,
-      payment_status: values.payment_status || "paid",
+      payment_status: values.payment_status === "due" ? "due" : "paid",
       due_date: values.due_date?.trim() || undefined,
     } as any);
   };

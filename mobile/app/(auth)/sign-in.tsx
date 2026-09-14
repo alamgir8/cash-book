@@ -82,7 +82,7 @@ export default function SignInScreen() {
   const [usePinLogin, setUsePinLogin] = useState(false);
   // Whether any user on this device has biometric stored (doesn't need userIdentifier)
   const [hasBiometricStored, setHasBiometricStored] = useState(false);
-  // After Switch Account: skip auto Face ID so user can type another account
+  // After Switch Account / Sign Out: skip auto Face ID so user sees email+password
   const [skipBiometricAuto, setSkipBiometricAuto] = useState(true);
   const { t } = useTranslation();
 

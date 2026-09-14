@@ -269,7 +269,7 @@ export function useDashboard() {
       description: values.description?.trim() || undefined,
       comment: values.comment?.trim() || undefined,
       categoryId: values.categoryId || undefined,
-      payment_status: values.payment_status || "paid",
+      payment_status: values.payment_status === "due" ? "due" : "paid",
       due_date: values.due_date?.trim() || undefined,
       organizationId: activeOrganization?.id ?? null,
     };

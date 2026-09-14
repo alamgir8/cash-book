@@ -204,7 +204,8 @@ export async function createTransaction(
   const ts = nowIso();
   const amount = Number(input.amount);
   if (!(amount >= 0)) throw new Error("Amount must be >= 0");
-  const paymentStatus = input.payment_status ?? "paid";
+  const paymentStatus =
+    input.payment_status === "due" ? "due" : "paid";
   const applyBalance = input.applyBalance !== false && paymentStatus === "paid";
 
   let organizationId = input.organization_id ?? null;
@@ -235,6 +236,12 @@ export async function createTransaction(
       "paid",
     );
   }
+
+  // Match backend: due roots own their group id so payments can attach.
+  const dueGroupId =
+    input.due_group_id ?? (paymentStatus === "due" ? id : null);
+  const dueRemaining =
+    input.due_remaining ?? (paymentStatus === "due" ? amount : null);
 
   await db.runAsync(
     `INSERT INTO transactions (
@@ -268,9 +275,9 @@ export async function createTransaction(
     input.vendor ?? null,
     paymentStatus,
     input.due_date ?? null,
-    input.due_group_id ?? null,
+    dueGroupId,
     input.parent_due_id ?? null,
-    input.due_remaining ?? (paymentStatus === "due" ? amount : null),
+    dueRemaining,
     input.meta_data_json ?? null,
     balanceAfter,
     partyBalanceAfter,
@@ -305,7 +312,12 @@ export async function softDeleteTransaction(
   if (!existing || existing.deleted_at) return;
 
   await withDbTransaction(db, async (txn) => {
-    if (existing.payment_status === "paid") {
+    const isSettledRoot =
+      !existing.parent_due_id &&
+      Boolean(existing.due_settled_at);
+    const countedAsCash =
+      existing.payment_status === "paid" && !isSettledRoot;
+    if (countedAsCash) {
       const reverse = -signedDelta(existing.type, existing.amount);
       await applyAccountDelta(txn, existing.account_id, reverse);
       const existingPartyType = await resolvePartyType(txn, existing.party_id);
@@ -319,6 +331,31 @@ export async function softDeleteTransaction(
         await applyPartyDeltaRaw(txn, existing.party_id, reverseParty);
       }
     }
+
+    // Undoing a due payment restores remaining on the parent.
+    if (existing.parent_due_id) {
+      const parent = await getTransactionById(txn, existing.parent_due_id);
+      if (parent && !parent.deleted_at) {
+        const nextRemaining =
+          Number(parent.due_remaining ?? 0) + Number(existing.amount);
+        const capped = Math.min(nextRemaining, Number(parent.amount));
+        await txn.runAsync(
+          `UPDATE transactions SET
+            due_remaining = ?,
+            due_settled_at = NULL,
+            payment_status = 'due',
+            updated_at = ?, dirty = 1, sync_status = 'pending_update',
+            retry_count = 0, last_sync_error = NULL,
+            device_id = ?, sync_version = sync_version + 1
+           WHERE id = ?`,
+          capped,
+          nowIso(),
+          device_id,
+          parent.id,
+        );
+      }
+    }
+
     const ts = nowIso();
     await txn.runAsync(
       `UPDATE transactions SET deleted_at = ?, updated_at = ?, dirty = 1,
@@ -362,7 +399,33 @@ export async function updateTransaction(
   if (!existing || existing.deleted_at) throw new Error("Transaction not found");
 
   await withDbTransaction(db, async (txn) => {
-    if (existing.payment_status === "paid") {
+    const nextType = patch.type ?? existing.type;
+    const nextAmount =
+      patch.amount !== undefined ? Number(patch.amount) : Number(existing.amount);
+    const nextAccountId = patch.account_id ?? existing.account_id;
+    const nextPartyId =
+      patch.party_id !== undefined ? patch.party_id : existing.party_id;
+    const nextStatusRaw = patch.payment_status ?? existing.payment_status;
+    const nextStatus = nextStatusRaw === "due" ? "due" : "paid";
+    const ts = nowIso();
+
+    const childCount = await txn.getFirstAsync<{ n: number }>(
+      `SELECT COUNT(*) as n FROM transactions
+       WHERE deleted_at IS NULL
+         AND (parent_due_id = ? OR parent_due_id = ?)`,
+      existing.id,
+      existing.server_id || existing.id,
+    );
+    const hasPaymentChildren = Number(childCount?.n ?? 0) > 0;
+
+    // Reverse prior cash only for rows that counted as wallet cash.
+    const existingCountedAsCash =
+      existing.payment_status === "paid" &&
+      !(
+        !existing.parent_due_id &&
+        existing.due_settled_at
+      );
+    if (existingCountedAsCash) {
       const reverse = -signedDelta(existing.type, existing.amount);
       await applyAccountDelta(txn, existing.account_id, reverse);
       const existingPartyType = await resolvePartyType(txn, existing.party_id);
@@ -377,19 +440,16 @@ export async function updateTransaction(
       }
     }
 
-    const nextType = patch.type ?? existing.type;
-    const nextAmount =
-      patch.amount !== undefined ? Number(patch.amount) : Number(existing.amount);
-    const nextAccountId = patch.account_id ?? existing.account_id;
-    const nextPartyId =
-      patch.party_id !== undefined ? patch.party_id : existing.party_id;
-    const nextStatus = patch.payment_status ?? existing.payment_status;
-    const ts = nowIso();
-
     let balanceAfter: number | null = existing.balance_after_transaction;
     let partyBalanceAfter: number | null = existing.party_balance_after;
 
-    if (nextStatus === "paid") {
+    // Apply cash for paid rows. Settled due roots with payment children already
+    // moved cash via those children — do not apply the root amount again.
+    const applyCash =
+      nextStatus === "paid" &&
+      !( !existing.parent_due_id && hasPaymentChildren );
+
+    if (applyCash) {
       balanceAfter = await applyAccountDelta(
         txn,
         nextAccountId,
@@ -402,9 +462,30 @@ export async function updateTransaction(
         nextAmount,
         "paid",
       );
-    } else {
+    } else if (nextStatus === "due") {
       balanceAfter = null;
       partyBalanceAfter = null;
+    }
+
+    // Preserve partial remaining; only init when entering due or amount was never paid down.
+    let nextRemaining = existing.due_remaining;
+    let nextSettledAt = existing.due_settled_at;
+    if (nextStatus === "due") {
+      nextSettledAt = null;
+      if (existing.payment_status !== "due") {
+        nextRemaining = nextAmount;
+      } else if (
+        patch.amount !== undefined &&
+        Number(existing.due_remaining) === Number(existing.amount)
+      ) {
+        nextRemaining = nextAmount;
+      }
+    } else if (
+      existing.payment_status === "due" &&
+      nextStatus === "paid"
+    ) {
+      nextRemaining = 0;
+      nextSettledAt = existing.due_settled_at || ts;
     }
 
     await txn.runAsync(
@@ -412,7 +493,7 @@ export async function updateTransaction(
         account_id = ?, category_id = ?, party_id = ?, for_party_id = ?,
         type = ?, amount = ?, date = ?, description = ?, keyword = ?,
         payment_status = ?, due_date = ?,
-        due_remaining = CASE WHEN ? = 'due' THEN ? ELSE due_remaining END,
+        due_remaining = ?, due_settled_at = ?,
         balance_after_transaction = ?, party_balance_after = ?,
         updated_at = ?, dirty = 1, sync_status = 'pending_update',
         retry_count = 0, last_sync_error = NULL,
@@ -431,8 +512,8 @@ export async function updateTransaction(
       patch.keyword !== undefined ? patch.keyword : existing.keyword,
       nextStatus,
       patch.due_date !== undefined ? patch.due_date : existing.due_date,
-      nextStatus,
-      nextAmount,
+      nextRemaining,
+      nextSettledAt,
       balanceAfter,
       partyBalanceAfter,
       ts,
@@ -504,16 +585,21 @@ export async function createDuePaymentTransaction(
     });
 
     const nextRemaining = Math.max(0, remaining - payAmount);
-    const settledAt = nextRemaining <= 1e-9 ? nowIso() : null;
+    const settled = nextRemaining <= 1e-9;
+    const settledAt = settled ? nowIso() : null;
+    // Fully paid → status paid + settled stamp. Partial → stay due.
     await txn.runAsync(
       `UPDATE transactions SET
-        due_remaining = ?, due_settled_at = ?,
+        due_remaining = ?,
+        due_settled_at = ?,
+        payment_status = ?,
         updated_at = ?, dirty = 1, sync_status = 'pending_update',
         retry_count = 0, last_sync_error = NULL,
         device_id = ?, sync_version = sync_version + 1
        WHERE id = ?`,
       nextRemaining,
       settledAt,
+      settled ? "paid" : "due",
       nowIso(),
       input.device_id,
       parent.id,
