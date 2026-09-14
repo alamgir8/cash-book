@@ -728,11 +728,25 @@ export async function runSync(): Promise<SyncResult> {
     }
     // Empty local ledger + a "now" cursor from a failed bootstrap would skip
     // all history on every Sync Now. Force a full pull once.
+    // Also re-pull when parties table is empty but txns reference vendors —
+    // migrate sometimes timed out parties and stamped cursor=now.
     try {
       const txnCount = await db.getFirstAsync<{ n: number }>(
         `SELECT COUNT(*) as n FROM transactions WHERE deleted_at IS NULL`,
       );
-      if (Number(txnCount?.n ?? 0) === 0) {
+      const partyCount = await db.getFirstAsync<{ n: number }>(
+        `SELECT COUNT(*) as n FROM parties WHERE deleted_at IS NULL`,
+      );
+      const txnWithParty = await db.getFirstAsync<{ n: number }>(
+        `SELECT COUNT(*) as n FROM transactions
+         WHERE deleted_at IS NULL
+           AND party_id IS NOT NULL AND party_id != ''`,
+      );
+      if (
+        Number(txnCount?.n ?? 0) === 0 ||
+        (Number(partyCount?.n ?? 0) === 0 &&
+          Number(txnWithParty?.n ?? 0) > 0)
+      ) {
         await setMeta(
           db,
           META_KEYS.LAST_SYNC_CURSOR,

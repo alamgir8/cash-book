@@ -71,6 +71,8 @@ type Props = {
   counterparties?: SelectOption[];
   showVendorField?: boolean;
   vendors?: SelectOption[];
+  /** Active org for async local vendor/counterparty search */
+  organizationId?: string | null;
   showPaymentStatusFilter?: boolean;
   hasActiveFilters?: boolean;
   onReset?: () => void;
@@ -94,6 +96,7 @@ export const FilterBar = ({
   counterparties,
   showVendorField = false,
   vendors,
+  organizationId = null,
   showPaymentStatusFilter = false,
   hasActiveFilters,
   onReset,
@@ -101,6 +104,49 @@ export const FilterBar = ({
 }: Props) => {
   const { colors } = useTheme();
   const { t } = useTranslation();
+
+  const fetchCounterpartyOptions = useCallback(
+    async (search: string): Promise<SelectOption[]> => {
+      try {
+        const { dalFetchCounterparties } = await import("@/data/parties");
+        const org = organizationId ?? filters.organizationId ?? null;
+        const names = await dalFetchCounterparties(
+          search || undefined,
+          org || undefined,
+        );
+        return [
+          { value: "", label: t("allCounterparties") },
+          ...names.map((name) => ({ value: name, label: name })),
+        ];
+      } catch {
+        return [{ value: "", label: t("allCounterparties") }];
+      }
+    },
+    [organizationId, filters.organizationId, t],
+  );
+
+  const fetchVendorOptions = useCallback(
+    async (search: string): Promise<SelectOption[]> => {
+      try {
+        const { dalFetchVendors } = await import("@/data/parties");
+        const org = organizationId ?? filters.organizationId ?? null;
+        const parties = await dalFetchVendors(
+          search || undefined,
+          org || undefined,
+        );
+        return [
+          { value: "", label: t("allVendors") },
+          ...parties.map((p) => ({
+            value: String(p._id),
+            label: p.name,
+          })),
+        ];
+      } catch {
+        return [{ value: "", label: t("allVendors") }];
+      }
+    },
+    [organizationId, filters.organizationId, t],
+  );
 
   const ranges = [
     { label: t("daily"), value: "daily" },
@@ -651,27 +697,19 @@ export const FilterBar = ({
             <View>
               <SearchableSelect
                 label={t("counterpartyFilter")}
-                placeholder={
-                  counterparties.length === 0
-                    ? t("allCounterparties")
-                    : t("filterByCounterparty")
-                }
+                placeholder={t("filterByCounterparty")}
                 value={formFilters.counterparty ?? ""}
-                options={
-                  counterparties.length > 0
-                    ? [
-                        { value: "", label: t("allCounterparties") },
-                        ...counterparties,
-                      ]
-                    : [{ value: "", label: t("allCounterparties") }]
-                }
+                options={[
+                  { value: "", label: t("allCounterparties") },
+                  ...counterparties,
+                ]}
+                fetchOptions={fetchCounterpartyOptions}
                 onSelect={(val) =>
                   setFormFilters({
                     ...formFilters,
                     counterparty: val || undefined,
                   })
                 }
-                disabled={counterparties.length === 0}
               />
             </View>
           ) : null}
@@ -680,22 +718,19 @@ export const FilterBar = ({
             <View>
               <SearchableSelect
                 label={t("vendorFilter")}
-                placeholder={
-                  vendors.length === 0 ? t("allVendors") : t("filterByVendor")
-                }
+                placeholder={t("filterByVendor")}
                 value={formFilters.party_id ?? ""}
-                options={
-                  vendors.length > 0
-                    ? [{ value: "", label: t("allVendors") }, ...vendors]
-                    : [{ value: "", label: t("allVendors") }]
-                }
+                options={[
+                  { value: "", label: t("allVendors") },
+                  ...vendors,
+                ]}
+                fetchOptions={fetchVendorOptions}
                 onSelect={(val) =>
                   setFormFilters({
                     ...formFilters,
                     party_id: val || undefined,
                   })
                 }
-                disabled={vendors.length === 0}
               />
             </View>
           ) : null}

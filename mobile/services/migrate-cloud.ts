@@ -233,30 +233,46 @@ async function fetchAllCloudTransactions(
   return [...byId.values()];
 }
 
-async function fetchAllParties(): Promise<any[]> {
+async function fetchAllParties(
+  onProgress?: (message: string) => void,
+): Promise<any[]> {
   const byId = new Map<string, any>();
 
   const pushList = async (params: Record<string, any>) => {
-    try {
-      const listed = await partiesApi.list({
-        ...params,
-        limit: 10000,
-        page: 1,
-      });
-      for (const p of listed.parties || []) {
-        byId.set(String(p._id), p);
+    let page = 1;
+    let pages = 1;
+    while (page <= pages) {
+      try {
+        const listed = await partiesApi.list({
+          ...params,
+          limit: 200,
+          page,
+        });
+        for (const p of listed.parties || []) {
+          byId.set(String(p._id), p);
+        }
+        pages = Math.max(1, Number(listed.pagination?.pages ?? 1));
+        onProgress?.(
+          `Downloading parties ${page}/${pages} (${byId.size})…`,
+        );
+        page += 1;
+        if (page > 500) break;
+      } catch (e) {
+        console.warn("[migrate] parties page failed", e);
+        break;
       }
-    } catch {
-      /* ignore */
     }
   };
 
+  onProgress?.("Downloading personal parties…");
   await pushList({ scope: "personal" });
   try {
     const orgs = await organizationsApi.list();
     for (const org of orgs || []) {
       const id = (org as any).id || org._id;
-      if (id) await pushList({ organization: String(id) });
+      if (!id) continue;
+      onProgress?.(`Downloading parties (${byId.size})…`);
+      await pushList({ organization: String(id) });
     }
   } catch {
     /* backup export still has parties */
@@ -702,13 +718,18 @@ async function assembleLedgerFromApis(
   onProgress?.("Downloading categories…");
   const categories = await fetchAllCloudCategoriesRaw(onProgress);
   onProgress?.("Downloading parties…");
-  const parties = await withDeadline(
-    "parties",
-    30_000,
-    () => fetchAllParties(),
-    [],
-  );
+  // Never fall back to [] on timeout — empty parties breaks vendor search forever
+  // (cursor is stamped "now" after migrate so historical parties never pull).
+  let parties = await fetchAllParties(onProgress);
   const transactions = await fetchAllCloudTransactions(onProgress);
+  // If parties API returned nothing but txns reference parties, retry once.
+  if (
+    parties.length === 0 &&
+    transactions.some((t) => t.party || t.party_id || t.for_party)
+  ) {
+    onProgress?.("Retrying parties download…");
+    parties = await fetchAllParties(onProgress);
+  }
   return {
     accounts,
     categories,

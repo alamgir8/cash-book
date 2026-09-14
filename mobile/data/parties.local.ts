@@ -481,29 +481,62 @@ export async function fetchLocalCounterparties(
   organizationId?: string | null,
 ): Promise<string[]> {
   const db = await getDb();
-  const q = search?.trim();
-  const orgClause = organizationId
-    ? "AND organization_id = ?"
-    : "AND (organization_id IS NULL OR organization_id = '')";
-  const orgParams = organizationId ? [organizationId] : [];
-  const rows = q
-    ? await db.getAllAsync<{ counterparty: string }>(
-        `SELECT DISTINCT counterparty FROM transactions
-         WHERE deleted_at IS NULL AND counterparty IS NOT NULL AND counterparty != ''
-           ${orgClause}
-           AND counterparty LIKE ?
-         ORDER BY counterparty COLLATE NOCASE ASC LIMIT 100`,
-        ...orgParams,
-        `%${q}%`,
+  const q = search?.trim()?.toLowerCase() ?? "";
+  const names = new Set<string>();
+
+  // 1) Full parties collection (source of truth for local-first).
+  let partyRows = await partiesRepo.listParties(db, {
+    allOrganizations: true,
+  });
+  if (organizationId) {
+    const orgRows = partyRows.filter(
+      (r) =>
+        r.organization_id === organizationId ||
+        !r.organization_id ||
+        r.organization_id === "",
+    );
+    if (orgRows.length > 0) partyRows = orgRows;
+  }
+  for (const r of partyRows) {
+    const name = r.name?.trim();
+    if (!name) continue;
+    if (q && !name.toLowerCase().includes(q)) continue;
+    names.add(name);
+  }
+
+  // 2) Legacy free-text columns on transactions.
+  const like = q ? `%${q}%` : null;
+  const textRows = like
+    ? await db.getAllAsync<{ name: string }>(
+        `SELECT DISTINCT name FROM (
+           SELECT counterparty AS name FROM transactions
+           WHERE deleted_at IS NULL AND counterparty IS NOT NULL AND counterparty != ''
+             AND counterparty LIKE ?
+           UNION
+           SELECT vendor AS name FROM transactions
+           WHERE deleted_at IS NULL AND vendor IS NOT NULL AND vendor != ''
+             AND vendor LIKE ?
+         ) ORDER BY name COLLATE NOCASE ASC LIMIT 500`,
+        like,
+        like,
       )
-    : await db.getAllAsync<{ counterparty: string }>(
-        `SELECT DISTINCT counterparty FROM transactions
-         WHERE deleted_at IS NULL AND counterparty IS NOT NULL AND counterparty != ''
-           ${orgClause}
-         ORDER BY counterparty COLLATE NOCASE ASC LIMIT 100`,
-        ...orgParams,
+    : await db.getAllAsync<{ name: string }>(
+        `SELECT DISTINCT name FROM (
+           SELECT counterparty AS name FROM transactions
+           WHERE deleted_at IS NULL AND counterparty IS NOT NULL AND counterparty != ''
+           UNION
+           SELECT vendor AS name FROM transactions
+           WHERE deleted_at IS NULL AND vendor IS NOT NULL AND vendor != ''
+         ) ORDER BY name COLLATE NOCASE ASC LIMIT 500`,
       );
-  return rows.map((r) => r.counterparty);
+  for (const r of textRows) {
+    const name = r.name?.trim();
+    if (name) names.add(name);
+  }
+
+  return [...names]
+    .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
+    .slice(0, 500);
 }
 
 export async function fetchLocalVendors(
@@ -512,18 +545,30 @@ export async function fetchLocalVendors(
 ): Promise<PartyRef[]> {
   const db = await getDb();
   const q = search?.trim()?.toLowerCase();
-  let orgId = organizationId ?? null;
-  let rows = await partiesRepo.listParties(db, { organizationId: orgId });
-  if (orgId && rows.length === 0) {
-    rows = await partiesRepo.listParties(db, { organizationId: null });
-  } else if (!orgId) {
-    const all = await partiesRepo.listParties(db, { allOrganizations: true });
-    if (all.length > rows.length) rows = all;
+
+  // Full device ledger — same universe as transactions list (not org-only slice).
+  let rows = await partiesRepo.listParties(db, { allOrganizations: true });
+  if (organizationId) {
+    const scoped = rows.filter(
+      (r) =>
+        r.organization_id === organizationId ||
+        !r.organization_id ||
+        r.organization_id === "",
+    );
+    // Prefer scoped when it has data; otherwise keep full device list.
+    if (scoped.length > 0) rows = scoped;
   }
+
   if (q) {
-    rows = rows.filter((r) => r.name.toLowerCase().includes(q));
+    rows = rows.filter(
+      (r) =>
+        r.name.toLowerCase().includes(q) ||
+        (r.code ?? "").toLowerCase().includes(q) ||
+        (r.phone ?? "").includes(q),
+    );
   }
-  return rows.slice(0, 100).map((r) => ({
+
+  return rows.slice(0, 500).map((r) => ({
     _id: r.id,
     name: r.name,
     type: r.type,
