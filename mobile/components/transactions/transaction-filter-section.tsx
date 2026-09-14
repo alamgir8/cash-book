@@ -18,6 +18,7 @@ export type TransactionFilterSectionProps = {
   counterparties?: SelectOption[];
   showVendorField?: boolean;
   vendors?: SelectOption[];
+  organizationId?: string | null;
   showPaymentStatusFilter?: boolean;
   /** @deprecated Unused — pull-to-refresh covers loading UX */
   isFetching?: boolean;
@@ -40,6 +41,7 @@ export function TransactionFilterSection({
   counterparties,
   showVendorField = true,
   vendors,
+  organizationId = null,
   showPaymentStatusFilter = true,
 }: TransactionFilterSectionProps) {
   return (
@@ -57,6 +59,7 @@ export function TransactionFilterSection({
         counterparties={counterparties}
         showVendorField={showVendorField}
         vendors={vendors}
+        organizationId={organizationId}
         showPaymentStatusFilter={showPaymentStatusFilter}
         onReset={onReset}
         onApplyFilters={onApplyFilters}

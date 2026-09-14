@@ -93,6 +93,8 @@ export const useCreateParty = () => {
     mutationFn: (payload: CreatePartyPayload) => dalCreateParty(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.parties });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.vendors });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.counterparties });
       Toast.show({
         type: "success",
         text1: "Party created successfully",
@@ -122,6 +124,8 @@ export const useUpdateParty = () => {
       dalUpdateParty(partyId, payload),
     onSuccess: (data: Party) => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.parties });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.vendors });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.counterparties });
       queryClient.invalidateQueries({ queryKey: ["party", data._id] });
       Toast.show({
         type: "success",

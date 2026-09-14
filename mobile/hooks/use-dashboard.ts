@@ -145,6 +145,18 @@ export function useDashboard() {
   const createTransferMutation = useMutation({
     mutationFn: dalCreateTransfer,
     onSuccess: () => {
+      // Clear chips that hide transfer legs (Due / category / party), then refresh.
+      handleFilterChange({
+        payment_status: undefined,
+        categoryId: undefined,
+        category_name: undefined,
+        party_id: undefined,
+        party_name: undefined,
+        for_party_id: undefined,
+        for_party_name: undefined,
+        counterparty: undefined,
+        page: 1,
+      });
       void invalidateAll();
       Toast.show({ type: "success", text1: "Transfer completed" });
     },
@@ -338,7 +350,8 @@ export function useDashboard() {
       description: values.description?.trim() || undefined,
       comment: values.comment?.trim() || undefined,
       counterparty: values.counterparty?.trim() || undefined,
-    } as any);
+      organizationId: activeOrganization?.id ?? null,
+    });
     return transfer;
   };
 

@@ -90,25 +90,62 @@ export function useTransactionFilterOptions({
     ];
   }, [categoriesQuery.data, language, includeEmptyCategoryOption]);
 
+  const vendorOptions: SelectOption[] = useMemo(() => {
+    const byId = new Map<string, SelectOption>();
+    for (const p of vendorsQuery.data ?? []) {
+      if (!p?._id || !p.name?.trim()) continue;
+      byId.set(String(p._id), { value: String(p._id), label: p.name.trim() });
+    }
+    // Seed from visible transactions so filters work even before parties hydrate.
+    for (const t of rawTransactions) {
+      const party = t.party;
+      if (party && typeof party === "object" && party._id && party.name?.trim()) {
+        const id = String(party._id);
+        if (!byId.has(id)) {
+          byId.set(id, { value: id, label: party.name.trim() });
+        }
+      }
+      const forParty = t.for_party;
+      if (
+        forParty &&
+        typeof forParty === "object" &&
+        forParty._id &&
+        forParty.name?.trim()
+      ) {
+        const id = String(forParty._id);
+        if (!byId.has(id)) {
+          byId.set(id, { value: id, label: forParty.name.trim() });
+        }
+      }
+    }
+    return [...byId.values()].sort((a, b) =>
+      a.label.toLowerCase().localeCompare(b.label.toLowerCase()),
+    );
+  }, [vendorsQuery.data, rawTransactions]);
+
   const counterpartyOptions: SelectOption[] = useMemo(() => {
     const api = counterpartiesQuery.data ?? [];
-    const fromTxns = rawTransactions
-      .map((t) => t.counterparty?.trim())
-      .filter((name): name is string => Boolean(name));
+    const fromTxns = rawTransactions.flatMap((t) => {
+      const names: string[] = [];
+      if (t.counterparty?.trim()) names.push(t.counterparty.trim());
+      if (t.vendor?.trim()) names.push(t.vendor.trim());
+      const partyName =
+        typeof t.party === "object" && t.party?.name?.trim()
+          ? t.party.name.trim()
+          : "";
+      if (partyName) names.push(partyName);
+      const forName =
+        typeof t.for_party === "object" && t.for_party?.name?.trim()
+          ? t.for_party.name.trim()
+          : "";
+      if (forName) names.push(forName);
+      return names;
+    });
     const editing = editingCounterparty?.trim();
     return [...new Set([...api, ...fromTxns, ...(editing ? [editing] : [])])]
       .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
       .map((name) => ({ value: name, label: name }));
   }, [counterpartiesQuery.data, rawTransactions, editingCounterparty]);
-
-  const vendorOptions: SelectOption[] = useMemo(() => {
-    const parties = vendorsQuery.data ?? [];
-    return parties
-      .map((p) => ({ value: p._id, label: p.name }))
-      .sort((a, b) =>
-        a.label.toLowerCase().localeCompare(b.label.toLowerCase()),
-      );
-  }, [vendorsQuery.data]);
 
   return {
     accountOptions,

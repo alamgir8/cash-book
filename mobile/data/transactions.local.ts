@@ -680,16 +680,29 @@ export async function createLocalTransfer(payload: {
   amount: number;
   date?: string;
   description?: string;
+  comment?: string;
+  counterparty?: string;
   organizationId?: string | null;
 }) {
   const db = await getDb();
   const device_id = await getOrCreateDeviceId();
+  // Date-only strings sort behind ISO timestamps in SQLite — normalize so
+  // new transfer legs appear on page 1 with today's other rows.
+  const rawDate = payload.date?.trim();
+  const dateIso = !rawDate
+    ? new Date().toISOString()
+    : rawDate.includes("T")
+      ? rawDate
+      : `${rawDate}T23:59:59.000Z`;
+
   const transfer = await transfersRepo.createTransfer(db, {
     from_account_id: payload.fromAccountId,
     to_account_id: payload.toAccountId,
     amount: payload.amount,
-    date: payload.date ?? new Date().toISOString(),
+    date: dateIso,
     description: payload.description ?? null,
+    keyword: payload.comment ?? null,
+    counterparty: payload.counterparty ?? null,
     organization_id: payload.organizationId ?? null,
     device_id,
   });

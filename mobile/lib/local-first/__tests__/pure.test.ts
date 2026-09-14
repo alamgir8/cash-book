@@ -335,7 +335,8 @@ test("migrate uses paginated APIs when backup export is too slow", () => {
   assert.match(src, /pauseSyncForMaintenance/);
   assert.match(src, /ensureInitialCloudMigration/);
   assert.match(src, /timeout: 60_000/);
-  assert.match(src, /limit = 500/);
+  assert.match(src, /serverless \? 100 : 500/);
+  assert.match(src, /LAST_SYNC_CURSOR/);
 });
 
 test("empty SQLite bootstrap prefers Drive then cloud, then local-first", () => {
