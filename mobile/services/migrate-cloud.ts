@@ -172,20 +172,29 @@ async function fetchCloudTransactionsPage(
   const out: any[] = [];
   let page = 1;
   let pages = 1;
-  // Large pages + long timeout: default axios 15s was killing migrate on Vercel.
-  const limit = 500;
+  // Vercel maxDuration (~60s) cannot serve 500 populated rows reliably.
+  // Smaller pages keep each request under the function budget.
+  const { baseURL: apiBase } = await import("@/lib/api");
+  const serverless = /vercel\.app|netlify\.app/i.test(String(apiBase || ""));
+  const limit = serverless ? 100 : 500;
   while (page <= pages) {
     const params: Record<string, string | number> = { page, limit };
     if (organizationId) params.organization = organizationId;
-    const { data } = await api.get<{
-      transactions: any[];
-      pagination?: { page: number; pages: number; total: number };
-    }>("/transactions", { params, timeout: 60_000 });
-    out.push(...(data.transactions ?? []));
-    pages = Math.max(1, Number(data.pagination?.pages ?? 1));
-    onPage?.(page, pages, out.length);
-    page += 1;
-    if (page > 200) break;
+    try {
+      const { data } = await api.get<{
+        transactions: any[];
+        pagination?: { page: number; pages: number; total: number };
+      }>("/transactions", { params, timeout: 60_000 });
+      out.push(...(data.transactions ?? []));
+      pages = Math.max(1, Number(data.pagination?.pages ?? 1));
+      onPage?.(page, pages, out.length);
+      page += 1;
+    } catch (e) {
+      console.warn(`[migrate] transactions page ${page} failed`, e);
+      // Keep rows already fetched — don't discard the whole book.
+      break;
+    }
+    if (page > 500) break;
   }
   return out;
 }
@@ -939,7 +948,18 @@ export async function migrateCloudToLocal(opts?: {
 
     // Mark migrated ASAP so Settings leaves the spinner; shop can sync later.
     await setMeta(db, META_KEYS.MIGRATION_COMPLETED_AT, completedAt);
-    await setMeta(db, META_KEYS.LAST_SYNC_CURSOR, completedAt);
+    // If we skipped /backup/export (Vercel), leave cursor at epoch so the next
+    // Sync can still pull anything the paginated dump missed. LAN full export
+    // is complete — stamp "now" so daily sync is deltas only.
+    const { baseURL: apiBaseAfter } = await import("@/lib/api");
+    const serverlessAfter = /vercel\.app|netlify\.app/i.test(
+      String(apiBaseAfter || ""),
+    );
+    await setMeta(
+      db,
+      META_KEYS.LAST_SYNC_CURSOR,
+      serverlessAfter ? "1970-01-01T00:00:00.000Z" : completedAt,
+    );
     await setMeta(db, META_KEYS.SYNC_SCOPE_VERSION, "2");
     await setMeta(db, META_KEYS.LAST_SYNC_ERROR, null);
     await setLocalFirstFlags({

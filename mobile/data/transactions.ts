@@ -111,6 +111,8 @@ export async function dalCreateTransfer(payload: {
   amount: number;
   date?: string;
   description?: string;
+  comment?: string;
+  counterparty?: string;
   organizationId?: string | null;
 }) {
   await ensureLocalFirstFlags();
