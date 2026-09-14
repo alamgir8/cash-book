@@ -118,188 +118,147 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
         return;
       }
 
-      // ── Colour palette (mirrors the in-app theme) ──────────────────────────
-      const C = {
-        borrow: {
-          bg: "#eff6ff",
-          border: "#bfdbfe",
-          text: "#1d4ed8",
-          dot: "#3b82f6",
-        },
-        repayment: {
-          bg: "#f0fdf4",
-          border: "#bbf7d0",
-          text: "#15803d",
-          dot: "#16a34a",
-        },
-        loan_given: {
-          bg: "#fffbeb",
-          border: "#fde68a",
-          text: "#b45309",
-          dot: "#f59e0b",
-        },
-        loan_received_back: {
-          bg: "#f0fdfa",
-          border: "#99f6e4",
-          text: "#0f766e",
-          dot: "#0d9488",
-        },
-        due: {
-          bg: "#fff7ed",
-          border: "#fed7aa",
-          text: "#c2410c",
-          dot: "#f97316",
-        },
-        payment: {
-          bg: "#f0fdf4",
-          border: "#bbf7d0",
-          text: "#15803d",
-          dot: "#16a34a",
-        },
-        final: {
-          bg: "#f0fdf4",
-          border: "#86efac",
-          text: "#15803d",
-          dot: "#16a34a",
-        },
-      } as Record<
-        string,
-        { bg: string; border: string; text: string; dot: string }
-      >;
-
-      const labelMap: Record<string, string> = {
-        borrow: "Borrowed",
-        repayment: "Repaid",
-        loan_given: "Loan Given",
-        loan_received_back: "Returned",
-      };
-
-      const fmt = (n: number) => "৳" + Number(n).toLocaleString("en");
+      const { buildHistoryPdfHtml, formatHistoryAmount } = await import(
+        "@/lib/history-pdf"
+      );
+      type Tone = "credit" | "debit" | "sky" | "amber";
 
       let title = "";
       let subtitle = "";
-      let statsHtml = "";
-      let statusHtml = "";
-      let rowsHtml = "";
-      let finalBalanceHtml = "";
+      let metaRight = "";
+      let kpis: {
+        label: string;
+        value: string;
+        tone?: Tone | "ink";
+      }[] = [];
+      let banner: {
+        label: string;
+        value: string;
+        tone: Tone;
+      } | null = null;
+      let progressPct: number | null = null;
+      let rows: {
+        date: string;
+        typeLabel: string;
+        typeTone: Tone;
+        note?: string | null;
+        amount: string;
+        amountTone: Tone | "ink";
+        balance: string;
+        balanceTone: Tone | "ink";
+      }[] = [];
+      let closing: {
+        label: string;
+        value: string;
+        tone: Tone | "ink";
+      } | null = null;
 
       // ── COUNTERPARTY LEDGER MODE ─────────────────────────────────────────
       if (useCounterpartyMode && ledger) {
         const s = ledger.summary;
         title = `${partyDisplayName} — Full Ledger`;
         subtitle = `${s.transaction_count} transactions (Me ↔ ${partyDisplayName})`;
+        metaRight = `${s.transaction_count} transactions`;
 
-        // Stats bar
-        const stats = [
-          s.total_borrowed > 0
-            ? {
-                label: "Total Borrowed",
-                value: fmt(s.total_borrowed),
-                color: "#3b82f6",
-              }
-            : null,
-          s.total_repaid > 0
-            ? {
-                label: "I Repaid",
-                value: fmt(s.total_repaid),
-                color: "#16a34a",
-              }
-            : null,
-          s.total_given > 0
-            ? {
-                label: "Total Given",
-                value: fmt(s.total_given),
-                color: "#f59e0b",
-              }
-            : null,
-          s.total_received_back > 0
-            ? {
-                label: "Returned to Me",
-                value: fmt(s.total_received_back),
-                color: "#0d9488",
-              }
-            : null,
-        ].filter(Boolean) as { label: string; value: string; color: string }[];
+        if (s.total_borrowed > 0) {
+          kpis.push({
+            label: "Total Borrowed",
+            value: formatHistoryAmount(s.total_borrowed),
+            tone: "sky",
+          });
+        }
+        if (s.total_repaid > 0) {
+          kpis.push({
+            label: "I Repaid",
+            value: formatHistoryAmount(s.total_repaid),
+            tone: "credit",
+          });
+        }
+        if (s.total_given > 0) {
+          kpis.push({
+            label: "Total Given",
+            value: formatHistoryAmount(s.total_given),
+            tone: "amber",
+          });
+        }
+        if (s.total_received_back > 0) {
+          kpis.push({
+            label: "Returned to Me",
+            value: formatHistoryAmount(s.total_received_back),
+            tone: "credit",
+          });
+        }
+        if (kpis.length === 0) {
+          kpis = [
+            {
+              label: "Transactions",
+              value: String(s.transaction_count),
+              tone: "ink",
+            },
+          ];
+        }
 
-        statsHtml = `<div class="stats-bar">${stats
-          .map(
-            (st) => `
-          <div class="stat-box" style="border-top: 3px solid ${st.color}">
-            <div class="stat-label">${st.label}</div>
-            <div class="stat-value" style="color:${st.color}">${st.value}</div>
-          </div>`,
-          )
-          .join("")}</div>`;
-
-        // Status chip
-        const isSettled = s.is_settled;
         const netAbs = Math.abs(s.net_owed_by_me);
-        const statusColor = isSettled
-          ? "#16a34a"
-          : s.net_owed_by_me > 0
-            ? "#e11d48"
-            : "#d97706";
-        const statusBg = isSettled
-          ? "#f0fdf4"
-          : s.net_owed_by_me > 0
-            ? "#fff1f2"
-            : "#fffbeb";
-        const statusLabel = isSettled
-          ? "✅ Fully Settled"
-          : s.net_owed_by_me > 0
-            ? "⏳ I Owe Them"
-            : "⏳ They Owe Me";
-        statusHtml = `
-          <div class="status-chip" style="background:${statusBg};border-color:${statusColor}40">
-            <span style="color:${statusColor};font-weight:700;font-size:13px">${statusLabel}</span>
-            <span style="color:${statusColor};font-weight:800;font-size:16px;margin-left:auto">${fmt(netAbs)}</span>
-          </div>`;
+        banner = {
+          label: s.is_settled
+            ? "Fully Settled"
+            : s.net_owed_by_me > 0
+              ? "I Owe Them"
+              : "They Owe Me",
+          value: formatHistoryAmount(netAbs),
+          tone: s.is_settled
+            ? "credit"
+            : s.net_owed_by_me > 0
+              ? "debit"
+              : "sky",
+        };
 
-        // Timeline rows (newest first from backend, reverse to oldest-first for PDF)
+        const labelMap: Record<string, string> = {
+          borrow: "Borrowed",
+          repayment: "Repaid",
+          loan_given: "Loan Given",
+          loan_received_back: "Returned",
+        };
+        const toneMap: Record<string, Tone> = {
+          borrow: "sky",
+          repayment: "credit",
+          loan_given: "amber",
+          loan_received_back: "credit",
+        };
+
         const chronological = [...ledger.timeline].reverse();
-        rowsHtml = chronological
-          .map((e) => {
-            const cfg = C[e.entry_type] ?? C.borrow;
-            const bal = e.running_balance;
-            const balLabel =
+        rows = chronological.map((e) => {
+          const bal = e.running_balance;
+          const typeTone = toneMap[e.entry_type] ?? "sky";
+          return {
+            date: dayjs(e.date).format("MMM D, YYYY"),
+            typeLabel: labelMap[e.entry_type] ?? e.entry_type,
+            typeTone,
+            note: e.description,
+            amount: formatHistoryAmount(e.amount),
+            amountTone: typeTone,
+            balance:
               bal === 0
                 ? "✓ Clear"
                 : bal > 0
-                  ? `${fmt(bal)} they owe`
-                  : `${fmt(Math.abs(bal))} I owe`;
-            const balColor =
-              bal === 0 ? "#16a34a" : bal > 0 ? "#d97706" : "#e11d48";
-            return `
-            <tr class="entry-row" style="background:${cfg.bg}">
-              <td class="td-date">${dayjs(e.date).format("DD MMM YYYY")}</td>
-              <td class="td-type">
-                <span class="type-chip" style="background:${cfg.dot}20;color:${cfg.text};border:1px solid ${cfg.border}">
-                  ${labelMap[e.entry_type] ?? e.entry_type}
-                </span>
-              </td>
-              <td class="td-note">${e.description ?? "<span style='color:#9ca3af'>—</span>"}</td>
-              <td class="td-amount" style="color:${cfg.text}">${fmt(e.amount)}</td>
-              <td class="td-balance" style="color:${balColor};font-weight:600">${balLabel}</td>
-            </tr>`;
-          })
-          .join("");
+                  ? `${formatHistoryAmount(bal)} they owe`
+                  : `${formatHistoryAmount(Math.abs(bal))} I owe`,
+            balanceTone:
+              bal === 0 ? "credit" : bal > 0 ? "sky" : "debit",
+          };
+        });
 
-        // Final balance row
-        const fb = ledger.summary;
-        const fbBal = fb.owed_by_them - fb.owed_by_me;
-        const fbColor =
-          fbBal === 0 ? "#16a34a" : fbBal > 0 ? "#d97706" : "#e11d48";
-        const fbLabel =
-          fbBal === 0
-            ? "✓ Fully Settled"
-            : fbBal > 0
-              ? `${fmt(fbBal)} — They owe you`
-              : `${fmt(Math.abs(fbBal))} — You owe them`;
-        finalBalanceHtml = `
-          <tr class="final-row">
-            <td colspan="4" style="font-weight:700;font-size:13px;color:#111">Closing Balance</td>
-            <td style="font-weight:800;font-size:14px;color:${fbColor};text-align:right">${fbLabel}</td>
-          </tr>`;
+        const fbBal = ledger.summary.owed_by_them - ledger.summary.owed_by_me;
+        closing = {
+          label: "Closing Balance",
+          value:
+            fbBal === 0
+              ? "✓ Fully Settled"
+              : fbBal > 0
+                ? `${formatHistoryAmount(fbBal)} — They owe you`
+                : `${formatHistoryAmount(Math.abs(fbBal))} — You owe them`,
+          tone: fbBal === 0 ? "credit" : fbBal > 0 ? "sky" : "debit",
+        };
 
         // ── SINGLE DUE CHAIN MODE ────────────────────────────────────────────
       } else if (chain) {
@@ -309,177 +268,94 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
           chain.root.counterparty ??
           chain.root.description ??
           "Due Transaction";
-        title = `Payment History`;
-        subtitle = rootName;
+        title = "Payment History";
+        subtitle = `For: ${rootName}`;
         const pct = Math.round(
-          Math.min(100, (s.total_paid / s.original_amount) * 100),
+          Math.min(100, (s.total_paid / Math.max(s.original_amount, 1)) * 100),
         );
-        const isSettled = s.is_settled;
-        const paidColor = "#0d9488";
-        const paidStrongColor = "#059669";
-        const paidLightBg = "#ecfdf5";
-        const paidBorder = "#99f6e4";
+        progressPct = pct;
+        metaRight = `${chain.payments.length + 1} timeline events`;
 
-        statsHtml = `<div class="stats-bar">
-          <div class="stat-box" style="border-top:3px solid #f97316">
-            <div class="stat-label">Original Due</div>
-            <div class="stat-value" style="color:#f97316">${fmt(s.original_amount)}</div>
-          </div>
-          <div class="stat-box" style="border-top:3px solid ${paidColor}">
-            <div class="stat-label">Total Paid</div>
-            <div class="stat-value" style="color:${paidStrongColor}">${fmt(s.total_paid)}</div>
-          </div>
-          <div class="stat-box" style="border-top:3px solid ${paidColor}">
-            <div class="stat-label">Remaining</div>
-            <div class="stat-value" style="color:${paidStrongColor}">${fmt(s.remaining)}</div>
-          </div>
-          <div class="stat-box" style="border-top:3px solid ${paidColor}">
-            <div class="stat-label">Progress</div>
-            <div class="stat-value" style="color:${paidStrongColor}">${pct}%</div>
-          </div>
-        </div>
-        <div class="progress-wrap">
-          <div class="progress-bar" style="width:${pct}%;background:linear-gradient(90deg, #0d9488, #10b981)"></div>
-        </div>`;
+        kpis = [
+          {
+            label: "Original Due",
+            value: formatHistoryAmount(s.original_amount),
+            tone: "amber",
+          },
+          {
+            label: "Total Paid",
+            value: formatHistoryAmount(s.total_paid),
+            tone: "credit",
+          },
+          {
+            label: "Remaining",
+            value: formatHistoryAmount(s.remaining),
+            tone: s.remaining > 0 ? "sky" : "credit",
+          },
+          {
+            label: "Progress",
+            value: `${pct}%`,
+            tone: "credit",
+          },
+        ];
 
-        statusHtml = `
-          <div class="status-chip" style="background:${paidLightBg};border-color:${paidBorder}">
-            <span style="color:${paidStrongColor};font-weight:700;font-size:13px">
-              ${isSettled ? "✅ Fully Settled" : "⏳ Not Yet Fully Paid"}
-            </span>
-            ${s.settled_at ? `<span style="color:${paidColor};font-size:11px;margin-left:8px">Settled on ${dayjs(s.settled_at).format("DD MMM YYYY")}</span>` : ""}
-          </div>`;
+        banner = {
+          label: s.is_settled ? "Fully Settled" : "Not Yet Fully Paid",
+          value: s.settled_at
+            ? `Settled on ${dayjs(s.settled_at).format("MMM D, YYYY")}`
+            : formatHistoryAmount(s.remaining),
+          tone: s.is_settled ? "credit" : "amber",
+        };
 
-        // Due row
-        const dueRow = `
-          <tr class="entry-row" style="background:${C.due.bg}">
-            <td class="td-date">${dayjs(chain.root.date).format("DD MMM YYYY")}</td>
-            <td class="td-type"><span class="type-chip" style="background:${C.due.dot}20;color:${C.due.text};border:1px solid ${C.due.border}">Original Due</span></td>
-            <td class="td-note">${chain.root.description ?? "<span style='color:#9ca3af'>—</span>"}</td>
-            <td class="td-amount" style="color:${C.due.text}">${fmt(chain.root.amount)}</td>
-            <td class="td-balance" style="color:${C.due.text};font-weight:600">${fmt(chain.root.amount)} left</td>
-          </tr>`;
-
-        const payRows = chain.payments
-          .map((p, i) => {
+        rows = [
+          {
+            date: dayjs(chain.root.date).format("MMM D, YYYY"),
+            typeLabel: "Original Due",
+            typeTone: "amber",
+            note: chain.root.description,
+            amount: formatHistoryAmount(chain.root.amount),
+            amountTone: "amber",
+            balance: `${formatHistoryAmount(chain.root.amount)} left`,
+            balanceTone: "amber",
+          },
+          ...chain.payments.map((p, i) => {
             const isFinal = p.remaining_after === 0;
-            const cfg = isFinal ? C.final : C.payment;
-            return `
-            <tr class="entry-row" style="background:${cfg.bg}">
-              <td class="td-date">${dayjs(p.date).format("DD MMM YYYY")}</td>
-              <td class="td-type"><span class="type-chip" style="background:${cfg.dot}20;color:${cfg.text};border:1px solid ${cfg.border}">${isFinal ? `Final Payment (#${i + 1})` : `Partial #${i + 1}`}</span></td>
-              <td class="td-note">${p.description ?? "<span style='color:#9ca3af'>—</span>"}</td>
-              <td class="td-amount" style="color:${cfg.text}">${fmt(p.amount)}</td>
-              <td class="td-balance" style="color:${paidStrongColor};font-weight:600">${isFinal ? "✓ Fully paid" : `${fmt(p.remaining_after)} left`}</td>
-            </tr>`;
-          })
-          .join("");
+            return {
+              date: dayjs(p.date).format("MMM D, YYYY"),
+              typeLabel: isFinal
+                ? `Final Payment (#${i + 1})`
+                : `Partial #${i + 1}`,
+              typeTone: "credit" as const,
+              note: p.description,
+              amount: formatHistoryAmount(p.amount),
+              amountTone: "credit" as const,
+              balance: isFinal
+                ? "✓ Fully paid"
+                : `${formatHistoryAmount(p.remaining_after)} left`,
+              balanceTone: "credit" as const,
+            };
+          }),
+        ];
 
-        rowsHtml = dueRow + payRows;
-
-        finalBalanceHtml = `
-          <tr class="final-row">
-            <td colspan="4" style="font-weight:700;font-size:13px;color:#111">Closing Balance</td>
-            <td style="font-weight:800;font-size:14px;color:${paidStrongColor};text-align:right">
-              ${isSettled ? "✓ Fully Settled" : `${fmt(s.remaining)} remaining`}
-            </td>
-          </tr>`;
+        closing = {
+          label: "Closing Balance",
+          value: s.is_settled
+            ? "✓ Fully Settled"
+            : `${formatHistoryAmount(s.remaining)} remaining`,
+          tone: s.is_settled ? "credit" : "sky",
+        };
       }
 
-      const html = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif; background: #f8fafc; color: #111; padding: 28px; }
-
-    /* ── Header ── */
-    .header { margin-bottom: 20px; padding-bottom: 16px; border-bottom: 2px solid #cbd5e1; }
-    .header h1 { font-size: 22px; font-weight: 800; color: #0f172a; }
-    .header .subtitle { font-size: 13px; color: #374151; margin-top: 3px; font-weight: 500; }
-    .header .exported { font-size: 12px; color: #374151; margin-top: 6px; font-weight: 500; }
-
-    /* ── Stats bar ── */
-    .stats-bar { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
-    .stat-box { flex: 1; min-width: 100px; background: #fff; border-radius: 10px; padding: 10px 14px; border: 1px solid #cbd5e1; }
-    .stat-label { font-size: 10px; color: #374151; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; font-weight: 600; }
-    .stat-value { font-size: 15px; font-weight: 800; }
-
-    /* ── Progress bar (chain mode only) ── */
-    .progress-wrap { height: 8px; background: #e2e8f0; border-radius: 99px; overflow: hidden; margin-bottom: 14px; }
-    .progress-bar  { height: 8px; border-radius: 99px; }
-
-    /* ── Status chip ── */
-    .status-chip { display: flex; align-items: center; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 10px; padding: 10px 16px; margin-bottom: 18px; }
-
-    /* ── Table ── */
-    .table-wrap { background: #fff; border-radius: 12px; border: 1px solid #cbd5e1; overflow: hidden; }
-    table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-    thead tr { background: #0f172a; }
-    thead th { color: #f1f5f9; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; padding: 11px 12px; text-align: left; }
-    .entry-row td { padding: 10px 12px; border-bottom: 1px solid #e2e8f0; vertical-align: middle; }
-    .entry-row:last-of-type td { border-bottom: 2px solid #94a3b8; }
-
-    /* ── Column widths ── */
-    .td-date    { width: 90px; font-size: 11.5px; color: #1e293b; white-space: nowrap; font-weight: 600; }
-    .td-type    { width: 120px; }
-    .td-note    { color: #1e293b; font-weight: 500; }
-    .td-amount  { width: 80px; font-weight: 700; text-align: right; white-space: nowrap; color: #111827; }
-    .td-balance { width: 130px; text-align: right; font-size: 11.5px; white-space: nowrap; font-weight: 600; }
-
-    /* ── Type chip ── */
-    .type-chip { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 10.5px; font-weight: 600; white-space: nowrap; }
-
-    /* ── Final / closing row ── */
-    .final-row { background: #0f172a; }
-    .final-row td { padding: 12px 12px; color: #f1f5f9; font-size: 13px; font-weight: 700; }
-
-    /* ── Footer ── */
-    .footer { margin-top: 32px; padding: 22px 0 10px; border-top: 2px solid #374151; text-align: center; }
-    .footer-generated { font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 10px; }
-    .footer-dev { font-size: 14px; color: #111827; font-weight: 500; }
-    .footer-dev a { color: #0ea5e9; text-decoration: none; font-weight: 700; }
-    .footer-dev .theme { color: #0d9488; font-weight: 700; }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <h1>${title}</h1>
-    <div class="subtitle">${subtitle}</div>
-    <div class="exported">Exported on ${dayjs().format("DD MMM YYYY, hh:mm A")}</div>
-  </div>
-
-  ${statsHtml}
-  ${statusHtml}
-
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th class="td-date">Date</th>
-          <th class="td-type">Type</th>
-          <th>Note / Description</th>
-          <th class="td-amount" style="text-align:right">Amount</th>
-          <th class="td-balance" style="text-align:right">Running Balance</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${rowsHtml}
-        ${finalBalanceHtml}
-      </tbody>
-    </table>
-  </div>
-
-  <div class="footer">
-    <div class="footer-generated">Generated by Cash Book — ${dayjs().format("MMMM DD, YYYY hh:mm A")}</div>
-    <div class="footer-dev">
-      Developed By • <a>🔗 Alamgir Hossain</a> &nbsp;|&nbsp; 🐱 GitHub &nbsp;|&nbsp; <span class="theme">🌿 ThemeForest</span>
-    </div>
-  </div>
-</body>
-</html>`;
+      const html = buildHistoryPdfHtml({
+        title,
+        subtitle,
+        metaRight,
+        kpis,
+        banner,
+        progressPct,
+        rows,
+        closing,
+      });
 
       const { uri } = await Print.printToFileAsync({ html, base64: false });
       const canShare = await Sharing.isAvailableAsync();
