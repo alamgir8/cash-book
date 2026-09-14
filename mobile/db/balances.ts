@@ -128,6 +128,42 @@ export async function recalculateAccountRunningBalances(
   return recalculateAccountCashBalance(db, account.id);
 }
 
+const pendingTrailRewrites = new Set<string>();
+
+/**
+ * Fast path for UI writes: update wallet cash now, rewrite Balance-after trail
+ * in the background so Saving never waits on thousands of row updates.
+ * Always re-opens the shared DB handle (never the exclusive-txn proxy).
+ */
+export function scheduleAccountTrailRewrite(
+  _db: Db,
+  accountId: string,
+): void {
+  const key = String(accountId || "").trim();
+  if (!key || pendingTrailRewrites.has(key)) return;
+  pendingTrailRewrites.add(key);
+  setTimeout(() => {
+    void (async () => {
+      try {
+        const { getDb } = await import("./client");
+        const db = await getDb();
+        await recalculateAccountRunningBalances(db, key);
+      } catch (e) {
+        console.warn("[balances] deferred trail rewrite failed", e);
+        try {
+          const { getDb } = await import("./client");
+          const db = await getDb();
+          await recalculateAccountCashBalance(db, key);
+        } catch {
+          /* ignore */
+        }
+      } finally {
+        pendingTrailRewrites.delete(key);
+      }
+    })();
+  }, 50);
+}
+
 export async function recalculateCashBalancesOnly(
   db: Db,
   scope?: ScopeFilter,

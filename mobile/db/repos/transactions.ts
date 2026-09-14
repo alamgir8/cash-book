@@ -8,7 +8,7 @@ import {
   nowIso,
 } from "@/lib/local-first/ids";
 import { partySignedDelta } from "@/lib/local-first/party-balance";
-import { recalculateAccountRunningBalances } from "../balances";
+import { recalculateAccountCashBalance, scheduleAccountTrailRewrite } from "../balances";
 
 export type TransactionInput = {
   account_id: string;
@@ -207,6 +207,17 @@ export async function createTransaction(
   const paymentStatus = input.payment_status ?? "paid";
   const applyBalance = input.applyBalance !== false && paymentStatus === "paid";
 
+  let organizationId = input.organization_id ?? null;
+  if (!organizationId && input.account_id) {
+    const acc = await db.getFirstAsync<{ organization_id: string | null }>(
+      `SELECT organization_id FROM accounts
+       WHERE (id = ? OR server_id = ?) AND deleted_at IS NULL LIMIT 1`,
+      input.account_id,
+      input.account_id,
+    );
+    if (acc?.organization_id) organizationId = acc.organization_id;
+  }
+
   let balanceAfter: number | null = null;
   let partyBalanceAfter: number | null = null;
 
@@ -243,7 +254,7 @@ export async function createTransaction(
     )`,
     id,
     input.server_id ?? null,
-    input.organization_id ?? null,
+    organizationId,
     input.account_id,
     input.category_id ?? null,
     input.party_id ?? null,
@@ -273,11 +284,11 @@ export async function createTransaction(
     input.device_id,
   );
 
-  // Chronological rewrite so Balance after matches the ledger trail (not a
-  // drifted accounts.current_balance snapshot). Skip only when restore/sync
-  // explicitly disables balance side-effects.
+  // Wallet cash must update immediately for the UI. Full Balance-after trail
+  // rewrite is deferred — waiting on 1k+ UPDATEs inside create made Saving hang.
   if (input.applyBalance !== false) {
-    await recalculateAccountRunningBalances(db, input.account_id);
+    await recalculateAccountCashBalance(db, input.account_id);
+    scheduleAccountTrailRewrite(db, input.account_id);
   }
 
   const row = await getTransactionById(db, id);
@@ -320,7 +331,8 @@ export async function softDeleteTransaction(
     );
   });
 
-  await recalculateAccountRunningBalances(db, existing.account_id);
+  await recalculateAccountCashBalance(db, existing.account_id);
+  scheduleAccountTrailRewrite(db, existing.account_id);
 }
 
 export type TransactionUpdatePatch = {
@@ -430,9 +442,11 @@ export async function updateTransaction(
   });
 
   const nextAccountId = patch.account_id ?? existing.account_id;
-  await recalculateAccountRunningBalances(db, nextAccountId);
+  await recalculateAccountCashBalance(db, nextAccountId);
+  scheduleAccountTrailRewrite(db, nextAccountId);
   if (nextAccountId !== existing.account_id) {
-    await recalculateAccountRunningBalances(db, existing.account_id);
+    await recalculateAccountCashBalance(db, existing.account_id);
+    scheduleAccountTrailRewrite(db, existing.account_id);
   }
 
   const row = await getTransactionById(db, id);

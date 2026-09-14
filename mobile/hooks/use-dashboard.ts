@@ -98,9 +98,10 @@ export function useDashboard() {
 
   const createMutation = useMutation({
     mutationFn: dalCreateTransaction,
-    onSuccess: async () => {
-      // Await so the modal closes only after the list has the new row.
-      await invalidateAll();
+    onSuccess: () => {
+      // Do not await refresh — that blocked the Saving spinner while SQLite
+      // / React Query refetches ran under a sync lock.
+      void invalidateAll();
       Toast.show({ type: "success", text1: "Transaction added" });
     },
     onError: () =>
@@ -113,10 +114,10 @@ export function useDashboard() {
 
   const updateMutation = useMutation({
     mutationFn: dalUpdateTransaction,
-    onSuccess: async () => {
+    onSuccess: () => {
       setModalVisible(false);
       setEditingTransaction(null);
-      await invalidateAll();
+      void invalidateAll();
       Toast.show({ type: "success", text1: "Transaction updated" });
     },
     onError: () =>
@@ -129,8 +130,8 @@ export function useDashboard() {
 
   const deleteMutation = useMutation({
     mutationFn: dalDeleteTransaction,
-    onSuccess: async () => {
-      await invalidateAll();
+    onSuccess: () => {
+      void invalidateAll();
       Toast.show({ type: "success", text1: "Transaction deleted" });
     },
     onError: () =>
@@ -143,8 +144,8 @@ export function useDashboard() {
 
   const createTransferMutation = useMutation({
     mutationFn: dalCreateTransfer,
-    onSuccess: async () => {
-      await invalidateAll();
+    onSuccess: () => {
+      void invalidateAll();
       Toast.show({ type: "success", text1: "Transfer completed" });
     },
     onError: () =>
@@ -270,6 +271,7 @@ export function useDashboard() {
       categoryId: values.categoryId || undefined,
       payment_status: values.payment_status || "paid",
       due_date: values.due_date?.trim() || undefined,
+      organizationId: activeOrganization?.id ?? null,
     };
 
     if (editingTransaction) {

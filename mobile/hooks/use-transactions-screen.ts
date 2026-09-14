@@ -105,12 +105,12 @@ export function useTransactionsScreen() {
 
   const updateMutation = useMutation({
     mutationFn: dalUpdateTransaction,
-    onSuccess: async () => {
+    onSuccess: () => {
       resetToPageOne();
       setModalVisible(false);
       setEditingTransaction(null);
       Toast.show({ type: "success", text1: "Transaction updated" });
-      await refreshTransactionData(queryClient);
+      void refreshTransactionData(queryClient);
     },
     onError: () =>
       Toast.show({
@@ -122,9 +122,9 @@ export function useTransactionsScreen() {
 
   const deleteMutation = useMutation({
     mutationFn: dalDeleteTransaction,
-    onSuccess: async () => {
+    onSuccess: () => {
       resetToPageOne();
-      await refreshTransactionData(queryClient);
+      void refreshTransactionData(queryClient);
       Toast.show({ type: "success", text1: "Transaction deleted" });
     },
     onError: () =>

@@ -251,9 +251,12 @@ export const filterTransactionsByActiveFilters = (
   }
 
   if (filters.counterparty) {
-    const target = filters.counterparty.trim().toLowerCase();
+    const target = loosePartyNameKey(filters.counterparty);
     result = result.filter(
-      (txn) => txn.counterparty?.trim().toLowerCase() === target,
+      (txn) =>
+        loosePartyNameKey(txn.counterparty ?? "") === target ||
+        loosePartyNameKey(txn.vendor ?? "") === target ||
+        loosePartyNameKey(getPartyRefName(txn.party) ?? "") === target,
     );
   }
 
@@ -279,7 +282,10 @@ export const filterTransactionsByActiveFilters = (
     );
   } else if (filters.party_id) {
     const target = String(filters.party_id);
-    result = result.filter((txn) => getPartyRefId(txn.party) === target);
+    result = result.filter((txn) => {
+      const id = getPartyRefId(txn.party);
+      return id === target || txn.party?._id === target;
+    });
   }
 
   if (filters.payment_status) {

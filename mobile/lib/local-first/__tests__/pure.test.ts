@@ -66,7 +66,9 @@ test("running balance after includes paid deltas and snapshots dues", async () =
     join(__dirname, "../../../db/repos/transactions.ts"),
     "utf8",
   );
-  assert.match(repo, /recalculateAccountRunningBalances/);
+  assert.match(repo, /recalculateAccountCashBalance/);
+  assert.match(repo, /scheduleAccountTrailRewrite/);
+  // Full trail rewrite must stay deferred — syncing it on create froze Saving.
 
   const balances = readFileSync(
     join(__dirname, "../../../db/balances.ts"),
