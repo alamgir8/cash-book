@@ -14,7 +14,7 @@ export const SYNC_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const PENDING_RETRY_MS = 30 * 60 * 1000;
 
 /** Debounce after local mutations before attempting push. */
-const MUTATION_DEBOUNCE_MS = 1500;
+const MUTATION_DEBOUNCE_MS = 8_000;
 
 /** Exponential backoff after failed sync (capped). */
 const BACKOFF_STEPS_MS = [
@@ -240,12 +240,29 @@ export function requestSyncSoon(reason: SyncReason = "mutation"): void {
  * returns the engine result so UI can show success or the real error.
  *
  * Does NOT touch daily slot bookkeeping — tomorrow's 08/14/20 attempts still run.
+ * Hard-capped so a stuck prior cycle cannot freeze the banner forever.
  */
 export function requestSyncNow(): Promise<SyncResult> {
   failStreak = 0;
   lastHardFailAt = 0;
   clearBackoffTimer();
-  return maybeSync("manual");
+  const MANUAL_MS = 95_000;
+  return Promise.race([
+    maybeSync("manual"),
+    new Promise<SyncResult>((resolve) =>
+      setTimeout(
+        () =>
+          resolve({
+            ok: false,
+            pushed: 0,
+            pulled: 0,
+            error:
+              "Sync timed out — tap Sync again. Local changes stay on this device.",
+          }),
+        MANUAL_MS,
+      ),
+    ),
+  ]);
 }
 
 /**

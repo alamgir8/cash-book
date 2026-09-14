@@ -522,28 +522,24 @@ export async function createLocalTransaction(payload: CreatePayload) {
   const device_id = await getOrCreateDeviceId();
   const client_request_id = createClientRequestId();
 
-  let created: LocalTransaction | null = null;
-  const { withDbTransaction } = await import("@/db/client");
-  await withDbTransaction(db, async (txn) => {
-    created = await transactionsRepo.createTransaction(txn, {
-      account_id: payload.accountId,
-      category_id: payload.categoryId ?? null,
-      party_id: payload.party ?? null,
-      for_party_id: payload.for_party ?? null,
-      type: payload.type,
-      amount: payload.amount,
-      date: payload.date ?? new Date().toISOString(),
-      description: payload.description ?? null,
-      keyword: payload.comment ?? null,
-      payment_status: payload.payment_status ?? "paid",
-      due_date: payload.due_date ?? null,
-      organization_id: payload.organizationId ?? null,
-      device_id,
-      client_request_id,
-    });
+  // No exclusive txn wrapper — createTransaction is a short write + cash update.
+  // Exclusive locks raced with sync and froze the Saving spinner on device.
+  const created = await transactionsRepo.createTransaction(db, {
+    account_id: payload.accountId,
+    category_id: payload.categoryId ?? null,
+    party_id: payload.party ?? null,
+    for_party_id: payload.for_party ?? null,
+    type: payload.type,
+    amount: payload.amount,
+    date: payload.date ?? new Date().toISOString(),
+    description: payload.description ?? null,
+    keyword: payload.comment ?? null,
+    payment_status: payload.payment_status ?? "paid",
+    due_date: payload.due_date ?? null,
+    organization_id: payload.organizationId ?? null,
+    device_id,
+    client_request_id,
   });
-
-  if (!created) throw new Error("Failed to create local transaction");
 
   if (isDualWriteEnabled()) {
     try {

@@ -259,8 +259,22 @@ export async function buildLocalTransactionFilterSql(
   }
 
   if (filters.counterparty?.trim()) {
-    clauses.push("counterparty = ? COLLATE NOCASE");
-    allParams.push(filters.counterparty.trim());
+    const name = filters.counterparty.trim();
+    // Match legacy counterparty string OR linked party / vendor text so chip
+    // filters return the full book, not only rows with counterparty filled.
+    clauses.push(
+      `(
+        counterparty = ? COLLATE NOCASE
+        OR vendor = ? COLLATE NOCASE
+        OR party_id IN (
+          SELECT id FROM parties WHERE name = ? COLLATE NOCASE
+          UNION
+          SELECT server_id FROM parties
+          WHERE server_id IS NOT NULL AND name = ? COLLATE NOCASE
+        )
+      )`,
+    );
+    allParams.push(name, name, name, name);
   }
 
   const q = (filters.search ?? filters.q)?.trim();

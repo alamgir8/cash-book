@@ -11,7 +11,6 @@ import {
   trackLfEvent,
 } from "@/lib/local-first/telemetry";
 import { getOrCreateDeviceId } from "@/services/device";
-import { recalculateBalances } from "@/db/balances";
 import * as accountsRepo from "@/db/repos/accounts";
 import * as categoriesRepo from "@/db/repos/categories";
 import * as partiesRepo from "@/db/repos/parties";
@@ -73,6 +72,15 @@ let syncPaused = false;
 
 const MAX_SYNC_WALL_MS = 90_000;
 
+/** Hard deadline — when exceeded, assertSyncDeadline throws so the cycle exits. */
+let syncDeadlineAt = 0;
+
+function assertSyncDeadline(): void {
+  if (syncDeadlineAt > 0 && Date.now() > syncDeadlineAt) {
+    throw new Error("SYNC_WALL_CLOCK_EXCEEDED");
+  }
+}
+
 export function isSyncPaused(): boolean {
   return syncPaused;
 }
@@ -86,6 +94,7 @@ function assertSyncNotPaused(): void {
   if (syncPaused) {
     throw new Error("SYNC_PAUSED_FOR_MAINTENANCE");
   }
+  assertSyncDeadline();
 }
 
 /** Wait for the current cycle (if any), then keep sync paused. */
@@ -592,10 +601,11 @@ export async function runSync(): Promise<SyncResult> {
   const db = await getDb();
   const runId = await createLocalId();
   let watchdog: ReturnType<typeof setTimeout> | null = null;
+  syncDeadlineAt = Date.now() + MAX_SYNC_WALL_MS;
 
   try {
     watchdog = setTimeout(() => {
-      console.warn("[sync] wall-clock budget exceeded — cycle may be stuck");
+      console.warn("[sync] wall-clock budget exceeded — aborting cycle");
     }, MAX_SYNC_WALL_MS);
     await setMeta(db, META_KEYS.SYNC_RUN_ID, runId);
     await setMeta(db, META_KEYS.SYNC_STAGE, "handshake");
@@ -716,11 +726,12 @@ export async function runSync(): Promise<SyncResult> {
     });
 
     const totalChanges = pull.changes?.length ?? 0;
-    const { withDbTransaction } = await import("@/db/client");
+    // Regular (non-exclusive) transactions — exclusive batches blocked local
+    // creates/edits and caused infinite "Saving…" on the device.
     for (let i = 0; i < totalChanges; i += 50) {
       assertSyncNotPaused();
       const chunk = pull.changes!.slice(i, i + 50);
-      await withDbTransaction(db, async () => {
+      await db.withTransactionAsync(async () => {
         for (const change of chunk) {
           await applyIncoming(change);
         }
@@ -765,11 +776,14 @@ export async function runSync(): Promise<SyncResult> {
       }
       try {
         await Promise.race([
-          recalculateBalances(db, { allOrganizations: true }),
+          (async () => {
+            const { recalculateCashBalancesOnly } = await import("@/db/balances");
+            await recalculateCashBalancesOnly(db, { allOrganizations: true });
+          })(),
           new Promise<never>((_, reject) =>
             setTimeout(
               () => reject(new Error("balance recalc timed out")),
-              30_000,
+              20_000,
             ),
           ),
         ]);
@@ -842,6 +856,19 @@ export async function runSync(): Promise<SyncResult> {
         error: "Sync paused while migrating — try again in a moment",
       };
     }
+    if (
+      e?.message === "SYNC_WALL_CLOCK_EXCEEDED" ||
+      /SYNC_WALL_CLOCK_EXCEEDED/.test(String(e?.message || ""))
+    ) {
+      const message =
+        "Sync timed out — tap Sync again. Local changes stay on this device.";
+      try {
+        await setMeta(db, META_KEYS.LAST_SYNC_ERROR, message);
+      } catch {
+        /* ignore */
+      }
+      return { ok: false, pushed: 0, pulled: 0, error: message };
+    }
     const status = e?.response?.status;
     const raw = e?.response?.data?.message || e?.message || "Sync failed";
     const notDeployed =
@@ -868,6 +895,7 @@ export async function runSync(): Promise<SyncResult> {
     }
     return { ok: false, pushed: 0, pulled: 0, error: message };
   } finally {
+    syncDeadlineAt = 0;
     if (watchdog) clearTimeout(watchdog);
   }
   })();
