@@ -331,3 +331,92 @@ test("SETTLED_DUE_SQL is parenthesised so it composes safely", () => {
   assert.match(SETTLED_DUE_SQL.trim(), /\)$/);
   assert.match(PAID_SQL, /OR \(/);
 });
+
+// ── Fix 5: one Balance-after rule across cloud and device ─────────────────────
+
+test("the descending walk treats dues as snapshots, like the local trail", () => {
+  // Mirrors backend/utils/balance.js `recomputeDescendingBalances`: newest ->
+  // oldest, seeded from the account's current balance, unwinding each row.
+  const recompute = (
+    txns: Array<{ type: string; amount: number; status?: string }>,
+    current: number,
+    skipDues: boolean,
+  ) => {
+    let running = current;
+    const out: number[] = [];
+    for (const t of txns) {
+      out.push(running);
+      if (skipDues && t.status === "due") continue;
+      running += t.type === "credit" ? -t.amount : t.amount;
+    }
+    return out;
+  };
+
+  // Newest first: a paid expense, a DUE obligation, an older paid income.
+  const txns = [
+    { type: "debit", amount: 100, status: "paid" },
+    { type: "debit", amount: 300, status: "due" },
+    { type: "credit", amount: 50, status: "paid" },
+  ];
+
+  const before = recompute(txns, 250, false);
+  const withFix = recompute(txns, 250, true);
+
+  // The old walk unwound the due, shifting the OLDER income to 650 — a balance
+  // that never existed, since the due moved no cash.
+  assert.deepEqual(before, [250, 350, 650]);
+  // With the fix the due leaves the balance flat, so the older row keeps 350.
+  assert.deepEqual(withFix, [250, 350, 350]);
+
+  // The newest row's balance must be the account's current balance under the
+  // fixed rule, which is what keeps the card consistent with the header.
+  assert.equal(withFix[0], 250);
+  // Only the due row's own effect differs.
+  assert.notDeepEqual(before, withFix);
+});
+
+test("a synced payload cannot overwrite the local Balance-after trail", () => {
+  const repo = readFileSync(
+    join(__dirname, "../../../db/repos/transactions.ts"),
+    "utf8",
+  );
+  // The upsert must prefer the existing local value over the server's.
+  assert.match(
+    repo,
+    /balance_after_transaction = COALESCE\(\s*transactions\.balance_after_transaction,\s*excluded\.balance_after_transaction\s*\)/,
+  );
+
+  const engine = readFileSync(join(__dirname, "../../../sync/engine.ts"), "utf8");
+  // The pull must collect the accounts it touched...
+  assert.match(engine, /const touchedAccounts = new Set<string>\(\)/);
+  assert.match(engine, /if \(change\.entity === "transaction"\)/);
+  assert.match(engine, /touchedAccounts\.add\(String\(p\.from_account_id\)\)/);
+  // ...and re-derive their trails locally, or a synced due keeps the server value.
+  assert.match(engine, /recalculateAccountRunningBalances\(db, accountId\)/);
+  assert.match(engine, /trail recompute timed out/);
+  // Bounded, so Sync Now cannot spin on a large book.
+  assert.match(engine, /25_000/);
+});
+
+test("the server no longer unwinds due rows in its descending walk", () => {
+  const backend = readFileSync(
+    join(__dirname, "../../../../backend/utils/balance.js"),
+    "utf8",
+  );
+  // Guard against a regression that would re-open the cloud/local divergence.
+  assert.match(
+    backend,
+    /if \(txn\.payment_status === "due"\) \{\s*running\.set\(accountId, currentBalance\);\s*return;\s*\}/,
+  );
+  assert.match(backend, /Dues never moved cash/);
+});
+
+test("the local trail documents that it is authoritative", () => {
+  const src = readFileSync(
+    join(__dirname, "../running-balance.ts"),
+    "utf8",
+  );
+  assert.match(src, /THIS IS THE AUTHORITATIVE RULE/);
+  assert.match(src, /Ascending here, seeded from `opening_balance`/);
+  assert.match(src, /Descending on the server, seeded from `current_balance`/);
+});

@@ -744,7 +744,16 @@ export async function upsertTransactionFromSync(
       due_remaining = excluded.due_remaining,
       due_settled_at = excluded.due_settled_at,
       meta_data_json = excluded.meta_data_json,
-      balance_after_transaction = excluded.balance_after_transaction,
+      -- The local ascending trail is authoritative for display. The server's
+      -- value comes from a descending walk that used to unwind due rows, so
+      -- taking it verbatim made the same row show a different "Balance after"
+      -- after a sync than before one. Keep whatever the local trail already
+      -- computed; only seed from the server when this row has no local value
+      -- yet (fresh insert), and the post-pull recompute then corrects it.
+      balance_after_transaction = COALESCE(
+        transactions.balance_after_transaction,
+        excluded.balance_after_transaction
+      ),
       party_balance_after = excluded.party_balance_after,
       transfer_id = excluded.transfer_id,
       transfer_direction = excluded.transfer_direction,

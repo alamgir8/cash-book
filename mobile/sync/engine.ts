@@ -769,6 +769,10 @@ export async function runSync(): Promise<SyncResult> {
     });
 
     const totalChanges = pull.changes?.length ?? 0;
+    // Accounts whose rows arrive in this pull. Their Balance-after trails are
+    // re-derived locally afterwards, so the on-device trail stays canonical
+    // regardless of which rule the server used to populate the payload.
+    const touchedAccounts = new Set<string>();
     // Regular (non-exclusive) transactions — exclusive batches blocked local
     // creates/edits and caused infinite "Saving…" on the device.
     for (let i = 0; i < totalChanges; i += 50) {
@@ -779,6 +783,20 @@ export async function runSync(): Promise<SyncResult> {
           await applyIncoming(change);
         }
       });
+      for (const change of chunk) {
+        if (change.entity === "transaction") {
+          const accountId = (change.payload as { account_id?: string })
+            ?.account_id;
+          if (accountId) touchedAccounts.add(String(accountId));
+        } else if (change.entity === "transfer") {
+          const p = change.payload as {
+            from_account_id?: string;
+            to_account_id?: string;
+          };
+          if (p?.from_account_id) touchedAccounts.add(String(p.from_account_id));
+          if (p?.to_account_id) touchedAccounts.add(String(p.to_account_id));
+        }
+      }
     }
 
     await setMeta(db, META_KEYS.SYNC_STAGE, "ack");
@@ -817,6 +835,45 @@ export async function runSync(): Promise<SyncResult> {
       } catch (e) {
         if (__DEV__) console.warn("[sync] opening reconcile skipped", e);
       }
+      // Re-derive the Balance-after trail for every account this pull touched.
+      // Dues never move cash, so `recalculateCashBalancesOnly` below leaves them
+      // alone — meaning a due row synced from another device kept whatever
+      // value the server sent, and the card changed after a sync. Rewriting the
+      // trail locally makes the on-device rule authoritative.
+      //
+      // The budget RESOLVES rather than rejects: rejecting would leave a dangling
+      // rejection whenever the work finishes early, which is the normal case.
+      if (touchedAccounts.size > 0) {
+        let trailTimer: ReturnType<typeof setTimeout> | null = null;
+        try {
+          await Promise.race([
+            (async () => {
+              const { recalculateAccountRunningBalances } = await import(
+                "@/db/balances"
+              );
+              for (const accountId of touchedAccounts) {
+                assertSyncNotPaused();
+                await recalculateAccountRunningBalances(db, accountId);
+              }
+            })(),
+            new Promise<void>((resolve) => {
+              trailTimer = setTimeout(() => {
+                if (__DEV__) {
+                  console.warn(
+                    "[sync] trail recompute timed out — local trail may be stale until the next sync",
+                  );
+                }
+                resolve();
+              }, 25_000);
+            }),
+          ]);
+        } catch (e) {
+          if (__DEV__) console.warn("[sync] trail recompute skipped", e);
+        } finally {
+          if (trailTimer) clearTimeout(trailTimer);
+        }
+      }
+
       try {
         await Promise.race([
           (async () => {
