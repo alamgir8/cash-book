@@ -431,7 +431,14 @@ test("partyBalanceSumSql uses the party convention", () => {
 
 test("local repair re-runs party convention fix on existing devices", () => {
   const src = readFileSync(join(__dirname, "../repair-ledger.ts"), "utf8");
-  assert.match(src, /LEDGER_REPAIR_VERSION = "18"/);
+  // Bumped to 19 so existing devices also recompute legacy transfer dates and
+  // rewrite Balance-after trails with the calendar-day ordering.
+  assert.match(src, /LEDGER_REPAIR_VERSION = "19"/);
+  // The narrow transfer-date repair must stay narrow: matching the exact suffix
+  // the old code wrote, not every timestamp (cloud rows can carry a real UTC
+  // instant whose local day differs).
+  assert.match(src, /transfer_id IS NOT NULL/);
+  assert.match(src, /date LIKE '%T23:59:59\.000Z'/);
   // Must NOT flip open dues to paid just because due_date is empty (UI optional).
   assert.doesNotMatch(
     src,

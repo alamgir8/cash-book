@@ -6,7 +6,7 @@ import {
 import { getMeta, META_KEYS, setMeta } from "@/db/meta";
 
 /** Bump when repair SQL/rules change so existing devices re-apply. */
-export const LEDGER_REPAIR_VERSION = "18";
+export const LEDGER_REPAIR_VERSION = "19";
 
 /** Soft deadline for optional cloud overlay — never block Home paint. */
 const CLOUD_RECONCILE_MS = 12_000;
@@ -202,6 +202,42 @@ async function finishRepairEnrichment(db: Db): Promise<void> {
 }
 
 /**
+ * Undo the end-of-day transfer dates written by the old `createLocalTransfer`.
+ *
+ * That code turned a picked day (`2026-09-20`) into `2026-09-20T23:59:59.000Z`.
+ * The ordering fix in `lib/local-first/ledger-order.ts` already ignores the time
+ * part, but the value is still wrong in two user-visible ways:
+ *
+ *  - `components/transaction-card.tsx` formats with `dayjs(date).format(...)` in
+ *    local time, so in a positive UTC offset (e.g. +06:00) the transfer renders
+ *    as the NEXT day.
+ *  - Anything reading the raw column keeps seeing a timestamp where a calendar
+ *    day is meant.
+ *
+ * Deliberately narrow: only rows that (a) belong to a transfer and (b) carry the
+ * exact `T23:59:59.000Z` suffix this code wrote. Blanket-truncating every
+ * timestamp would be wrong — rows synced from the cloud can carry a real UTC
+ * instant whose local day is the previous day, and truncating those would shift
+ * their displayed date.
+ */
+async function normalizeLegacyTransferDates(db: Db): Promise<number> {
+  const txns = await db.runAsync(
+    `UPDATE transactions
+     SET date = substr(date, 1, 10)
+     WHERE deleted_at IS NULL
+       AND transfer_id IS NOT NULL
+       AND transfer_id != ''
+       AND date LIKE '%T23:59:59.000Z'`,
+  );
+  const transfers = await db.runAsync(
+    `UPDATE transfers
+     SET date = substr(date, 1, 10)
+     WHERE date LIKE '%T23:59:59.000Z'`,
+  );
+  return Number(txns.changes ?? 0) + Number(transfers.changes ?? 0);
+}
+
+/**
  * Fix common migrate/restore damage (local SQL only + cash balances).
  * Cloud overlay and Balance-after trails finish in the background.
  */
@@ -214,9 +250,11 @@ export async function repairLocalLedgerSemantics(
   revertedToPaid: number;
   fksNormalized: number;
   orgsStamped: number;
+  transferDatesFixed: number;
 }> {
   const fksNormalized = await normalizeForeignKeys(db);
   const orgsStamped = await stampOrganizationFromAccount(db);
+  const transferDatesFixed = await normalizeLegacyTransferDates(db);
 
   // ─── Payment status cleanup ───
   // Canonical due model (matches cloud):
@@ -365,6 +403,7 @@ export async function repairLocalLedgerSemantics(
     revertedToPaid,
     fksNormalized,
     orgsStamped,
+    transferDatesFixed,
   };
 }
 
