@@ -386,7 +386,7 @@ export async function fetchLocalPartyLedger(
     `SELECT id, date, type, description, keyword, amount, payment_status,
             balance_after_transaction, account_id, category_id
      FROM transactions WHERE ${where}
-     ORDER BY date DESC, created_at DESC
+     ORDER BY substr(date, 1, 10) DESC, created_at DESC, id DESC
      LIMIT ? OFFSET ?`,
     ...bind,
     limit,
@@ -416,7 +416,7 @@ export async function fetchLocalPartyLedger(
         `SELECT COALESCE(SUM(${partyBalanceSumSql(row.type, "amount", "type")}), 0) as net
          FROM (
            SELECT type, amount FROM transactions WHERE ${where}
-           ORDER BY date DESC, created_at DESC
+           ORDER BY substr(date, 1, 10) DESC, created_at DESC, id DESC
            LIMIT ?
          )`,
         ...bind,
@@ -736,7 +736,7 @@ export async function fetchLocalVendorLedger(params: {
   }>(
     `SELECT id, date, type, amount, description, payment_status, account_id, category_id
      FROM transactions WHERE ${where}
-     ORDER BY date ASC, created_at ASC, id ASC
+     ORDER BY substr(date, 1, 10) ASC, created_at ASC, id ASC
      LIMIT ?`,
     ...bind,
     limit,

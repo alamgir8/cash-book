@@ -19,6 +19,8 @@ import {
   type TransactionFilters,
 } from "@/services/transactions";
 import { isDualWriteEnabled } from "@/lib/local-first/flags";
+import { toLedgerDay } from "@/lib/local-first/ledger-order";
+import { localDayKey } from "@/lib/local-first/day-key";
 import { getOrCreateDeviceId } from "@/services/device";
 import { createClientRequestId } from "@/lib/local-first/ids";
 
@@ -387,7 +389,7 @@ export async function fetchLocalTransactions(
   if (filters.loan_filter === "loan_given" || filters.loan_filter === "loan_received") {
     const wide = await db.getAllAsync<LocalTransaction>(
       `SELECT * FROM transactions WHERE ${where}
-       ORDER BY date DESC, created_at DESC LIMIT 2000`,
+       ORDER BY substr(date, 1, 10) DESC, created_at DESC, id DESC LIMIT 2000`,
       ...params,
     );
     let wideTx = wide.map((row) => enrichFromMaps(row, maps));
@@ -430,7 +432,7 @@ export async function fetchLocalTransactions(
 
   const rows = await db.getAllAsync<LocalTransaction>(
     `SELECT * FROM transactions WHERE ${where}
-     ORDER BY date DESC, created_at DESC
+     ORDER BY substr(date, 1, 10) DESC, created_at DESC, id DESC
      LIMIT ? OFFSET ?`,
     ...params,
     limit,
@@ -695,20 +697,22 @@ export async function createLocalTransfer(payload: {
 }) {
   const db = await getDb();
   const device_id = await getOrCreateDeviceId();
-  // Date-only strings sort behind ISO timestamps in SQLite — normalize so
-  // new transfer legs appear on page 1 with today's other rows.
-  const rawDate = payload.date?.trim();
-  const dateIso = !rawDate
-    ? new Date().toISOString()
-    : rawDate.includes("T")
-      ? rawDate
-      : `${rawDate}T23:59:59.000Z`;
+  // `date` is a local calendar day (both date pickers are mode="date").
+  //
+  // This used to append `T23:59:59.000Z` to keep transfer legs off the bottom of
+  // a DESC page. Because ordering is a string comparison, that also made the legs
+  // sort *after* everything else on the same day — so in the chronological
+  // running-balance trail a transfer was treated as the last event of the day and
+  // its "Balance after" could read negative even though it happened first. The
+  // shared ordering in `lib/local-first/ledger-order.ts` now handles day grouping
+  // correctly, so store the day as given.
+  const date = toLedgerDay(payload.date, localDayKey);
 
   const transfer = await transfersRepo.createTransfer(db, {
     from_account_id: payload.fromAccountId,
     to_account_id: payload.toAccountId,
     amount: payload.amount,
-    date: dateIso,
+    date,
     description: payload.description ?? null,
     keyword: payload.comment ?? null,
     counterparty: payload.counterparty ?? null,
@@ -784,7 +788,7 @@ export async function fetchLocalDueChain(transactionId: string): Promise<{
          OR parent_due_id IN (${ph})
          OR due_group_id IN (${ph})
        )
-     ORDER BY date ASC, created_at ASC`,
+     ORDER BY substr(date, 1, 10) ASC, created_at ASC, id ASC`,
     ...uniqueIds,
     ...uniqueIds,
     ...uniqueIds,

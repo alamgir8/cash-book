@@ -107,11 +107,15 @@ async function runBackgroundSync(): Promise<BackgroundTask.BackgroundTaskResult>
     // The flag cache is empty in a headless context, and the sync guards read it.
     await ensureLocalFirstFlags();
 
+    if (__DEV__) console.log("[bg-sync] headless run started");
+
     if (!isCloudSyncEnabled() && !isDriveBackupEnabled()) {
+      if (__DEV__) console.log("[bg-sync] nothing to do (flags off)");
       return BackgroundTask.BackgroundTaskResult.Success;
     }
 
     const restored = await restoreHeadlessSession();
+    if (__DEV__) console.log("[bg-sync] session restored:", restored);
     if (!restored && isCloudSyncEnabled()) {
       // Cloud sync needs auth; Drive backup can still run off its own token.
       // Nothing to do without a session unless Drive is configured.
@@ -130,6 +134,7 @@ async function runBackgroundSync(): Promise<BackgroundTask.BackgroundTaskResult>
       ),
     ]);
 
+    if (__DEV__) console.log("[bg-sync] headless run finished");
     // Success even on timeout / partial drain: the work resumes next wake, and
     // reporting Failed makes the OS deprioritise future runs.
     return BackgroundTask.BackgroundTaskResult.Success;

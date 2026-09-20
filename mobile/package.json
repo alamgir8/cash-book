@@ -12,7 +12,7 @@
     "ios": "expo run:ios",
     "ios:sync-flavors": "node scripts/sync-ios-prebuild-flavors.mjs",
     "postinstall": "patch-package",
-    "test:local-first": "node --experimental-strip-types --test lib/local-first/__tests__/pure.test.ts"
+    "test:local-first": "node --experimental-strip-types --test lib/local-first/__tests__/*.test.ts"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.1.1",
@@ -84,6 +84,7 @@
   },
   "devDependencies": {
     "@babel/core": "^7.29.0",
+    "@types/node": "^24.13.6",
     "@types/react": "~19.2.17",
     "eslint": "^10.8.0",
     "eslint-config-expo": "~57.0.2",

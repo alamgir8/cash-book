@@ -1934,7 +1934,10 @@ test("root layout registers the OS background task", () => {
   );
   // The import is what defines the task at global scope, so it must be a static
   // import in the root layout — a lazy import would run too late.
-  assert.match(layout, /import \{ syncBackgroundTaskRegistration \} from "\.\.\/lib\/local-first\/background-sync"/);
+  assert.match(
+    layout,
+    /import \{[^}]*syncBackgroundTaskRegistration[^}]*\} from "\.\.\/lib\/local-first\/background-sync"/,
+  );
   assert.match(layout, /syncBackgroundTaskRegistration\(\{ authenticated \}\)/);
   assert.match(layout, /subscribeLocalFirstFlags/);
 });

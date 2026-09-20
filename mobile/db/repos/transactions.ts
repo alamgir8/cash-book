@@ -150,7 +150,7 @@ export async function listTransactions(
   allParams.push(limit, offset);
   return db.getAllAsync<LocalTransaction>(
     `SELECT * FROM transactions WHERE ${clauses.join(" AND ")}
-     ORDER BY date DESC, created_at DESC
+     ORDER BY substr(date, 1, 10) DESC, created_at DESC, id DESC
      LIMIT ? OFFSET ?`,
     ...allParams,
   );

@@ -101,7 +101,7 @@ export async function recalculateAccountRunningBalances(
      FROM transactions
      WHERE deleted_at IS NULL
        AND (account_id = ? OR account_id = ?)
-     ORDER BY date ASC, created_at ASC, id ASC`,
+     ORDER BY substr(date, 1, 10) ASC, created_at ASC, id ASC`,
     account.id,
     serverId,
   );
