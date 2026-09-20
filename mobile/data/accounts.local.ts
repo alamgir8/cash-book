@@ -26,8 +26,7 @@ async function resolveLocalAccount(accountId: string) {
   return { db, row };
 }
 
-/** Paid txs only — matches Mongo cash balance + recalculateBalances. */
-const PAID_SQL = `(payment_status = 'paid' OR payment_status IS NULL OR payment_status = '')`;
+import { CASH_PAID_SQL } from "@/lib/local-first/ledger-rules";
 
 async function sumForAccount(
   db: Awaited<ReturnType<typeof getDb>>,
@@ -65,8 +64,8 @@ async function sumForAccount(
       COALESCE(SUM(CASE WHEN type = 'credit' THEN amount ELSE 0 END), 0) as total_credit,
       COUNT(*) as total_transactions,
       MAX(date) as last_transaction_date,
-      COALESCE(SUM(CASE WHEN type = 'debit' AND ${PAID_SQL} THEN amount ELSE 0 END), 0) as paid_debit,
-      COALESCE(SUM(CASE WHEN type = 'credit' AND ${PAID_SQL} THEN amount ELSE 0 END), 0) as paid_credit
+      COALESCE(SUM(CASE WHEN type = 'debit' AND ${CASH_PAID_SQL} THEN amount ELSE 0 END), 0) as paid_debit,
+      COALESCE(SUM(CASE WHEN type = 'credit' AND ${CASH_PAID_SQL} THEN amount ELSE 0 END), 0) as paid_credit
      FROM transactions
      WHERE deleted_at IS NULL
        AND ${orgClause}
@@ -114,11 +113,16 @@ export async function fetchLocalAccounts(
     });
     const paidDebit = Number(sum?.paid_debit ?? 0);
     const paidCredit = Number(sum?.paid_credit ?? 0);
-    const totalDebit = Number(sum?.total_debit ?? paidDebit);
-    const totalCredit = Number(sum?.total_credit ?? paidCredit);
+    // All-row sums (dues included), kept only to derive `allNet`. The card's
+    // TOTAL CREDIT/TOTAL DEBIT use the PAID figures so that the three numbers on
+    // screen reconcile: opening + (totalCredit − totalDebit) = balance.
+    const allDebit = Number(sum?.total_debit ?? paidDebit);
+    const allCredit = Number(sum?.total_credit ?? paidCredit);
+    const totalDebit = paidDebit;
+    const totalCredit = paidCredit;
     // Wallet cash = opening + paid only (open dues excluded).
     const paidNet = paidCredit - paidDebit;
-    const allNet = totalCredit - totalDebit;
+    const allNet = allCredit - allDebit;
     const opening = Number(row.opening_balance) || 0;
     const balance = opening + paidNet;
     if (Math.abs(balance - Number(row.current_balance)) > 0.0001) {
@@ -173,11 +177,16 @@ export async function fetchLocalAccountDetail(accountId: string) {
 
   const paidDebit = Number(sum?.paid_debit ?? 0);
   const paidCredit = Number(sum?.paid_credit ?? 0);
-  const totalDebit = Number(sum?.total_debit ?? paidDebit);
-  const totalCredit = Number(sum?.total_credit ?? paidCredit);
+  // Same rule as the list builder: the card's totals are the PAID figures so
+  // opening + (totalCredit − totalDebit) = balance holds on screen. The all-row
+  // sums survive only as `allNet`.
+  const allDebit = Number(sum?.total_debit ?? paidDebit);
+  const allCredit = Number(sum?.total_credit ?? paidCredit);
+  const totalDebit = paidDebit;
+  const totalCredit = paidCredit;
   const opening = Number(row.opening_balance) || 0;
   const paidNet = paidCredit - paidDebit;
-  const allNet = totalCredit - totalDebit;
+  const allNet = allCredit - allDebit;
   const balance = opening + paidNet;
   if (Math.abs(balance - Number(row.current_balance)) > 0.0001) {
     await db.runAsync(

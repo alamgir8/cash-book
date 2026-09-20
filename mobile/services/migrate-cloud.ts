@@ -8,6 +8,7 @@ import * as productsRepo from "@/db/repos/products";
 import * as invoicesRepo from "@/db/repos/invoices";
 import { cacheOrganizations } from "@/data/organizations";
 import { META_KEYS, setMeta } from "@/db/meta";
+import { CASH_PAID_SQL } from "@/lib/local-first/ledger-rules";
 import { importLocalBackup } from "@/services/local-backup";
 import type {
   LocalInvoice,
@@ -540,7 +541,6 @@ async function alignOpeningsFromBackupAccounts(
   accounts: any[],
 ): Promise<number> {
   const { withDbTransaction } = await import("@/db/client");
-  const PAID_SQL = `(payment_status = 'paid' OR payment_status IS NULL OR payment_status = '')`;
   let updated = 0;
   await withDbTransaction(db, async () => {
     for (const a of accounts) {
@@ -567,8 +567,8 @@ async function alignOpeningsFromBackupAccounts(
         paid_credit: number;
       }>(
         `SELECT
-           COALESCE(SUM(CASE WHEN type = 'debit' AND ${PAID_SQL} THEN amount ELSE 0 END), 0) as paid_debit,
-           COALESCE(SUM(CASE WHEN type = 'credit' AND ${PAID_SQL} THEN amount ELSE 0 END), 0) as paid_credit
+           COALESCE(SUM(CASE WHEN type = 'debit' AND ${CASH_PAID_SQL} THEN amount ELSE 0 END), 0) as paid_debit,
+           COALESCE(SUM(CASE WHEN type = 'credit' AND ${CASH_PAID_SQL} THEN amount ELSE 0 END), 0) as paid_credit
          FROM transactions
          WHERE deleted_at IS NULL
            AND (account_id = ? OR account_id = ?)`,

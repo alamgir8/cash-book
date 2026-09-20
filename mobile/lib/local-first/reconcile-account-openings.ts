@@ -2,6 +2,7 @@ import type { Db } from "@/db/client";
 import { api } from "@/lib/api";
 import { organizationsApi } from "@/services/organizations";
 import { recalculateAccountRunningBalances } from "@/db/balances";
+import { CASH_PAID_SQL } from "@/lib/local-first/ledger-rules";
 
 type CloudAccount = {
   _id?: string;
@@ -12,7 +13,7 @@ type CloudAccount = {
   name?: string;
 };
 
-const PAID_SQL = `(payment_status = 'paid' OR payment_status IS NULL OR payment_status = '')`;
+
 
 async function fetchCloudAccounts(
   organizationId: string | null,
@@ -35,8 +36,8 @@ async function paidNetForAccount(
     paid_credit: number;
   }>(
     `SELECT
-       COALESCE(SUM(CASE WHEN type = 'debit' AND ${PAID_SQL} THEN amount ELSE 0 END), 0) as paid_debit,
-       COALESCE(SUM(CASE WHEN type = 'credit' AND ${PAID_SQL} THEN amount ELSE 0 END), 0) as paid_credit
+       COALESCE(SUM(CASE WHEN type = 'debit' AND ${CASH_PAID_SQL} THEN amount ELSE 0 END), 0) as paid_debit,
+       COALESCE(SUM(CASE WHEN type = 'credit' AND ${CASH_PAID_SQL} THEN amount ELSE 0 END), 0) as paid_credit
      FROM transactions
      WHERE deleted_at IS NULL
        AND (account_id = ? OR account_id = ?)`,

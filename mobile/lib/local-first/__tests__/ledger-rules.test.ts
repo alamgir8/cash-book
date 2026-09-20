@@ -14,13 +14,12 @@ import { DatabaseSync } from "node:sqlite";
 import {
   CASH_PAID_SQL,
   NON_TRANSFER_SQL,
-  PAID_SQL,
+  PAID_CHIP_SQL,
   SETTLED_DUE_SQL,
   isPaidLike,
   isSettledDue,
   isTransferLeg,
 } from "../ledger-rules.ts";
-
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const openDb = () => {
@@ -172,7 +171,7 @@ test("a settled due matches the Paid chip and not the Due chip", () => {
   assert.ok(!oldPaid.includes("settled"), "the bug: settled due invisible under Paid");
 
   const newPaid = db
-    .prepare(`SELECT id FROM transactions WHERE ${PAID_SQL} ORDER BY id`)
+    .prepare(`SELECT id FROM transactions WHERE ${PAID_CHIP_SQL} ORDER BY id`)
     .all()
     .map((r: any) => String(r.id));
   assert.ok(newPaid.includes("settled"));
@@ -220,7 +219,7 @@ test("cash rules stay strict so a settled due is not counted twice", () => {
   assert.equal(cash.total, 200, "only the child moved cash");
 
   const chip = db
-    .prepare(`SELECT COUNT(*) AS n FROM transactions WHERE ${PAID_SQL}`)
+    .prepare(`SELECT COUNT(*) AS n FROM transactions WHERE ${PAID_CHIP_SQL}`)
     .get() as { n: number };
   assert.equal(chip.n, 2, "but both are shown under Paid");
 
@@ -250,8 +249,8 @@ test("the same SQL fragments are used by the app, not re-typed copies", () => {
     readFileSync(join(__dirname, "../../..", rel), "utf8");
 
   const filters = read("data/local-txn-filters.ts");
-  assert.match(filters, /import \{ PAID_SQL \} from "@\/lib\/local-first\/ledger-rules"/);
-  assert.match(filters, /clauses\.push\(PAID_SQL\)/);
+  assert.match(filters, /import \{ PAID_CHIP_SQL \} from "@\/lib\/local-first\/ledger-rules"/);
+  assert.match(filters, /clauses\.push\(PAID_CHIP_SQL\)/);
 
   const totals = read("data/transactions.local.ts");
   assert.match(totals, /NON_TRANSFER_SQL, isTransferLeg/);
@@ -325,11 +324,145 @@ test("the party ledger only moves the balance for paid rows", () => {
 });
 
 test("SETTLED_DUE_SQL is parenthesised so it composes safely", () => {
-  // It is embedded inside PAID_SQL with OR, so a missing paren would leak the
-  // surrounding AND clauses into the OR branch.
+  // It is embedded inside PAID_CHIP_SQL with OR, so a missing paren would leak
+  // the surrounding AND clauses into the OR branch.
   assert.match(SETTLED_DUE_SQL.trim(), /^\(/);
   assert.match(SETTLED_DUE_SQL.trim(), /\)$/);
-  assert.match(PAID_SQL, /OR \(/);
+  assert.match(PAID_CHIP_SQL, /OR \(/);
+});
+
+test("the cash rule and the chip rule are different, and must stay different", () => {
+  // These two are easy to confuse and catastrophically different: swapping them
+  // either double-counts a settled due in every balance, or hides it from the
+  // Paid chip. Pin the difference explicitly.
+  assert.notEqual(CASH_PAID_SQL, PAID_CHIP_SQL);
+  assert.doesNotMatch(CASH_PAID_SQL, /SETTLED_DUE_SQL|due_settled_at|due_remaining/);
+  assert.match(PAID_CHIP_SQL, /due_settled_at/);
+
+  // A settled due is shown by the chip but excluded from cash.
+  const db = openDb();
+  insert(db, [
+    {
+      id: "settled",
+      type: "debit",
+      amount: 75,
+      status: "due",
+      remaining: 0,
+      settled: "2026-09-20T10:00:00.000Z",
+    },
+  ]);
+  const inChip = db
+    .prepare(`SELECT COUNT(*) AS n FROM transactions WHERE ${PAID_CHIP_SQL}`)
+    .get() as { n: number };
+  const inCash = db
+    .prepare(`SELECT COUNT(*) AS n FROM transactions WHERE ${CASH_PAID_SQL}`)
+    .get() as { n: number };
+  assert.equal(inChip.n, 1, "shown under Paid");
+  assert.equal(inCash.n, 0, "but it moved no cash of its own");
+  db.close();
+});
+
+test("the account card's totals reconcile with its balance", () => {
+  const db = openDb();
+  insert(db, [
+    { id: "in", type: "credit", amount: 1000, status: "paid" },
+    { id: "out", type: "debit", amount: 400, status: "paid" },
+    // An open due must NOT appear in the card's credit/debit boxes, otherwise
+    // totalCredit - totalDebit != CASH NET and the card contradicts itself.
+    { id: "due-out", type: "debit", amount: 250, status: "due", remaining: 250 },
+  ]);
+
+  const paid = db
+    .prepare(
+      `SELECT
+         COALESCE(SUM(CASE WHEN type = 'debit' AND ${CASH_PAID_SQL} THEN amount ELSE 0 END), 0) AS debit,
+         COALESCE(SUM(CASE WHEN type = 'credit' AND ${CASH_PAID_SQL} THEN amount ELSE 0 END), 0) AS credit
+       FROM transactions`,
+    )
+    .get() as { debit: number; credit: number };
+
+  const all = db
+    .prepare(
+      `SELECT
+         COALESCE(SUM(CASE WHEN type = 'debit' THEN amount ELSE 0 END), 0) AS debit,
+         COALESCE(SUM(CASE WHEN type = 'credit' THEN amount ELSE 0 END), 0) AS credit
+       FROM transactions`,
+    )
+    .get() as { debit: number; credit: number };
+
+  // Old card showed the ALL-row figures, so opening + diff could not equal the
+  // balance whenever a due existed.
+  assert.equal(all.credit - all.debit, 350, "all-row net includes the due");
+  // New card shows the PAID figures.
+  assert.equal(paid.credit, 1000);
+  assert.equal(paid.debit, 400);
+
+  // The identity the card must satisfy: opening + (credit - debit) = balance.
+  const opening = -200;
+  const cashNet = paid.credit - paid.debit;
+  const balance = opening + cashNet;
+  assert.equal(balance, 400);
+  assert.equal(
+    opening + (paid.credit - paid.debit),
+    balance,
+    "opening + (totalCredit - totalDebit) must equal the displayed balance",
+  );
+
+  db.close();
+});
+
+test("the account card uses the paid figures, not the all-row sums", () => {
+  const src = readFileSync(
+    join(__dirname, "../../../data/accounts.local.ts"),
+    "utf8",
+  );
+  // Both the list builder and the detail builder must assign the PAID figures
+  // to totalDebit/totalCredit.
+  const assignments = src.match(
+    /const totalDebit = paidDebit;[\s\S]{0,80}?const totalCredit = paidCredit;/g,
+  );
+  assert.ok(
+    assignments && assignments.length >= 2,
+    `expected both builders to use the paid figures, found ${assignments?.length ?? 0}`,
+  );
+  assert.doesNotMatch(
+    src,
+    /const totalDebit = Number\(sum\?\.total_debit/,
+    "the all-row sum must not feed the card totals",
+  );
+  // The all-row figure must survive as allNet so nothing loses due visibility.
+  assert.match(src, /const allNet = allCredit - allDebit/);
+});
+
+test("every cash calculation imports the one shared rule", () => {
+  // Four copies can drift, and a drift here silently changes real balances —
+  // including the opening-balance plug, which is derived from paid net.
+  const read = (rel: string) =>
+    readFileSync(join(__dirname, "../../..", rel), "utf8");
+
+  for (const file of [
+    "data/accounts.local.ts",
+    "lib/local-first/reconcile-account-openings.ts",
+    "services/migrate-cloud.ts",
+  ]) {
+    const src = read(file);
+    assert.match(
+      src,
+      /import \{ CASH_PAID_SQL \} from "@\/lib\/local-first\/ledger-rules"/,
+      `${file} must import the shared cash rule`,
+    );
+    assert.doesNotMatch(
+      src,
+      /const PAID_SQL = /,
+      `${file} must not define its own copy`,
+    );
+  }
+
+  // The opening-balance plug is derived from this rule, so it is the most
+  // dangerous place for a divergent copy.
+  const reconcile = read("lib/local-first/reconcile-account-openings.ts");
+  assert.match(reconcile, /CASE WHEN type = 'debit' AND \$\{CASH_PAID_SQL\}/);
+  assert.match(reconcile, /CASE WHEN type = 'credit' AND \$\{CASH_PAID_SQL\}/);
 });
 
 // ── Fix 5: one Balance-after rule across cloud and device ─────────────────────

@@ -60,18 +60,22 @@ export const SETTLED_DUE_SQL = `(
           )
         )`;
 
-/** Rows that should count as paid: explicit paid rows plus settled dues. */
-export const PAID_SQL = `(payment_status = 'paid' OR payment_status IS NULL OR payment_status = '' OR ${SETTLED_DUE_SQL})`;
+/** Rows that should count as paid on the Paid chip: explicit paid rows plus settled dues. */
+export const PAID_CHIP_SQL = `(payment_status = 'paid' OR payment_status IS NULL OR payment_status = '' OR ${SETTLED_DUE_SQL})`;
 
 /**
  * Rows that actually moved cash.
  *
- * Deliberately stricter than {@link PAID_SQL}: a settled due must NOT count
+ * Deliberately stricter than {@link PAID_CHIP_SQL}: a settled due must NOT count
  * here. It stays `payment_status = 'due'` by design, and its cash already moved
  * through the paid child row — counting it again would double the amount.
  *
- * {@link PAID_SQL} answers "which rows should the Paid chip show"; this answers
- * "which rows moved money". Do not swap them.
+ * {@link PAID_CHIP_SQL} answers "which rows should the Paid chip show"; this
+ * answers "which rows moved money". Do not swap them.
+ *
+ * This is the rule that feeds every money calculation: account balances, the
+ * party balance, the opening-balance plug and the migration sums. Getting it
+ * wrong changes real balances, which is why the two names are kept far apart.
  */
 export const CASH_PAID_SQL = "(payment_status = 'paid' OR payment_status IS NULL OR payment_status = '')";
 
@@ -86,7 +90,7 @@ export const isSettledDue = (row: DueLike): boolean => {
   return !(Number(remaining) > 0);
 };
 
-/** JS twin of {@link PAID_SQL}. */
+/** JS twin of {@link PAID_CHIP_SQL}. */
 export const isPaidLike = (row: DueLike): boolean => {
   const status = row?.payment_status ?? "paid";
   if (status === "paid" || status === "") return true;
