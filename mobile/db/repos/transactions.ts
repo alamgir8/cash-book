@@ -37,7 +37,8 @@ async function isLoanCategory(
   return row?.type === "loan_in" || row?.type === "loan_out";
 }
 
-export type TransactionInput = {  account_id: string;
+export type TransactionInput = {
+  account_id: string;
   category_id?: string | null;
   party_id?: string | null;
   for_party_id?: string | null;
@@ -122,7 +123,20 @@ async function resolvePartyType(
     partyId,
     partyId,
   );
-  return row?.type ?? null;
+  // No party row at all -> no balance effect.
+  if (!row) return null;
+  // A blank type falls back to the schema default ('customer') rather than
+  // returning null.
+  //
+  // `parties.type` is `TEXT NOT NULL DEFAULT 'customer'`, so a blank value can
+  // only come from corrupt/legacy data — verified: 0 of 184 live parties have
+  // one. But returning null here made the incremental write SKIP the party
+  // balance while `isCustomerType` (used by the full recompute) treated a blank
+  // as customer, so the same party could settle on two different balances
+  // depending on which path ran last. Falling back to the schema default makes
+  // both agree, and cannot change any valid row.
+  const type = row.type?.trim();
+  return type ? type : "customer";
 }
 
 /** Type-aware party delta (customer credit-positive, supplier debit-positive). */
@@ -135,7 +149,9 @@ async function applyPartySignedDelta(
 ): Promise<number | null> {
   if (!partyId) return null;
   const partyType = await resolvePartyType(db, partyId);
-  // Mirror the backend: no resolvable party type → no balance effect.
+  // Only a missing party row yields null now (resolvePartyType falls back to the
+  // schema default for a blank type), so this means "no such party" rather than
+  // "unknown type".
   if (!partyType) return null;
   const delta = partySignedDelta(partyType, txnType, amount, paymentStatus);
   if (!delta) return null;

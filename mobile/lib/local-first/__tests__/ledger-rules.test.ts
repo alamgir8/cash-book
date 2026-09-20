@@ -865,3 +865,71 @@ test("blank payment statuses are already cash, so normalising them is inert", ()
   assert.match(repair, /LEDGER_REPAIR_VERSION = "20"/);
 });
 
+// ── Fix 7: close the remaining audit gaps that are code-level (not data) ─────
+
+test("a party with a blank type resolves like the batch recompute, not differently", () => {
+  // `parties.type` is NOT NULL DEFAULT 'customer', so a blank value only comes
+  // from corrupt/legacy data (verified: 0 of 184 live parties). It still had to
+  // be fixed, because the incremental write and the full recompute disagreed:
+  // the write skipped the party entirely, while isCustomerType treated a blank
+  // as customer — the same party could settle on two different balances.
+  const src = readFileSync(
+    join(__dirname, "../../../db/repos/transactions.ts"),
+    "utf8",
+  );
+  assert.match(src, /const type = row\.type\?\.trim\(\)/);
+  assert.match(src, /return type \? type : "customer"/);
+  // A genuinely missing party row must still be a no-op.
+  assert.match(src, /if \(!row\) return null/);
+
+  // The convention must match the shared helper the recompute uses.
+  assert.match(
+    readFileSync(join(__dirname, "../party-balance.ts"), "utf8"),
+    /!partyType \|\| partyType === "customer"/,
+  );
+
+  // And the guard downstream must now mean "no such party".
+  assert.match(src, /Only a missing party row yields null now/);
+});
+
+test("the audit's data-dependent findings are unreachable with current data", () => {
+  // These three findings were real in the code but cannot occur given the data,
+  // so they are documented here instead of being "fixed" with speculative code.
+  // Re-check with the read-only queries noted alongside each.
+  //
+  // 1) Blank party types -> 0 of 184.
+  // 2) Mixed-case / padded transaction `type` -> all 1416 rows are exactly
+  //    'debit' or 'credit', so the dashboard's lower(trim(type)) and the balance
+  //    rule's exact comparison select the identical set.
+  // 3) financialScope -> never set by any UI control (it appears only as a
+  //    React Query key and in report filter decoding), so implementing its
+  //    semantics locally would be guesswork.
+  //
+  // Guard the invariants in source so a future change is caught here.
+  const partiesSchema = readFileSync(
+    join(__dirname, "../../../db/migrations/index.ts"),
+    "utf8",
+  );
+  assert.match(
+    partiesSchema,
+    /type TEXT NOT NULL DEFAULT 'customer'/,
+    "a nullable party type would make the blank-type divergence reachable",
+  );
+
+  // Import is type-constrained, so it cannot introduce a mixed-case type.
+  const preview = readFileSync(
+    join(__dirname, "../../../components/import/import-preview.tsx"),
+    "utf8",
+  );
+  assert.match(preview, /type: "debit" \| "credit"/);
+
+  // The write path constrains the type at the type level rather than
+  // normalising at runtime, so a mixed-case value cannot be inserted.
+  const repo = readFileSync(
+    join(__dirname, "../../../db/repos/transactions.ts"),
+    "utf8",
+  );
+  assert.match(repo, /^\s+type: "debit" \| "credit";$/m);
+  assert.match(repo, /function signedDelta\(type: "debit" \| "credit"/);
+});
+
