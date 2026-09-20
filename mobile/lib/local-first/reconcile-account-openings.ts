@@ -56,6 +56,24 @@ async function paidNetForAccount(
  *   opening_balance = cloud.current − localPaidNet
  *   current_balance = cloud.current
  * so Balance = Opening + Cash net, and Balance-after trails end on cloud cash.
+ *
+ * THIS IS THE SINGLE WRITER of `accounts.opening_balance` on an existing
+ * account. Nothing else may write it, because two invariants have to hold at
+ * once and only this function can satisfy both:
+ *
+ *   current_balance = opening_balance + paidNet   (local cash identity)
+ *   current_balance = cloud current_balance       (server truth)
+ *
+ * holding both pins opening_balance to exactly `cloud.current − paidNet`. Any
+ * other writer (the sync upsert, the LWW conflict path) could only copy Mongo's
+ * `opening_balance`, which generally differs from the pinned value — and Mongo
+ * routinely stores 0 while `current_balance` is trusted. That broke the local
+ * identity, and because reconcile is timeout-guarded and swallows errors, a
+ * failed run left it broken: every Balance-after row seeded from that account
+ * stayed wrong until a later successful reconcile.
+ *
+ * User-facing edits go through `db/repos/accounts.ts` (create/update); this
+ * function re-pins afterwards, which is intentional — the server figure wins.
  */
 export async function reconcileAccountOpeningsFromCloud(
   db: Db,

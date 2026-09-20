@@ -465,23 +465,16 @@ async function applyIncoming(change: SyncChange) {
     );
 
     if (decision.winner === "existing") {
-      // Still restore a missing opening from cloud — LWW must not leave
-      // opening_balance stuck at 0 while Mongo has the real opening.
-      if (
-        change.entity === "account" &&
-        "opening_balance" in existing &&
-        payload?.opening_balance != null &&
-        Math.abs(Number(existing.opening_balance) || 0) < 0.0001 &&
-        Math.abs(Number(payload.opening_balance)) > 0.0001
-      ) {
-        // Opening only when Mongo has a real opening. Wallet cash is aligned
-        // afterward via reconcileAccountOpeningsFromCloud (current − paidNet).
-        await db.runAsync(
-          `UPDATE accounts SET opening_balance = ? WHERE id = ?`,
-          Number(payload.opening_balance),
-          existing.id,
-        );
-      }
+      // A missing/stale opening is NOT patched here.
+      //
+      // Copying Mongo's `opening_balance` breaks the invariant that ties the
+      // three numbers together:
+      //   current_balance = opening_balance + paidNet = cloud current_balance
+      // Only `reconcileAccountOpeningsFromCloud` can compute the pinned value
+      // (it needs the local paid net), and it runs right after this for every
+      // account the pull touched. Writing a second, differently-derived value
+      // here made opening flip twice per sync, so a trailing trail rewrite could
+      // be seeded from whichever write happened to land last.
       await db.runAsync(
         `INSERT INTO sync_conflicts (id, entity, entity_id, existing_json, incoming_json, decision, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,

@@ -567,3 +567,68 @@ test("the windowed running balance is correct for a mid-history page", () => {
   assert.notEqual(closing - windowNet, 0);
 });
 
+// ── Fix 7: one writer for opening_balance ────────────────────────────────────
+
+test("only the reconcile step writes opening_balance on an existing account", () => {
+  const upsert = readFileSync(
+    join(__dirname, "../../../db/repos/accounts.ts"),
+    "utf8",
+  );
+  // The ON CONFLICT branch must not assign opening_balance. Copying Mongo's
+  // value breaks current_balance = opening_balance + paidNet whenever the two
+  // disagree, and Mongo routinely stores 0 with a trusted current_balance.
+  const onConflict = upsert.slice(upsert.indexOf("ON CONFLICT(id) DO UPDATE SET"));
+  const assignments = onConflict.slice(0, onConflict.indexOf("`,"));
+  assert.doesNotMatch(
+    assignments,
+    /^\s*opening_balance\s*=/m,
+    "upsertAccountFromSync must not write opening_balance on conflict",
+  );
+  // It must still be inserted for a brand new account.
+  assert.match(upsert, /opening_balance,/);
+
+  const engine = readFileSync(join(__dirname, "../../../sync/engine.ts"), "utf8");
+  // The LWW conflict path must not patch opening either — that was the second
+  // writer, and it made opening flip twice per sync.
+  assert.doesNotMatch(
+    engine,
+    /UPDATE accounts SET opening_balance = \?/,
+    "the LWW path must not write opening_balance",
+  );
+
+  const reconcile = readFileSync(
+    join(__dirname, "../reconcile-account-openings.ts"),
+    "utf8",
+  );
+  assert.match(reconcile, /THIS IS THE SINGLE WRITER/);
+  assert.match(reconcile, /SET opening_balance = \?, current_balance = \?/);
+});
+
+test("the pinned opening satisfies both invariants", () => {
+  // Mirrors what reconcile persists and what recalculateAccountCashBalance
+  // enforces, so the two can never silently disagree.
+  const cloudCurrent = 16343;
+  const paidNet = 8323; // local paid_credit - paid_debit
+
+  // Reconcile's choice:
+  const opening = cloudCurrent - paidNet;
+  // recalculateAccountCashBalance then recomputes current from opening + net:
+  const current = opening + paidNet;
+
+  assert.equal(opening, 8020);
+  assert.equal(
+    current,
+    cloudCurrent,
+    "Balance = Opening + paidNet must land exactly on the cloud current",
+  );
+
+  // Copying Mongo's opening instead breaks the identity whenever it differs.
+  const mongoOpening = 0;
+  const brokenCurrent = mongoOpening + paidNet;
+  assert.notEqual(
+    brokenCurrent,
+    cloudCurrent,
+    "Mongo's opening must NOT be used — that is the 8,323 vs 16,343 drift",
+  );
+});
+

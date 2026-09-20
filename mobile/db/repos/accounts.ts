@@ -180,14 +180,22 @@ export async function upsertAccountFromSync(
       name = excluded.name,
       description = excluded.description,
       kind = excluded.kind,
-      -- Mongo often stores opening_balance=0 with a trusted current_balance.
-      -- Do not wipe a locally derived opening (cloud.current − paidNet) or
-      -- Accounts collapses back to paid-net-only (e.g. Cash 8,323 vs 16,343).
-      opening_balance = CASE
-        WHEN ABS(COALESCE(excluded.opening_balance, 0)) < 0.0001
-        THEN accounts.opening_balance
-        ELSE excluded.opening_balance
-      END,
+      -- opening_balance is deliberately NOT written here.
+      --
+      -- Two invariants must hold together:
+      --   (a) current_balance = opening_balance + paidNet   (local cash identity)
+      --   (b) current_balance = cloud current_balance       (server truth)
+      -- Holding both pins opening_balance to cloud.current minus paidNet, which
+      -- only reconcileAccountOpeningsFromCloud can compute - it is the single
+      -- writer of this column on an existing account.
+      --
+      -- Copying Mongo's opening_balance in here used to break (a) whenever
+      -- Mongo's value differed from the pinned one, and Mongo routinely stores
+      -- 0 with a trusted current_balance. If the following reconcile then failed
+      -- (it is timeout-guarded and swallows errors), the account was left with
+      -- the identity broken, so every Balance-after row seeded from it stayed
+      -- wrong until a later successful reconcile. Leaving the value alone can
+      -- only ever be stale, never inconsistent.
       current_balance = COALESCE(excluded.current_balance, accounts.current_balance),
       currency_code = excluded.currency_code,
       currency_symbol = excluded.currency_symbol,
