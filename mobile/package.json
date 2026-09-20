@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "android": "expo run:android",
     "ios": "expo run:ios",
+    "ios:sync-flavors": "node scripts/sync-ios-prebuild-flavors.mjs",
     "postinstall": "patch-package",
     "test:local-first": "node --experimental-strip-types --test lib/local-first/__tests__/pure.test.ts"
   },

@@ -681,5 +681,23 @@ EXPO_PUBLIC_BASE_URL=https://cash-book-seven.vercel.app/api
 | App disappears or stops opening after days | Same as above — rebuild, reinstall, and re-trust the developer profile if needed. |
 | iPhone not detected | Reconnect USB, unlock iPhone, tap **Trust This Computer**, then restart Xcode. |
 | `pod install` fails on `hermes-engine` download | Network glitch downloading from Maven. Retry: `cd mobile/ios && pod install`. If it still fails, clear cache then retry: `rm -rf ~/Library/Caches/CocoaPods/Pods/External/hermes-engine && pod install`. |
+| Debug build fails: `Undefined symbols ... _OBJC_CLASS_$_RCTPackagerConnection` | `ios/Pods` is holding the **Release** flavor of the prebuilt React core, so `expo-dev-launcher`'s Debug-only reference cannot link. Fix: `cd mobile && npm run ios:sync-flavors`. |
+| Debug build succeeds but app crashes on launch (`SIGSEGV`, backtrace through `ExpoModulesCore` / `facebook::react::Props`) | Same root cause, other direction: a Release-flavored `ExpoModulesCore` linked against the Debug core. Fix: `cd mobile && npm run ios:sync-flavors`. |
+
+### Precompiled pod flavors (Debug ↔ Release)
+
+React Native and Expo ship most native code as **prebuilt xcframeworks** in two flavors, `debug` and `release`, and they are not interchangeable. The Xcode build is supposed to swap in the right one, but that swap is gated on a marker file inside `ios/Pods`; if the marker is lost or reset by `pod install`, the swap is silently skipped and a Debug build links Release binaries.
+
+This bites when you **switch between Release and Debug builds** — e.g. a Release install followed by `npx expo run:ios --device`.
+
+If a Debug build fails to link or crashes on launch with no obvious cause:
+
+```shell
+cd mobile
+npm run ios:sync-flavors            # report + install the Debug flavor
+npm run ios:sync-flavors -- --dry-run   # report only
+```
+
+It verifies what is actually on disk by hashing the installed binaries (the marker file only records intent, and is exactly what goes stale), then swaps via React Native's and Expo's own scripts. Re-run the build afterwards.
 
 ---
