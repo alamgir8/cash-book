@@ -10,6 +10,7 @@ import {
 } from "@/services/parties";
 import type { PartyRef } from "@/services/transactions";
 import { isDualWriteEnabled } from "@/lib/local-first/flags";
+import { CASH_PAID_SQL } from "@/lib/local-first/ledger-rules";
 import {
   partyBalanceSumSql,
   partyNetFromTotals,
@@ -397,7 +398,10 @@ export async function fetchLocalPartyLedger(
     `SELECT
       COALESCE(SUM(CASE WHEN type = 'debit' THEN amount ELSE 0 END), 0) as debit,
       COALESCE(SUM(CASE WHEN type = 'credit' THEN amount ELSE 0 END), 0) as credit
-     FROM transactions WHERE deleted_at IS NULL AND ${partyMatchClause()}`,
+     FROM transactions
+     WHERE deleted_at IS NULL
+       AND ${CASH_PAID_SQL}
+       AND ${partyMatchClause()}`,
     ...partyMatchParams(row),
   );
 
@@ -415,7 +419,8 @@ export async function fetchLocalPartyLedger(
     ? await db.getFirstAsync<{ net: number }>(
         `SELECT COALESCE(SUM(${partyBalanceSumSql(row.type, "amount", "type")}), 0) as net
          FROM (
-           SELECT type, amount FROM transactions WHERE ${where}
+           SELECT type, amount FROM transactions
+           WHERE ${where} AND ${CASH_PAID_SQL}
            ORDER BY substr(date, 1, 10) DESC, created_at DESC, id DESC
            LIMIT ?
          )`,
@@ -746,11 +751,15 @@ export async function fetchLocalVendorLedger(params: {
   const timelineAsc = [];
   for (const t of rows) {
     const amt = Number(t.amount ?? 0);
+    // Pass the row's REAL status: partySignedDelta returns 0 for a due, so an
+    // unpaid obligation no longer moves the party balance. This used to hardcode
+    // "paid", which made the vendor/counterparty ledger count open dues as cash
+    // while the account balance did not — two numbers for the same event.
     running += partySignedDelta(
       partyType,
       t.type === "credit" ? "credit" : "debit",
       amt,
-      "paid",
+      t.payment_status,
     );
     running = Math.round(running * 100) / 100;
 

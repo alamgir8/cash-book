@@ -20,6 +20,7 @@ import {
 } from "@/services/transactions";
 import { isDualWriteEnabled } from "@/lib/local-first/flags";
 import { toLedgerDay } from "@/lib/local-first/ledger-order";
+import { NON_TRANSFER_SQL, isTransferLeg } from "@/lib/local-first/ledger-rules";
 import { localDayKey } from "@/lib/local-first/day-key";
 import { getOrCreateDeviceId } from "@/services/device";
 import { createClientRequestId } from "@/lib/local-first/ids";
@@ -476,6 +477,8 @@ export async function fetchLocalTransactionTotals(
     let debit = 0;
     let credit = 0;
     for (const t of txns) {
+      // Same exclusion as the SQL path above, or chip totals drift from it.
+      if (isTransferLeg(t)) continue;
       const amount = Number(t.amount) || 0;
       if (t.type === "debit") debit += amount;
       else if (t.type === "credit") credit += amount;
@@ -500,15 +503,19 @@ export async function fetchLocalTransactionTotals(
     credit: number;
     count: number;
   }>(
+    // Transfer legs are excluded from the money sums: moving your own money
+    // between accounts is neither income nor expense, and since each transfer
+    // writes a debit AND a credit leg, counting them inflated BOTH cards while
+    // leaving the net (credit − debit) correct. `count` stays the raw row count
+    // so it keeps matching the number of visible rows.
     `SELECT
-      COALESCE(SUM(CASE WHEN lower(trim(type)) = 'debit' THEN CAST(amount AS REAL) ELSE 0 END), 0) as debit,
-      COALESCE(SUM(CASE WHEN lower(trim(type)) = 'credit' THEN CAST(amount AS REAL) ELSE 0 END), 0) as credit,
+      COALESCE(SUM(CASE WHEN ${NON_TRANSFER_SQL} AND lower(trim(type)) = 'debit' THEN CAST(amount AS REAL) ELSE 0 END), 0) as debit,
+      COALESCE(SUM(CASE WHEN ${NON_TRANSFER_SQL} AND lower(trim(type)) = 'credit' THEN CAST(amount AS REAL) ELSE 0 END), 0) as credit,
       COUNT(*) as count
      FROM transactions
      WHERE ${clauses.join(" AND ")}`,
     ...params,
-  );
-  return {
+  );  return {
     debit: Number(row?.debit ?? 0),
     credit: Number(row?.credit ?? 0),
     count: Number(row?.count ?? 0),

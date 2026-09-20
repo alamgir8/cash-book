@@ -2,6 +2,7 @@ import dayjs from "dayjs";
 import type { Db } from "@/db/client";
 import type { ScopeFilter } from "@/db/types";
 import { scopeWhere } from "@/db/meta";
+import { PAID_SQL } from "@/lib/local-first/ledger-rules";
 import type { TransactionFilters } from "@/services/transactions";
 
 export type LocalTxnFilterSql = {
@@ -141,9 +142,9 @@ export async function buildLocalTransactionFilterSql(
       );
     }
   } else if (filters.payment_status === "paid") {
-    clauses.push(
-      "(payment_status = 'paid' OR payment_status IS NULL OR payment_status = '')",
-    );
+    // Settled dues count as paid: their money has moved, but they keep
+    // payment_status='due' by design, so without this they matched neither chip.
+    clauses.push(PAID_SQL);
   }
 
   // Loan chips: match loan roots by category type + cash direction, mirroring
