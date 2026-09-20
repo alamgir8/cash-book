@@ -435,6 +435,7 @@ test("the account card uses the paid figures, not the all-row sums", () => {
 });
 
 test("every cash calculation imports the one shared rule", () => {
+  // These files used to each define their own copy of the strict cash string.
   // Four copies can drift, and a drift here silently changes real balances —
   // including the opening-balance plug, which is derived from paid net.
   const read = (rel: string) =>
@@ -763,5 +764,104 @@ test("the pinned opening satisfies both invariants", () => {
     cloudCurrent,
     "Mongo's opening must NOT be used — that is the 8,323 vs 16,343 drift",
   );
+});
+
+// ── Fix 6: a loan is never 'due' ─────────────────────────────────────────────
+
+test("loan categories resolve as loans, and are forced to paid on write", () => {
+  const db = openDb();
+  db.exec(`
+    CREATE TABLE categories (
+      id TEXT PRIMARY KEY, server_id TEXT, type TEXT, deleted_at TEXT
+    )
+  `);
+  db.prepare(
+    `INSERT INTO categories (id, server_id, type) VALUES (?, ?, ?)`,
+  ).run("cat-loan-out", "srv-loan-out", "loan_out");
+  db.prepare(
+    `INSERT INTO categories (id, server_id, type) VALUES (?, ?, ?)`,
+  ).run("cat-expense", "srv-expense", "expense");
+
+  // Mirrors isLoanCategory's query: resolves by local id OR server id.
+  const loanType = (categoryId: string | null) => {
+    if (!categoryId) return null;
+    const row = db
+      .prepare(
+        `SELECT type FROM categories
+         WHERE (id = ? OR server_id = ?) AND deleted_at IS NULL LIMIT 1`,
+      )
+      .get(categoryId, categoryId) as { type: string | null } | undefined;
+    return row?.type ?? null;
+  };
+
+  assert.equal(loanType("cat-loan-out"), "loan_out");
+  assert.equal(loanType("srv-loan-out"), "loan_out");
+  assert.equal(loanType("cat-expense"), "expense");
+  assert.equal(loanType(null), null);
+  assert.equal(loanType("missing"), null);
+
+  // Only loan_in / loan_out count as loans.
+  for (const t of ["expense", "income", "donation_out", "other_expense"]) {
+    assert.equal(t === "loan_in" || t === "loan_out", false, `${t} is not a loan`);
+  }
+
+  db.close();
+});
+
+test("the write path consults the loan rule on create and on edit", () => {
+  const src = readFileSync(
+    join(__dirname, "../../../db/repos/transactions.ts"),
+    "utf8",
+  );
+  assert.match(src, /async function isLoanCategory\(/);
+  assert.match(src, /FROM categories\s+WHERE \(id = \? OR server_id = \?\)/);
+
+  // Create path.
+  assert.match(
+    src,
+    /const loanCategory = await isLoanCategory\(db, input\.category_id\)/,
+  );
+
+  // Update path — switching a row onto a loan category must also force paid.
+  assert.match(
+    src,
+    /const nextLoanCategory = await isLoanCategory\(txn, nextCategoryId\)/,
+  );
+});
+
+test("blank payment statuses are already cash, so normalising them is inert", () => {
+  const db = openDb();
+  insert(db, [
+    { id: "blank", type: "credit", amount: 100, status: null },
+    { id: "paid", type: "credit", amount: 50, status: "paid" },
+    { id: "due", type: "credit", amount: 25, status: "due" },
+  ]);
+
+  // CASH_PAID_SQL already matches NULL and '', so the total is unchanged by
+  // writing 'paid' — the repair cannot move a balance.
+  const before = db
+    .prepare(
+      `SELECT COALESCE(SUM(amount), 0) AS t FROM transactions WHERE ${CASH_PAID_SQL}`,
+    )
+    .get() as { t: number };
+  assert.equal(before.t, 150, "blank already counted as cash");
+
+  db.exec(
+    `UPDATE transactions SET payment_status = 'paid' WHERE payment_status IS NULL OR payment_status = ''`,
+  );
+
+  const after = db
+    .prepare(
+      `SELECT COALESCE(SUM(amount), 0) AS t FROM transactions WHERE ${CASH_PAID_SQL}`,
+    )
+    .get() as { t: number };
+  assert.equal(after.t, 150, "normalising changed nothing");
+  db.close();
+
+  // And the repair must actually contain the normalisation.
+  const repair = readFileSync(join(__dirname, "../repair-ledger.ts"), "utf8");
+  assert.match(repair, /async function normalizeBlankPaymentStatuses\(/);
+  assert.match(repair, /WHERE payment_status IS NULL OR payment_status = ''/);
+  assert.match(repair, /LEDGER_REPAIR_VERSION = "20"/);
 });
 

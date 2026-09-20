@@ -6,7 +6,7 @@ import {
 import { getMeta, META_KEYS, setMeta } from "@/db/meta";
 
 /** Bump when repair SQL/rules change so existing devices re-apply. */
-export const LEDGER_REPAIR_VERSION = "19";
+export const LEDGER_REPAIR_VERSION = "20";
 
 /** Soft deadline for optional cloud overlay — never block Home paint. */
 const CLOUD_RECONCILE_MS = 12_000;
@@ -202,6 +202,23 @@ async function finishRepairEnrichment(db: Db): Promise<void> {
 }
 
 /**
+ * Give every row an explicit `payment_status`.
+ *
+ * A blank/NULL status is treated as paid by every cash rule
+ * (`CASH_PAID_SQL` matches `IS NULL OR ''`), so this cannot move a balance —
+ * it removes a fragile convention that 671 cloud rows were relying on.
+ */
+async function normalizeBlankPaymentStatuses(db: Db): Promise<number> {
+  const result = await db.runAsync(
+    `UPDATE transactions
+     SET payment_status = 'paid',
+         updated_at = COALESCE(updated_at, datetime('now'))
+     WHERE payment_status IS NULL OR payment_status = ''`,
+  );
+  return Number(result.changes ?? 0);
+}
+
+/**
  * Undo the end-of-day transfer dates written by the old `createLocalTransfer`.
  *
  * That code turned a picked day (`2026-09-20`) into `2026-09-20T23:59:59.000Z`.
@@ -251,10 +268,12 @@ export async function repairLocalLedgerSemantics(
   fksNormalized: number;
   orgsStamped: number;
   transferDatesFixed: number;
+  statusesNormalized: number;
 }> {
   const fksNormalized = await normalizeForeignKeys(db);
   const orgsStamped = await stampOrganizationFromAccount(db);
   const transferDatesFixed = await normalizeLegacyTransferDates(db);
+  const statusesNormalized = await normalizeBlankPaymentStatuses(db);
 
   // ─── Payment status cleanup ───
   // Canonical due model (matches cloud):
@@ -404,6 +423,7 @@ export async function repairLocalLedgerSemantics(
     fksNormalized,
     orgsStamped,
     transferDatesFixed,
+    statusesNormalized,
   };
 }
 

@@ -10,8 +10,34 @@ import {
 import { partySignedDelta } from "@/lib/local-first/party-balance";
 import { recalculateAccountCashBalance, scheduleAccountTrailRewrite } from "../balances";
 
-export type TransactionInput = {
-  account_id: string;
+/**
+ * True when the category is a loan (`loan_in` / `loan_out`).
+ *
+ * Loans are NOT pending payments: giving or receiving a loan moves cash
+ * immediately, and what is still owed is tracked by the loan machinery
+ * (`loan-summary.ts` → `owed_by_them` / `owed_by_me`), not by
+ * `payment_status = 'due'`.
+ *
+ * Storing a loan as `due` was found in real data (all 7 of one account's loan
+ * rows) and it silently corrupts money maths, because every cash rule in the app
+ * excludes `due` rows — so the loan's real cash movement vanished from the
+ * balance. The cloud fix corrected the existing rows; this guard stops new ones.
+ */
+async function isLoanCategory(
+  db: Db,
+  categoryId: string | null | undefined,
+): Promise<boolean> {
+  if (!categoryId) return false;
+  const row = await db.getFirstAsync<{ type: string | null }>(
+    `SELECT type FROM categories
+     WHERE (id = ? OR server_id = ?) AND deleted_at IS NULL LIMIT 1`,
+    categoryId,
+    categoryId,
+  );
+  return row?.type === "loan_in" || row?.type === "loan_out";
+}
+
+export type TransactionInput = {  account_id: string;
   category_id?: string | null;
   party_id?: string | null;
   for_party_id?: string | null;
@@ -204,8 +230,13 @@ export async function createTransaction(
   const ts = nowIso();
   const amount = Number(input.amount);
   if (!(amount >= 0)) throw new Error("Amount must be >= 0");
-  const paymentStatus =
-    input.payment_status === "due" ? "due" : "paid";
+  // A loan always moved cash, so it is never 'due' — see isLoanCategory.
+  const loanCategory = await isLoanCategory(db, input.category_id);
+  const paymentStatus = loanCategory
+    ? "paid"
+    : input.payment_status === "due"
+      ? "due"
+      : "paid";
   const applyBalance = input.applyBalance !== false && paymentStatus === "paid";
 
   let organizationId = input.organization_id ?? null;
@@ -447,7 +478,16 @@ export async function updateTransaction(
     const nextPartyId =
       patch.party_id !== undefined ? patch.party_id : existing.party_id;
     const nextStatusRaw = patch.payment_status ?? existing.payment_status;
-    const nextStatus = nextStatusRaw === "due" ? "due" : "paid";
+    // A loan is always paid: it moved cash. Guarding here too, so an edit that
+    // switches a row onto (or off) a loan category cannot leave it 'due'.
+    const nextCategoryId =
+      patch.category_id !== undefined ? patch.category_id : existing.category_id;
+    const nextLoanCategory = await isLoanCategory(txn, nextCategoryId);
+    const nextStatus = nextLoanCategory
+      ? "paid"
+      : nextStatusRaw === "due"
+        ? "due"
+        : "paid";
     const ts = nowIso();
 
     const childCount = await txn.getFirstAsync<{ n: number }>(
