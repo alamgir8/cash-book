@@ -13,6 +13,7 @@ import { canonicalize } from "../checksum.ts";
 import { createClientRequestId } from "../ids.ts";
 import { errorCodeFromUnknown } from "../telemetry.ts";
 import { googleIosReversedScheme } from "../google-oauth.ts";
+import { AUTH_ENDPOINTS, isAuthEndpoint } from "../../auth-endpoints.ts";
 import { computeUseLocalPersonalLedger } from "../ledger-scope-pure.ts";
 import { localDayKey } from "../day-key.ts";
 import {
@@ -1748,5 +1749,44 @@ test("Bangla lexicon seed is compact pipe-format and indexes cleanly", async () 
   );
   assert.match(lookup, /function matchLexicon/);
   assert.match(lookup, /rankUnifiedSuggestions/);
+});
+
+test("auth endpoints bypass the 401 refresh-and-retry flow", () => {
+  // Regression: `/auth/refresh` used to re-enter the response interceptor, mark
+  // itself `_retry`, and then await the very `refreshPromise` it was part of.
+  // Nothing could settle, so a refresh token rejected by the server (e.g. after
+  // switching EXPO_PUBLIC_BASE_URL between the deployed API and a local backend)
+  // left the app "signed in" with dead tokens and cloud sync never pushed.
+  assert.equal(isAuthEndpoint("/auth/refresh"), true);
+  assert.equal(isAuthEndpoint("http://192.168.0.224:5050/api/auth/refresh"), true);
+  assert.equal(isAuthEndpoint("/api/auth/refresh?retry=1"), true);
+
+  // A wrong password (401) must not be read as "session expired".
+  assert.equal(isAuthEndpoint("/auth/login"), true);
+  assert.equal(isAuthEndpoint("/auth/signup"), true);
+
+  // Ordinary calls must still participate in refresh-and-retry.
+  assert.equal(isAuthEndpoint("/auth/me"), false);
+  assert.equal(isAuthEndpoint("/sync/handshake"), false);
+  assert.equal(isAuthEndpoint("/auth/refresh-tokens"), false);
+  assert.equal(isAuthEndpoint("/xauth/refresh"), false);
+  assert.equal(isAuthEndpoint(""), false);
+  assert.equal(isAuthEndpoint(undefined), false);
+
+  assert.deepEqual(AUTH_ENDPOINTS, [
+    "/auth/refresh",
+    "/auth/login",
+    "/auth/signup",
+  ]);
+
+  // Both 401 branches in the interceptor must consult the guard, otherwise the
+  // deadlock (branch 1) or a spurious sign-out (branch 2) comes straight back.
+  const api = readFileSync(join(__dirname, "../../api.ts"), "utf8");
+  assert.match(api, /import \{ isAuthEndpoint \} from "\.\/auth-endpoints"/);
+  assert.match(
+    api,
+    /const authEndpoint = isAuthEndpoint\(originalRequest\?\.url\)/,
+  );
+  assert.equal(api.match(/!authEndpoint/g)?.length, 2);
 });
 

@@ -9,6 +9,7 @@ import {
   looksLikeHttpsLanMistake,
   resolveApiHost,
 } from "./local-first/api-host";
+import { isAuthEndpoint } from "./auth-endpoints";
 
 const API_PORT = Number(process.env.EXPO_PUBLIC_API_PORT || 5050);
 const API_PATH = "/api";
@@ -194,10 +195,16 @@ api.interceptors.response.use(
       _refreshNetworkError?: boolean;
     };
 
+    // Refreshing the refresh call itself would await `refreshPromise` from inside
+    // that same promise — see AUTH_ENDPOINTS. Login/signup 401s are not session
+    // expiry either, so they bypass both branches here.
+    const authEndpoint = isAuthEndpoint(originalRequest?.url);
+
     if (
       error.response?.status === 401 &&
       tokenRefreshHandler &&
-      !originalRequest?._retry
+      !originalRequest?._retry &&
+      !authEndpoint
     ) {
       originalRequest._retry = true;
 
@@ -235,7 +242,8 @@ api.interceptors.response.use(
     if (
       error.response?.status === 401 &&
       currentToken &&
-      !(originalRequest as any)?._refreshNetworkError
+      !(originalRequest as any)?._refreshNetworkError &&
+      !authEndpoint
     ) {
       await Promise.resolve(unauthorizedHandler?.());
     }
