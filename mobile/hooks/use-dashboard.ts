@@ -18,6 +18,7 @@ import {
   dalUpdateTransaction,
 } from "@/data/transactions";
 import { exportTransactionsPdf } from "@/services/reports";
+import { isTransferLeg } from "@/lib/local-first/ledger-rules";
 import {
   refreshTransactionData,
 } from "@/lib/refresh-app-data";
@@ -174,6 +175,8 @@ export function useDashboard() {
   const totals = useMemo(() => {
     const fromPage = rawTransactions.reduce(
       (acc, txn) => {
+        // Mirrors the SQL totals: transfers are not income or expense.
+        if (isTransferLeg(txn)) return acc;
         if (txn.type === "credit") acc.credit += Number(txn.amount) || 0;
         else if (txn.type === "debit") acc.debit += Number(txn.amount) || 0;
         return acc;

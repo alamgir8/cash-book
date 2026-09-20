@@ -150,7 +150,7 @@ export async function listTransactions(
   allParams.push(limit, offset);
   return db.getAllAsync<LocalTransaction>(
     `SELECT * FROM transactions WHERE ${clauses.join(" AND ")}
-     ORDER BY date DESC, created_at DESC
+     ORDER BY substr(date, 1, 10) DESC, created_at DESC, id DESC
      LIMIT ? OFFSET ?`,
     ...allParams,
   );
@@ -303,14 +303,16 @@ export async function createTransaction(
   return row;
 }
 
-export async function softDeleteTransaction(
+/**
+ * Reverse one row's balance effects and mark it deleted.
+ *
+ * Split out so a transfer delete can apply the identical treatment to both legs.
+ */
+async function softDeleteOneTransaction(
   db: Db,
-  id: string,
+  existing: LocalTransaction,
   device_id: string,
 ): Promise<void> {
-  const existing = await getTransactionById(db, id);
-  if (!existing || existing.deleted_at) return;
-
   await withDbTransaction(db, async (txn) => {
     if (existing.payment_status === "paid") {
       const reverse = -signedDelta(existing.type, existing.amount);
@@ -359,12 +361,52 @@ export async function softDeleteTransaction(
       ts,
       ts,
       device_id,
-      id,
+      existing.id,
     );
   });
+}
 
-  await recalculateAccountCashBalance(db, existing.account_id);
-  scheduleAccountTrailRewrite(db, existing.account_id);
+export async function softDeleteTransaction(
+  db: Db,
+  id: string,
+  device_id: string,
+): Promise<void> {
+  const existing = await getTransactionById(db, id);
+  if (!existing || existing.deleted_at) return;
+
+  // A transfer is ONE logical event stored as two transaction legs. Deleting a
+  // single leg would leave its sibling alive, so the source account loses the
+  // money while the destination keeps it — a permanently wrong balance with no
+  // way back. The backend reverts both legs plus the transfer doc
+  // (transaction.controller.js); do the same here.
+  const siblings = existing.transfer_id
+    ? await db.getAllAsync<LocalTransaction>(
+        `SELECT * FROM transactions
+         WHERE transfer_id = ? AND id != ? AND deleted_at IS NULL`,
+        existing.transfer_id,
+        existing.id,
+      )
+    : [];
+
+  for (const row of [existing, ...siblings]) {
+    await softDeleteOneTransaction(db, row, device_id);
+    await recalculateAccountCashBalance(db, row.account_id);
+    scheduleAccountTrailRewrite(db, row.account_id);
+  }
+
+  if (existing.transfer_id) {
+    const ts = nowIso();
+    await db.runAsync(
+      `UPDATE transfers SET deleted_at = ?, updated_at = ?, dirty = 1,
+        sync_status = 'pending_delete', retry_count = 0, last_sync_error = NULL,
+        device_id = ?, sync_version = sync_version + 1
+       WHERE id = ? AND deleted_at IS NULL`,
+      ts,
+      ts,
+      device_id,
+      existing.transfer_id,
+    );
+  }
 }
 
 export type TransactionUpdatePatch = {
@@ -392,6 +434,10 @@ export async function updateTransaction(
 ): Promise<LocalTransaction> {
   const existing = await getTransactionById(db, id);
   if (!existing || existing.deleted_at) throw new Error("Transaction not found");
+
+  // Set when a transfer sibling leg is updated, so its account trail is
+  // rewritten after the transaction commits.
+  let siblingAccountId: string | null = null;
 
   await withDbTransaction(db, async (txn) => {
     const nextType = patch.type ?? existing.type;
@@ -509,6 +555,67 @@ export async function updateTransaction(
       patch.device_id,
       id,
     );
+
+    // A transfer is one event stored as two legs that share an amount and a
+    // date. Mirror an amount/date edit to the sibling leg (and the transfers
+    // row) so the pair cannot drift — otherwise editing the outgoing leg leaves
+    // the destination credited by the old amount, changing the total money in
+    // the system. Account and type are deliberately NOT mirrored: each leg is
+    // meant to sit on a different account with an opposite sign.
+    if (existing.transfer_id) {
+      const sibling = await txn.getFirstAsync<LocalTransaction>(
+        `SELECT * FROM transactions
+         WHERE transfer_id = ? AND id != ? AND deleted_at IS NULL LIMIT 1`,
+        existing.transfer_id,
+        existing.id,
+      );
+      if (sibling) {
+        const siblingAmount = Number(sibling.amount);
+        if (
+          Math.abs(siblingAmount - nextAmount) > 0.0001 &&
+          sibling.payment_status === "paid"
+        ) {
+          await applyAccountDelta(
+            txn,
+            sibling.account_id,
+            -signedDelta(sibling.type, siblingAmount),
+          );
+          await applyAccountDelta(
+            txn,
+            sibling.account_id,
+            signedDelta(sibling.type, nextAmount),
+          );
+        }
+        await txn.runAsync(
+          `UPDATE transactions SET
+            amount = ?, date = ?, updated_at = ?, dirty = 1,
+            sync_status = 'pending_update', retry_count = 0,
+            last_sync_error = NULL, device_id = ?,
+            sync_version = sync_version + 1
+           WHERE id = ?`,
+          nextAmount,
+          patch.date ?? existing.date,
+          ts,
+          patch.device_id,
+          sibling.id,
+        );
+        siblingAccountId = sibling.account_id;
+      }
+
+      await txn.runAsync(
+        `UPDATE transfers SET
+          amount = ?, date = ?, updated_at = ?, dirty = 1,
+          sync_status = 'pending_update', retry_count = 0,
+          last_sync_error = NULL, device_id = ?,
+          sync_version = sync_version + 1
+         WHERE id = ? AND deleted_at IS NULL`,
+        nextAmount,
+        patch.date ?? existing.date,
+        ts,
+        patch.device_id,
+        existing.transfer_id,
+      );
+    }
   });
 
   const nextAccountId = patch.account_id ?? existing.account_id;
@@ -517,6 +624,10 @@ export async function updateTransaction(
   if (nextAccountId !== existing.account_id) {
     await recalculateAccountCashBalance(db, existing.account_id);
     scheduleAccountTrailRewrite(db, existing.account_id);
+  }
+  if (siblingAccountId && siblingAccountId !== nextAccountId) {
+    await recalculateAccountCashBalance(db, siblingAccountId);
+    scheduleAccountTrailRewrite(db, siblingAccountId);
   }
 
   const row = await getTransactionById(db, id);
@@ -633,7 +744,16 @@ export async function upsertTransactionFromSync(
       due_remaining = excluded.due_remaining,
       due_settled_at = excluded.due_settled_at,
       meta_data_json = excluded.meta_data_json,
-      balance_after_transaction = excluded.balance_after_transaction,
+      -- The local ascending trail is authoritative for display. The server's
+      -- value comes from a descending walk that used to unwind due rows, so
+      -- taking it verbatim made the same row show a different "Balance after"
+      -- after a sync than before one. Keep whatever the local trail already
+      -- computed; only seed from the server when this row has no local value
+      -- yet (fresh insert), and the post-pull recompute then corrects it.
+      balance_after_transaction = COALESCE(
+        transactions.balance_after_transaction,
+        excluded.balance_after_transaction
+      ),
       party_balance_after = excluded.party_balance_after,
       transfer_id = excluded.transfer_id,
       transfer_direction = excluded.transfer_direction,

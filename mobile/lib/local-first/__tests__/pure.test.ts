@@ -13,6 +13,7 @@ import { canonicalize } from "../checksum.ts";
 import { createClientRequestId } from "../ids.ts";
 import { errorCodeFromUnknown } from "../telemetry.ts";
 import { googleIosReversedScheme } from "../google-oauth.ts";
+import { AUTH_ENDPOINTS, isAuthEndpoint } from "../../auth-endpoints.ts";
 import { computeUseLocalPersonalLedger } from "../ledger-scope-pure.ts";
 import { localDayKey } from "../day-key.ts";
 import {
@@ -430,7 +431,14 @@ test("partyBalanceSumSql uses the party convention", () => {
 
 test("local repair re-runs party convention fix on existing devices", () => {
   const src = readFileSync(join(__dirname, "../repair-ledger.ts"), "utf8");
-  assert.match(src, /LEDGER_REPAIR_VERSION = "18"/);
+  // Bumped to 19 so existing devices also recompute legacy transfer dates and
+  // rewrite Balance-after trails with the calendar-day ordering.
+  assert.match(src, /LEDGER_REPAIR_VERSION = "19"/);
+  // The narrow transfer-date repair must stay narrow: matching the exact suffix
+  // the old code wrote, not every timestamp (cloud rows can carry a real UTC
+  // instant whose local day differs).
+  assert.match(src, /transfer_id IS NOT NULL/);
+  assert.match(src, /date LIKE '%T23:59:59\.000Z'/);
   // Must NOT flip open dues to paid just because due_date is empty (UI optional).
   assert.doesNotMatch(
     src,
@@ -1748,5 +1756,196 @@ test("Bangla lexicon seed is compact pipe-format and indexes cleanly", async () 
   );
   assert.match(lookup, /function matchLexicon/);
   assert.match(lookup, /rankUnifiedSuggestions/);
+});
+
+test("auth endpoints bypass the 401 refresh-and-retry flow", () => {
+  // Regression: `/auth/refresh` used to re-enter the response interceptor, mark
+  // itself `_retry`, and then await the very `refreshPromise` it was part of.
+  // Nothing could settle, so a refresh token rejected by the server (e.g. after
+  // switching EXPO_PUBLIC_BASE_URL between the deployed API and a local backend)
+  // left the app "signed in" with dead tokens and cloud sync never pushed.
+  assert.equal(isAuthEndpoint("/auth/refresh"), true);
+  assert.equal(isAuthEndpoint("http://192.168.0.224:5050/api/auth/refresh"), true);
+  assert.equal(isAuthEndpoint("/api/auth/refresh?retry=1"), true);
+
+  // A wrong password (401) must not be read as "session expired".
+  assert.equal(isAuthEndpoint("/auth/login"), true);
+  assert.equal(isAuthEndpoint("/auth/signup"), true);
+
+  // Ordinary calls must still participate in refresh-and-retry.
+  assert.equal(isAuthEndpoint("/auth/me"), false);
+  assert.equal(isAuthEndpoint("/sync/handshake"), false);
+  assert.equal(isAuthEndpoint("/auth/refresh-tokens"), false);
+  assert.equal(isAuthEndpoint("/xauth/refresh"), false);
+  assert.equal(isAuthEndpoint(""), false);
+  assert.equal(isAuthEndpoint(undefined), false);
+
+  assert.deepEqual(AUTH_ENDPOINTS, [
+    "/auth/refresh",
+    "/auth/login",
+    "/auth/signup",
+  ]);
+
+  // Both 401 branches in the interceptor must consult the guard, otherwise the
+  // deadlock (branch 1) or a spurious sign-out (branch 2) comes straight back.
+  const api = readFileSync(join(__dirname, "../../api.ts"), "utf8");
+  assert.match(api, /import \{ isAuthEndpoint \} from "\.\/auth-endpoints"/);
+  assert.match(
+    api,
+    /const authEndpoint = isAuthEndpoint\(originalRequest\?\.url\)/,
+  );
+  assert.equal(api.match(/!authEndpoint/g)?.length, 2);
+});
+
+test("a 401 that reached the server is not vetoed by a flaky probe", () => {
+  // The probe can report "down" for a single transient blip (nodemon restarting
+  // mid-request, a cold socket, one dropped packet). When it did, the handler
+  // returned early and kept a permanently rejected session alive — the app
+  // looked signed in, every request 401'd, and sync silently never pushed.
+  // A 401 delivered as an HTTP response already proves the host is up.
+  const api = readFileSync(join(__dirname, "../../api.ts"), "utf8");
+  assert.equal(api.match(/serverResponded: true/g)?.length, 2);
+
+  const auth = readFileSync(
+    join(__dirname, "../../../hooks/use-auth.tsx"),
+    "utf8",
+  );
+  assert.match(auth, /async \(ctx\?: UnauthorizedContext\) => \{/);
+  assert.match(auth, /if \(!ctx\?\.serverResponded\) \{/);
+
+  // The offline/server-down gates must sit INSIDE that guard, so they still
+  // protect callers that have no proof the server answered.
+  const gate = auth.slice(
+    auth.indexOf("if (!ctx?.serverResponded) {"),
+    auth.indexOf("const previousState = stateRef.current;"),
+  );
+  assert.match(gate, /probeBackendAvailable/);
+  assert.match(gate, /stays available on this device/);
+  assert.match(gate, /Continuing with on-device data/);
+
+  // The sign-out itself must sit outside the guard.
+  const afterGuard = auth.slice(
+    auth.indexOf("const previousState = stateRef.current;"),
+    auth.indexOf("handlingUnauthorized.current = false;"),
+  );
+  assert.match(afterGuard, /clearSessionRef\.current\(\{ wipeLedger: false \}\)/);
+});
+
+test("backend probe retries and drops the dead /api/ fallback", () => {
+  const src = readFileSync(
+    join(__dirname, "../../../sync/scheduler.ts"),
+    "utf8",
+  );
+  const probe = src.slice(
+    src.indexOf("export async function probeBackendAvailable"),
+    src.indexOf("function disabledResult"),
+  );
+
+  // A blip must be retried instead of reported as "server down".
+  assert.match(src, /const PROBE_ATTEMPTS = 2/);
+  assert.match(src, /const PROBE_RETRY_DELAY_MS/);
+  assert.match(probe, /attempt < PROBE_ATTEMPTS/);
+
+  // The budget is shared across attempts, so the probe cannot outlive its
+  // caller's timeout by a multiple of the candidate count.
+  assert.match(probe, /deadline/);
+  assert.match(probe, /perRequestMs/);
+
+  // `/api/` 404s on this backend, so it could never rescue a probe that
+  // `/health` and `/` had already failed — it only burned the budget and
+  // disguised the real cause. Candidates must be root-based only.
+  const candidatesLine = probe
+    .split("\n")
+    .find((line) => line.includes("const candidates ="));
+  assert.ok(candidatesLine, "candidates line not found");
+  assert.match(candidatesLine, /root/);
+  assert.doesNotMatch(candidatesLine, /baseURL/);
+});
+
+test("background sync task is defined at global scope and never signs out", () => {
+  const src = readFileSync(
+    join(__dirname, "../background-sync.ts"),
+    "utf8",
+  );
+
+  // The OS spins up a headless JS context and looks the executor up by name, so
+  // defineTask must run at module scope — not inside a component or a handler.
+  assert.match(src, /TaskManager\.defineTask\(BACKGROUND_SYNC_TASK, runBackgroundSync\)/);
+  assert.match(src, /TaskManager\.isTaskDefined\(BACKGROUND_SYNC_TASK\)/);
+  const defineIdx = src.indexOf("TaskManager.defineTask(");
+  const firstEffectIdx = src.indexOf("export async function");
+  assert.ok(
+    defineIdx > 0 && defineIdx < firstEffectIdx,
+    "defineTask must run at import time, before any exported function",
+  );
+
+  // A background 401 has no UI to explain it and the in-app session is still
+  // valid, so the background path must NOT clear it.
+  const handler = src.slice(
+    src.indexOf("setUnauthorizedHandler("),
+    src.indexOf("return true;"),
+  );
+  assert.match(handler, /Never sign out from the background/);
+  assert.doesNotMatch(handler, /clearStoredSession|clearSession|unregisterAllTasks/);
+
+  // Reporting Failed makes iOS deprioritise future wakes, so a long run that
+  // simply ran out of budget must still report Success.
+  assert.match(src, /BackgroundTaskResult\.Success/);
+  assert.match(src, /BACKGROUND_SYNC_BUDGET_MS/);
+  assert.match(src, /Promise\.race/);
+
+  // Registration must follow the flags rather than leaking wake budget.
+  assert.match(src, /opts\.authenticated !== false/);
+  assert.match(src, /isCloudSyncEnabled\(\) \|\| isDriveBackupEnabled\(\)/);
+  assert.match(src, /unregisterTaskAsync/);
+  assert.match(src, /getStatusAsync/);
+});
+
+test("headless background sync restores the token from SecureStore", () => {
+  // The axios token lives in a module variable that only use-auth populates, so a
+  // fresh headless context has no token at all — without this every background
+  // push would 401 and background sync would be useless.
+  const src = readFileSync(
+    join(__dirname, "../background-sync.ts"),
+    "utf8",
+  );
+  assert.match(src, /readStoredSession/);
+  assert.match(src, /setAuthToken\(session\.accessToken\)/);
+  assert.match(src, /setTokenRefreshHandler/);
+
+  // Keys must come from one shared module, not a copy that can drift.
+  assert.match(src, /from "\.\.\/auth\/session-storage"/);
+  const storage = readFileSync(
+    join(__dirname, "../../auth/session-storage.ts"),
+    "utf8",
+  );
+  assert.match(storage, /STORAGE_SESSION_KEY = "cash-book-auth-session"/);
+  assert.match(storage, /LEGACY_TOKEN_KEY = "debit-credit-token"/);
+  assert.match(storage, /STORAGE_USER_KEY = "cash-book-auth-user"/);
+  // No React in the headless path.
+  assert.doesNotMatch(storage, /from "react"/);
+
+  const auth = readFileSync(
+    join(__dirname, "../../../hooks/use-auth.tsx"),
+    "utf8",
+  );
+  assert.match(auth, /from "\.\.\/lib\/auth\/session-storage"/);
+  // The keys must no longer be declared locally in use-auth.
+  assert.doesNotMatch(auth, /^const STORAGE_SESSION_KEY =/m);
+});
+
+test("root layout registers the OS background task", () => {
+  const layout = readFileSync(
+    join(__dirname, "../../../app/_layout.tsx"),
+    "utf8",
+  );
+  // The import is what defines the task at global scope, so it must be a static
+  // import in the root layout — a lazy import would run too late.
+  assert.match(
+    layout,
+    /import \{[^}]*syncBackgroundTaskRegistration[^}]*\} from "\.\.\/lib\/local-first\/background-sync"/,
+  );
+  assert.match(layout, /syncBackgroundTaskRegistration\(\{ authenticated \}\)/);
+  assert.match(layout, /subscribeLocalFirstFlags/);
 });
 

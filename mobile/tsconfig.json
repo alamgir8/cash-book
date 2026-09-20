@@ -7,6 +7,11 @@
     // type-check only (noEmit is inherited from expo/tsconfig.base), so no
     // output is affected.
     "allowImportingTsExtensions": true,
+    // The `lib/local-first/__tests__` suites are Node scripts (`node:test`,
+    // `node:sqlite`), so they need Node's ambient types. Without this they were
+    // excluded from automatic @types discovery and every `node:*` import failed
+    // to resolve. Type-check only (noEmit), so there is no runtime effect.
+    "types": ["node"],
     "paths": {
       "@/*": ["./*"]
     }

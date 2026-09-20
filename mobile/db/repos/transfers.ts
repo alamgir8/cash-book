@@ -33,7 +33,13 @@ export async function listTransfers(
   const { sql, params } = scopeWhere("", scope);
   const deleted = opts?.includeDeleted ? "" : "AND deleted_at IS NULL";
   return db.getAllAsync<LocalTransfer>(
-    `SELECT * FROM transfers WHERE ${sql} ${deleted} ORDER BY date DESC`,
+    // Same day-first ordering as the transaction ledger. Transfer `date` values
+    // are mixed in the wild: this app now stores a calendar day, but legacy rows
+    // hold a T23:59:59 suffix and synced rows carry the server's ISO timestamp.
+    // Grouping by day keeps those reading as one day, and the id tie-breaker
+    // keeps the list stable.
+    `SELECT * FROM transfers WHERE ${sql} ${deleted}
+     ORDER BY substr(date, 1, 10) DESC, created_at DESC, id DESC`,
     ...params,
   );
 }

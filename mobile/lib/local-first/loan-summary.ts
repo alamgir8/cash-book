@@ -228,7 +228,7 @@ export async function decorateLocalLoanSummaries(
      WHERE deleted_at IS NULL
        AND category_id IN (${placeholders})
        AND (${orParts.join(" OR ")})
-     ORDER BY date ASC, created_at ASC`,
+     ORDER BY substr(date, 1, 10) ASC, created_at ASC`,
     ...params,
   );
 
@@ -425,7 +425,7 @@ export async function fetchLocalCounterpartyLedger(params: {
      WHERE deleted_at IS NULL
        AND category_id IN (${placeholders})
        AND (${orParts.join(" OR ")})
-     ORDER BY date ASC, created_at ASC, id ASC`,
+     ORDER BY substr(date, 1, 10) ASC, created_at ASC, id ASC`,
     ...bind,
   );
 

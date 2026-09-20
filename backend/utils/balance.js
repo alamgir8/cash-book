@@ -35,6 +35,17 @@ export const recomputeDescendingBalances = ({
 
     txn.balance_after_transaction = currentBalance;
 
+    // Dues never moved cash, so they must not unwind the running balance.
+    // Counting them here made this walk disagree with `current_balance` (which
+    // is computed from PAID rows only) and with the mobile app's ascending
+    // trail, so a synced row could show a different "Balance after" than the
+    // same row computed on-device. Dues are snapshots: keep the value, skip the
+    // unwind.
+    if (txn.payment_status === "due") {
+      running.set(accountId, currentBalance);
+      return;
+    }
+
     if (txn.type === "credit") {
       currentBalance -= Number(txn.amount ?? 0);
     } else {

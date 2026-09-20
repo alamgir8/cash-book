@@ -4,6 +4,7 @@ import {
   isLoanGivenRoot,
   isLoanReceivedRoot,
 } from "@/lib/loan-utils";
+import { isPaidLike } from "@/lib/local-first/ledger-rules";
 
 /** Stable filter object for React Query keys (drops empty values). */
 export const serializeTransactionFilters = (
@@ -290,18 +291,19 @@ export const filterTransactionsByActiveFilters = (
 
   if (filters.payment_status) {
     result = result.filter((txn) => {
-      const status = txn.payment_status ?? "paid";
-      if (status !== filters.payment_status) return false;
       if (filters.payment_status === "due") {
         // Match local SQL / cloud Due chip: open roots only.
+        if ((txn.payment_status ?? "paid") !== "due") return false;
         if (txn.parent_due_id) return false;
         const remaining = txn.due_remaining ?? txn.amount ?? 0;
         if (!(Number(remaining) > 0)) return false;
         if (!filters.loan_filter && isLoanCategoryType(txn.category?.type)) {
           return false;
         }
+        return true;
       }
-      return true;
+      // Paid chip accepts settled dues too — see isPaidLike.
+      return isPaidLike(txn);
     });
   }
 

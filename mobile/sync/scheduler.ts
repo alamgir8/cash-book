@@ -84,9 +84,29 @@ async function networkUsable(opts?: { allowUnknownReachability?: boolean }): Pro
   return true;
 }
 
+/** Candidate paths are retried as a set so one transient blip is not "server down". */
+const PROBE_ATTEMPTS = 2;
+const PROBE_RETRY_DELAY_MS = 350;
+
 /**
  * Lightweight backend probe — distinct from "device has internet".
- * Tries /health then API root (Vercel rewrite quirks). Callers gate frequency.
+ *
+ * `/health` is the primary signal: the API answers it without touching Mongo, so
+ * it separates "host reachable" from "database unhealthy". The origin root is the
+ * fallback for hosts that do not expose `/health`.
+ *
+ * Two hardening points, both from a real failure where the probe reported "down"
+ * while the backend was answering requests:
+ *
+ *  - The candidate set is retried. A single blip (nodemon restarting during a
+ *    file save, a cold TCP handshake, one dropped packet) used to be enough to
+ *    report "server down", and callers read that as "keep the session", leaving
+ *    rejected refresh tokens stuck in place so cloud sync failed silently.
+ *  - The API root (`/api/`) is no longer a candidate. It 404s on this backend, so
+ *    it could never rescue a probe that `/health` and `/` had already failed —
+ *    it only burned the remaining budget and disguised the real cause.
+ *
+ * `timeoutMs` is the budget for the whole probe, shared across attempts.
  */
 export async function probeBackendAvailable(
   timeoutMs = 4000,
@@ -94,22 +114,44 @@ export async function probeBackendAvailable(
   try {
     const { baseURL } = await import("@/lib/api");
     const root = String(baseURL).replace(/\/api\/?$/, "");
-    const candidates = [`${root}/health`, `${root}/`, String(baseURL).replace(/\/?$/, "/")];
-    for (const url of candidates) {
-      try {
+    const candidates = [...new Set([`${root}/health`, `${root}/`])];
+
+    const deadline = Date.now() + timeoutMs;
+    const perRequestMs = Math.max(
+      1000,
+      Math.floor(timeoutMs / (PROBE_ATTEMPTS * candidates.length)),
+    );
+
+    for (let attempt = 0; attempt < PROBE_ATTEMPTS; attempt++) {
+      if (attempt > 0) {
+        const remaining = deadline - Date.now();
+        if (remaining <= PROBE_RETRY_DELAY_MS) return false;
+        await new Promise((resolve) =>
+          setTimeout(resolve, PROBE_RETRY_DELAY_MS),
+        );
+      }
+
+      for (const url of candidates) {
+        const budget = Math.min(perRequestMs, deadline - Date.now());
+        if (budget <= 0) return false;
+
         const controller = new AbortController();
-        const t = setTimeout(() => controller.abort(), timeoutMs);
-        const res = await fetch(url, {
-          method: "GET",
-          signal: controller.signal,
-        });
-        clearTimeout(t);
-        // 401/403 still prove the host is up (auth required).
-        if (res.ok || res.status === 401 || res.status === 403) return true;
-      } catch {
-        /* try next */
+        const timer = setTimeout(() => controller.abort(), budget);
+        try {
+          const res = await fetch(url, {
+            method: "GET",
+            signal: controller.signal,
+          });
+          // 401/403 still prove the host is up (auth required).
+          if (res.ok || res.status === 401 || res.status === 403) return true;
+        } catch {
+          /* try next */
+        } finally {
+          clearTimeout(timer);
+        }
       }
     }
+
     return false;
   } catch {
     return false;

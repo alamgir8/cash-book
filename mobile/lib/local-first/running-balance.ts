@@ -2,6 +2,27 @@
  * Pure chronological cash running balance (no DB / RN imports).
  * Matches wallet cash: paid moves the balance; due snapshots without moving
  * (same as Mongo $inc rules). Open dues are obligations, not cash yet.
+ *
+ * THIS IS THE AUTHORITATIVE RULE for the displayed "Balance after".
+ *
+ * There are two implementations of this walk — this ascending one, and the
+ * backend's descending `recomputeDescendingBalances`. They must agree, and this
+ * one wins for what a device shows:
+ *
+ *  - Ascending here, seeded from `opening_balance`, newest last.
+ *  - Descending on the server, seeded from `current_balance`, newest first.
+ *
+ * They disagreed about dues: the server unwound them (shifting every older
+ * row's balance) while this walk deliberately skips them, because a due never
+ * moved cash and `current_balance` is itself derived from paid rows only. That
+ * made the same row show a different value before and after a sync. Fixes on
+ * both sides, so they now agree:
+ *
+ *  - The server no longer unwinds due rows (`backend/utils/balance.js`).
+ *  - `upsertTransactionFromSync` keeps the local value when one exists, so a
+ *    payload can never overwrite the on-device trail.
+ *  - After a pull, `sync/engine.ts` re-derives the trail for every account the
+ *    pull touched.
  */
 
 export type RunningBalanceTxn = {
