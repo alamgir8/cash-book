@@ -1855,3 +1855,87 @@ test("backend probe retries and drops the dead /api/ fallback", () => {
   assert.doesNotMatch(candidatesLine, /baseURL/);
 });
 
+test("background sync task is defined at global scope and never signs out", () => {
+  const src = readFileSync(
+    join(__dirname, "../background-sync.ts"),
+    "utf8",
+  );
+
+  // The OS spins up a headless JS context and looks the executor up by name, so
+  // defineTask must run at module scope — not inside a component or a handler.
+  assert.match(src, /TaskManager\.defineTask\(BACKGROUND_SYNC_TASK, runBackgroundSync\)/);
+  assert.match(src, /TaskManager\.isTaskDefined\(BACKGROUND_SYNC_TASK\)/);
+  const defineIdx = src.indexOf("TaskManager.defineTask(");
+  const firstEffectIdx = src.indexOf("export async function");
+  assert.ok(
+    defineIdx > 0 && defineIdx < firstEffectIdx,
+    "defineTask must run at import time, before any exported function",
+  );
+
+  // A background 401 has no UI to explain it and the in-app session is still
+  // valid, so the background path must NOT clear it.
+  const handler = src.slice(
+    src.indexOf("setUnauthorizedHandler("),
+    src.indexOf("return true;"),
+  );
+  assert.match(handler, /Never sign out from the background/);
+  assert.doesNotMatch(handler, /clearStoredSession|clearSession|unregisterAllTasks/);
+
+  // Reporting Failed makes iOS deprioritise future wakes, so a long run that
+  // simply ran out of budget must still report Success.
+  assert.match(src, /BackgroundTaskResult\.Success/);
+  assert.match(src, /BACKGROUND_SYNC_BUDGET_MS/);
+  assert.match(src, /Promise\.race/);
+
+  // Registration must follow the flags rather than leaking wake budget.
+  assert.match(src, /opts\.authenticated !== false/);
+  assert.match(src, /isCloudSyncEnabled\(\) \|\| isDriveBackupEnabled\(\)/);
+  assert.match(src, /unregisterTaskAsync/);
+  assert.match(src, /getStatusAsync/);
+});
+
+test("headless background sync restores the token from SecureStore", () => {
+  // The axios token lives in a module variable that only use-auth populates, so a
+  // fresh headless context has no token at all — without this every background
+  // push would 401 and background sync would be useless.
+  const src = readFileSync(
+    join(__dirname, "../background-sync.ts"),
+    "utf8",
+  );
+  assert.match(src, /readStoredSession/);
+  assert.match(src, /setAuthToken\(session\.accessToken\)/);
+  assert.match(src, /setTokenRefreshHandler/);
+
+  // Keys must come from one shared module, not a copy that can drift.
+  assert.match(src, /from "\.\.\/auth\/session-storage"/);
+  const storage = readFileSync(
+    join(__dirname, "../../auth/session-storage.ts"),
+    "utf8",
+  );
+  assert.match(storage, /STORAGE_SESSION_KEY = "cash-book-auth-session"/);
+  assert.match(storage, /LEGACY_TOKEN_KEY = "debit-credit-token"/);
+  assert.match(storage, /STORAGE_USER_KEY = "cash-book-auth-user"/);
+  // No React in the headless path.
+  assert.doesNotMatch(storage, /from "react"/);
+
+  const auth = readFileSync(
+    join(__dirname, "../../../hooks/use-auth.tsx"),
+    "utf8",
+  );
+  assert.match(auth, /from "\.\.\/lib\/auth\/session-storage"/);
+  // The keys must no longer be declared locally in use-auth.
+  assert.doesNotMatch(auth, /^const STORAGE_SESSION_KEY =/m);
+});
+
+test("root layout registers the OS background task", () => {
+  const layout = readFileSync(
+    join(__dirname, "../../../app/_layout.tsx"),
+    "utf8",
+  );
+  // The import is what defines the task at global scope, so it must be a static
+  // import in the root layout — a lazy import would run too late.
+  assert.match(layout, /import \{ syncBackgroundTaskRegistration \} from "\.\.\/lib\/local-first\/background-sync"/);
+  assert.match(layout, /syncBackgroundTaskRegistration\(\{ authenticated \}\)/);
+  assert.match(layout, /subscribeLocalFirstFlags/);
+});
+

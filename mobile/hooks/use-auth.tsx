@@ -19,6 +19,11 @@ import {
   type UnauthorizedContext,
 } from "../lib/api";
 import { clearUserScopedData } from "../lib/clear-user-data";
+import {
+  LEGACY_TOKEN_KEY,
+  STORAGE_SESSION_KEY,
+  STORAGE_USER_KEY,
+} from "../lib/auth/session-storage";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as authService from "../services/auth";
 import { registerTrustedDevice } from "../services/device";
@@ -31,9 +36,6 @@ import type {
   User as Admin,
 } from "../services/auth";
 
-const LEGACY_TOKEN_KEY = "debit-credit-token";
-const STORAGE_SESSION_KEY = "cash-book-auth-session";
-const STORAGE_USER_KEY = "cash-book-auth-user";
 /** Set on Sign Out / Switch Account so sign-in shows email+password (skips Face ID auto once). */
 export const SKIP_BIOMETRIC_AUTO_LOGIN_KEY = "cash-book-skip-biometric-auto";
 // Disable automatic token refresh - only refresh on demand to prevent auto logouts

@@ -22,6 +22,8 @@ import { organizationsApi } from "../services/organizations";
 import type { OrganizationSummary } from "../services/organizations";
 import { bootstrapLocalFirst, bootstrapCloudLedgerIfNeeded } from "../lib/local-first/bootstrap";
 import { startDailyLocalFirstJobs } from "../lib/local-first/daily-jobs";
+import { syncBackgroundTaskRegistration } from "../lib/local-first/background-sync";
+import { subscribeLocalFirstFlags } from "../lib/local-first/flags";
 import { startSyncScheduler } from "../sync/scheduler";
 import {
   setDriveBackupUserKeyProvider,
@@ -212,6 +214,23 @@ const RootContent = () => {
       stopDaily();
     };
   }, [isReady, authUserKey, ledgerReady]);
+
+  /**
+   * OS-scheduled background sync (runs while the app is closed).
+   *
+   * The schedulers above only tick in the foreground, so without this the
+   * 08/14/20 slots in `daily-jobs.ts` could only ever fire while the app was
+   * open. Registration is kept in step with auth + the local-first flags.
+   */
+  useEffect(() => {
+    if (!isReady) return;
+    const authenticated = Boolean(authUserKey);
+    void syncBackgroundTaskRegistration({ authenticated });
+    const unsubscribe = subscribeLocalFirstFlags(() => {
+      void syncBackgroundTaskRegistration({ authenticated });
+    });
+    return unsubscribe;
+  }, [isReady, authUserKey]);
 
   useEffect(() => {
     const maybeHideSplash = async () => {
