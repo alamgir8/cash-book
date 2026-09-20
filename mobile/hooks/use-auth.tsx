@@ -16,6 +16,7 @@ import {
   setAuthToken,
   setTokenRefreshHandler,
   setUnauthorizedHandler,
+  type UnauthorizedContext,
 } from "../lib/api";
 import { clearUserScopedData } from "../lib/clear-user-data";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -175,9 +176,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const refreshAccessTokenRef = useRef<
     (() => Promise<string | null>) | undefined
   >(undefined);
-  const handleUnauthorizedRef = useRef<(() => Promise<void>) | undefined>(
-    undefined,
-  );
+  const handleUnauthorizedRef = useRef<
+    ((ctx?: UnauthorizedContext) => Promise<void>) | undefined
+  >(undefined);
 
   useEffect(() => {
     persistSessionRef.current = persistSession;
@@ -242,56 +243,67 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }, REFRESH_INTERVAL_MS);
   }, [stopRefreshTimer]);
 
-  const handleUnauthorized = useCallback(async () => {
-    if (handlingUnauthorized.current) return;
-    handlingUnauthorized.current = true;
+  const handleUnauthorized = useCallback(
+    async (ctx?: UnauthorizedContext) => {
+      if (handlingUnauthorized.current) return;
+      handlingUnauthorized.current = true;
 
-    try {
-      // Never lock the user out when the device/backend is unavailable —
-      // local-first cash book must keep working offline.
       try {
-        const NetInfo = (await import("@react-native-community/netinfo"))
-          .default;
-        const net = await NetInfo.fetch();
-        const deviceOnline =
-          net.isConnected === true && net.isInternetReachable !== false;
-        if (!deviceOnline) {
-          Toast.show({
-            type: "info",
-            text1: "Working offline",
-            text2: "Your cash book stays available on this device.",
-          });
-          return;
+        // A 401 that arrived as a real HTTP response already proves the server is
+        // reachable, so signing out is safe and re-signing in will work. Letting a
+        // flaky reachability probe veto this is what left rejected sessions stuck
+        // forever: the app looked signed in, every request 401'd, and cloud sync
+        // silently never pushed. The gate below still applies to any caller that
+        // has no such evidence.
+        if (!ctx?.serverResponded) {
+          // Never lock the user out when the device/backend is unavailable —
+          // local-first cash book must keep working offline.
+          try {
+            const NetInfo = (await import("@react-native-community/netinfo"))
+              .default;
+            const net = await NetInfo.fetch();
+            const deviceOnline =
+              net.isConnected === true && net.isInternetReachable !== false;
+            if (!deviceOnline) {
+              Toast.show({
+                type: "info",
+                text1: "Working offline",
+                text2: "Your cash book stays available on this device.",
+              });
+              return;
+            }
+            const { probeBackendAvailable } = await import("@/sync/scheduler");
+            const backendOk = await probeBackendAvailable(3500);
+            if (!backendOk) {
+              Toast.show({
+                type: "info",
+                text1: "Server unavailable",
+                text2: "Continuing with on-device data.",
+              });
+              return;
+            }
+          } catch {
+            // If we cannot probe, prefer staying signed in for offline use.
+            return;
+          }
         }
-        const { probeBackendAvailable } = await import("@/sync/scheduler");
-        const backendOk = await probeBackendAvailable(3500);
-        if (!backendOk) {
-          Toast.show({
-            type: "info",
-            text1: "Server unavailable",
-            text2: "Continuing with on-device data.",
-          });
-          return;
-        }
-      } catch {
-        // If we cannot probe, prefer staying signed in for offline use.
-        return;
-      }
 
-      const previousState = stateRef.current;
-      // Soft clear: drop tokens so the user can sign in again, but keep SQLite.
-      await clearSessionRef.current({ wipeLedger: false });
-      if (previousState.status === "authenticated") {
-        Toast.show({
-          type: "info",
-          text1: "Session expired",
-          text2: "Please sign in again. Your on-device data is safe.",
-        });
+        const previousState = stateRef.current;
+        // Soft clear: drop tokens so the user can sign in again, but keep SQLite.
+        await clearSessionRef.current({ wipeLedger: false });
+        if (previousState.status === "authenticated") {
+          Toast.show({
+            type: "info",
+            text1: "Session expired",
+            text2: "Please sign in again. Your on-device data is safe.",
+          });
+        }
+      } finally {
+        handlingUnauthorized.current = false;
       }
-    } finally {
-      handlingUnauthorized.current = false;
-    }
-  }, []);
+    },
+    [],
+  );
 
   // Update refs with latest callback values
   useEffect(() => {
@@ -465,8 +477,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   // Set up unauthorized and token refresh handlers once on mount
   useEffect(() => {
-    setUnauthorizedHandler(() => {
-      void handleUnauthorizedRef.current?.();
+    setUnauthorizedHandler((ctx) => {
+      void handleUnauthorizedRef.current?.(ctx);
     });
     setTokenRefreshHandler(
       () => refreshAccessTokenRef.current?.() ?? Promise.resolve(null),

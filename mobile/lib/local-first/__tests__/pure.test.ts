@@ -1790,3 +1790,68 @@ test("auth endpoints bypass the 401 refresh-and-retry flow", () => {
   assert.equal(api.match(/!authEndpoint/g)?.length, 2);
 });
 
+test("a 401 that reached the server is not vetoed by a flaky probe", () => {
+  // The probe can report "down" for a single transient blip (nodemon restarting
+  // mid-request, a cold socket, one dropped packet). When it did, the handler
+  // returned early and kept a permanently rejected session alive — the app
+  // looked signed in, every request 401'd, and sync silently never pushed.
+  // A 401 delivered as an HTTP response already proves the host is up.
+  const api = readFileSync(join(__dirname, "../../api.ts"), "utf8");
+  assert.equal(api.match(/serverResponded: true/g)?.length, 2);
+
+  const auth = readFileSync(
+    join(__dirname, "../../../hooks/use-auth.tsx"),
+    "utf8",
+  );
+  assert.match(auth, /async \(ctx\?: UnauthorizedContext\) => \{/);
+  assert.match(auth, /if \(!ctx\?\.serverResponded\) \{/);
+
+  // The offline/server-down gates must sit INSIDE that guard, so they still
+  // protect callers that have no proof the server answered.
+  const gate = auth.slice(
+    auth.indexOf("if (!ctx?.serverResponded) {"),
+    auth.indexOf("const previousState = stateRef.current;"),
+  );
+  assert.match(gate, /probeBackendAvailable/);
+  assert.match(gate, /stays available on this device/);
+  assert.match(gate, /Continuing with on-device data/);
+
+  // The sign-out itself must sit outside the guard.
+  const afterGuard = auth.slice(
+    auth.indexOf("const previousState = stateRef.current;"),
+    auth.indexOf("handlingUnauthorized.current = false;"),
+  );
+  assert.match(afterGuard, /clearSessionRef\.current\(\{ wipeLedger: false \}\)/);
+});
+
+test("backend probe retries and drops the dead /api/ fallback", () => {
+  const src = readFileSync(
+    join(__dirname, "../../../sync/scheduler.ts"),
+    "utf8",
+  );
+  const probe = src.slice(
+    src.indexOf("export async function probeBackendAvailable"),
+    src.indexOf("function disabledResult"),
+  );
+
+  // A blip must be retried instead of reported as "server down".
+  assert.match(src, /const PROBE_ATTEMPTS = 2/);
+  assert.match(src, /const PROBE_RETRY_DELAY_MS/);
+  assert.match(probe, /attempt < PROBE_ATTEMPTS/);
+
+  // The budget is shared across attempts, so the probe cannot outlive its
+  // caller's timeout by a multiple of the candidate count.
+  assert.match(probe, /deadline/);
+  assert.match(probe, /perRequestMs/);
+
+  // `/api/` 404s on this backend, so it could never rescue a probe that
+  // `/health` and `/` had already failed — it only burned the budget and
+  // disguised the real cause. Candidates must be root-based only.
+  const candidatesLine = probe
+    .split("\n")
+    .find((line) => line.includes("const candidates ="));
+  assert.ok(candidatesLine, "candidates line not found");
+  assert.match(candidatesLine, /root/);
+  assert.doesNotMatch(candidatesLine, /baseURL/);
+});
+

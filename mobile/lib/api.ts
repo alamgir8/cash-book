@@ -135,12 +135,28 @@ export const api = axios.create({
 });
 
 let currentToken: string | null = null;
-let unauthorizedHandler: (() => void | Promise<void>) | null = null;
+let unauthorizedHandler:
+  | ((ctx: UnauthorizedContext) => void | Promise<void>)
+  | null = null;
 let tokenRefreshHandler: (() => Promise<string | null>) | null = null;
 let refreshPromise: Promise<string | null> | null = null;
 
+/**
+ * Context handed to the unauthorized handler.
+ *
+ * `serverResponded` is true when the 401 arrived as an actual HTTP response.
+ * That already proves the host is reachable, so the caller must not let a flaky
+ * reachability probe veto signing the user out — a probe that fails for one
+ * transient blip would otherwise keep a permanently rejected session alive,
+ * leaving the app looking signed in while every request 401s and cloud sync
+ * silently never pushes.
+ */
+export type UnauthorizedContext = {
+  serverResponded: boolean;
+};
+
 export const setUnauthorizedHandler = (
-  handler?: (() => void | Promise<void>) | null,
+  handler?: ((ctx: UnauthorizedContext) => void | Promise<void>) | null,
 ) => {
   unauthorizedHandler = handler ?? null;
 };
@@ -234,7 +250,10 @@ api.interceptors.response.use(
           (originalRequest as any)._refreshNetworkError = true;
           return Promise.reject(refreshError);
         }
-        await Promise.resolve(unauthorizedHandler?.());
+        // The refresh call came back with a response, so the server is up.
+        await Promise.resolve(
+          unauthorizedHandler?.({ serverResponded: true }),
+        );
         return Promise.reject(refreshError);
       }
     }
@@ -245,7 +264,7 @@ api.interceptors.response.use(
       !(originalRequest as any)?._refreshNetworkError &&
       !authEndpoint
     ) {
-      await Promise.resolve(unauthorizedHandler?.());
+      await Promise.resolve(unauthorizedHandler?.({ serverResponded: true }));
     }
 
     return Promise.reject(error);
