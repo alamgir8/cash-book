@@ -700,4 +700,21 @@ npm run ios:sync-flavors -- --dry-run   # report only
 
 It verifies what is actually on disk by hashing the installed binaries (the marker file only records intent, and is exactly what goes stale), then swaps via React Native's and Expo's own scripts. Re-run the build afterwards.
 
+### Background sync (runs with the app closed)
+
+The daily sync slots (`08:00`, `14:00`, `20:00` local, see `lib/local-first/daily-schedule.ts`) are attempted by an OS-scheduled background task (`lib/local-first/background-sync.ts`) as well as by the in-app schedulers. The in-app ones only tick while the app is in the foreground, so without the background task those slots could only ever fire if the app was open that day.
+
+**iOS must allow it.** If **Settings → General → Background App Refresh** is off (or Low Power Mode is on), iOS reports background tasks as *restricted* and the app will not register the task at all. You will see this in the dev logs:
+
+```
+LOG  [bg-sync] background tasks are RESTRICTED on this device — enable
+     Settings → General → Background App Refresh (and disable Low Power Mode).
+     Foreground sync is unaffected.
+```
+
+This is a device/user setting and cannot be overridden from code. Foreground sync, manual **Sync now** and Drive backup all keep working regardless.
+
+**The OS owns the schedule.** `minimumInterval` is a *minimum*, not a promise: iOS batches these into windows (often overnight) and may skip days based on battery, charging and how often the app is used. Treat background sync as a supplement to the foreground paths, never a replacement. Nothing is lost either way — any missed slot is picked up by `nextDueSyncHour` the next time the app opens.
+
+
 ---
