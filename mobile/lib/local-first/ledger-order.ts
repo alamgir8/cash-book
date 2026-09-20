@@ -36,6 +36,17 @@
 /** Calendar-day key of a `date` value. Handles `YYYY-MM-DD` and full ISO. */
 export const SQL_LEDGER_DAY = "substr(date, 1, 10)";
 
+/**
+ * JS twin of {@link SQL_LEDGER_DAY}, for sorting rows already in memory.
+ *
+ * Exists so the PDF export and any in-memory walk group days exactly the way
+ * SQLite does. Comparing full timestamps instead is what made a legacy
+ * `2026-09-20T23:59:59.000Z` transfer sort behind its own same-day rows in the
+ * exported PDF, the same way it did in the ledger.
+ */
+export const ledgerDayOf = (value?: string | null): string =>
+  (value ?? "").slice(0, 10);
+
 /** Newest day first, then most recently entered first. */
 export const ORDER_LEDGER_NEWEST_FIRST =
   "ORDER BY substr(date, 1, 10) DESC, created_at DESC, id DESC";

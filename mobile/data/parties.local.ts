@@ -623,6 +623,11 @@ export async function fetchLocalVendorLedger(params: {
   let resolvedPartyId: string | null =
     params.forPartyId ?? params.partyId ?? null;
   let partyType: string | null = null;
+  /**
+   * Seeds the running balance so the window below can be derived rather than
+   * assumed. 0 for a free-text counterparty, which has no party record.
+   */
+  let openingBalance = 0;
   const role = params.role ?? (params.forPartyId ? "for_party" : "vendor");
 
   if (params.forPartyId || (role === "for_party" && params.partyId)) {
@@ -645,6 +650,7 @@ export async function fetchLocalVendorLedger(params: {
     partyName = row.name;
     resolvedPartyId = row.server_id || row.id;
     partyType = row.type ?? null;
+    openingBalance = Number(row.opening_balance ?? 0);
     // For / counterparty ledger: for_party_id only
     clauses.push(`(for_party_id = ? OR for_party_id = ?)`);
     bind.push(row.id, row.server_id || row.id);
@@ -667,6 +673,7 @@ export async function fetchLocalVendorLedger(params: {
     partyName = row.name;
     resolvedPartyId = row.server_id || row.id;
     partyType = row.type ?? null;
+    openingBalance = Number(row.opening_balance ?? 0);
     // Vendor ledger: party_id only (not for_party)
     clauses.push(`(party_id = ? OR party_id = ?)`);
     bind.push(row.id, row.server_id || row.id);
@@ -716,11 +723,14 @@ export async function fetchLocalVendorLedger(params: {
     debit: number;
     c: number;
   }>(
+    // Same cash gate as the account and party recomputes: an open due never
+    // moved money, so counting it here made this summary disagree with both the
+    // running balance below and the party's stored current_balance.
     `SELECT
       COALESCE(SUM(CASE WHEN type = 'credit' THEN amount ELSE 0 END), 0) as credit,
       COALESCE(SUM(CASE WHEN type = 'debit' THEN amount ELSE 0 END), 0) as debit,
       COUNT(*) as c
-     FROM transactions WHERE ${where}`,
+     FROM transactions WHERE ${where} AND ${CASH_PAID_SQL}`,
     ...bind,
   );
 
@@ -728,7 +738,14 @@ export async function fetchLocalVendorLedger(params: {
   const totalDebit = Number(sums?.debit ?? 0);
   const transactionCount = Number(sums?.c ?? 0);
 
-  // Oldest-first for running balance, then reverse for newest-first UI
+  // Balance including everything = where the newest row's running balance must
+  // end up. Deriving the window's starting point from it keeps the displayed
+  // trail correct even though we only load the newest page.
+  const closingBalance =
+    openingBalance + partyNetFromTotals(partyType, totalCredit, totalDebit);
+
+  // Newest-first so LIMIT keeps the RECENT activity. Ordering ascending took the
+  // OLDEST N rows, so the newest history silently dropped off the screen.
   const rows = await db.getAllAsync<{
     id: string;
     date: string;
@@ -741,15 +758,32 @@ export async function fetchLocalVendorLedger(params: {
   }>(
     `SELECT id, date, type, amount, description, payment_status, account_id, category_id
      FROM transactions WHERE ${where}
-     ORDER BY substr(date, 1, 10) ASC, created_at ASC, id ASC
+     ORDER BY substr(date, 1, 10) DESC, created_at DESC, id DESC
      LIMIT ?`,
     ...bind,
     limit,
   );
 
-  let running = 0;
+  const rowsAsc = [...rows].reverse();
+
+  // Walk the window forward from the balance as of just before its first row, so
+  // each row's running balance is absolute rather than relative to the window.
+  const windowNet = rowsAsc.reduce((acc, t) => {
+    const amt = Number(t.amount ?? 0);
+    return (
+      acc +
+      partySignedDelta(
+        partyType,
+        t.type === "credit" ? "credit" : "debit",
+        amt,
+        t.payment_status,
+      )
+    );
+  }, 0);
+  let running = closingBalance - windowNet;
+
   const timelineAsc = [];
-  for (const t of rows) {
+  for (const t of rowsAsc) {
     const amt = Number(t.amount ?? 0);
     // Pass the row's REAL status: partySignedDelta returns 0 for a due, so an
     // unpaid obligation no longer moves the party balance. This used to hardcode

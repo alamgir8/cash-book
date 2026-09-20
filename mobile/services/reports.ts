@@ -6,6 +6,7 @@ import { type Transaction, type TransactionFilters } from "./transactions";
 import { dalFetchTransactions } from "@/data/transactions";
 import { dalFetchAccountDetail } from "@/data/accounts";
 import { dalFetchPartyLedger } from "@/data/parties";
+import { ledgerDayOf } from "@/lib/local-first/ledger-order";
 
 /** Page size for PDF/export walks. Backend list allows up to 5000. */
 const EXPORT_PAGE_SIZE = 500;
@@ -425,16 +426,27 @@ const collectTransactions = async (
     startingBalances.set(accountId, starting);
   });
 
+  // Same rule as the on-screen ledger (lib/local-first/ledger-order.ts):
+  // order by CALENDAR DAY first, then by entry order, then by id.
+  //
+  // Comparing `dayjs(date)` compared full instants, so a legacy
+  // `2026-09-20T23:59:59.000Z` transfer sorted behind every plain same-day row —
+  // the PDF re-created the exact bug the ledger had. `idOf` is the final
+  // tie-breaker so equal timestamps keep a stable, repeatable order.
+  const idOf = (t: { _id?: string; id?: string }) => t._id ?? t.id ?? "";
   transactions.sort((a, b) => {
-    const left = dayjs(a.date).valueOf();
-    const right = dayjs(b.date).valueOf();
-    if (left === right) {
-      return (
-        dayjs(a.createdAt ?? a.date).valueOf() -
-        dayjs(b.createdAt ?? b.date).valueOf()
-      );
-    }
-    return left - right;
+    const leftDay = ledgerDayOf(a.date);
+    const rightDay = ledgerDayOf(b.date);
+    if (leftDay !== rightDay) return leftDay < rightDay ? -1 : 1;
+
+    const leftAt = String(a.createdAt ?? "");
+    const rightAt = String(b.createdAt ?? "");
+    if (leftAt !== rightAt) return leftAt < rightAt ? -1 : 1;
+
+    const leftId = idOf(a);
+    const rightId = idOf(b);
+    if (leftId === rightId) return 0;
+    return leftId < rightId ? -1 : 1;
   });
 
   const runningBalances = new Map<string, number>();
@@ -448,10 +460,17 @@ const collectTransactions = async (
       running = startingBalances.get(accountId) ?? 0;
     }
 
-    if (txn.type === "credit") {
-      running += Number(txn.amount ?? 0);
-    } else {
-      running -= Number(txn.amount ?? 0);
+    // Dues never moved cash, so they are snapshots: keep the balance flat.
+    // Without this the PDF's Balance column drifted from the app by the sum of
+    // every open due the account had — the exported document disagreed with the
+    // screen it was generated from.
+    const status = txn.payment_status ?? "paid";
+    if (status !== "due") {
+      if (txn.type === "credit") {
+        running += Number(txn.amount ?? 0);
+      } else {
+        running -= Number(txn.amount ?? 0);
+      }
     }
 
     txn.balance_after_transaction = running;

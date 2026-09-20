@@ -101,9 +101,12 @@ export async function listMovementsByProduct(
   const offset = Math.max(0, Number(opts?.offset ?? 0));
 
   const rows = await db.getAllAsync<LocalStockMovement>(
+    // `rowid` tie-breaker so LIMIT/OFFSET paging cannot duplicate or skip a row
+    // when two movements share a timestamp — which happens when one invoice
+    // writes several movements in the same millisecond.
     `SELECT * FROM inventory_movements
      WHERE product_id = ? AND deleted_at IS NULL
-     ORDER BY date DESC LIMIT ? OFFSET ?`,
+     ORDER BY date DESC, rowid DESC LIMIT ? OFFSET ?`,
     productId,
     limit,
     offset,

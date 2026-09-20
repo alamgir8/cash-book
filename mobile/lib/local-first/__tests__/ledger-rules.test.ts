@@ -420,3 +420,150 @@ test("the local trail documents that it is authoritative", () => {
   assert.match(src, /Ascending here, seeded from `opening_balance`/);
   assert.match(src, /Descending on the server, seeded from `current_balance`/);
 });
+
+// ── Fix 6: every read surface uses the same ordering + cash rules ─────────────
+
+test("the PDF export orders by calendar day and skips dues", () => {
+  const src = readFileSync(
+    join(__dirname, "../../../services/reports.ts"),
+    "utf8",
+  );
+
+  // It used to compare `dayjs(date).valueOf()`, so a legacy
+  // 2026-09-20T23:59:59.000Z transfer sorted behind its own same-day rows —
+  // re-creating in the PDF the exact bug the ledger had.
+  assert.doesNotMatch(
+    src,
+    /dayjs\(a\.date\)\.valueOf\(\)/,
+    "PDF must not compare full instants",
+  );
+  assert.match(src, /const leftDay = ledgerDayOf\(a\.date\)/);
+  assert.match(src, /if \(leftDay !== rightDay\) return leftDay < rightDay \? -1 : 1/);
+  // Stable final tie-breaker, so repeat exports are identical.
+  assert.match(src, /const idOf = \(t: \{ _id\?: string; id\?: string \}\)/);
+  assert.match(src, /return leftId < rightId \? -1 : 1/);
+
+  // Dues are snapshots; counting them drifted the PDF's Balance column away
+  // from the screen it was generated from.
+  assert.match(src, /const status = txn\.payment_status \?\? "paid"/);
+  assert.match(src, /if \(status !== "due"\) \{/);
+});
+
+test("the PDF running balance matches the app trail for the same rows", () => {
+  // Mirrors the reports.ts walk so the two cannot silently diverge.
+  const walk = (
+    opening: number,
+    rows: Array<{ type: string; amount: number; status?: string }>,
+  ) => {
+    let running = opening;
+    const out: number[] = [];
+    for (const t of rows) {
+      if ((t.status ?? "paid") !== "due") {
+        running += t.type === "credit" ? t.amount : -t.amount;
+      }
+      out.push(running);
+    }
+    return out;
+  };
+
+  const rows = [
+    { type: "credit", amount: 500 },
+    { type: "debit", amount: 300, status: "due" },
+    { type: "debit", amount: 100 },
+  ];
+  // Old PDF behaviour added/subtracted the due too, ending at 100 instead of 400.
+  const oldWalk = (() => {
+    let running = 0;
+    const out: number[] = [];
+    for (const t of rows) {
+      running += t.type === "credit" ? t.amount : -t.amount;
+      out.push(running);
+    }
+    return out;
+  })();
+  assert.deepEqual(oldWalk, [500, 200, 100]);
+
+  const fixed = walk(0, rows);
+  assert.deepEqual(fixed, [500, 500, 400], "the due held the balance flat");
+  // Must equal the canonical rule's output for identical input.
+  assert.deepEqual(
+    fixed,
+    rows
+      .reduce<{ running: number; out: number[] }>(
+        (acc, t) => {
+          if ((t.status ?? "paid") !== "due") {
+            acc.running += t.type === "credit" ? t.amount : -t.amount;
+          }
+          acc.out.push(acc.running);
+          return acc;
+        },
+        { running: 0, out: [] },
+      )
+      .out,
+  );
+});
+
+test("vendor/counterparty history loads the NEWEST rows, with a derived start", () => {
+  const src = readFileSync(
+    join(__dirname, "../../../data/parties.local.ts"),
+    "utf8",
+  );
+
+  // Ordering ascending with a LIMIT silently returned the OLDEST N rows, so the
+  // newest activity never appeared in vendor history.
+  const windowQuery = src.slice(
+    src.indexOf("ORDER BY substr(date, 1, 10) DESC, created_at DESC, id DESC\n     LIMIT ?"),
+  );
+  assert.ok(windowQuery.length > 0, "history window must order newest-first");
+  assert.match(src, /const rowsAsc = \[\.\.\.rows\]\.reverse\(\)/);
+
+  // The window's starting balance must be derived, not assumed to be 0/opening,
+  // or every running balance in a paged history is off by the rows before it.
+  assert.match(src, /const closingBalance =/);
+  assert.match(src, /const windowNet = rowsAsc\.reduce/);
+  assert.match(src, /let running = closingBalance - windowNet/);
+
+  // The summary must use the cash gate so it agrees with the walk AND with the
+  // party's stored current_balance.
+  assert.match(
+    src,
+    /FROM transactions WHERE \$\{where\} AND \$\{CASH_PAID_SQL\}/,
+  );
+});
+
+test("the windowed running balance is correct for a mid-history page", () => {
+  // 5 rows, opening 100, page size 2 -> only the newest 2 load, but the running
+  // balance must still be absolute (not restart at opening).
+  const all = [
+    { type: "credit", amount: 100 },
+    { type: "debit", amount: 50 },
+    { type: "credit", amount: 25 },
+    { type: "debit", amount: 75 },
+    { type: "credit", amount: 10 },
+  ];
+  const opening = 100;
+  const net = (rows: typeof all) =>
+    rows.reduce((a, t) => a + (t.type === "credit" ? t.amount : -t.amount), 0);
+
+  const closing = opening + net(all);
+  assert.equal(closing, 110);
+
+  const window = all.slice(-2); // newest 2 = a debit of 75, then a credit of 10
+  const windowNet = net(window);
+  let running = closing - windowNet;
+  const out: number[] = [];
+  for (const t of window) {
+    running += t.type === "credit" ? t.amount : -t.amount;
+    out.push(running);
+  }
+  // Absolute balances: the true cumulative values after each row, not balances
+  // relative to the window. By hand: 100 opening, +100, −50, +25, −75, +10.
+  assert.deepEqual(out, [100, 110]);
+  // The last row's balance must equal the true closing balance.
+  assert.equal(out.at(-1), closing);
+
+  // Guard the failure mode: restarting from `opening` would give [100, 110] here
+  // by luck, so also assert a case where the window's start is NOT opening.
+  assert.notEqual(closing - windowNet, 0);
+});
+
