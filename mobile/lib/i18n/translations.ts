@@ -464,6 +464,7 @@ export type AppTranslations = {
   fullLedger: string;
   paymentHistory: string;
   allTransactionsWith: string;
+  loanHistoryBetweenParties: string;
   vendorLabel2: string;
   forLabel2: string;
   dueTransactionChain: string;
@@ -472,6 +473,7 @@ export type AppTranslations = {
   totalBorrowed: string;
   iRepaid: string;
   fullySettled: string;
+  totalPaidLabel: string;
   iOweThem: string;
   theyOweMe: string;
   iOweThem2: string;
@@ -1274,6 +1276,7 @@ const en: AppTranslations = {
   fullLedger: "Full Ledger",
   paymentHistory: "Payment History",
   allTransactionsWith: "All transactions with",
+  loanHistoryBetweenParties: "Loan history between these two parties",
   vendorLabel2: "Vendor:",
   forLabel2: "For:",
   dueTransactionChain: "Due transaction chain",
@@ -1282,6 +1285,7 @@ const en: AppTranslations = {
   totalBorrowed: "Total Borrowed",
   iRepaid: "I Repaid",
   fullySettled: "✅ Fully Settled",
+  totalPaidLabel: "Total paid",
   iOweThem: "⏳ I Owe Them",
   theyOweMe: "⏳ They Owe Me",
   iOweThem2: "I owe them:",
@@ -2096,6 +2100,7 @@ const bn: AppTranslations = {
   fullLedger: "সম্পূর্ণ লেজার",
   paymentHistory: "পেমেন্ট ইতিহাস",
   allTransactionsWith: "সাথে সকল লেনদেন",
+  loanHistoryBetweenParties: "এই দুই পক্ষের মধ্যে ঋণের ইতিহাস",
   vendorLabel2: "বিক্রেতা:",
   forLabel2: "জন্য:",
   dueTransactionChain: "বকেয়া লেনদেন চেইন",
@@ -2104,6 +2109,7 @@ const bn: AppTranslations = {
   totalBorrowed: "মোট ধার নিয়েছি",
   iRepaid: "আমি পরিশোধ করেছি",
   fullySettled: "✅ সম্পূর্ণ নিষ্পত্তি হয়েছে",
+  totalPaidLabel: "মোট পরিশোধ",
   iOweThem: "⏳ আমি তাদের কাছে বকেয়া",
   theyOweMe: "⏳ তারা আমার কাছে বকেয়া",
   iOweThem2: "আমি তাদের কাছে বকেয়া:",

@@ -72,40 +72,56 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
       : transaction.for_party
     : undefined;
 
-  // The "other" person in the loan — never query "self" alone or every loan
-  // involving the shop owner gets mixed into e.g. মসজিদ / রিপন ledgers.
+  const vendorName =
+    typeof transaction.party === "object"
+      ? transaction.party?.name?.trim()
+      : undefined;
+  const forName =
+    typeof transaction.for_party === "object"
+      ? transaction.for_party?.name?.trim()
+      : undefined;
+
+  // Pair-scoped history when both Vendor + For are set (matches card chips).
+  // Otherwise fall back to the "other" person only — never query "self" alone.
   // loan_out (given): borrower = for_party (fallback party)
   // loan_in (received): lender = party (fallback for_party)
-  const otherPartyId =
-    transaction.category?.type === "loan_out"
+  const hasPair = !!(partyId && forPartyId);
+  const otherPartyId = hasPair
+    ? undefined
+    : transaction.category?.type === "loan_out"
       ? forPartyId || partyId
       : partyId || forPartyId;
 
   const useCounterpartyMode =
-    !!(otherPartyId || transaction.counterparty) && isLoanCategory;
+    !!(hasPair || otherPartyId || transaction.counterparty) && isLoanCategory;
   const rawCp = transaction.counterparty?.trim() || "";
   const counterparty =
-    !otherPartyId && rawCp && rawCp.toLowerCase() !== "transfer" ? rawCp : "";
+    !hasPair &&
+    !otherPartyId &&
+    rawCp &&
+    rawCp.toLowerCase() !== "transfer"
+      ? rawCp
+      : "";
 
-  // Display name for the sheet header = the other party
-  const partyDisplayName =
-    transaction.category?.type === "loan_out"
-      ? ((typeof transaction.for_party === "object"
-          ? transaction.for_party?.name
-          : undefined) ??
-        (typeof transaction.party === "object"
-          ? transaction.party?.name
-          : undefined) ??
+  // Display: pair name when both sides exist, else the other party alone.
+  const partyDisplayName = hasPair
+    ? [vendorName, forName].filter(Boolean).join(" ↔ ") ||
+      vendorName ||
+      forName ||
+      ""
+    : transaction.category?.type === "loan_out"
+      ? (forName ??
+        vendorName ??
         counterparty ??
         "")
-      : ((typeof transaction.party === "object"
-          ? transaction.party?.name
-          : undefined) ??
-        (typeof transaction.for_party === "object"
-          ? transaction.for_party?.name
-          : undefined) ??
+      : (vendorName ??
+        forName ??
         counterparty ??
         "");
+
+  const ledgerScopeSubtitle = hasPair
+    ? t("loanHistoryBetweenParties")
+    : `${t("allTransactionsWith")} ${partyDisplayName}`;
 
   // PDF export state
   const [exportingPdf, setExportingPdf] = React.useState(false);
@@ -157,7 +173,9 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
       if (useCounterpartyMode && ledger) {
         const s = ledger.summary;
         title = `${partyDisplayName} — Full Ledger`;
-        subtitle = `${s.transaction_count} transactions (Me ↔ ${partyDisplayName})`;
+        subtitle = hasPair
+          ? `${s.transaction_count} loan transactions between these parties`
+          : `${s.transaction_count} transactions (Me ↔ ${partyDisplayName})`;
         metaRight = `${s.transaction_count} transactions`;
 
         if (s.total_borrowed > 0) {
@@ -199,13 +217,18 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
         }
 
         const netAbs = Math.abs(s.net_owed_by_me);
+        const paidTotal = s.total_repaid + s.total_received_back;
+        const settledVolume =
+          paidTotal > 0 ? paidTotal : s.total_borrowed + s.total_given;
         banner = {
           label: s.is_settled
-            ? "Fully Settled"
+            ? paidTotal > 0
+              ? "Fully Settled · Total paid"
+              : "Fully Settled"
             : s.net_owed_by_me > 0
               ? "I Owe Them"
               : "They Owe Me",
-          value: formatHistoryAmount(netAbs),
+          value: formatHistoryAmount(s.is_settled ? settledVolume : netAbs),
           tone: s.is_settled
             ? "credit"
             : s.net_owed_by_me > 0
@@ -378,17 +401,20 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
   const ledgerQuery = useQuery({
     queryKey: [
       "counterparty-ledger",
-      otherPartyId,
+      hasPair ? "pair" : "solo",
+      hasPair ? partyId : otherPartyId,
+      hasPair ? forPartyId : "",
       counterparty,
       organizationId ?? "personal",
       transaction.category?.type ?? "",
     ],
     queryFn: () =>
       fetchCounterpartyLedger({
-        // Single-party lookup for the other person only — pair+self was
-        // pulling unrelated loans (e.g. Ripon into মসজিদ ledger).
-        partyId: otherPartyId,
-        forPartyId: undefined,
+        // Pair (Vendor + For) when both exist — matches card loan chips and
+        // excludes third-party intermediary loans (e.g. Alamin↔Shahana must
+        // not appear inside Alamgir↔Shahana history).
+        partyId: hasPair ? partyId : otherPartyId,
+        forPartyId: hasPair ? forPartyId : undefined,
         counterparty: counterparty || undefined,
         organizationId,
       }),
@@ -447,7 +473,7 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
                 style={{ color: colors.text.tertiary }}
               >
                 {useCounterpartyMode
-                  ? `${t("allTransactionsWith")} ${partyDisplayName}`
+                  ? ledgerScopeSubtitle
                   : transaction.vendor
                     ? `${t("vendorLabel2")} ${transaction.vendor}`
                     : partyDisplayName
@@ -513,39 +539,63 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
               className="px-6 py-4"
               contentContainerStyle={{ gap: 12, paddingBottom: 24 }}
             >
-              {/* Summary cards */}
-              {ledger.summary.total_given > 0 && (
-                <View className="flex-row gap-3">
-                  <SummaryCard
-                    label={t("totalGiven")}
-                    value={formatAmount(ledger.summary.total_given)}
-                    color="#f59e0b"
-                    colors={colors}
-                  />
-                  <SummaryCard
-                    label={t("returnedToMe")}
-                    value={formatAmount(ledger.summary.total_received_back)}
-                    color="#0d9488"
-                    colors={colors}
-                  />
-                </View>
-              )}
-              {ledger.summary.total_borrowed > 0 && (
-                <View className="flex-row gap-3">
-                  <SummaryCard
-                    label={t("totalBorrowed")}
-                    value={formatAmount(ledger.summary.total_borrowed)}
-                    color="#3b82f6"
-                    colors={colors}
-                  />
-                  <SummaryCard
-                    label={t("iRepaid")}
-                    value={formatAmount(ledger.summary.total_repaid)}
-                    color="#16a34a"
-                    colors={colors}
-                  />
-                </View>
-              )}
+              {/* Summary cards — show whenever either side has volume */}
+              {ledger.summary.total_given > 0 ||
+              ledger.summary.total_received_back > 0 ? (
+                ledger.summary.total_given > 0 ? (
+                  <View className="flex-row gap-3">
+                    <SummaryCard
+                      label={t("totalGiven")}
+                      value={formatAmount(ledger.summary.total_given)}
+                      color="#f59e0b"
+                      colors={colors}
+                    />
+                    <SummaryCard
+                      label={t("returnedToMe")}
+                      value={formatAmount(ledger.summary.total_received_back)}
+                      color="#0d9488"
+                      colors={colors}
+                    />
+                  </View>
+                ) : (
+                  <View className="flex-row">
+                    <SummaryCard
+                      label={t("totalPaidLabel")}
+                      value={formatAmount(ledger.summary.total_received_back)}
+                      color="#0d9488"
+                      colors={colors}
+                    />
+                  </View>
+                )
+              ) : null}
+              {ledger.summary.total_borrowed > 0 ||
+              ledger.summary.total_repaid > 0 ? (
+                ledger.summary.total_borrowed > 0 ? (
+                  <View className="flex-row gap-3">
+                    <SummaryCard
+                      label={t("totalBorrowed")}
+                      value={formatAmount(ledger.summary.total_borrowed)}
+                      color="#3b82f6"
+                      colors={colors}
+                    />
+                    <SummaryCard
+                      label={t("iRepaid")}
+                      value={formatAmount(ledger.summary.total_repaid)}
+                      color="#16a34a"
+                      colors={colors}
+                    />
+                  </View>
+                ) : (
+                  <View className="flex-row">
+                    <SummaryCard
+                      label={t("totalPaidLabel")}
+                      value={formatAmount(ledger.summary.total_repaid)}
+                      color="#16a34a"
+                      colors={colors}
+                    />
+                  </View>
+                )
+              ) : null}
 
               {/* Outstanding / Settled */}
               <View
@@ -564,30 +614,56 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
                       : "#f59e0b40",
                 }}
               >
-                <View className="flex-row justify-between items-center">
-                  <Text
-                    className="text-sm font-semibold"
-                    style={{ color: colors.text.primary }}
-                  >
-                    {ledger.summary.is_settled
-                      ? t("fullySettled")
-                      : ledger.summary.net_owed_by_me > 0
-                        ? t("iOweThem")
-                        : t("theyOweMe")}
-                  </Text>
-                  <Text
-                    className="text-base font-bold"
-                    style={{
-                      color: ledger.summary.is_settled
-                        ? "#16a34a"
-                        : ledger.summary.net_owed_by_me > 0
-                          ? "#fb7185"
-                          : "#f59e0b",
-                    }}
-                  >
-                    {formatAmount(Math.abs(ledger.summary.net_owed_by_me))}
-                  </Text>
-                </View>
+                {(() => {
+                  const paidTotal =
+                    ledger.summary.total_repaid +
+                    ledger.summary.total_received_back;
+                  const volumeTotal =
+                    paidTotal > 0
+                      ? paidTotal
+                      : ledger.summary.total_borrowed +
+                        ledger.summary.total_given;
+                  return (
+                    <>
+                      <View className="flex-row justify-between items-center">
+                        <Text
+                          className="text-sm font-semibold"
+                          style={{ color: colors.text.primary }}
+                        >
+                          {ledger.summary.is_settled
+                            ? t("fullySettled")
+                            : ledger.summary.net_owed_by_me > 0
+                              ? t("iOweThem")
+                              : t("theyOweMe")}
+                        </Text>
+                        <Text
+                          className="text-base font-bold"
+                          style={{
+                            color: ledger.summary.is_settled
+                              ? "#16a34a"
+                              : ledger.summary.net_owed_by_me > 0
+                                ? "#fb7185"
+                                : "#f59e0b",
+                          }}
+                        >
+                          {ledger.summary.is_settled
+                            ? formatAmount(volumeTotal)
+                            : formatAmount(
+                                Math.abs(ledger.summary.net_owed_by_me),
+                              )}
+                        </Text>
+                      </View>
+                      {ledger.summary.is_settled && paidTotal > 0 ? (
+                        <Text
+                          className="text-xs mt-0.5"
+                          style={{ color: "#16a34a" }}
+                        >
+                          {t("totalPaidLabel")}
+                        </Text>
+                      ) : null}
+                    </>
+                  );
+                })()}
                 {ledger.summary.owed_by_them > 0 &&
                   ledger.summary.owed_by_me > 0 && (
                     <>

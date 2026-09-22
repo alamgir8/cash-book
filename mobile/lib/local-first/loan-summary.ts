@@ -374,14 +374,6 @@ export async function fetchLocalCounterpartyLedger(params: {
   const orParts: string[] = [];
   const bind: (string | number)[] = [...catIdList];
 
-  const pushPartyMatch = (id: string) => {
-    orParts.push(`party_id = ? OR party_id = ?`);
-    orParts.push(`for_party_id = ? OR for_party_id = ?`);
-    const server =
-      parties.find((p) => p.id === id)?.server_id || id;
-    bind.push(id, server, id, server);
-  };
-
   if (pid && fpid) {
     // Strict pair only (either direction)
     orParts.push(
@@ -392,9 +384,19 @@ export async function fetchLocalCounterpartyLedger(params: {
     const fServer = parties.find((p) => p.id === fpid)?.server_id || fpid;
     bind.push(pid, pServer, fpid, fServer, fpid, fServer, pid, pServer);
   } else if (pid) {
-    pushPartyMatch(pid);
+    // Solo vendor loans (no For) — match card chip semantics; do not mix
+    // in pair loans that only happen to mention this party as For.
+    const server = parties.find((p) => p.id === pid)?.server_id || pid;
+    orParts.push(
+      `((party_id = ? OR party_id = ?) AND (for_party_id IS NULL OR for_party_id = ''))`,
+    );
+    bind.push(pid, server);
   } else if (fpid) {
-    pushPartyMatch(fpid);
+    const server = parties.find((p) => p.id === fpid)?.server_id || fpid;
+    orParts.push(
+      `((for_party_id = ? OR for_party_id = ?) AND (party_id IS NULL OR party_id = ''))`,
+    );
+    bind.push(fpid, server);
   } else if (cp) {
     orParts.push(`(party_id IS NULL AND counterparty = ?)`);
     bind.push(cp);

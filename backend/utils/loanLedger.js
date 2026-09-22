@@ -309,21 +309,18 @@ export const getCounterpartyLoanLedger = async ({
     if (!mongoose.isValidObjectId(partyId)) {
       return { timeline: [], summary: emptyLoanSummary() };
     }
+    // Solo vendor loans (no For) — match card chip semantics.
     partyFilter = {
-      $or: [
-        { party: new mongoose.Types.ObjectId(partyId) },
-        { for_party: new mongoose.Types.ObjectId(partyId) },
-      ],
+      party: new mongoose.Types.ObjectId(partyId),
+      $or: [{ for_party: null }, { for_party: { $exists: false } }],
     };
   } else if (forPartyId) {
     if (!mongoose.isValidObjectId(forPartyId)) {
       return { timeline: [], summary: emptyLoanSummary() };
     }
     partyFilter = {
-      $or: [
-        { party: new mongoose.Types.ObjectId(forPartyId) },
-        { for_party: new mongoose.Types.ObjectId(forPartyId) },
-      ],
+      for_party: new mongoose.Types.ObjectId(forPartyId),
+      $or: [{ party: null }, { party: { $exists: false } }],
     };
   } else {
     const cp = normalizeCounterparty(counterparty);
