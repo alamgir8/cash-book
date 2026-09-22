@@ -135,9 +135,9 @@ test("isTransferLeg matches the SQL exclusion", () => {
   assert.equal(isTransferLeg({}), false);
 });
 
-// ── Fix 2: settled dues are visible under Paid ────────────────────────────────
+// ── Fix 2: Paid chip = settled dues only (was due, now paid) ─────────────────
 
-test("a settled due matches the Paid chip and not the Due chip", () => {
+test("Paid chip shows settled dues only — not default paid cash rows", () => {
   const db = openDb();
   insert(db, [
     // Open due: owes 300.
@@ -158,7 +158,7 @@ test("a settled due matches the Paid chip and not the Due chip", () => {
     { id: "normal", type: "credit", amount: 10, status: "paid" },
   ]);
 
-  // Old Paid chip: only explicit paid rows, so settled roots vanished.
+  // Old (wrong) Paid chip matched every cash paid row — indistinguishable from All.
   const oldPaid = db
     .prepare(
       `SELECT id FROM transactions
@@ -168,15 +168,15 @@ test("a settled due matches the Paid chip and not the Due chip", () => {
     .all()
     .map((r: any) => String(r.id));
   assert.deepEqual(oldPaid, ["child", "normal"]);
-  assert.ok(!oldPaid.includes("settled"), "the bug: settled due invisible under Paid");
 
   const newPaid = db
     .prepare(`SELECT id FROM transactions WHERE ${PAID_CHIP_SQL} ORDER BY id`)
     .all()
     .map((r: any) => String(r.id));
-  assert.ok(newPaid.includes("settled"));
-  assert.ok(newPaid.includes("legacy-settled"));
+  assert.deepEqual(newPaid, ["legacy-settled", "settled"]);
   assert.ok(!newPaid.includes("open"), "an OPEN due must not count as paid");
+  assert.ok(!newPaid.includes("normal"), "default paid cash must not match Paid chip");
+  assert.ok(!newPaid.includes("child"), "payment children are not settled roots");
 
   // The Due chip is unchanged: open roots only.
   const due = db
@@ -221,7 +221,7 @@ test("cash rules stay strict so a settled due is not counted twice", () => {
   const chip = db
     .prepare(`SELECT COUNT(*) AS n FROM transactions WHERE ${PAID_CHIP_SQL}`)
     .get() as { n: number };
-  assert.equal(chip.n, 2, "but both are shown under Paid");
+  assert.equal(chip.n, 1, "Paid chip shows the settled root only");
 
   db.close();
 });
@@ -238,8 +238,9 @@ test("isSettledDue / isPaidLike mirror the SQL", () => {
     isSettledDue({ payment_status: "due", parent_due_id: "p", due_remaining: 0 }),
     false,
   );
-  assert.equal(isPaidLike({ payment_status: "paid" }), true);
-  assert.equal(isPaidLike({}), true);
+  // Paid chip is settled-dues only — default cash paid does not match.
+  assert.equal(isPaidLike({ payment_status: "paid" }), false);
+  assert.equal(isPaidLike({}), false);
   assert.equal(isPaidLike({ payment_status: "due", due_remaining: 0 }), true);
   assert.equal(isPaidLike({ payment_status: "due", due_remaining: 9 }), false);
 });
@@ -324,19 +325,19 @@ test("the party ledger only moves the balance for paid rows", () => {
 });
 
 test("SETTLED_DUE_SQL is parenthesised so it composes safely", () => {
-  // It is embedded inside PAID_CHIP_SQL with OR, so a missing paren would leak
-  // the surrounding AND clauses into the OR branch.
+  // Paid chip IS the settled-due predicate — keep it fully parenthesised so it
+  // can sit inside larger AND/OR filter trees without leaking.
   assert.match(SETTLED_DUE_SQL.trim(), /^\(/);
   assert.match(SETTLED_DUE_SQL.trim(), /\)$/);
-  assert.match(PAID_CHIP_SQL, /OR \(/);
+  assert.equal(PAID_CHIP_SQL, SETTLED_DUE_SQL);
 });
 
 test("the cash rule and the chip rule are different, and must stay different", () => {
   // These two are easy to confuse and catastrophically different: swapping them
-  // either double-counts a settled due in every balance, or hides it from the
-  // Paid chip. Pin the difference explicitly.
+  // either double-counts a settled due in every balance, or shows every cash
+  // paid row under Paid. Pin the difference explicitly.
   assert.notEqual(CASH_PAID_SQL, PAID_CHIP_SQL);
-  assert.doesNotMatch(CASH_PAID_SQL, /SETTLED_DUE_SQL|due_settled_at|due_remaining/);
+  assert.doesNotMatch(CASH_PAID_SQL, /due_settled_at|due_remaining/);
   assert.match(PAID_CHIP_SQL, /due_settled_at/);
 
   // A settled due is shown by the chip but excluded from cash.

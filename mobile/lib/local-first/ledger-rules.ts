@@ -46,10 +46,8 @@ export const isTransferLeg = (row: TransferLegLike): boolean =>
  * `repair-ledger.ts`): the status records how the row was created, while
  * `due_remaining`/`due_settled_at` record whether it is still outstanding.
  *
- * The consequence was that a settled due matched neither status chip — the Due
- * chip requires `remaining > 0`, and the Paid chip required
- * `payment_status = 'paid'`. It became reachable only under All. Treating it as
- * paid is the semantically correct reading, since the money has moved.
+ * The Paid chip means "was due, now settled" — not every cash row that ships
+ * with `payment_status = 'paid'` by default. Only these roots belong there.
  */
 export const SETTLED_DUE_SQL = `(
           payment_status = 'due'
@@ -60,15 +58,22 @@ export const SETTLED_DUE_SQL = `(
           )
         )`;
 
-/** Rows that should count as paid on the Paid chip: explicit paid rows plus settled dues. */
-export const PAID_CHIP_SQL = `(payment_status = 'paid' OR payment_status IS NULL OR payment_status = '' OR ${SETTLED_DUE_SQL})`;
+/**
+ * Rows the Ledger **Paid** chip should list: fully settled dues only.
+ *
+ * Normal cash transactions default to `payment_status = 'paid'` and must NOT
+ * appear here — otherwise Paid is indistinguishable from All. Payment children
+ * (`parent_due_id` set) are also excluded; the settled root is the due that
+ * was marked paid (`due_settled_at`).
+ */
+export const PAID_CHIP_SQL = SETTLED_DUE_SQL;
 
 /**
  * Rows that actually moved cash.
  *
- * Deliberately stricter than {@link PAID_CHIP_SQL}: a settled due must NOT count
- * here. It stays `payment_status = 'due'` by design, and its cash already moved
- * through the paid child row — counting it again would double the amount.
+ * Deliberately different from {@link PAID_CHIP_SQL}: a settled due must NOT
+ * count here. It stays `payment_status = 'due'` by design, and its cash already
+ * moved through the paid child row — counting it again would double the amount.
  *
  * {@link PAID_CHIP_SQL} answers "which rows should the Paid chip show"; this
  * answers "which rows moved money". Do not swap them.
@@ -90,9 +95,5 @@ export const isSettledDue = (row: DueLike): boolean => {
   return !(Number(remaining) > 0);
 };
 
-/** JS twin of {@link PAID_CHIP_SQL}. */
-export const isPaidLike = (row: DueLike): boolean => {
-  const status = row?.payment_status ?? "paid";
-  if (status === "paid" || status === "") return true;
-  return isSettledDue(row);
-};
+/** JS twin of {@link PAID_CHIP_SQL} — settled dues only. */
+export const isPaidLike = (row: DueLike): boolean => isSettledDue(row);

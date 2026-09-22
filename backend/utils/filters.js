@@ -153,14 +153,26 @@ export const buildTransactionFilters = ({
     if (status === "due") {
       filter.payment_status = "due";
     } else if (status === "paid") {
-      // Treat missing/null field as "paid" (legacy transactions have no payment_status).
-      // Use $and so we don't clobber the org-scope $or used for orphan inclusion.
+      // Paid chip = was-due, now settled. Roots keep payment_status='due' with
+      // due_settled_at set (or remaining <= 0). Do NOT match every cash row that
+      // defaults to payment_status='paid'.
       filter.$and = filter.$and ?? [];
       filter.$and.push({
-        $or: [
-          { payment_status: "paid" },
-          { payment_status: { $exists: false } },
-          { payment_status: null },
+        payment_status: "due",
+        $and: [
+          {
+            $or: [
+              { parent_due_id: { $exists: false } },
+              { parent_due_id: null },
+              { parent_due_id: "" },
+            ],
+          },
+          {
+            $or: [
+              { due_settled_at: { $exists: true, $nin: [null, ""] } },
+              { due_remaining: { $lte: 0 } },
+            ],
+          },
         ],
       });
     }

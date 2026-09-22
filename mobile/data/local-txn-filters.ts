@@ -142,8 +142,8 @@ export async function buildLocalTransactionFilterSql(
       );
     }
   } else if (filters.payment_status === "paid") {
-    // Settled dues count as paid: their money has moved, but they keep
-    // payment_status='due' by design, so without this they matched neither chip.
+    // Paid chip = was-due, now settled (due_settled_at / remaining 0).
+    // Not every default payment_status='paid' cash row.
     clauses.push(PAID_CHIP_SQL);
   }
 

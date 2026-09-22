@@ -295,6 +295,7 @@ export const filterTransactionsByActiveFilters = (
         // Match local SQL / cloud Due chip: open roots only.
         if ((txn.payment_status ?? "paid") !== "due") return false;
         if (txn.parent_due_id) return false;
+        if (txn.due_settled_at) return false;
         const remaining = txn.due_remaining ?? txn.amount ?? 0;
         if (!(Number(remaining) > 0)) return false;
         if (!filters.loan_filter && isLoanCategoryType(txn.category?.type)) {
@@ -302,7 +303,7 @@ export const filterTransactionsByActiveFilters = (
         }
         return true;
       }
-      // Paid chip accepts settled dues too — see isPaidLike.
+      // Paid chip = settled dues only (was due, now paid via due_settled_at).
       return isPaidLike(txn);
     });
   }
