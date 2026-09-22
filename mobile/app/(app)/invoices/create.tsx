@@ -210,9 +210,9 @@ export default function CreateInvoiceScreen() {
   );
 
   // ── Date picker handler ────────────────────────────────────────────────
-  const handleDateChange = (_: any, date?: Date) => {
-    setShowDatePicker(false);
+  const handleDateChange = (_event: unknown, date?: Date) => {
     if (!date) return;
+    setShowDatePicker(false);
     setValue(pickingField, dayjs(date).format("YYYY-MM-DD"), {
       shouldValidate: true,
     });
@@ -1267,7 +1267,8 @@ export default function CreateInvoiceScreen() {
           value={dateValueForPicker}
           mode="date"
           display={Platform.OS === "ios" ? "spinner" : "default"}
-          onChange={handleDateChange}
+          onValueChange={handleDateChange}
+          onDismiss={() => setShowDatePicker(false)}
         />
       )}
     </View>

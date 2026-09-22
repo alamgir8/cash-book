@@ -100,14 +100,13 @@ export const TransferModal = ({
     }
   }, [visible, reset]);
 
-  const handleDateChange = (event: any, date?: Date) => {
+  const handleDateChange = (_event: unknown, date?: Date) => {
+    if (!date) return;
     setShowDatePicker(false);
-    if (date) {
-      setSelectedDate(date);
-      setValue("date", dayjs(date).format("YYYY-MM-DD"), {
-        shouldValidate: true,
-      });
-    }
+    setSelectedDate(date);
+    setValue("date", dayjs(date).format("YYYY-MM-DD"), {
+      shouldValidate: true,
+    });
   };
 
   const handleFormSubmit = async (values: TransferFormValues) => {
@@ -413,7 +412,8 @@ export const TransferModal = ({
                           display={
                             Platform.OS === "ios" ? "compact" : "default"
                           }
-                          onChange={handleDateChange}
+                          onValueChange={handleDateChange}
+                          onDismiss={() => setShowDatePicker(false)}
                           maximumDate={new Date()}
                         />
                       )}

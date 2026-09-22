@@ -265,10 +265,12 @@ export const DuePaymentModal = ({
               value={date}
               mode="date"
               display={Platform.OS === "ios" ? "compact" : "default"}
-              onChange={(_, d) => {
+              onValueChange={(_event, d) => {
+                if (!d) return;
                 setShowDatePicker(false);
-                if (d) setDate(d);
+                setDate(d);
               }}
+              onDismiss={() => setShowDatePicker(false)}
             />
           ) : null}
         </View>

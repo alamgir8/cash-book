@@ -617,19 +617,18 @@ export const TransactionModal = ({
     }
   }, [categoryOptions, selectedCategoryId, selectedType, setValue]);
 
-  const handleDateChange = (event: any, date?: Date) => {
+  const handleDateChange = (_event: unknown, date?: Date) => {
+    if (!date) return;
     setShowDatePicker(false);
-    if (date) {
-      if (pickingDueDate) {
-        setValue("due_date", dayjs(date).format("YYYY-MM-DD"), {
-          shouldValidate: true,
-        });
-      } else {
-        setSelectedDate(date);
-        setValue("date", dayjs(date).format("YYYY-MM-DD"), {
-          shouldValidate: true,
-        });
-      }
+    if (pickingDueDate) {
+      setValue("due_date", dayjs(date).format("YYYY-MM-DD"), {
+        shouldValidate: true,
+      });
+    } else {
+      setSelectedDate(date);
+      setValue("date", dayjs(date).format("YYYY-MM-DD"), {
+        shouldValidate: true,
+      });
     }
     setPickingDueDate(false);
   };
@@ -1467,7 +1466,11 @@ export const TransactionModal = ({
                             display={
                               Platform.OS === "ios" ? "compact" : "default"
                             }
-                            onChange={handleDateChange}
+                            onValueChange={handleDateChange}
+                            onDismiss={() => {
+                              setShowDatePicker(false);
+                              setPickingDueDate(false);
+                            }}
                             maximumDate={
                               pickingDueDate ? undefined : new Date()
                             }

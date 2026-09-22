@@ -210,24 +210,22 @@ export const FilterBar = ({
     return date.toISOString().split("T")[0]; // YYYY-MM-DD format
   };
 
-  const handleStartDateChange = (event: any, selectedDate?: Date) => {
+  const handleStartDateChange = (_event: unknown, selectedDate?: Date) => {
+    if (!selectedDate) return;
     setShowStartDatePicker(false);
-    if (selectedDate) {
-      setFormFilters({
-        ...formFilters,
-        startDate: formatDate(selectedDate),
-      });
-    }
+    setFormFilters({
+      ...formFilters,
+      startDate: formatDate(selectedDate),
+    });
   };
 
-  const handleEndDateChange = (event: any, selectedDate?: Date) => {
+  const handleEndDateChange = (_event: unknown, selectedDate?: Date) => {
+    if (!selectedDate) return;
     setShowEndDatePicker(false);
-    if (selectedDate) {
-      setFormFilters({
-        ...formFilters,
-        endDate: formatDate(selectedDate),
-      });
-    }
+    setFormFilters({
+      ...formFilters,
+      endDate: formatDate(selectedDate),
+    });
   };
 
   const derivedHasActiveFilters =
@@ -629,7 +627,8 @@ export const FilterBar = ({
               value={startDate}
               mode="date"
               display={Platform.OS === "ios" ? "spinner" : "default"}
-              onChange={handleStartDateChange}
+              onValueChange={handleStartDateChange}
+              onDismiss={() => setShowStartDatePicker(false)}
             />
           )}
           {showEndDatePicker && (
@@ -637,7 +636,8 @@ export const FilterBar = ({
               value={endDate}
               mode="date"
               display={Platform.OS === "ios" ? "spinner" : "default"}
-              onChange={handleEndDateChange}
+              onValueChange={handleEndDateChange}
+              onDismiss={() => setShowEndDatePicker(false)}
             />
           )}
 
