@@ -11,7 +11,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/hooks/use-theme";
 
-export type ExportType = "pdf" | "by-category" | "by-counterparty";
+export type ExportType =
+  | "pdf"
+  | "by-account"
+  | "by-category"
+  | "by-counterparty"
+  | "by-for";
 
 type ExportOption = {
   type: ExportType;
@@ -19,7 +24,6 @@ type ExportOption = {
   title: string;
   subtitle: string;
   color: string;
-  bgColor: string;
 };
 
 type ExportOptionsModalProps = {
@@ -30,32 +34,47 @@ type ExportOptionsModalProps = {
   exportingType?: ExportType | null;
   accountName?: string;
   hasDateFilter?: boolean;
+  /** When true (Ledger / all accounts), show the By Account option. */
+  showByAccount?: boolean;
+  /** When true, show By For (beneficiary) alongside counterparty/vendor. */
+  showByFor?: boolean;
 };
 
-const EXPORT_OPTIONS: ExportOption[] = [
+const BASE_OPTIONS: ExportOption[] = [
   {
     type: "pdf",
     icon: "document-text-outline",
-    title: "Export All Transactions",
-    subtitle: "Full transaction list with running balance",
+    title: "All Transactions",
+    subtitle: "Full list with running balance",
+    color: "#22c55e",
+  },
+  {
+    type: "by-account",
+    icon: "wallet-outline",
+    title: "By Account",
+    subtitle: "Grouped by payment account with totals",
     color: "#3b82f6",
-    bgColor: "#eff6ff",
   },
   {
     type: "by-category",
     icon: "pricetags-outline",
-    title: "Export by Category",
-    subtitle: "Transactions grouped by category with totals",
+    title: "By Category",
+    subtitle: "Grouped by category with totals",
     color: "#8b5cf6",
-    bgColor: "#f5f3ff",
   },
   {
     type: "by-counterparty",
     icon: "people-outline",
-    title: "Export by Counterparty",
-    subtitle: "Transactions grouped by counterparty with totals",
+    title: "By Counterparty / Vendor",
+    subtitle: "Grouped by customer, supplier, or vendor",
     color: "#f59e0b",
-    bgColor: "#fffbeb",
+  },
+  {
+    type: "by-for",
+    icon: "person-outline",
+    title: "By For",
+    subtitle: "Grouped by beneficiary / for-whom",
+    color: "#14b8a6",
   },
 ];
 
@@ -67,14 +86,30 @@ export function ExportOptionsModal({
   exportingType,
   accountName,
   hasDateFilter,
+  showByAccount = false,
+  showByFor = false,
 }: ExportOptionsModalProps) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+
+  const options = BASE_OPTIONS.filter((option) => {
+    if (option.type === "by-account") return showByAccount;
+    if (option.type === "by-for") return showByFor;
+    return true;
+  });
 
   const handleExport = (type: ExportType) => {
     if (exporting) return;
     onExport(type);
   };
+
+  const scopeHint = accountName
+    ? hasDateFilter
+      ? "transactions matching your current date filters"
+      : "all transactions for this account"
+    : hasDateFilter
+      ? "transactions matching your current filters"
+      : "all matching transactions";
 
   return (
     <Modal
@@ -84,7 +119,6 @@ export function ExportOptionsModal({
       onRequestClose={onClose}
     >
       <View style={{ flex: 1 }}>
-        {/* Backdrop */}
         <Pressable
           style={{ flex: 1 }}
           onPress={() => {
@@ -93,7 +127,6 @@ export function ExportOptionsModal({
           }}
         />
 
-        {/* Sheet */}
         <View
           style={{
             backgroundColor: colors.bg.primary,
@@ -107,13 +140,7 @@ export function ExportOptionsModal({
             elevation: 20,
           }}
         >
-          {/* Handle */}
-          <View
-            style={{
-              alignItems: "center",
-              paddingVertical: 10,
-            }}
-          >
+          <View style={{ alignItems: "center", paddingVertical: 10 }}>
             <View
               style={{
                 width: 36,
@@ -124,7 +151,6 @@ export function ExportOptionsModal({
             />
           </View>
 
-          {/* Header */}
           <View
             style={{
               flexDirection: "row",
@@ -146,7 +172,7 @@ export function ExportOptionsModal({
               >
                 Export Options
               </Text>
-              {accountName && (
+              {accountName ? (
                 <Text
                   style={{
                     fontSize: 13,
@@ -157,7 +183,17 @@ export function ExportOptionsModal({
                   {accountName}
                   {hasDateFilter ? " · Filtered by date" : " · All time"}
                 </Text>
-              )}
+              ) : hasDateFilter ? (
+                <Text
+                  style={{
+                    fontSize: 13,
+                    color: colors.text.secondary,
+                    marginTop: 2,
+                  }}
+                >
+                  Using current Ledger filters
+                </Text>
+              ) : null}
             </View>
             <TouchableOpacity
               onPress={onClose}
@@ -174,9 +210,8 @@ export function ExportOptionsModal({
             </TouchableOpacity>
           </View>
 
-          {/* Export Options */}
           <View style={{ paddingHorizontal: 16, paddingTop: 12, gap: 8 }}>
-            {EXPORT_OPTIONS.map((option) => {
+            {options.map((option) => {
               const isCurrentExporting =
                 exporting && exportingType === option.type;
               const isDisabled = exporting && exportingType !== option.type;
@@ -198,13 +233,10 @@ export function ExportOptionsModal({
                     borderColor: isCurrentExporting
                       ? option.color
                       : colors.border,
-                    backgroundColor: isCurrentExporting
-                      ? colors.bg.secondary
-                      : colors.bg.secondary,
+                    backgroundColor: colors.bg.secondary,
                     opacity: isDisabled ? 0.45 : 1,
                   }}
                 >
-                  {/* Icon */}
                   <View
                     style={{
                       width: 44,
@@ -226,7 +258,6 @@ export function ExportOptionsModal({
                     )}
                   </View>
 
-                  {/* Text */}
                   <View style={{ flex: 1 }}>
                     <Text
                       style={{
@@ -252,7 +283,6 @@ export function ExportOptionsModal({
                     </Text>
                   </View>
 
-                  {/* Arrow */}
                   {!isCurrentExporting && (
                     <Ionicons
                       name="chevron-forward"
@@ -265,7 +295,6 @@ export function ExportOptionsModal({
             })}
           </View>
 
-          {/* Hint */}
           <View style={{ paddingHorizontal: 20, paddingTop: 14 }}>
             <Text
               style={{
@@ -275,10 +304,7 @@ export function ExportOptionsModal({
                 lineHeight: 16,
               }}
             >
-              Exports will include{" "}
-              {hasDateFilter
-                ? "transactions matching your current date filters"
-                : "all transactions for this account"}
+              Exports will include {scopeHint}
             </Text>
           </View>
         </View>

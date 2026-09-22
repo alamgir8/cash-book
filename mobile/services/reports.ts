@@ -1139,7 +1139,11 @@ const buildGroupedReportHtml = ({
             : "—";
           const accountLabel = txn.account?.name ?? "—";
           const categoryLabel = txn.category?.name ?? "Uncategorized";
-          const counterpartyLabel = txn.counterparty?.trim() || "—";
+          const counterpartyLabel =
+            txn.party?.name?.trim() ||
+            txn.counterparty?.trim() ||
+            txn.vendor?.trim() ||
+            "—";
           const typeBadgeClass =
             txn.type === "credit" ? "badge positive" : "badge negative";
           const amountClass =
@@ -1504,10 +1508,14 @@ export const exportTransactionsByCounterpartyPdf = async (
   const { transactions } = await collectTransactions(filters);
   const generatedAt = dayjs().format("MMM D, YYYY h:mm A");
 
-  // Group by counterparty
+  // Group by counterparty / vendor / party (legacy + migrated refs)
   const groupMap = new Map<string, Transaction[]>();
   transactions.forEach((txn) => {
-    const counterparty = txn.counterparty?.trim() || "No Counterparty";
+    const counterparty =
+      txn.party?.name?.trim() ||
+      txn.counterparty?.trim() ||
+      txn.vendor?.trim() ||
+      "No Counterparty";
     if (!groupMap.has(counterparty)) {
       groupMap.set(counterparty, []);
     }
@@ -1529,7 +1537,7 @@ export const exportTransactionsByCounterpartyPdf = async (
     grandTotals,
     generatedAt,
     currencySymbol,
-    groupByLabel: "Counterparty",
+    groupByLabel: "Counterparty / Vendor",
     totalTransactions: transactions.length,
     accountName,
     displayFilters: display,
@@ -1538,6 +1546,65 @@ export const exportTransactionsByCounterpartyPdf = async (
   const prefix = accountName
     ? `CashBook_${accountName.replace(/[^a-zA-Z0-9]/g, "_")}_By_Counterparty`
     : "CashBook_By_Counterparty";
+  const filename = generatePdfFilename(prefix);
+  return saveAndSharePdf(html, filename);
+};
+
+export const exportTransactionsByForPartyPdf = async (
+  rawFilters: RawFilters = {},
+): Promise<string> => {
+  const { filters, display } = parseFilters(rawFilters);
+
+  let accountName: string | undefined;
+  let currencySymbol: string | undefined;
+
+  if (filters.accountId) {
+    try {
+      const detail = await dalFetchAccountDetail(filters.accountId);
+      accountName = detail.account?.name;
+      currencySymbol = detail.account?.currency_symbol;
+      display.accountName = accountName ?? display.accountName;
+    } catch (error) {
+      console.warn("Failed to load account detail for report:", error);
+    }
+  }
+
+  const { transactions } = await collectTransactions(filters);
+  const generatedAt = dayjs().format("MMM D, YYYY h:mm A");
+
+  const groupMap = new Map<string, Transaction[]>();
+  transactions.forEach((txn) => {
+    const forLabel = txn.for_party?.name?.trim() || "No For";
+    if (!groupMap.has(forLabel)) {
+      groupMap.set(forLabel, []);
+    }
+    groupMap.get(forLabel)!.push(txn);
+  });
+
+  const groups: GroupedData[] = Array.from(groupMap.entries())
+    .map(([name, txns]) => ({
+      name,
+      transactions: txns,
+      totals: computeTotals(txns),
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  const grandTotals = computeTotals(transactions);
+
+  const html = buildGroupedReportHtml({
+    groups,
+    grandTotals,
+    generatedAt,
+    currencySymbol,
+    groupByLabel: "For",
+    totalTransactions: transactions.length,
+    accountName,
+    displayFilters: display,
+  });
+
+  const prefix = accountName
+    ? `CashBook_${accountName.replace(/[^a-zA-Z0-9]/g, "_")}_By_For`
+    : "CashBook_By_For";
   const filename = generatePdfFilename(prefix);
   return saveAndSharePdf(html, filename);
 };

@@ -9,6 +9,7 @@ import { LoanReturnModal } from "@/components/modals/loan-return-modal";
 import { DueChainSheet } from "@/components/modals/due-chain-sheet";
 import { VendorHistorySheet } from "@/components/modals/vendor-history-sheet";
 import { FilteredTransactionList } from "@/components/transactions/filtered-transaction-list";
+import { ExportOptionsModal } from "@/components/accounts/export-options-modal";
 import { useTheme } from "@/hooks/use-theme";
 import { useTransactionsScreen } from "@/hooks/use-transactions-screen";
 import { useTranslation } from "@/hooks/use-translation";
@@ -21,6 +22,8 @@ export default function TransactionsScreen() {
     accountId,
     filters,
     exporting,
+    exportingType,
+    exportModalVisible,
     allTransactions,
     hasMorePages,
     loadingMore,
@@ -54,6 +57,7 @@ export default function TransactionsScreen() {
     setViewingVendorHistoryFor,
     setViewingForHistoryFor,
     setViewingAttachmentsFor,
+    setExportModalVisible,
     handleEditTransaction,
     handleDeleteTransaction,
     handleAttachmentsPress,
@@ -68,6 +72,7 @@ export default function TransactionsScreen() {
     handleResetFilters,
     handleApplyFilters,
     handleLoadMore,
+    openExportModal,
     handleExport,
     handleTransactionSubmit,
     handleRefresh,
@@ -169,7 +174,7 @@ export default function TransactionsScreen() {
           canExportData
             ? {
                 label: exporting ? t("exporting") : t("exportPdf"),
-                onPress: handleExport,
+                onPress: openExportModal,
                 icon: "document-text",
                 color: "green",
               }
@@ -219,6 +224,23 @@ export default function TransactionsScreen() {
         transactionId={viewingAttachmentsFor?._id ?? ""}
         attachments={viewingAttachmentsFor?.attachments ?? []}
         canDelete={canEditTransactions}
+      />
+
+      <ExportOptionsModal
+        visible={exportModalVisible}
+        onClose={() => setExportModalVisible(false)}
+        onExport={handleExport}
+        exporting={exporting}
+        exportingType={exportingType}
+        showByAccount={!accountId}
+        showByFor
+        hasDateFilter={Boolean(
+          filters.from ||
+            filters.to ||
+            filters.startDate ||
+            filters.endDate ||
+            (filters.range && filters.range !== "all"),
+        )}
       />
 
       {payingDueTxn && (

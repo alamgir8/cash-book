@@ -11,7 +11,13 @@ import {
   dalDeleteTransaction,
   dalUpdateTransaction,
 } from "@/data/transactions";
-import { exportTransactionsPdf } from "@/services/reports";
+import {
+  exportTransactionsPdf,
+  exportTransactionsByAccountPdf,
+  exportTransactionsByCategoryPdf,
+  exportTransactionsByCounterpartyPdf,
+  exportTransactionsByForPartyPdf,
+} from "@/services/reports";
 import { refreshTransactionData } from "@/lib/refresh-app-data";
 import {
   FEED_PAGE_LIMIT,
@@ -20,6 +26,7 @@ import {
 import { useOrganization } from "@/hooks/use-organization";
 import { useDeleteMode } from "@/hooks/use-delete-mode";
 import type { TransactionFormValues } from "@/components/modals/types";
+import type { ExportType } from "@/components/accounts/export-options-modal";
 
 export function useTransactionsScreen() {
   const searchParams = useLocalSearchParams<{
@@ -41,6 +48,8 @@ export function useTransactionsScreen() {
   const canExportData = hasPermission("export_data");
 
   const [exporting, setExporting] = useState(false);
+  const [exportModalVisible, setExportModalVisible] = useState(false);
+  const [exportingType, setExportingType] = useState<ExportType | null>(null);
   const [isModalVisible, setModalVisible] = useState(false);
   const [editingTransaction, setEditingTransaction] =
     useState<Transaction | null>(null);
@@ -198,18 +207,65 @@ export function useTransactionsScreen() {
     setViewingForHistoryFor(transaction);
   }, []);
 
-  const handleExport = useCallback(async () => {
+  const openExportModal = useCallback(() => {
     if (exporting) return;
-    try {
-      setExporting(true);
-      await exportTransactionsPdf(filters);
-      Toast.show({ type: "success", text1: "PDF exported successfully" });
-    } catch {
-      Toast.show({ type: "error", text1: "Failed to export PDF" });
-    } finally {
-      setExporting(false);
-    }
-  }, [exporting, filters]);
+    setExportModalVisible(true);
+  }, [exporting]);
+
+  const handleExport = useCallback(
+    async (type: ExportType) => {
+      if (exporting) return;
+      try {
+        setExporting(true);
+        setExportingType(type);
+        const { page, limit, ...filtersWithoutPagination } = filters as Record<
+          string,
+          unknown
+        > & { page?: number; limit?: number };
+        const exportFilters = {
+          ...filtersWithoutPagination,
+          ...(accountId ? { accountId } : {}),
+        };
+
+        switch (type) {
+          case "pdf":
+            await exportTransactionsPdf(exportFilters);
+            Toast.show({ type: "success", text1: "All transactions exported" });
+            break;
+          case "by-account":
+            await exportTransactionsByAccountPdf(exportFilters);
+            Toast.show({ type: "success", text1: "Account-wise report exported" });
+            break;
+          case "by-category":
+            await exportTransactionsByCategoryPdf(exportFilters);
+            Toast.show({
+              type: "success",
+              text1: "Category-wise report exported",
+            });
+            break;
+          case "by-counterparty":
+            await exportTransactionsByCounterpartyPdf(exportFilters);
+            Toast.show({
+              type: "success",
+              text1: "Counterparty / vendor report exported",
+            });
+            break;
+          case "by-for":
+            await exportTransactionsByForPartyPdf(exportFilters);
+            Toast.show({ type: "success", text1: "For-wise report exported" });
+            break;
+        }
+
+        setExportModalVisible(false);
+      } catch {
+        Toast.show({ type: "error", text1: "Failed to export PDF" });
+      } finally {
+        setExporting(false);
+        setExportingType(null);
+      }
+    },
+    [exporting, filters, accountId],
+  );
 
   const handleTransactionSubmit = async (values: TransactionFormValues) => {
     if (!editingTransaction) return;
@@ -245,6 +301,8 @@ export function useTransactionsScreen() {
     accountId,
     filters,
     exporting,
+    exportingType,
+    exportModalVisible,
     allTransactions,
     hasMorePages,
     loadingMore,
@@ -296,9 +354,11 @@ export function useTransactionsScreen() {
     handleResetFilters,
     handleApplyFilters,
     handleLoadMore,
+    openExportModal,
     handleExport,
     handleTransactionSubmit,
     handleRefresh,
     closeModal,
+    setExportModalVisible,
   };
 }

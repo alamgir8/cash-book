@@ -30,6 +30,7 @@ import {
   exportTransactionsPdf,
   exportTransactionsByCategoryPdf,
   exportTransactionsByCounterpartyPdf,
+  exportTransactionsByForPartyPdf,
 } from "@/services/reports";
 import {
   dalDeleteTransaction,
@@ -245,6 +246,13 @@ export default function AccountDetailScreen() {
         case "by-counterparty":
           await exportTransactionsByCounterpartyPdf(exportFilters);
           break;
+        case "by-for":
+          await exportTransactionsByForPartyPdf(exportFilters);
+          break;
+        case "by-account":
+          // Single-account screen — fall through to flat export.
+          await exportTransactionsPdf(exportFilters);
+          break;
       }
 
       Toast.show({ type: "success", text1: t("pdfExported") });
@@ -436,6 +444,7 @@ export default function AccountDetailScreen() {
         exporting={exporting}
         exportingType={exportingType}
         accountName={account?.name}
+        showByFor
         hasDateFilter={Boolean(
           filters.from || filters.to || filters.startDate || filters.endDate,
         )}
