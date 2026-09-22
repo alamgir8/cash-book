@@ -35,6 +35,7 @@ import {
   type Transaction,
   type VendorLedger,
 } from "@/services/transactions";
+import { navigateToLedgerDay } from "@/lib/navigate-ledger-day";
 
 type Props = {
   visible: boolean;
@@ -55,6 +56,14 @@ export const VendorHistorySheet = ({
   const insets = useSafeAreaInsets();
   const organizationId = useActiveOrgId();
   const [exportingPdf, setExportingPdf] = React.useState(false);
+
+  const openDayOnLedger = React.useCallback(
+    (date: string) => {
+      if (!navigateToLedgerDay(date)) return;
+      onClose();
+    },
+    [onClose],
+  );
 
   const partyRefId = (ref: Transaction["party"] | Transaction["for_party"]) => {
     if (!ref) return undefined;
@@ -443,6 +452,7 @@ export const VendorHistorySheet = ({
                   showOweBalance={isLoanContext}
                   formatAmount={formatAmount}
                   colors={colors}
+                  onPress={() => openDayOnLedger(entry.date)}
                 />
               ))}
             </ScrollView>
@@ -523,6 +533,7 @@ type VendorLedgerRowProps = {
   showOweBalance?: boolean;
   formatAmount: (n: number) => string;
   colors: any;
+  onPress?: () => void;
 };
 
 /** Matches Loan Given / Payment History timeline cards. */
@@ -538,6 +549,7 @@ const VendorLedgerRow = ({
   showOweBalance = false,
   formatAmount,
   colors,
+  onPress,
 }: VendorLedgerRowProps) => {
   const isCredit = entryType === "credit";
   // Same accent language as loan given (teal/green in) + light rose out
@@ -582,7 +594,10 @@ const VendorLedgerRow = ({
         )}
       </View>
 
-      <View
+      <TouchableOpacity
+        activeOpacity={0.7}
+        onPress={onPress}
+        disabled={!onPress}
         className="flex-1 rounded-xl p-3 mb-2"
         style={{
           backgroundColor: colors.bg.secondary,
@@ -618,7 +633,7 @@ const VendorLedgerRow = ({
             style={{ color: colors.text.tertiary, flex: 1 }}
             numberOfLines={1}
           >
-            {`${dayjs(date).format("MMM DD, YYYY")}${accountName ? ` · ${accountName}` : ""}`}
+            {`${dayjs(date).format("MMM DD, YYYY")}${accountName ? ` · ${accountName}` : ""}${onPress ? " · Day" : ""}`}
           </Text>
           <Text
             className="text-xs font-medium"
@@ -628,7 +643,7 @@ const VendorLedgerRow = ({
             {`Balance: ${balLabel}`}
           </Text>
         </View>
-      </View>
+      </TouchableOpacity>
     </View>
   );
 };

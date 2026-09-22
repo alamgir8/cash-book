@@ -1,10 +1,10 @@
 /**
  * use-transactions-screen — Ledger tab business logic.
  */
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert } from "react-native";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import Toast from "react-native-toast-message";
 import { type Transaction } from "@/services/transactions";
 import {
@@ -27,6 +27,7 @@ import { useOrganization } from "@/hooks/use-organization";
 import { useDeleteMode } from "@/hooks/use-delete-mode";
 import type { TransactionFormValues } from "@/components/modals/types";
 import type { ExportType } from "@/components/accounts/export-options-modal";
+import { ledgerDayOf } from "@/lib/local-first/ledger-order";
 
 export function useTransactionsScreen() {
   const searchParams = useLocalSearchParams<{
@@ -34,11 +35,27 @@ export function useTransactionsScreen() {
     party_id?: string;
     for_party_id?: string;
     counterparty?: string;
+    startDate?: string;
+    endDate?: string;
   }>();
+  const router = useRouter();
   const accountId = searchParams?.accountId as string | undefined;
   const initialPartyId = searchParams?.party_id as string | undefined;
   const initialForPartyId = searchParams?.for_party_id as string | undefined;
   const initialCounterparty = searchParams?.counterparty as string | undefined;
+  const dayStartRaw = ledgerDayOf(
+    typeof searchParams?.startDate === "string"
+      ? searchParams.startDate
+      : undefined,
+  );
+  const dayEndRaw = ledgerDayOf(
+    typeof searchParams?.endDate === "string"
+      ? searchParams.endDate
+      : undefined,
+  );
+  const isDay = (d: string) => /^\d{4}-\d{2}-\d{2}$/.test(d);
+  const startDateParam = isDay(dayStartRaw) ? dayStartRaw : undefined;
+  const endDateParam = isDay(dayEndRaw) ? dayEndRaw : undefined;
   const queryClient = useQueryClient();
   const { hasPermission } = useOrganization();
   const { isDeleteModeActive } = useDeleteMode();
@@ -114,6 +131,30 @@ export function useTransactionsScreen() {
     bookTransactionCount,
     ledgerTotals,
   } = feed;
+
+  // Deep-link from Loan/Vendor history: filter Ledger to that calendar day.
+  const appliedDayLinkRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!startDateParam && !endDateParam) {
+      appliedDayLinkRef.current = null;
+      return;
+    }
+    const day = startDateParam || endDateParam!;
+    const end = endDateParam || day;
+    const key = `${day}|${end}`;
+    if (appliedDayLinkRef.current === key) return;
+    appliedDayLinkRef.current = key;
+    handleFilterChange({
+      startDate: day,
+      endDate: end,
+      range: undefined,
+      from: undefined,
+      to: undefined,
+      page: 1,
+    });
+    // Clear params so Reset Filters is not trapped by the URL.
+    router.setParams({ startDate: "", endDate: "" });
+  }, [startDateParam, endDateParam, handleFilterChange, router]);
 
   const updateMutation = useMutation({
     mutationFn: dalUpdateTransaction,

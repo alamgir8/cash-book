@@ -32,6 +32,7 @@ import {
   fetchCounterpartyLedger,
   type Transaction,
 } from "@/services/transactions";
+import { navigateToLedgerDay } from "@/lib/navigate-ledger-day";
 
 type Props = {
   visible: boolean;
@@ -125,6 +126,14 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
 
   // PDF export state
   const [exportingPdf, setExportingPdf] = React.useState(false);
+
+  const openDayOnLedger = React.useCallback(
+    (date: string) => {
+      if (!navigateToLedgerDay(date)) return;
+      onClose();
+    },
+    [onClose],
+  );
 
   const handleExportPdf = async () => {
     setExportingPdf(true);
@@ -711,6 +720,7 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
                   formatAmount={formatAmount}
                   colors={colors}
                   t={t}
+                  onPress={() => openDayOnLedger(entry.date)}
                 />
               ))}
             </ScrollView>
@@ -817,6 +827,7 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
                 isFirst
                 formatAmount={formatAmount}
                 colors={colors}
+                onPress={() => openDayOnLedger(chain.root.date)}
               />
 
               {chain.payments.map((p, i) => (
@@ -840,6 +851,7 @@ export const DueChainSheet = ({ visible, onClose, transaction }: Props) => {
                   isLast={i === chain.payments.length - 1}
                   formatAmount={formatAmount}
                   colors={colors}
+                  onPress={() => openDayOnLedger(p.date)}
                 />
               ))}
 
@@ -918,6 +930,7 @@ type LedgerRowProps = {
   formatAmount: (n: number) => string;
   colors: any;
   t: (key: any) => string;
+  onPress?: () => void;
 };
 
 const LedgerRow = ({
@@ -930,6 +943,7 @@ const LedgerRow = ({
   formatAmount,
   colors,
   t,
+  onPress,
 }: LedgerRowProps) => {
   const cfg = ledgerEntryConfig[entryType] ?? ledgerEntryConfig.borrow;
   const labelMap: Record<LedgerEntryType, string> = {
@@ -961,7 +975,10 @@ const LedgerRow = ({
         )}
       </View>
 
-      <View
+      <TouchableOpacity
+        activeOpacity={0.7}
+        onPress={onPress}
+        disabled={!onPress}
         className="flex-1 rounded-xl p-3 mb-2"
         style={{
           backgroundColor: colors.bg.secondary,
@@ -987,9 +1004,13 @@ const LedgerRow = ({
             {description}
           </Text>
         )}
-        <View className="flex-row justify-between mt-1">
+        <View className="flex-row justify-between items-center mt-1">
           <Text className="text-xs" style={{ color: colors.text.tertiary }}>
             {dayjs(date).format("MMM DD, YYYY")}
+            {onPress ? "  ·  " : ""}
+            {onPress ? (
+              <Text style={{ color: colors.info }}>{t("viewDayLedger")}</Text>
+            ) : null}
           </Text>
           <Text
             className="text-xs font-medium"
@@ -1008,7 +1029,7 @@ const LedgerRow = ({
               : `${formatAmount(Math.abs(runningBalance))}${runningBalance < 0 ? ` ${t("youOwe")}` : ` ${t("theyOwe")}`}`}
           </Text>
         </View>
-      </View>
+      </TouchableOpacity>
     </View>
   );
 };
@@ -1027,6 +1048,7 @@ type RowProps = {
   isLast?: boolean;
   formatAmount: (n: number) => string;
   colors: any;
+  onPress?: () => void;
 };
 
 const TimelineRow = ({
@@ -1041,6 +1063,7 @@ const TimelineRow = ({
   isLast,
   formatAmount,
   colors,
+  onPress,
 }: RowProps) => (
   <View className="flex-row gap-3">
     <View className="items-center" style={{ width: 32 }}>
@@ -1063,7 +1086,10 @@ const TimelineRow = ({
       )}
     </View>
 
-    <View
+    <TouchableOpacity
+      activeOpacity={0.7}
+      onPress={onPress}
+      disabled={!onPress}
       className="flex-1 rounded-xl p-3 mb-2"
       style={{
         backgroundColor: colors.bg.secondary,
@@ -1094,7 +1120,7 @@ const TimelineRow = ({
           {sub}
         </Text>
       )}
-    </View>
+    </TouchableOpacity>
   </View>
 );
 

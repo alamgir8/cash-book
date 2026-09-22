@@ -465,6 +465,7 @@ export type AppTranslations = {
   paymentHistory: string;
   allTransactionsWith: string;
   loanHistoryBetweenParties: string;
+  viewDayLedger: string;
   vendorLabel2: string;
   forLabel2: string;
   dueTransactionChain: string;
@@ -1277,6 +1278,7 @@ const en: AppTranslations = {
   paymentHistory: "Payment History",
   allTransactionsWith: "All transactions with",
   loanHistoryBetweenParties: "Loan history between these two parties",
+  viewDayLedger: "View day",
   vendorLabel2: "Vendor:",
   forLabel2: "For:",
   dueTransactionChain: "Due transaction chain",
@@ -2101,6 +2103,7 @@ const bn: AppTranslations = {
   paymentHistory: "পেমেন্ট ইতিহাস",
   allTransactionsWith: "সাথে সকল লেনদেন",
   loanHistoryBetweenParties: "এই দুই পক্ষের মধ্যে ঋণের ইতিহাস",
+  viewDayLedger: "সেই দিন দেখুন",
   vendorLabel2: "বিক্রেতা:",
   forLabel2: "জন্য:",
   dueTransactionChain: "বকেয়া লেনদেন চেইন",
